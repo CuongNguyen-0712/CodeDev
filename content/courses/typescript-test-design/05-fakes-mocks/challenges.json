@@ -1,0 +1,4109 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_ttd_221",
+      "name": "fakes-stubs-mocks-quiz",
+      "type": "quiz",
+      "title": "Would this test notice the bug?",
+      "description": "Two EnrollmentService tests from the double-click incident: one built from vi.fn() mocks, one built on an in-memory fake that returns the objects it stores.",
+      "difficulty": "medium",
+      "outcomes": [
+        "test-doubles"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "EnrollmentService.enroll() calls repo.create() inside try { ... } catch, and maps DuplicateEnrollmentError to { ok: false, error: \"already_enrolled\" }. Its test (Vitest 3.x):\n\nconst repo = {\n  create: vi.fn().mockResolvedValue({ id: \"e1\", userId: \"u1\", courseId: \"ts-101\", status: \"active\", progress: 0, enrolledAt: \"2026-10-26T08:14:03.000Z\" }),\n  findById: vi.fn(), findByUser: vi.fn(), update: vi.fn(), delete: vi.fn(),\n};\nconst service = new EnrollmentService(repo, clock);\nconst first = await service.enroll(\"u1\", \"ts-101\");\nawait service.enroll(\"u1\", \"ts-101\");\nexpect(first.ok).toBe(true);\nexpect(repo.create).toHaveBeenCalledTimes(2);\n\nStatement: \"If someone deletes the catch block from enroll(), this test fails.\"",
+          "explanation": "False. mockResolvedValue makes create() succeed on every call, so the second enroll() never throws and the catch block never runs in this test. Delete it and both assertions still hold: first.ok is true and create was called twice. The test checks the wiring (a call happened) and an assumption written by the test author (create always succeeds), not the behaviour learners depend on (a double click returns already_enrolled). The misconception is that a test that mentions the double click covers it. With a fake that refuses a second (userId, courseId), the second enroll() reaches the catch block, and an assertion on its result fails when the block is removed.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A teammate's in-memory fake and a new service method:\n\nclass FakeEnrollmentRepository implements EnrollmentRepository {\n  private rows = new Map<string, Enrollment>();\n  async findById(id: string) { return this.rows.get(id) ?? null; }\n  // create, findByUser, update, delete ...\n}\n\nasync complete(id: string) {            // in EnrollmentService\n  const e = await this.repo.findById(id);\n  if (!e) return null;\n  e.progress = 100;\n  e.status = \"completed\";\n  return e;\n}\n\nThe test passes with the fake:\n\nawait service.complete(\"e1\");\nexpect((await repo.findById(\"e1\"))?.status).toBe(\"completed\");\n\nStatement: \"With PostgresEnrollmentRepository the same assertion would fail, because complete() never writes the change back with update().\"",
+          "explanation": "True. The fake's findById returns the very object stored in its Map, so changing e also changes the fake's stored row and the next read sees status completed. PostgreSQL returns a new object built from the row on every read; the service changed only its own copy and never called repo.update(id, { progress: 100, status: \"completed\" }), so the database still holds active. The misconception is that any in-memory fake behaves like the database. A fake must return copies (a contract test can check it: change a returned object and read it back), otherwise it hides exactly this kind of missing write.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_ttd_222",
+      "name": "fake-enrollment-repository",
+      "type": "mini_coding",
+      "title": "An in-memory fake that keeps the repository contract",
+      "description": "The EnrollmentService tests needed PostgreSQL and took nine minutes, and the vi.fn() mocks that replaced it hid a 500 on double clicks. Write FakeEnrollmentRepository, an in-memory class that implements the given EnrollmentRepository interface with the same contract as the real PostgreSQL repository, so the unchanged EnrollmentService can be tested against it. Contract: create(input) stores a copy with a new id \"e1\", \"e2\", ... from a counter that is never reused (not even after a delete) and returns a copy; a second row with the same (userId, courseId), whatever its status, is refused with throw new DuplicateEnrollmentError(userId, courseId), like the unique constraint enrollments_user_course_key. findById(id) returns a copy or null. findByUser(userId) returns copies of that user's rows ordered by enrolledAt, oldest first, rows with the same enrolledAt in creation order, or []. update(id, changes) applies status and/or progress (an empty object changes nothing) and returns a copy of the updated row, or null for an unknown id. delete(id) is idempotent: true when a row was removed, false when there was none, never an exception. A caller that changes a returned object, or the object it passed to create, must not change the stored row. The interface is synchronous here to keep the runner small (the real one returns Promises). Input (read by the runner): a JSON list of steps run against one service that uses your fake - enroll (with the instant the stub clock returns), progress, cancel, leave, dashboard, and tamper (a caller changes every object the repository returned, then reads the row again). Output: one line per step, as printed by the runner.",
+      "difficulty": "easy",
+      "outcomes": [
+        "test-doubles"
+      ],
+      "points": 20,
+      "hints": [
+        "PostgreSQL hands every caller a new object built from the row. What do you have to do at each point where a row enters or leaves your repository so that the fake behaves the same way?",
+        "Look at what the service does with each result: enroll() relies on an exception of one exact class (instanceof), dashboard() relies on the order of findByUser(), and the runner's enroll and tamper steps change the objects they receive. A Map keeps insertion order, and Array.prototype.sort is stable.",
+        "A similar fake for a different contract, a store of certificates: issue(userId, courseId) { const key = userId + \"|\" + courseId; if (this.certs.has(key)) throw new AlreadyIssuedError(key); const cert = { code: \"C\" + this.next++, userId, courseId }; this.certs.set(key, cert); return { ...cert }; } - the key enforces uniqueness, the counter never goes back, and the caller gets a copy."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Enroll, record progress, dashboard; a second enrollment in the same course is refused",
+          "input": [
+            {
+              "op": "enroll",
+              "user": "u1",
+              "course": "ts-101",
+              "at": "2026-10-01T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u1",
+              "course": "sql-joins",
+              "at": "2026-10-02T08:00:00.000Z"
+            },
+            {
+              "op": "progress",
+              "id": "e1",
+              "value": 40
+            },
+            {
+              "op": "enroll",
+              "user": "u1",
+              "course": "ts-101",
+              "at": "2026-10-03T08:00:00.000Z"
+            },
+            {
+              "op": "dashboard",
+              "user": "u1"
+            }
+          ],
+          "expected": "enroll u1 ts-101: e1 2026-10-01T08:00:00.000Z\nenroll u1 sql-joins: e2 2026-10-02T08:00:00.000Z\nprogress e1: e1 ts-101 40% active\nenroll u1 ts-101: already_enrolled\ndashboard u1: ts-101 40% active, sql-joins 0% active",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Dashboard is ordered by enrolledAt, oldest first, and leaves out cancelled enrollments",
+          "input": [
+            {
+              "op": "enroll",
+              "user": "u2",
+              "course": "react-hooks",
+              "at": "2026-10-05T09:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u2",
+              "course": "ts-101",
+              "at": "2026-09-20T09:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u2",
+              "course": "node-api",
+              "at": "2026-10-01T09:00:00.000Z"
+            },
+            {
+              "op": "cancel",
+              "id": "e3"
+            },
+            {
+              "op": "dashboard",
+              "user": "u2"
+            },
+            {
+              "op": "progress",
+              "id": "e2",
+              "value": 100
+            },
+            {
+              "op": "dashboard",
+              "user": "u2"
+            }
+          ],
+          "expected": "enroll u2 react-hooks: e1 2026-10-05T09:00:00.000Z\nenroll u2 ts-101: e2 2026-09-20T09:00:00.000Z\nenroll u2 node-api: e3 2026-10-01T09:00:00.000Z\ncancel e3: e3 node-api 0% cancelled\ndashboard u2: ts-101 0% active, react-hooks 0% active\nprogress e2: e2 ts-101 100% completed\ndashboard u2: ts-101 100% completed, react-hooks 0% active",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Callers that change returned objects do not change the stored rows",
+          "input": [
+            {
+              "op": "enroll",
+              "user": "u3",
+              "course": "ts-101",
+              "at": "2026-10-01T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u3",
+              "course": "git-basics",
+              "at": "2026-10-02T08:00:00.000Z"
+            },
+            {
+              "op": "dashboard",
+              "user": "u3"
+            },
+            {
+              "op": "progress",
+              "id": "e1",
+              "value": 30
+            },
+            {
+              "op": "tamper",
+              "id": "e1"
+            },
+            {
+              "op": "dashboard",
+              "user": "u3"
+            },
+            {
+              "op": "progress",
+              "id": "e2",
+              "value": 10
+            },
+            {
+              "op": "dashboard",
+              "user": "u3"
+            }
+          ],
+          "expected": "enroll u3 ts-101: e1 2026-10-01T08:00:00.000Z\nenroll u3 git-basics: e2 2026-10-02T08:00:00.000Z\ndashboard u3: ts-101 0% active, git-basics 0% active\nprogress e1: e1 ts-101 30% active\ntamper e1: e1 ts-101 30% active\ndashboard u3: ts-101 30% active, git-basics 0% active\nprogress e2: e2 git-basics 10% active\ndashboard u3: ts-101 30% active, git-basics 10% active",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Leave is idempotent; ids are never reused; leaving frees the course for a new enrollment",
+          "input": [
+            {
+              "op": "enroll",
+              "user": "u4",
+              "course": "ts-101",
+              "at": "2026-10-01T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u4",
+              "course": "sql-joins",
+              "at": "2026-10-01T09:00:00.000Z"
+            },
+            {
+              "op": "leave",
+              "id": "e1"
+            },
+            {
+              "op": "leave",
+              "id": "e1"
+            },
+            {
+              "op": "enroll",
+              "user": "u4",
+              "course": "node-api",
+              "at": "2026-10-02T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u4",
+              "course": "ts-101",
+              "at": "2026-10-03T08:00:00.000Z"
+            },
+            {
+              "op": "dashboard",
+              "user": "u4"
+            },
+            {
+              "op": "progress",
+              "id": "e2",
+              "value": 20
+            }
+          ],
+          "expected": "enroll u4 ts-101: e1 2026-10-01T08:00:00.000Z\nenroll u4 sql-joins: e2 2026-10-01T09:00:00.000Z\nleave e1: true\nleave e1: false\nenroll u4 node-api: e3 2026-10-02T08:00:00.000Z\nenroll u4 ts-101: e4 2026-10-03T08:00:00.000Z\ndashboard u4: sql-joins 0% active, node-api 0% active, ts-101 0% active\nprogress e2: e2 sql-joins 20% active",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "A cancelled enrollment still blocks the same course, like the unique constraint",
+          "input": [
+            {
+              "op": "enroll",
+              "user": "u5",
+              "course": "testing-ttd",
+              "at": "2026-10-01T08:00:00.000Z"
+            },
+            {
+              "op": "cancel",
+              "id": "e1"
+            },
+            {
+              "op": "enroll",
+              "user": "u5",
+              "course": "testing-ttd",
+              "at": "2026-10-02T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u6",
+              "course": "testing-ttd",
+              "at": "2026-10-02T08:00:00.000Z"
+            },
+            {
+              "op": "dashboard",
+              "user": "u5"
+            },
+            {
+              "op": "dashboard",
+              "user": "u6"
+            }
+          ],
+          "expected": "enroll u5 testing-ttd: e1 2026-10-01T08:00:00.000Z\ncancel e1: e1 testing-ttd 0% cancelled\nenroll u5 testing-ttd: already_enrolled\nenroll u6 testing-ttd: e2 2026-10-02T08:00:00.000Z\ndashboard u5: (empty)\ndashboard u6: testing-ttd 0% active",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Unknown ids and users: not found, false and empty, never an exception",
+          "input": [
+            {
+              "op": "progress",
+              "id": "e1",
+              "value": 50
+            },
+            {
+              "op": "cancel",
+              "id": "e42"
+            },
+            {
+              "op": "leave",
+              "id": "e7"
+            },
+            {
+              "op": "tamper",
+              "id": "e3"
+            },
+            {
+              "op": "dashboard",
+              "user": "nobody"
+            },
+            {
+              "op": "enroll",
+              "user": "u7",
+              "course": "ts-101",
+              "at": "2026-10-01T08:00:00.000Z"
+            },
+            {
+              "op": "progress",
+              "id": "e2",
+              "value": 50
+            },
+            {
+              "op": "dashboard",
+              "user": "u7"
+            }
+          ],
+          "expected": "progress e1: not found\ncancel e42: not found\nleave e7: false\ntamper e3: not found\ndashboard nobody: (empty)\nenroll u7 ts-101: e1 2026-10-01T08:00:00.000Z\nprogress e2: not found\ndashboard u7: ts-101 0% active",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Twelve enrollments at the same instant stay in creation order (e9 before e10)",
+          "input": [
+            {
+              "op": "enroll",
+              "user": "u8",
+              "course": "course-a",
+              "at": "2026-10-01T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u8",
+              "course": "course-b",
+              "at": "2026-10-01T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u8",
+              "course": "course-c",
+              "at": "2026-10-01T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u8",
+              "course": "course-d",
+              "at": "2026-10-01T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u8",
+              "course": "course-e",
+              "at": "2026-10-01T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u8",
+              "course": "course-f",
+              "at": "2026-10-01T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u8",
+              "course": "course-g",
+              "at": "2026-10-01T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u8",
+              "course": "course-h",
+              "at": "2026-10-01T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u8",
+              "course": "course-i",
+              "at": "2026-10-01T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u8",
+              "course": "course-j",
+              "at": "2026-10-01T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u8",
+              "course": "course-k",
+              "at": "2026-10-01T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u8",
+              "course": "course-l",
+              "at": "2026-10-01T00:00:00.000Z"
+            },
+            {
+              "op": "dashboard",
+              "user": "u8"
+            }
+          ],
+          "expected": "enroll u8 course-a: e1 2026-10-01T00:00:00.000Z\nenroll u8 course-b: e2 2026-10-01T00:00:00.000Z\nenroll u8 course-c: e3 2026-10-01T00:00:00.000Z\nenroll u8 course-d: e4 2026-10-01T00:00:00.000Z\nenroll u8 course-e: e5 2026-10-01T00:00:00.000Z\nenroll u8 course-f: e6 2026-10-01T00:00:00.000Z\nenroll u8 course-g: e7 2026-10-01T00:00:00.000Z\nenroll u8 course-h: e8 2026-10-01T00:00:00.000Z\nenroll u8 course-i: e9 2026-10-01T00:00:00.000Z\nenroll u8 course-j: e10 2026-10-01T00:00:00.000Z\nenroll u8 course-k: e11 2026-10-01T00:00:00.000Z\nenroll u8 course-l: e12 2026-10-01T00:00:00.000Z\ndashboard u8: course-a 0% active, course-b 0% active, course-c 0% active, course-d 0% active, course-e 0% active, course-f 0% active, course-g 0% active, course-h 0% active, course-i 0% active, course-j 0% active, course-k 0% active, course-l 0% active",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Large: 240 enrollments of 40 learners in random time order, double clicks, dashboards",
+          "input": [
+            {
+              "op": "enroll",
+              "user": "u22",
+              "course": "react-hooks",
+              "at": "2026-09-17T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u22",
+              "course": "react-hooks",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u24",
+              "course": "testing-ttd",
+              "at": "2026-09-17T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u24",
+              "course": "testing-ttd",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u39",
+              "course": "ts-101",
+              "at": "2026-09-05T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u39",
+              "course": "ts-101",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u17",
+              "course": "sql-joins",
+              "at": "2026-09-01T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u17",
+              "course": "sql-joins",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u36",
+              "course": "git-basics",
+              "at": "2026-09-09T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u36",
+              "course": "git-basics",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u35",
+              "course": "node-api",
+              "at": "2026-09-13T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u35",
+              "course": "node-api",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u1",
+              "course": "ts-101",
+              "at": "2026-09-09T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u1",
+              "course": "ts-101",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u27",
+              "course": "testing-ttd",
+              "at": "2026-09-09T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u27",
+              "course": "testing-ttd",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u6",
+              "course": "node-api",
+              "at": "2026-09-05T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u6",
+              "course": "node-api",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u23",
+              "course": "react-hooks",
+              "at": "2026-09-09T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u23",
+              "course": "react-hooks",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u29",
+              "course": "git-basics",
+              "at": "2026-09-05T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u29",
+              "course": "git-basics",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u7",
+              "course": "ts-101",
+              "at": "2026-09-09T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u7",
+              "course": "ts-101",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u22",
+              "course": "node-api",
+              "at": "2026-09-13T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u22",
+              "course": "node-api",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u9",
+              "course": "node-api",
+              "at": "2026-09-09T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u9",
+              "course": "node-api",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u2",
+              "course": "sql-joins",
+              "at": "2026-09-01T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u2",
+              "course": "sql-joins",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u18",
+              "course": "sql-joins",
+              "at": "2026-09-09T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u18",
+              "course": "sql-joins",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u35",
+              "course": "sql-joins",
+              "at": "2026-09-05T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u35",
+              "course": "sql-joins",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u8",
+              "course": "git-basics",
+              "at": "2026-09-05T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u8",
+              "course": "git-basics",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u30",
+              "course": "react-hooks",
+              "at": "2026-09-13T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u30",
+              "course": "react-hooks",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u11",
+              "course": "sql-joins",
+              "at": "2026-09-09T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u11",
+              "course": "sql-joins",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u15",
+              "course": "node-api",
+              "at": "2026-09-17T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u15",
+              "course": "node-api",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u2",
+              "course": "node-api",
+              "at": "2026-09-13T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u2",
+              "course": "node-api",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u28",
+              "course": "testing-ttd",
+              "at": "2026-09-09T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u28",
+              "course": "testing-ttd",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u3",
+              "course": "testing-ttd",
+              "at": "2026-09-05T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u3",
+              "course": "testing-ttd",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u39",
+              "course": "testing-ttd",
+              "at": "2026-09-01T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u39",
+              "course": "testing-ttd",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u37",
+              "course": "node-api",
+              "at": "2026-09-01T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u37",
+              "course": "node-api",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u16",
+              "course": "react-hooks",
+              "at": "2026-09-01T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u16",
+              "course": "react-hooks",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u25",
+              "course": "ts-101",
+              "at": "2026-09-17T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u25",
+              "course": "ts-101",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u38",
+              "course": "testing-ttd",
+              "at": "2026-09-13T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u38",
+              "course": "testing-ttd",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u34",
+              "course": "node-api",
+              "at": "2026-09-09T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u34",
+              "course": "node-api",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u16",
+              "course": "node-api",
+              "at": "2026-09-05T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u16",
+              "course": "node-api",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u38",
+              "course": "git-basics",
+              "at": "2026-09-17T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u38",
+              "course": "git-basics",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u19",
+              "course": "react-hooks",
+              "at": "2026-09-05T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u19",
+              "course": "react-hooks",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u39",
+              "course": "node-api",
+              "at": "2026-09-09T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u39",
+              "course": "node-api",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u31",
+              "course": "testing-ttd",
+              "at": "2026-09-01T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u31",
+              "course": "testing-ttd",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u17",
+              "course": "node-api",
+              "at": "2026-09-09T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u17",
+              "course": "node-api",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u26",
+              "course": "node-api",
+              "at": "2026-09-01T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u26",
+              "course": "node-api",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u9",
+              "course": "sql-joins",
+              "at": "2026-09-09T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u9",
+              "course": "sql-joins",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u40",
+              "course": "react-hooks",
+              "at": "2026-09-17T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u40",
+              "course": "react-hooks",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u25",
+              "course": "react-hooks",
+              "at": "2026-09-17T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u25",
+              "course": "react-hooks",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u39",
+              "course": "sql-joins",
+              "at": "2026-09-17T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u39",
+              "course": "sql-joins",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u31",
+              "course": "sql-joins",
+              "at": "2026-09-05T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u31",
+              "course": "sql-joins",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u9",
+              "course": "react-hooks",
+              "at": "2026-09-05T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u9",
+              "course": "react-hooks",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u34",
+              "course": "sql-joins",
+              "at": "2026-09-01T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u34",
+              "course": "sql-joins",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u10",
+              "course": "ts-101",
+              "at": "2026-09-01T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u10",
+              "course": "ts-101",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u1",
+              "course": "sql-joins",
+              "at": "2026-09-17T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u1",
+              "course": "sql-joins",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u34",
+              "course": "react-hooks",
+              "at": "2026-09-09T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u34",
+              "course": "react-hooks",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u7",
+              "course": "node-api",
+              "at": "2026-09-05T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u7",
+              "course": "node-api",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u14",
+              "course": "ts-101",
+              "at": "2026-09-13T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u14",
+              "course": "ts-101",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u25",
+              "course": "testing-ttd",
+              "at": "2026-09-05T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u25",
+              "course": "testing-ttd",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u34",
+              "course": "git-basics",
+              "at": "2026-09-17T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u34",
+              "course": "git-basics",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u9",
+              "course": "ts-101",
+              "at": "2026-09-09T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u9",
+              "course": "ts-101",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u16",
+              "course": "git-basics",
+              "at": "2026-09-13T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u16",
+              "course": "git-basics",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u37",
+              "course": "git-basics",
+              "at": "2026-09-01T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u37",
+              "course": "git-basics",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u3",
+              "course": "ts-101",
+              "at": "2026-09-13T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u3",
+              "course": "ts-101",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u24",
+              "course": "ts-101",
+              "at": "2026-09-13T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u24",
+              "course": "ts-101",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u6",
+              "course": "ts-101",
+              "at": "2026-09-17T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u6",
+              "course": "ts-101",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u30",
+              "course": "testing-ttd",
+              "at": "2026-09-17T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u30",
+              "course": "testing-ttd",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u17",
+              "course": "testing-ttd",
+              "at": "2026-09-13T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u17",
+              "course": "testing-ttd",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u29",
+              "course": "ts-101",
+              "at": "2026-09-17T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u29",
+              "course": "ts-101",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u12",
+              "course": "node-api",
+              "at": "2026-09-05T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u12",
+              "course": "node-api",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u3",
+              "course": "git-basics",
+              "at": "2026-09-13T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u3",
+              "course": "git-basics",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u21",
+              "course": "node-api",
+              "at": "2026-09-05T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u21",
+              "course": "node-api",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u11",
+              "course": "node-api",
+              "at": "2026-09-17T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u11",
+              "course": "node-api",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u12",
+              "course": "sql-joins",
+              "at": "2026-09-17T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u12",
+              "course": "sql-joins",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u20",
+              "course": "testing-ttd",
+              "at": "2026-09-05T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u20",
+              "course": "testing-ttd",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u21",
+              "course": "react-hooks",
+              "at": "2026-09-01T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u21",
+              "course": "react-hooks",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u2",
+              "course": "testing-ttd",
+              "at": "2026-09-05T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u2",
+              "course": "testing-ttd",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u25",
+              "course": "sql-joins",
+              "at": "2026-09-09T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u25",
+              "course": "sql-joins",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u24",
+              "course": "git-basics",
+              "at": "2026-09-17T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u24",
+              "course": "git-basics",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u4",
+              "course": "react-hooks",
+              "at": "2026-09-13T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u4",
+              "course": "react-hooks",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u6",
+              "course": "react-hooks",
+              "at": "2026-09-13T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u6",
+              "course": "react-hooks",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u1",
+              "course": "react-hooks",
+              "at": "2026-09-09T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u1",
+              "course": "react-hooks",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u6",
+              "course": "sql-joins",
+              "at": "2026-09-01T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u6",
+              "course": "sql-joins",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u30",
+              "course": "node-api",
+              "at": "2026-09-09T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u30",
+              "course": "node-api",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u20",
+              "course": "ts-101",
+              "at": "2026-09-01T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u20",
+              "course": "ts-101",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u21",
+              "course": "testing-ttd",
+              "at": "2026-09-01T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u21",
+              "course": "testing-ttd",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u33",
+              "course": "node-api",
+              "at": "2026-09-09T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u33",
+              "course": "node-api",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u24",
+              "course": "node-api",
+              "at": "2026-09-17T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u24",
+              "course": "node-api",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u23",
+              "course": "sql-joins",
+              "at": "2026-09-17T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u23",
+              "course": "sql-joins",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u1",
+              "course": "node-api",
+              "at": "2026-09-01T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u1",
+              "course": "node-api",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u14",
+              "course": "sql-joins",
+              "at": "2026-09-13T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u14",
+              "course": "sql-joins",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u11",
+              "course": "git-basics",
+              "at": "2026-09-13T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u11",
+              "course": "git-basics",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u26",
+              "course": "git-basics",
+              "at": "2026-09-01T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u26",
+              "course": "git-basics",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u27",
+              "course": "react-hooks",
+              "at": "2026-09-17T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u27",
+              "course": "react-hooks",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u19",
+              "course": "sql-joins",
+              "at": "2026-09-17T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u19",
+              "course": "sql-joins",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u27",
+              "course": "git-basics",
+              "at": "2026-09-17T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u27",
+              "course": "git-basics",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u18",
+              "course": "git-basics",
+              "at": "2026-09-17T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u18",
+              "course": "git-basics",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u13",
+              "course": "testing-ttd",
+              "at": "2026-09-01T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u13",
+              "course": "testing-ttd",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u5",
+              "course": "sql-joins",
+              "at": "2026-09-01T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u5",
+              "course": "sql-joins",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u14",
+              "course": "react-hooks",
+              "at": "2026-09-09T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u14",
+              "course": "react-hooks",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u28",
+              "course": "node-api",
+              "at": "2026-09-01T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u28",
+              "course": "node-api",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u8",
+              "course": "testing-ttd",
+              "at": "2026-09-01T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u8",
+              "course": "testing-ttd",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u3",
+              "course": "sql-joins",
+              "at": "2026-09-05T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u3",
+              "course": "sql-joins",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u22",
+              "course": "git-basics",
+              "at": "2026-09-13T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u22",
+              "course": "git-basics",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u38",
+              "course": "sql-joins",
+              "at": "2026-09-13T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u38",
+              "course": "sql-joins",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u1",
+              "course": "testing-ttd",
+              "at": "2026-09-05T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u1",
+              "course": "testing-ttd",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u6",
+              "course": "testing-ttd",
+              "at": "2026-09-17T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u6",
+              "course": "testing-ttd",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u3",
+              "course": "react-hooks",
+              "at": "2026-09-17T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u3",
+              "course": "react-hooks",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u29",
+              "course": "node-api",
+              "at": "2026-09-13T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u29",
+              "course": "node-api",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u8",
+              "course": "ts-101",
+              "at": "2026-09-01T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u8",
+              "course": "ts-101",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u32",
+              "course": "git-basics",
+              "at": "2026-09-01T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u32",
+              "course": "git-basics",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u10",
+              "course": "react-hooks",
+              "at": "2026-09-01T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u10",
+              "course": "react-hooks",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u9",
+              "course": "git-basics",
+              "at": "2026-09-05T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u9",
+              "course": "git-basics",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u23",
+              "course": "ts-101",
+              "at": "2026-09-13T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u23",
+              "course": "ts-101",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u28",
+              "course": "sql-joins",
+              "at": "2026-09-05T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u28",
+              "course": "sql-joins",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u5",
+              "course": "node-api",
+              "at": "2026-09-05T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u5",
+              "course": "node-api",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u26",
+              "course": "testing-ttd",
+              "at": "2026-09-17T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u26",
+              "course": "testing-ttd",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u34",
+              "course": "testing-ttd",
+              "at": "2026-09-13T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u34",
+              "course": "testing-ttd",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u22",
+              "course": "ts-101",
+              "at": "2026-09-05T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u22",
+              "course": "ts-101",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u7",
+              "course": "git-basics",
+              "at": "2026-09-09T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u7",
+              "course": "git-basics",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u19",
+              "course": "ts-101",
+              "at": "2026-09-17T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u19",
+              "course": "ts-101",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u1",
+              "course": "git-basics",
+              "at": "2026-09-01T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u1",
+              "course": "git-basics",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u16",
+              "course": "sql-joins",
+              "at": "2026-09-01T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u16",
+              "course": "sql-joins",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u39",
+              "course": "git-basics",
+              "at": "2026-09-09T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u39",
+              "course": "git-basics",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u7",
+              "course": "sql-joins",
+              "at": "2026-09-13T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u7",
+              "course": "sql-joins",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u14",
+              "course": "node-api",
+              "at": "2026-09-09T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u14",
+              "course": "node-api",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u24",
+              "course": "react-hooks",
+              "at": "2026-09-09T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u24",
+              "course": "react-hooks",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u15",
+              "course": "react-hooks",
+              "at": "2026-09-13T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u15",
+              "course": "react-hooks",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u40",
+              "course": "node-api",
+              "at": "2026-09-05T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u40",
+              "course": "node-api",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u38",
+              "course": "ts-101",
+              "at": "2026-09-13T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u38",
+              "course": "ts-101",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u13",
+              "course": "ts-101",
+              "at": "2026-09-09T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u13",
+              "course": "ts-101",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u19",
+              "course": "git-basics",
+              "at": "2026-09-05T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u19",
+              "course": "git-basics",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u36",
+              "course": "react-hooks",
+              "at": "2026-09-13T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u36",
+              "course": "react-hooks",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u2",
+              "course": "ts-101",
+              "at": "2026-09-01T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u2",
+              "course": "ts-101",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u32",
+              "course": "testing-ttd",
+              "at": "2026-09-01T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u32",
+              "course": "testing-ttd",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u32",
+              "course": "node-api",
+              "at": "2026-09-01T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u32",
+              "course": "node-api",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u37",
+              "course": "testing-ttd",
+              "at": "2026-09-13T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u37",
+              "course": "testing-ttd",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u35",
+              "course": "testing-ttd",
+              "at": "2026-09-01T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u35",
+              "course": "testing-ttd",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u9",
+              "course": "testing-ttd",
+              "at": "2026-09-09T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u9",
+              "course": "testing-ttd",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u10",
+              "course": "sql-joins",
+              "at": "2026-09-09T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u10",
+              "course": "sql-joins",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u36",
+              "course": "sql-joins",
+              "at": "2026-09-01T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u36",
+              "course": "sql-joins",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u17",
+              "course": "ts-101",
+              "at": "2026-09-13T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u17",
+              "course": "ts-101",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u26",
+              "course": "react-hooks",
+              "at": "2026-09-01T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u26",
+              "course": "react-hooks",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u16",
+              "course": "ts-101",
+              "at": "2026-09-13T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u16",
+              "course": "ts-101",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u40",
+              "course": "ts-101",
+              "at": "2026-09-09T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u40",
+              "course": "ts-101",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u12",
+              "course": "ts-101",
+              "at": "2026-09-13T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u12",
+              "course": "ts-101",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u2",
+              "course": "react-hooks",
+              "at": "2026-09-13T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u2",
+              "course": "react-hooks",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u31",
+              "course": "node-api",
+              "at": "2026-09-01T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u31",
+              "course": "node-api",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u5",
+              "course": "react-hooks",
+              "at": "2026-09-01T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u5",
+              "course": "react-hooks",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u7",
+              "course": "testing-ttd",
+              "at": "2026-09-17T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u7",
+              "course": "testing-ttd",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u5",
+              "course": "git-basics",
+              "at": "2026-09-13T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u5",
+              "course": "git-basics",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u4",
+              "course": "node-api",
+              "at": "2026-09-05T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u4",
+              "course": "node-api",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u18",
+              "course": "node-api",
+              "at": "2026-09-01T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u18",
+              "course": "node-api",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u16",
+              "course": "testing-ttd",
+              "at": "2026-09-13T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u16",
+              "course": "testing-ttd",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u6",
+              "course": "git-basics",
+              "at": "2026-09-09T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u6",
+              "course": "git-basics",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u39",
+              "course": "react-hooks",
+              "at": "2026-09-09T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u39",
+              "course": "react-hooks",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u40",
+              "course": "git-basics",
+              "at": "2026-09-13T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u40",
+              "course": "git-basics",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u27",
+              "course": "sql-joins",
+              "at": "2026-09-05T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u27",
+              "course": "sql-joins",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u18",
+              "course": "testing-ttd",
+              "at": "2026-09-17T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u18",
+              "course": "testing-ttd",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u19",
+              "course": "testing-ttd",
+              "at": "2026-09-13T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u19",
+              "course": "testing-ttd",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u13",
+              "course": "node-api",
+              "at": "2026-09-05T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u13",
+              "course": "node-api",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u2",
+              "course": "git-basics",
+              "at": "2026-09-13T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u2",
+              "course": "git-basics",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u32",
+              "course": "react-hooks",
+              "at": "2026-09-01T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u32",
+              "course": "react-hooks",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u33",
+              "course": "testing-ttd",
+              "at": "2026-09-01T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u33",
+              "course": "testing-ttd",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u31",
+              "course": "ts-101",
+              "at": "2026-09-13T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u31",
+              "course": "ts-101",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u15",
+              "course": "git-basics",
+              "at": "2026-09-01T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u15",
+              "course": "git-basics",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u35",
+              "course": "git-basics",
+              "at": "2026-09-05T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u35",
+              "course": "git-basics",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u32",
+              "course": "sql-joins",
+              "at": "2026-09-01T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u32",
+              "course": "sql-joins",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u5",
+              "course": "ts-101",
+              "at": "2026-09-01T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u5",
+              "course": "ts-101",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u12",
+              "course": "react-hooks",
+              "at": "2026-09-09T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u12",
+              "course": "react-hooks",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u26",
+              "course": "ts-101",
+              "at": "2026-09-17T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u26",
+              "course": "ts-101",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u29",
+              "course": "testing-ttd",
+              "at": "2026-09-05T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u29",
+              "course": "testing-ttd",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u13",
+              "course": "sql-joins",
+              "at": "2026-09-17T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u13",
+              "course": "sql-joins",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u14",
+              "course": "testing-ttd",
+              "at": "2026-09-17T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u14",
+              "course": "testing-ttd",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u33",
+              "course": "react-hooks",
+              "at": "2026-09-13T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u33",
+              "course": "react-hooks",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u7",
+              "course": "react-hooks",
+              "at": "2026-09-01T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u7",
+              "course": "react-hooks",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u27",
+              "course": "node-api",
+              "at": "2026-09-17T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u27",
+              "course": "node-api",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u12",
+              "course": "git-basics",
+              "at": "2026-09-01T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u12",
+              "course": "git-basics",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u30",
+              "course": "ts-101",
+              "at": "2026-09-17T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u30",
+              "course": "ts-101",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u28",
+              "course": "git-basics",
+              "at": "2026-09-05T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u28",
+              "course": "git-basics",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u20",
+              "course": "git-basics",
+              "at": "2026-09-17T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u20",
+              "course": "git-basics",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u13",
+              "course": "react-hooks",
+              "at": "2026-09-01T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u13",
+              "course": "react-hooks",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u25",
+              "course": "node-api",
+              "at": "2026-09-01T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u25",
+              "course": "node-api",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u15",
+              "course": "ts-101",
+              "at": "2026-09-05T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u15",
+              "course": "ts-101",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u35",
+              "course": "react-hooks",
+              "at": "2026-09-05T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u35",
+              "course": "react-hooks",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u3",
+              "course": "node-api",
+              "at": "2026-09-01T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u3",
+              "course": "node-api",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u14",
+              "course": "git-basics",
+              "at": "2026-09-09T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u14",
+              "course": "git-basics",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u32",
+              "course": "ts-101",
+              "at": "2026-09-09T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u32",
+              "course": "ts-101",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u10",
+              "course": "git-basics",
+              "at": "2026-09-01T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u10",
+              "course": "git-basics",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u5",
+              "course": "testing-ttd",
+              "at": "2026-09-05T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u5",
+              "course": "testing-ttd",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u4",
+              "course": "git-basics",
+              "at": "2026-09-01T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u4",
+              "course": "git-basics",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u10",
+              "course": "node-api",
+              "at": "2026-09-09T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u10",
+              "course": "node-api",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u33",
+              "course": "sql-joins",
+              "at": "2026-09-05T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u33",
+              "course": "sql-joins",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u18",
+              "course": "ts-101",
+              "at": "2026-09-05T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u18",
+              "course": "ts-101",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u20",
+              "course": "react-hooks",
+              "at": "2026-09-09T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u20",
+              "course": "react-hooks",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u11",
+              "course": "react-hooks",
+              "at": "2026-09-09T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u11",
+              "course": "react-hooks",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u11",
+              "course": "ts-101",
+              "at": "2026-09-17T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u11",
+              "course": "ts-101",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u20",
+              "course": "sql-joins",
+              "at": "2026-09-05T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u20",
+              "course": "sql-joins",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u29",
+              "course": "react-hooks",
+              "at": "2026-09-13T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u29",
+              "course": "react-hooks",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u37",
+              "course": "sql-joins",
+              "at": "2026-09-17T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u37",
+              "course": "sql-joins",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u20",
+              "course": "node-api",
+              "at": "2026-09-13T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u20",
+              "course": "node-api",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u21",
+              "course": "ts-101",
+              "at": "2026-09-13T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u21",
+              "course": "ts-101",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u34",
+              "course": "ts-101",
+              "at": "2026-09-18T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u34",
+              "course": "ts-101",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u37",
+              "course": "ts-101",
+              "at": "2026-09-05T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u37",
+              "course": "ts-101",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u26",
+              "course": "sql-joins",
+              "at": "2026-09-05T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u26",
+              "course": "sql-joins",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u38",
+              "course": "react-hooks",
+              "at": "2026-09-17T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u38",
+              "course": "react-hooks",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u37",
+              "course": "react-hooks",
+              "at": "2026-09-01T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u37",
+              "course": "react-hooks",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u36",
+              "course": "testing-ttd",
+              "at": "2026-09-17T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u36",
+              "course": "testing-ttd",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u13",
+              "course": "git-basics",
+              "at": "2026-09-01T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u13",
+              "course": "git-basics",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u12",
+              "course": "testing-ttd",
+              "at": "2026-09-09T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u12",
+              "course": "testing-ttd",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u11",
+              "course": "testing-ttd",
+              "at": "2026-09-13T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u11",
+              "course": "testing-ttd",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u27",
+              "course": "ts-101",
+              "at": "2026-09-01T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u27",
+              "course": "ts-101",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u29",
+              "course": "sql-joins",
+              "at": "2026-09-13T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u29",
+              "course": "sql-joins",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u22",
+              "course": "testing-ttd",
+              "at": "2026-09-09T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u22",
+              "course": "testing-ttd",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u21",
+              "course": "git-basics",
+              "at": "2026-09-09T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u21",
+              "course": "git-basics",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u31",
+              "course": "react-hooks",
+              "at": "2026-09-13T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u31",
+              "course": "react-hooks",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u10",
+              "course": "testing-ttd",
+              "at": "2026-09-01T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u10",
+              "course": "testing-ttd",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u4",
+              "course": "ts-101",
+              "at": "2026-09-01T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u4",
+              "course": "ts-101",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u36",
+              "course": "ts-101",
+              "at": "2026-09-13T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u36",
+              "course": "ts-101",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u40",
+              "course": "sql-joins",
+              "at": "2026-09-13T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u40",
+              "course": "sql-joins",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u30",
+              "course": "sql-joins",
+              "at": "2026-09-05T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u30",
+              "course": "sql-joins",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u4",
+              "course": "sql-joins",
+              "at": "2026-09-17T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u4",
+              "course": "sql-joins",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u23",
+              "course": "testing-ttd",
+              "at": "2026-09-05T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u23",
+              "course": "testing-ttd",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u23",
+              "course": "node-api",
+              "at": "2026-09-13T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u23",
+              "course": "node-api",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u8",
+              "course": "sql-joins",
+              "at": "2026-09-01T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u8",
+              "course": "sql-joins",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u4",
+              "course": "testing-ttd",
+              "at": "2026-09-17T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u4",
+              "course": "testing-ttd",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u33",
+              "course": "git-basics",
+              "at": "2026-09-09T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u33",
+              "course": "git-basics",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u28",
+              "course": "react-hooks",
+              "at": "2026-09-13T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u28",
+              "course": "react-hooks",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u21",
+              "course": "sql-joins",
+              "at": "2026-09-17T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u21",
+              "course": "sql-joins",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u35",
+              "course": "ts-101",
+              "at": "2026-09-01T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u35",
+              "course": "ts-101",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u15",
+              "course": "sql-joins",
+              "at": "2026-09-01T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u15",
+              "course": "sql-joins",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u38",
+              "course": "node-api",
+              "at": "2026-09-17T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u38",
+              "course": "node-api",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u30",
+              "course": "git-basics",
+              "at": "2026-09-05T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u30",
+              "course": "git-basics",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u8",
+              "course": "react-hooks",
+              "at": "2026-09-09T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u8",
+              "course": "react-hooks",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u19",
+              "course": "node-api",
+              "at": "2026-09-13T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u19",
+              "course": "node-api",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u36",
+              "course": "node-api",
+              "at": "2026-09-01T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u36",
+              "course": "node-api",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u17",
+              "course": "react-hooks",
+              "at": "2026-09-01T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u17",
+              "course": "react-hooks",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u28",
+              "course": "ts-101",
+              "at": "2026-09-17T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u28",
+              "course": "ts-101",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u33",
+              "course": "ts-101",
+              "at": "2026-09-01T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u33",
+              "course": "ts-101",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u17",
+              "course": "git-basics",
+              "at": "2026-09-09T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u17",
+              "course": "git-basics",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u15",
+              "course": "testing-ttd",
+              "at": "2026-09-05T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u15",
+              "course": "testing-ttd",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u8",
+              "course": "node-api",
+              "at": "2026-09-05T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u8",
+              "course": "node-api",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u31",
+              "course": "git-basics",
+              "at": "2026-09-13T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u31",
+              "course": "git-basics",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u23",
+              "course": "git-basics",
+              "at": "2026-09-05T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u23",
+              "course": "git-basics",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u22",
+              "course": "sql-joins",
+              "at": "2026-09-05T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u22",
+              "course": "sql-joins",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u18",
+              "course": "react-hooks",
+              "at": "2026-09-05T16:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u18",
+              "course": "react-hooks",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u25",
+              "course": "git-basics",
+              "at": "2026-09-09T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u25",
+              "course": "git-basics",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u24",
+              "course": "sql-joins",
+              "at": "2026-09-01T08:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u24",
+              "course": "sql-joins",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u40",
+              "course": "testing-ttd",
+              "at": "2026-09-01T00:00:00.000Z"
+            },
+            {
+              "op": "enroll",
+              "user": "u40",
+              "course": "testing-ttd",
+              "at": "2026-09-25T00:00:00.000Z"
+            },
+            {
+              "op": "progress",
+              "id": "e1",
+              "value": 14
+            },
+            {
+              "op": "progress",
+              "id": "e4",
+              "value": 58
+            },
+            {
+              "op": "progress",
+              "id": "e7",
+              "value": 80
+            },
+            {
+              "op": "progress",
+              "id": "e10",
+              "value": 43
+            },
+            {
+              "op": "progress",
+              "id": "e13",
+              "value": 20
+            },
+            {
+              "op": "progress",
+              "id": "e16",
+              "value": 12
+            },
+            {
+              "op": "progress",
+              "id": "e19",
+              "value": 94
+            },
+            {
+              "op": "progress",
+              "id": "e22",
+              "value": 52
+            },
+            {
+              "op": "progress",
+              "id": "e25",
+              "value": 32
+            },
+            {
+              "op": "progress",
+              "id": "e28",
+              "value": 66
+            },
+            {
+              "op": "progress",
+              "id": "e31",
+              "value": 2
+            },
+            {
+              "op": "progress",
+              "id": "e34",
+              "value": 73
+            },
+            {
+              "op": "progress",
+              "id": "e37",
+              "value": 27
+            },
+            {
+              "op": "progress",
+              "id": "e40",
+              "value": 89
+            },
+            {
+              "op": "progress",
+              "id": "e43",
+              "value": 93
+            },
+            {
+              "op": "progress",
+              "id": "e46",
+              "value": 4
+            },
+            {
+              "op": "progress",
+              "id": "e49",
+              "value": 36
+            },
+            {
+              "op": "progress",
+              "id": "e52",
+              "value": 78
+            },
+            {
+              "op": "progress",
+              "id": "e55",
+              "value": 12
+            },
+            {
+              "op": "progress",
+              "id": "e58",
+              "value": 11
+            },
+            {
+              "op": "progress",
+              "id": "e61",
+              "value": 99
+            },
+            {
+              "op": "progress",
+              "id": "e64",
+              "value": 92
+            },
+            {
+              "op": "progress",
+              "id": "e67",
+              "value": 11
+            },
+            {
+              "op": "progress",
+              "id": "e70",
+              "value": 41
+            },
+            {
+              "op": "progress",
+              "id": "e73",
+              "value": 24
+            },
+            {
+              "op": "progress",
+              "id": "e76",
+              "value": 6
+            },
+            {
+              "op": "progress",
+              "id": "e79",
+              "value": 29
+            },
+            {
+              "op": "progress",
+              "id": "e82",
+              "value": 7
+            },
+            {
+              "op": "progress",
+              "id": "e85",
+              "value": 35
+            },
+            {
+              "op": "progress",
+              "id": "e88",
+              "value": 38
+            },
+            {
+              "op": "progress",
+              "id": "e91",
+              "value": 73
+            },
+            {
+              "op": "progress",
+              "id": "e94",
+              "value": 1
+            },
+            {
+              "op": "progress",
+              "id": "e97",
+              "value": 79
+            },
+            {
+              "op": "progress",
+              "id": "e100",
+              "value": 74
+            },
+            {
+              "op": "progress",
+              "id": "e103",
+              "value": 5
+            },
+            {
+              "op": "progress",
+              "id": "e106",
+              "value": 100
+            },
+            {
+              "op": "progress",
+              "id": "e109",
+              "value": 50
+            },
+            {
+              "op": "progress",
+              "id": "e112",
+              "value": 19
+            },
+            {
+              "op": "progress",
+              "id": "e115",
+              "value": 49
+            },
+            {
+              "op": "progress",
+              "id": "e118",
+              "value": 84
+            },
+            {
+              "op": "progress",
+              "id": "e121",
+              "value": 96
+            },
+            {
+              "op": "progress",
+              "id": "e124",
+              "value": 71
+            },
+            {
+              "op": "progress",
+              "id": "e127",
+              "value": 9
+            },
+            {
+              "op": "progress",
+              "id": "e130",
+              "value": 97
+            },
+            {
+              "op": "progress",
+              "id": "e133",
+              "value": 91
+            },
+            {
+              "op": "progress",
+              "id": "e136",
+              "value": 50
+            },
+            {
+              "op": "progress",
+              "id": "e139",
+              "value": 64
+            },
+            {
+              "op": "progress",
+              "id": "e142",
+              "value": 25
+            },
+            {
+              "op": "progress",
+              "id": "e145",
+              "value": 89
+            },
+            {
+              "op": "progress",
+              "id": "e148",
+              "value": 71
+            },
+            {
+              "op": "progress",
+              "id": "e151",
+              "value": 24
+            },
+            {
+              "op": "progress",
+              "id": "e154",
+              "value": 47
+            },
+            {
+              "op": "progress",
+              "id": "e157",
+              "value": 35
+            },
+            {
+              "op": "progress",
+              "id": "e160",
+              "value": 90
+            },
+            {
+              "op": "progress",
+              "id": "e163",
+              "value": 67
+            },
+            {
+              "op": "progress",
+              "id": "e166",
+              "value": 8
+            },
+            {
+              "op": "progress",
+              "id": "e169",
+              "value": 52
+            },
+            {
+              "op": "progress",
+              "id": "e172",
+              "value": 81
+            },
+            {
+              "op": "progress",
+              "id": "e175",
+              "value": 43
+            },
+            {
+              "op": "progress",
+              "id": "e178",
+              "value": 25
+            },
+            {
+              "op": "progress",
+              "id": "e181",
+              "value": 26
+            },
+            {
+              "op": "progress",
+              "id": "e184",
+              "value": 62
+            },
+            {
+              "op": "progress",
+              "id": "e187",
+              "value": 51
+            },
+            {
+              "op": "progress",
+              "id": "e190",
+              "value": 1
+            },
+            {
+              "op": "progress",
+              "id": "e193",
+              "value": 38
+            },
+            {
+              "op": "progress",
+              "id": "e196",
+              "value": 30
+            },
+            {
+              "op": "progress",
+              "id": "e199",
+              "value": 66
+            },
+            {
+              "op": "progress",
+              "id": "e202",
+              "value": 20
+            },
+            {
+              "op": "progress",
+              "id": "e205",
+              "value": 25
+            },
+            {
+              "op": "progress",
+              "id": "e208",
+              "value": 31
+            },
+            {
+              "op": "progress",
+              "id": "e211",
+              "value": 95
+            },
+            {
+              "op": "progress",
+              "id": "e214",
+              "value": 71
+            },
+            {
+              "op": "progress",
+              "id": "e217",
+              "value": 86
+            },
+            {
+              "op": "progress",
+              "id": "e220",
+              "value": 29
+            },
+            {
+              "op": "progress",
+              "id": "e223",
+              "value": 14
+            },
+            {
+              "op": "progress",
+              "id": "e226",
+              "value": 64
+            },
+            {
+              "op": "progress",
+              "id": "e229",
+              "value": 83
+            },
+            {
+              "op": "progress",
+              "id": "e232",
+              "value": 49
+            },
+            {
+              "op": "progress",
+              "id": "e235",
+              "value": 46
+            },
+            {
+              "op": "progress",
+              "id": "e238",
+              "value": 62
+            },
+            {
+              "op": "cancel",
+              "id": "e2"
+            },
+            {
+              "op": "cancel",
+              "id": "e13"
+            },
+            {
+              "op": "cancel",
+              "id": "e24"
+            },
+            {
+              "op": "cancel",
+              "id": "e35"
+            },
+            {
+              "op": "cancel",
+              "id": "e46"
+            },
+            {
+              "op": "cancel",
+              "id": "e57"
+            },
+            {
+              "op": "cancel",
+              "id": "e68"
+            },
+            {
+              "op": "cancel",
+              "id": "e79"
+            },
+            {
+              "op": "cancel",
+              "id": "e90"
+            },
+            {
+              "op": "cancel",
+              "id": "e101"
+            },
+            {
+              "op": "cancel",
+              "id": "e112"
+            },
+            {
+              "op": "cancel",
+              "id": "e123"
+            },
+            {
+              "op": "cancel",
+              "id": "e134"
+            },
+            {
+              "op": "cancel",
+              "id": "e145"
+            },
+            {
+              "op": "cancel",
+              "id": "e156"
+            },
+            {
+              "op": "cancel",
+              "id": "e167"
+            },
+            {
+              "op": "cancel",
+              "id": "e178"
+            },
+            {
+              "op": "cancel",
+              "id": "e189"
+            },
+            {
+              "op": "cancel",
+              "id": "e200"
+            },
+            {
+              "op": "cancel",
+              "id": "e211"
+            },
+            {
+              "op": "cancel",
+              "id": "e222"
+            },
+            {
+              "op": "cancel",
+              "id": "e233"
+            },
+            {
+              "op": "leave",
+              "id": "e5"
+            },
+            {
+              "op": "leave",
+              "id": "e22"
+            },
+            {
+              "op": "leave",
+              "id": "e39"
+            },
+            {
+              "op": "leave",
+              "id": "e56"
+            },
+            {
+              "op": "leave",
+              "id": "e73"
+            },
+            {
+              "op": "leave",
+              "id": "e90"
+            },
+            {
+              "op": "leave",
+              "id": "e107"
+            },
+            {
+              "op": "leave",
+              "id": "e124"
+            },
+            {
+              "op": "leave",
+              "id": "e141"
+            },
+            {
+              "op": "leave",
+              "id": "e158"
+            },
+            {
+              "op": "leave",
+              "id": "e175"
+            },
+            {
+              "op": "leave",
+              "id": "e192"
+            },
+            {
+              "op": "leave",
+              "id": "e209"
+            },
+            {
+              "op": "leave",
+              "id": "e226"
+            },
+            {
+              "op": "dashboard",
+              "user": "u1"
+            },
+            {
+              "op": "dashboard",
+              "user": "u2"
+            },
+            {
+              "op": "dashboard",
+              "user": "u3"
+            },
+            {
+              "op": "dashboard",
+              "user": "u4"
+            },
+            {
+              "op": "dashboard",
+              "user": "u5"
+            },
+            {
+              "op": "dashboard",
+              "user": "u6"
+            },
+            {
+              "op": "dashboard",
+              "user": "u7"
+            },
+            {
+              "op": "dashboard",
+              "user": "u8"
+            },
+            {
+              "op": "dashboard",
+              "user": "u9"
+            },
+            {
+              "op": "dashboard",
+              "user": "u10"
+            },
+            {
+              "op": "dashboard",
+              "user": "u11"
+            },
+            {
+              "op": "dashboard",
+              "user": "u12"
+            },
+            {
+              "op": "dashboard",
+              "user": "u13"
+            },
+            {
+              "op": "dashboard",
+              "user": "u14"
+            },
+            {
+              "op": "dashboard",
+              "user": "u15"
+            },
+            {
+              "op": "dashboard",
+              "user": "u16"
+            },
+            {
+              "op": "dashboard",
+              "user": "u17"
+            },
+            {
+              "op": "dashboard",
+              "user": "u18"
+            },
+            {
+              "op": "dashboard",
+              "user": "u19"
+            },
+            {
+              "op": "dashboard",
+              "user": "u20"
+            },
+            {
+              "op": "dashboard",
+              "user": "u21"
+            },
+            {
+              "op": "dashboard",
+              "user": "u22"
+            },
+            {
+              "op": "dashboard",
+              "user": "u23"
+            },
+            {
+              "op": "dashboard",
+              "user": "u24"
+            },
+            {
+              "op": "dashboard",
+              "user": "u25"
+            },
+            {
+              "op": "dashboard",
+              "user": "u26"
+            },
+            {
+              "op": "dashboard",
+              "user": "u27"
+            },
+            {
+              "op": "dashboard",
+              "user": "u28"
+            },
+            {
+              "op": "dashboard",
+              "user": "u29"
+            },
+            {
+              "op": "dashboard",
+              "user": "u30"
+            },
+            {
+              "op": "dashboard",
+              "user": "u31"
+            },
+            {
+              "op": "dashboard",
+              "user": "u32"
+            },
+            {
+              "op": "dashboard",
+              "user": "u33"
+            },
+            {
+              "op": "dashboard",
+              "user": "u34"
+            },
+            {
+              "op": "dashboard",
+              "user": "u35"
+            },
+            {
+              "op": "dashboard",
+              "user": "u36"
+            },
+            {
+              "op": "dashboard",
+              "user": "u37"
+            },
+            {
+              "op": "dashboard",
+              "user": "u38"
+            },
+            {
+              "op": "dashboard",
+              "user": "u39"
+            },
+            {
+              "op": "dashboard",
+              "user": "u40"
+            },
+            {
+              "op": "tamper",
+              "id": "e7"
+            },
+            {
+              "op": "tamper",
+              "id": "e30"
+            },
+            {
+              "op": "tamper",
+              "id": "e53"
+            },
+            {
+              "op": "tamper",
+              "id": "e76"
+            },
+            {
+              "op": "tamper",
+              "id": "e99"
+            },
+            {
+              "op": "tamper",
+              "id": "e122"
+            },
+            {
+              "op": "tamper",
+              "id": "e145"
+            },
+            {
+              "op": "tamper",
+              "id": "e168"
+            },
+            {
+              "op": "tamper",
+              "id": "e191"
+            },
+            {
+              "op": "tamper",
+              "id": "e214"
+            },
+            {
+              "op": "tamper",
+              "id": "e237"
+            },
+            {
+              "op": "dashboard",
+              "user": "u1"
+            },
+            {
+              "op": "dashboard",
+              "user": "u4"
+            },
+            {
+              "op": "dashboard",
+              "user": "u7"
+            },
+            {
+              "op": "dashboard",
+              "user": "u10"
+            },
+            {
+              "op": "dashboard",
+              "user": "u13"
+            },
+            {
+              "op": "dashboard",
+              "user": "u16"
+            },
+            {
+              "op": "dashboard",
+              "user": "u19"
+            },
+            {
+              "op": "dashboard",
+              "user": "u22"
+            },
+            {
+              "op": "dashboard",
+              "user": "u25"
+            },
+            {
+              "op": "dashboard",
+              "user": "u28"
+            },
+            {
+              "op": "dashboard",
+              "user": "u31"
+            },
+            {
+              "op": "dashboard",
+              "user": "u34"
+            },
+            {
+              "op": "dashboard",
+              "user": "u37"
+            },
+            {
+              "op": "dashboard",
+              "user": "u40"
+            }
+          ],
+          "expected": "enroll u22 react-hooks: e1 2026-09-17T16:00:00.000Z\nenroll u22 react-hooks: already_enrolled\nenroll u24 testing-ttd: e2 2026-09-17T08:00:00.000Z\nenroll u24 testing-ttd: already_enrolled\nenroll u39 ts-101: e3 2026-09-05T08:00:00.000Z\nenroll u39 ts-101: already_enrolled\nenroll u17 sql-joins: e4 2026-09-01T16:00:00.000Z\nenroll u17 sql-joins: already_enrolled\nenroll u36 git-basics: e5 2026-09-09T16:00:00.000Z\nenroll u36 git-basics: already_enrolled\nenroll u35 node-api: e6 2026-09-13T00:00:00.000Z\nenroll u35 node-api: already_enrolled\nenroll u1 ts-101: e7 2026-09-09T16:00:00.000Z\nenroll u1 ts-101: already_enrolled\nenroll u27 testing-ttd: e8 2026-09-09T16:00:00.000Z\nenroll u27 testing-ttd: already_enrolled\nenroll u6 node-api: e9 2026-09-05T08:00:00.000Z\nenroll u6 node-api: already_enrolled\nenroll u23 react-hooks: e10 2026-09-09T00:00:00.000Z\nenroll u23 react-hooks: already_enrolled\nenroll u29 git-basics: e11 2026-09-05T00:00:00.000Z\nenroll u29 git-basics: already_enrolled\nenroll u7 ts-101: e12 2026-09-09T16:00:00.000Z\nenroll u7 ts-101: already_enrolled\nenroll u22 node-api: e13 2026-09-13T08:00:00.000Z\nenroll u22 node-api: already_enrolled\nenroll u9 node-api: e14 2026-09-09T08:00:00.000Z\nenroll u9 node-api: already_enrolled\nenroll u2 sql-joins: e15 2026-09-01T00:00:00.000Z\nenroll u2 sql-joins: already_enrolled\nenroll u18 sql-joins: e16 2026-09-09T16:00:00.000Z\nenroll u18 sql-joins: already_enrolled\nenroll u35 sql-joins: e17 2026-09-05T00:00:00.000Z\nenroll u35 sql-joins: already_enrolled\nenroll u8 git-basics: e18 2026-09-05T16:00:00.000Z\nenroll u8 git-basics: already_enrolled\nenroll u30 react-hooks: e19 2026-09-13T08:00:00.000Z\nenroll u30 react-hooks: already_enrolled\nenroll u11 sql-joins: e20 2026-09-09T16:00:00.000Z\nenroll u11 sql-joins: already_enrolled\nenroll u15 node-api: e21 2026-09-17T00:00:00.000Z\nenroll u15 node-api: already_enrolled\nenroll u2 node-api: e22 2026-09-13T08:00:00.000Z\nenroll u2 node-api: already_enrolled\nenroll u28 testing-ttd: e23 2026-09-09T16:00:00.000Z\nenroll u28 testing-ttd: already_enrolled\nenroll u3 testing-ttd: e24 2026-09-05T16:00:00.000Z\nenroll u3 testing-ttd: already_enrolled\nenroll u39 testing-ttd: e25 2026-09-01T16:00:00.000Z\nenroll u39 testing-ttd: already_enrolled\nenroll u37 node-api: e26 2026-09-01T08:00:00.000Z\nenroll u37 node-api: already_enrolled\nenroll u16 react-hooks: e27 2026-09-01T08:00:00.000Z\nenroll u16 react-hooks: already_enrolled\nenroll u25 ts-101: e28 2026-09-17T00:00:00.000Z\nenroll u25 ts-101: already_enrolled\nenroll u38 testing-ttd: e29 2026-09-13T16:00:00.000Z\nenroll u38 testing-ttd: already_enrolled\nenroll u34 node-api: e30 2026-09-09T16:00:00.000Z\nenroll u34 node-api: already_enrolled\nenroll u16 node-api: e31 2026-09-05T08:00:00.000Z\nenroll u16 node-api: already_enrolled\nenroll u38 git-basics: e32 2026-09-17T00:00:00.000Z\nenroll u38 git-basics: already_enrolled\nenroll u19 react-hooks: e33 2026-09-05T08:00:00.000Z\nenroll u19 react-hooks: already_enrolled\nenroll u39 node-api: e34 2026-09-09T08:00:00.000Z\nenroll u39 node-api: already_enrolled\nenroll u31 testing-ttd: e35 2026-09-01T08:00:00.000Z\nenroll u31 testing-ttd: already_enrolled\nenroll u17 node-api: e36 2026-09-09T16:00:00.000Z\nenroll u17 node-api: already_enrolled\nenroll u26 node-api: e37 2026-09-01T00:00:00.000Z\nenroll u26 node-api: already_enrolled\nenroll u9 sql-joins: e38 2026-09-09T00:00:00.000Z\nenroll u9 sql-joins: already_enrolled\nenroll u40 react-hooks: e39 2026-09-17T00:00:00.000Z\nenroll u40 react-hooks: already_enrolled\nenroll u25 react-hooks: e40 2026-09-17T16:00:00.000Z\nenroll u25 react-hooks: already_enrolled\nenroll u39 sql-joins: e41 2026-09-17T08:00:00.000Z\nenroll u39 sql-joins: already_enrolled\nenroll u31 sql-joins: e42 2026-09-05T08:00:00.000Z\nenroll u31 sql-joins: already_enrolled\nenroll u9 react-hooks: e43 2026-09-05T16:00:00.000Z\nenroll u9 react-hooks: already_enrolled\nenroll u34 sql-joins: e44 2026-09-01T00:00:00.000Z\nenroll u34 sql-joins: already_enrolled\nenroll u10 ts-101: e45 2026-09-01T00:00:00.000Z\nenroll u10 ts-101: already_enrolled\nenroll u1 sql-joins: e46 2026-09-17T08:00:00.000Z\nenroll u1 sql-joins: already_enrolled\nenroll u34 react-hooks: e47 2026-09-09T16:00:00.000Z\nenroll u34 react-hooks: already_enrolled\nenroll u7 node-api: e48 2026-09-05T00:00:00.000Z\nenroll u7 node-api: already_enrolled\nenroll u14 ts-101: e49 2026-09-13T00:00:00.000Z\nenroll u14 ts-101: already_enrolled\nenroll u25 testing-ttd: e50 2026-09-05T08:00:00.000Z\nenroll u25 testing-ttd: already_enrolled\nenroll u34 git-basics: e51 2026-09-17T00:00:00.000Z\nenroll u34 git-basics: already_enrolled\nenroll u9 ts-101: e52 2026-09-09T08:00:00.000Z\nenroll u9 ts-101: already_enrolled\nenroll u16 git-basics: e53 2026-09-13T08:00:00.000Z\nenroll u16 git-basics: already_enrolled\nenroll u37 git-basics: e54 2026-09-01T00:00:00.000Z\nenroll u37 git-basics: already_enrolled\nenroll u3 ts-101: e55 2026-09-13T16:00:00.000Z\nenroll u3 ts-101: already_enrolled\nenroll u24 ts-101: e56 2026-09-13T00:00:00.000Z\nenroll u24 ts-101: already_enrolled\nenroll u6 ts-101: e57 2026-09-17T16:00:00.000Z\nenroll u6 ts-101: already_enrolled\nenroll u30 testing-ttd: e58 2026-09-17T16:00:00.000Z\nenroll u30 testing-ttd: already_enrolled\nenroll u17 testing-ttd: e59 2026-09-13T00:00:00.000Z\nenroll u17 testing-ttd: already_enrolled\nenroll u29 ts-101: e60 2026-09-17T08:00:00.000Z\nenroll u29 ts-101: already_enrolled\nenroll u12 node-api: e61 2026-09-05T16:00:00.000Z\nenroll u12 node-api: already_enrolled\nenroll u3 git-basics: e62 2026-09-13T08:00:00.000Z\nenroll u3 git-basics: already_enrolled\nenroll u21 node-api: e63 2026-09-05T00:00:00.000Z\nenroll u21 node-api: already_enrolled\nenroll u11 node-api: e64 2026-09-17T08:00:00.000Z\nenroll u11 node-api: already_enrolled\nenroll u12 sql-joins: e65 2026-09-17T16:00:00.000Z\nenroll u12 sql-joins: already_enrolled\nenroll u20 testing-ttd: e66 2026-09-05T08:00:00.000Z\nenroll u20 testing-ttd: already_enrolled\nenroll u21 react-hooks: e67 2026-09-01T00:00:00.000Z\nenroll u21 react-hooks: already_enrolled\nenroll u2 testing-ttd: e68 2026-09-05T16:00:00.000Z\nenroll u2 testing-ttd: already_enrolled\nenroll u25 sql-joins: e69 2026-09-09T16:00:00.000Z\nenroll u25 sql-joins: already_enrolled\nenroll u24 git-basics: e70 2026-09-17T00:00:00.000Z\nenroll u24 git-basics: already_enrolled\nenroll u4 react-hooks: e71 2026-09-13T08:00:00.000Z\nenroll u4 react-hooks: already_enrolled\nenroll u6 react-hooks: e72 2026-09-13T00:00:00.000Z\nenroll u6 react-hooks: already_enrolled\nenroll u1 react-hooks: e73 2026-09-09T16:00:00.000Z\nenroll u1 react-hooks: already_enrolled\nenroll u6 sql-joins: e74 2026-09-01T08:00:00.000Z\nenroll u6 sql-joins: already_enrolled\nenroll u30 node-api: e75 2026-09-09T00:00:00.000Z\nenroll u30 node-api: already_enrolled\nenroll u20 ts-101: e76 2026-09-01T16:00:00.000Z\nenroll u20 ts-101: already_enrolled\nenroll u21 testing-ttd: e77 2026-09-01T16:00:00.000Z\nenroll u21 testing-ttd: already_enrolled\nenroll u33 node-api: e78 2026-09-09T00:00:00.000Z\nenroll u33 node-api: already_enrolled\nenroll u24 node-api: e79 2026-09-17T16:00:00.000Z\nenroll u24 node-api: already_enrolled\nenroll u23 sql-joins: e80 2026-09-17T08:00:00.000Z\nenroll u23 sql-joins: already_enrolled\nenroll u1 node-api: e81 2026-09-01T16:00:00.000Z\nenroll u1 node-api: already_enrolled\nenroll u14 sql-joins: e82 2026-09-13T16:00:00.000Z\nenroll u14 sql-joins: already_enrolled\nenroll u11 git-basics: e83 2026-09-13T16:00:00.000Z\nenroll u11 git-basics: already_enrolled\nenroll u26 git-basics: e84 2026-09-01T16:00:00.000Z\nenroll u26 git-basics: already_enrolled\nenroll u27 react-hooks: e85 2026-09-17T08:00:00.000Z\nenroll u27 react-hooks: already_enrolled\nenroll u19 sql-joins: e86 2026-09-17T16:00:00.000Z\nenroll u19 sql-joins: already_enrolled\nenroll u27 git-basics: e87 2026-09-17T08:00:00.000Z\nenroll u27 git-basics: already_enrolled\nenroll u18 git-basics: e88 2026-09-17T08:00:00.000Z\nenroll u18 git-basics: already_enrolled\nenroll u13 testing-ttd: e89 2026-09-01T00:00:00.000Z\nenroll u13 testing-ttd: already_enrolled\nenroll u5 sql-joins: e90 2026-09-01T08:00:00.000Z\nenroll u5 sql-joins: already_enrolled\nenroll u14 react-hooks: e91 2026-09-09T08:00:00.000Z\nenroll u14 react-hooks: already_enrolled\nenroll u28 node-api: e92 2026-09-01T00:00:00.000Z\nenroll u28 node-api: already_enrolled\nenroll u8 testing-ttd: e93 2026-09-01T16:00:00.000Z\nenroll u8 testing-ttd: already_enrolled\nenroll u3 sql-joins: e94 2026-09-05T08:00:00.000Z\nenroll u3 sql-joins: already_enrolled\nenroll u22 git-basics: e95 2026-09-13T08:00:00.000Z\nenroll u22 git-basics: already_enrolled\nenroll u38 sql-joins: e96 2026-09-13T16:00:00.000Z\nenroll u38 sql-joins: already_enrolled\nenroll u1 testing-ttd: e97 2026-09-05T08:00:00.000Z\nenroll u1 testing-ttd: already_enrolled\nenroll u6 testing-ttd: e98 2026-09-17T16:00:00.000Z\nenroll u6 testing-ttd: already_enrolled\nenroll u3 react-hooks: e99 2026-09-17T08:00:00.000Z\nenroll u3 react-hooks: already_enrolled\nenroll u29 node-api: e100 2026-09-13T00:00:00.000Z\nenroll u29 node-api: already_enrolled\nenroll u8 ts-101: e101 2026-09-01T16:00:00.000Z\nenroll u8 ts-101: already_enrolled\nenroll u32 git-basics: e102 2026-09-01T08:00:00.000Z\nenroll u32 git-basics: already_enrolled\nenroll u10 react-hooks: e103 2026-09-01T08:00:00.000Z\nenroll u10 react-hooks: already_enrolled\nenroll u9 git-basics: e104 2026-09-05T08:00:00.000Z\nenroll u9 git-basics: already_enrolled\nenroll u23 ts-101: e105 2026-09-13T16:00:00.000Z\nenroll u23 ts-101: already_enrolled\nenroll u28 sql-joins: e106 2026-09-05T00:00:00.000Z\nenroll u28 sql-joins: already_enrolled\nenroll u5 node-api: e107 2026-09-05T08:00:00.000Z\nenroll u5 node-api: already_enrolled\nenroll u26 testing-ttd: e108 2026-09-17T16:00:00.000Z\nenroll u26 testing-ttd: already_enrolled\nenroll u34 testing-ttd: e109 2026-09-13T08:00:00.000Z\nenroll u34 testing-ttd: already_enrolled\nenroll u22 ts-101: e110 2026-09-05T08:00:00.000Z\nenroll u22 ts-101: already_enrolled\nenroll u7 git-basics: e111 2026-09-09T00:00:00.000Z\nenroll u7 git-basics: already_enrolled\nenroll u19 ts-101: e112 2026-09-17T08:00:00.000Z\nenroll u19 ts-101: already_enrolled\nenroll u1 git-basics: e113 2026-09-01T00:00:00.000Z\nenroll u1 git-basics: already_enrolled\nenroll u16 sql-joins: e114 2026-09-01T00:00:00.000Z\nenroll u16 sql-joins: already_enrolled\nenroll u39 git-basics: e115 2026-09-09T08:00:00.000Z\nenroll u39 git-basics: already_enrolled\nenroll u7 sql-joins: e116 2026-09-13T16:00:00.000Z\nenroll u7 sql-joins: already_enrolled\nenroll u14 node-api: e117 2026-09-09T00:00:00.000Z\nenroll u14 node-api: already_enrolled\nenroll u24 react-hooks: e118 2026-09-09T16:00:00.000Z\nenroll u24 react-hooks: already_enrolled\nenroll u15 react-hooks: e119 2026-09-13T08:00:00.000Z\nenroll u15 react-hooks: already_enrolled\nenroll u40 node-api: e120 2026-09-05T16:00:00.000Z\nenroll u40 node-api: already_enrolled\nenroll u38 ts-101: e121 2026-09-13T08:00:00.000Z\nenroll u38 ts-101: already_enrolled\nenroll u13 ts-101: e122 2026-09-09T08:00:00.000Z\nenroll u13 ts-101: already_enrolled\nenroll u19 git-basics: e123 2026-09-05T16:00:00.000Z\nenroll u19 git-basics: already_enrolled\nenroll u36 react-hooks: e124 2026-09-13T00:00:00.000Z\nenroll u36 react-hooks: already_enrolled\nenroll u2 ts-101: e125 2026-09-01T08:00:00.000Z\nenroll u2 ts-101: already_enrolled\nenroll u32 testing-ttd: e126 2026-09-01T08:00:00.000Z\nenroll u32 testing-ttd: already_enrolled\nenroll u32 node-api: e127 2026-09-01T08:00:00.000Z\nenroll u32 node-api: already_enrolled\nenroll u37 testing-ttd: e128 2026-09-13T08:00:00.000Z\nenroll u37 testing-ttd: already_enrolled\nenroll u35 testing-ttd: e129 2026-09-01T08:00:00.000Z\nenroll u35 testing-ttd: already_enrolled\nenroll u9 testing-ttd: e130 2026-09-09T16:00:00.000Z\nenroll u9 testing-ttd: already_enrolled\nenroll u10 sql-joins: e131 2026-09-09T16:00:00.000Z\nenroll u10 sql-joins: already_enrolled\nenroll u36 sql-joins: e132 2026-09-01T08:00:00.000Z\nenroll u36 sql-joins: already_enrolled\nenroll u17 ts-101: e133 2026-09-13T08:00:00.000Z\nenroll u17 ts-101: already_enrolled\nenroll u26 react-hooks: e134 2026-09-01T00:00:00.000Z\nenroll u26 react-hooks: already_enrolled\nenroll u16 ts-101: e135 2026-09-13T16:00:00.000Z\nenroll u16 ts-101: already_enrolled\nenroll u40 ts-101: e136 2026-09-09T08:00:00.000Z\nenroll u40 ts-101: already_enrolled\nenroll u12 ts-101: e137 2026-09-13T00:00:00.000Z\nenroll u12 ts-101: already_enrolled\nenroll u2 react-hooks: e138 2026-09-13T00:00:00.000Z\nenroll u2 react-hooks: already_enrolled\nenroll u31 node-api: e139 2026-09-01T00:00:00.000Z\nenroll u31 node-api: already_enrolled\nenroll u5 react-hooks: e140 2026-09-01T00:00:00.000Z\nenroll u5 react-hooks: already_enrolled\nenroll u7 testing-ttd: e141 2026-09-17T16:00:00.000Z\nenroll u7 testing-ttd: already_enrolled\nenroll u5 git-basics: e142 2026-09-13T16:00:00.000Z\nenroll u5 git-basics: already_enrolled\nenroll u4 node-api: e143 2026-09-05T00:00:00.000Z\nenroll u4 node-api: already_enrolled\nenroll u18 node-api: e144 2026-09-01T08:00:00.000Z\nenroll u18 node-api: already_enrolled\nenroll u16 testing-ttd: e145 2026-09-13T16:00:00.000Z\nenroll u16 testing-ttd: already_enrolled\nenroll u6 git-basics: e146 2026-09-09T08:00:00.000Z\nenroll u6 git-basics: already_enrolled\nenroll u39 react-hooks: e147 2026-09-09T00:00:00.000Z\nenroll u39 react-hooks: already_enrolled\nenroll u40 git-basics: e148 2026-09-13T08:00:00.000Z\nenroll u40 git-basics: already_enrolled\nenroll u27 sql-joins: e149 2026-09-05T16:00:00.000Z\nenroll u27 sql-joins: already_enrolled\nenroll u18 testing-ttd: e150 2026-09-17T16:00:00.000Z\nenroll u18 testing-ttd: already_enrolled\nenroll u19 testing-ttd: e151 2026-09-13T16:00:00.000Z\nenroll u19 testing-ttd: already_enrolled\nenroll u13 node-api: e152 2026-09-05T08:00:00.000Z\nenroll u13 node-api: already_enrolled\nenroll u2 git-basics: e153 2026-09-13T08:00:00.000Z\nenroll u2 git-basics: already_enrolled\nenroll u32 react-hooks: e154 2026-09-01T16:00:00.000Z\nenroll u32 react-hooks: already_enrolled\nenroll u33 testing-ttd: e155 2026-09-01T08:00:00.000Z\nenroll u33 testing-ttd: already_enrolled\nenroll u31 ts-101: e156 2026-09-13T08:00:00.000Z\nenroll u31 ts-101: already_enrolled\nenroll u15 git-basics: e157 2026-09-01T08:00:00.000Z\nenroll u15 git-basics: already_enrolled\nenroll u35 git-basics: e158 2026-09-05T00:00:00.000Z\nenroll u35 git-basics: already_enrolled\nenroll u32 sql-joins: e159 2026-09-01T16:00:00.000Z\nenroll u32 sql-joins: already_enrolled\nenroll u5 ts-101: e160 2026-09-01T08:00:00.000Z\nenroll u5 ts-101: already_enrolled\nenroll u12 react-hooks: e161 2026-09-09T00:00:00.000Z\nenroll u12 react-hooks: already_enrolled\nenroll u26 ts-101: e162 2026-09-17T00:00:00.000Z\nenroll u26 ts-101: already_enrolled\nenroll u29 testing-ttd: e163 2026-09-05T08:00:00.000Z\nenroll u29 testing-ttd: already_enrolled\nenroll u13 sql-joins: e164 2026-09-17T16:00:00.000Z\nenroll u13 sql-joins: already_enrolled\nenroll u14 testing-ttd: e165 2026-09-17T16:00:00.000Z\nenroll u14 testing-ttd: already_enrolled\nenroll u33 react-hooks: e166 2026-09-13T00:00:00.000Z\nenroll u33 react-hooks: already_enrolled\nenroll u7 react-hooks: e167 2026-09-01T08:00:00.000Z\nenroll u7 react-hooks: already_enrolled\nenroll u27 node-api: e168 2026-09-17T16:00:00.000Z\nenroll u27 node-api: already_enrolled\nenroll u12 git-basics: e169 2026-09-01T16:00:00.000Z\nenroll u12 git-basics: already_enrolled\nenroll u30 ts-101: e170 2026-09-17T08:00:00.000Z\nenroll u30 ts-101: already_enrolled\nenroll u28 git-basics: e171 2026-09-05T08:00:00.000Z\nenroll u28 git-basics: already_enrolled\nenroll u20 git-basics: e172 2026-09-17T08:00:00.000Z\nenroll u20 git-basics: already_enrolled\nenroll u13 react-hooks: e173 2026-09-01T16:00:00.000Z\nenroll u13 react-hooks: already_enrolled\nenroll u25 node-api: e174 2026-09-01T08:00:00.000Z\nenroll u25 node-api: already_enrolled\nenroll u15 ts-101: e175 2026-09-05T16:00:00.000Z\nenroll u15 ts-101: already_enrolled\nenroll u35 react-hooks: e176 2026-09-05T00:00:00.000Z\nenroll u35 react-hooks: already_enrolled\nenroll u3 node-api: e177 2026-09-01T16:00:00.000Z\nenroll u3 node-api: already_enrolled\nenroll u14 git-basics: e178 2026-09-09T00:00:00.000Z\nenroll u14 git-basics: already_enrolled\nenroll u32 ts-101: e179 2026-09-09T16:00:00.000Z\nenroll u32 ts-101: already_enrolled\nenroll u10 git-basics: e180 2026-09-01T08:00:00.000Z\nenroll u10 git-basics: already_enrolled\nenroll u5 testing-ttd: e181 2026-09-05T00:00:00.000Z\nenroll u5 testing-ttd: already_enrolled\nenroll u4 git-basics: e182 2026-09-01T16:00:00.000Z\nenroll u4 git-basics: already_enrolled\nenroll u10 node-api: e183 2026-09-09T08:00:00.000Z\nenroll u10 node-api: already_enrolled\nenroll u33 sql-joins: e184 2026-09-05T00:00:00.000Z\nenroll u33 sql-joins: already_enrolled\nenroll u18 ts-101: e185 2026-09-05T08:00:00.000Z\nenroll u18 ts-101: already_enrolled\nenroll u20 react-hooks: e186 2026-09-09T16:00:00.000Z\nenroll u20 react-hooks: already_enrolled\nenroll u11 react-hooks: e187 2026-09-09T08:00:00.000Z\nenroll u11 react-hooks: already_enrolled\nenroll u11 ts-101: e188 2026-09-17T08:00:00.000Z\nenroll u11 ts-101: already_enrolled\nenroll u20 sql-joins: e189 2026-09-05T16:00:00.000Z\nenroll u20 sql-joins: already_enrolled\nenroll u29 react-hooks: e190 2026-09-13T16:00:00.000Z\nenroll u29 react-hooks: already_enrolled\nenroll u37 sql-joins: e191 2026-09-17T00:00:00.000Z\nenroll u37 sql-joins: already_enrolled\nenroll u20 node-api: e192 2026-09-13T00:00:00.000Z\nenroll u20 node-api: already_enrolled\nenroll u21 ts-101: e193 2026-09-13T08:00:00.000Z\nenroll u21 ts-101: already_enrolled\nenroll u34 ts-101: e194 2026-09-18T08:00:00.000Z\nenroll u34 ts-101: already_enrolled\nenroll u37 ts-101: e195 2026-09-05T16:00:00.000Z\nenroll u37 ts-101: already_enrolled\nenroll u26 sql-joins: e196 2026-09-05T08:00:00.000Z\nenroll u26 sql-joins: already_enrolled\nenroll u38 react-hooks: e197 2026-09-17T00:00:00.000Z\nenroll u38 react-hooks: already_enrolled\nenroll u37 react-hooks: e198 2026-09-01T00:00:00.000Z\nenroll u37 react-hooks: already_enrolled\nenroll u36 testing-ttd: e199 2026-09-17T08:00:00.000Z\nenroll u36 testing-ttd: already_enrolled\nenroll u13 git-basics: e200 2026-09-01T08:00:00.000Z\nenroll u13 git-basics: already_enrolled\nenroll u12 testing-ttd: e201 2026-09-09T08:00:00.000Z\nenroll u12 testing-ttd: already_enrolled\nenroll u11 testing-ttd: e202 2026-09-13T00:00:00.000Z\nenroll u11 testing-ttd: already_enrolled\nenroll u27 ts-101: e203 2026-09-01T00:00:00.000Z\nenroll u27 ts-101: already_enrolled\nenroll u29 sql-joins: e204 2026-09-13T08:00:00.000Z\nenroll u29 sql-joins: already_enrolled\nenroll u22 testing-ttd: e205 2026-09-09T08:00:00.000Z\nenroll u22 testing-ttd: already_enrolled\nenroll u21 git-basics: e206 2026-09-09T08:00:00.000Z\nenroll u21 git-basics: already_enrolled\nenroll u31 react-hooks: e207 2026-09-13T16:00:00.000Z\nenroll u31 react-hooks: already_enrolled\nenroll u10 testing-ttd: e208 2026-09-01T08:00:00.000Z\nenroll u10 testing-ttd: already_enrolled\nenroll u4 ts-101: e209 2026-09-01T16:00:00.000Z\nenroll u4 ts-101: already_enrolled\nenroll u36 ts-101: e210 2026-09-13T16:00:00.000Z\nenroll u36 ts-101: already_enrolled\nenroll u40 sql-joins: e211 2026-09-13T08:00:00.000Z\nenroll u40 sql-joins: already_enrolled\nenroll u30 sql-joins: e212 2026-09-05T00:00:00.000Z\nenroll u30 sql-joins: already_enrolled\nenroll u4 sql-joins: e213 2026-09-17T00:00:00.000Z\nenroll u4 sql-joins: already_enrolled\nenroll u23 testing-ttd: e214 2026-09-05T00:00:00.000Z\nenroll u23 testing-ttd: already_enrolled\nenroll u23 node-api: e215 2026-09-13T00:00:00.000Z\nenroll u23 node-api: already_enrolled\nenroll u8 sql-joins: e216 2026-09-01T00:00:00.000Z\nenroll u8 sql-joins: already_enrolled\nenroll u4 testing-ttd: e217 2026-09-17T08:00:00.000Z\nenroll u4 testing-ttd: already_enrolled\nenroll u33 git-basics: e218 2026-09-09T08:00:00.000Z\nenroll u33 git-basics: already_enrolled\nenroll u28 react-hooks: e219 2026-09-13T16:00:00.000Z\nenroll u28 react-hooks: already_enrolled\nenroll u21 sql-joins: e220 2026-09-17T16:00:00.000Z\nenroll u21 sql-joins: already_enrolled\nenroll u35 ts-101: e221 2026-09-01T16:00:00.000Z\nenroll u35 ts-101: already_enrolled\nenroll u15 sql-joins: e222 2026-09-01T08:00:00.000Z\nenroll u15 sql-joins: already_enrolled\nenroll u38 node-api: e223 2026-09-17T16:00:00.000Z\nenroll u38 node-api: already_enrolled\nenroll u30 git-basics: e224 2026-09-05T16:00:00.000Z\nenroll u30 git-basics: already_enrolled\nenroll u8 react-hooks: e225 2026-09-09T16:00:00.000Z\nenroll u8 react-hooks: already_enrolled\nenroll u19 node-api: e226 2026-09-13T00:00:00.000Z\nenroll u19 node-api: already_enrolled\nenroll u36 node-api: e227 2026-09-01T16:00:00.000Z\nenroll u36 node-api: already_enrolled\nenroll u17 react-hooks: e228 2026-09-01T00:00:00.000Z\nenroll u17 react-hooks: already_enrolled\nenroll u28 ts-101: e229 2026-09-17T08:00:00.000Z\nenroll u28 ts-101: already_enrolled\nenroll u33 ts-101: e230 2026-09-01T16:00:00.000Z\nenroll u33 ts-101: already_enrolled\nenroll u17 git-basics: e231 2026-09-09T16:00:00.000Z\nenroll u17 git-basics: already_enrolled\nenroll u15 testing-ttd: e232 2026-09-05T08:00:00.000Z\nenroll u15 testing-ttd: already_enrolled\nenroll u8 node-api: e233 2026-09-05T00:00:00.000Z\nenroll u8 node-api: already_enrolled\nenroll u31 git-basics: e234 2026-09-13T08:00:00.000Z\nenroll u31 git-basics: already_enrolled\nenroll u23 git-basics: e235 2026-09-05T16:00:00.000Z\nenroll u23 git-basics: already_enrolled\nenroll u22 sql-joins: e236 2026-09-05T08:00:00.000Z\nenroll u22 sql-joins: already_enrolled\nenroll u18 react-hooks: e237 2026-09-05T16:00:00.000Z\nenroll u18 react-hooks: already_enrolled\nenroll u25 git-basics: e238 2026-09-09T08:00:00.000Z\nenroll u25 git-basics: already_enrolled\nenroll u24 sql-joins: e239 2026-09-01T08:00:00.000Z\nenroll u24 sql-joins: already_enrolled\nenroll u40 testing-ttd: e240 2026-09-01T00:00:00.000Z\nenroll u40 testing-ttd: already_enrolled\nprogress e1: e1 react-hooks 14% active\nprogress e4: e4 sql-joins 58% active\nprogress e7: e7 ts-101 80% active\nprogress e10: e10 react-hooks 43% active\nprogress e13: e13 node-api 20% active\nprogress e16: e16 sql-joins 12% active\nprogress e19: e19 react-hooks 94% active\nprogress e22: e22 node-api 52% active\nprogress e25: e25 testing-ttd 32% active\nprogress e28: e28 ts-101 66% active\nprogress e31: e31 node-api 2% active\nprogress e34: e34 node-api 73% active\nprogress e37: e37 node-api 27% active\nprogress e40: e40 react-hooks 89% active\nprogress e43: e43 react-hooks 93% active\nprogress e46: e46 sql-joins 4% active\nprogress e49: e49 ts-101 36% active\nprogress e52: e52 ts-101 78% active\nprogress e55: e55 ts-101 12% active\nprogress e58: e58 testing-ttd 11% active\nprogress e61: e61 node-api 99% active\nprogress e64: e64 node-api 92% active\nprogress e67: e67 react-hooks 11% active\nprogress e70: e70 git-basics 41% active\nprogress e73: e73 react-hooks 24% active\nprogress e76: e76 ts-101 6% active\nprogress e79: e79 node-api 29% active\nprogress e82: e82 sql-joins 7% active\nprogress e85: e85 react-hooks 35% active\nprogress e88: e88 git-basics 38% active\nprogress e91: e91 react-hooks 73% active\nprogress e94: e94 sql-joins 1% active\nprogress e97: e97 testing-ttd 79% active\nprogress e100: e100 node-api 74% active\nprogress e103: e103 react-hooks 5% active\nprogress e106: e106 sql-joins 100% completed\nprogress e109: e109 testing-ttd 50% active\nprogress e112: e112 ts-101 19% active\nprogress e115: e115 git-basics 49% active\nprogress e118: e118 react-hooks 84% active\nprogress e121: e121 ts-101 96% active\nprogress e124: e124 react-hooks 71% active\nprogress e127: e127 node-api 9% active\nprogress e130: e130 testing-ttd 97% active\nprogress e133: e133 ts-101 91% active\nprogress e136: e136 ts-101 50% active\nprogress e139: e139 node-api 64% active\nprogress e142: e142 git-basics 25% active\nprogress e145: e145 testing-ttd 89% active\nprogress e148: e148 git-basics 71% active\nprogress e151: e151 testing-ttd 24% active\nprogress e154: e154 react-hooks 47% active\nprogress e157: e157 git-basics 35% active\nprogress e160: e160 ts-101 90% active\nprogress e163: e163 testing-ttd 67% active\nprogress e166: e166 react-hooks 8% active\nprogress e169: e169 git-basics 52% active\nprogress e172: e172 git-basics 81% active\nprogress e175: e175 ts-101 43% active\nprogress e178: e178 git-basics 25% active\nprogress e181: e181 testing-ttd 26% active\nprogress e184: e184 sql-joins 62% active\nprogress e187: e187 react-hooks 51% active\nprogress e190: e190 react-hooks 1% active\nprogress e193: e193 ts-101 38% active\nprogress e196: e196 sql-joins 30% active\nprogress e199: e199 testing-ttd 66% active\nprogress e202: e202 testing-ttd 20% active\nprogress e205: e205 testing-ttd 25% active\nprogress e208: e208 testing-ttd 31% active\nprogress e211: e211 sql-joins 95% active\nprogress e214: e214 testing-ttd 71% active\nprogress e217: e217 testing-ttd 86% active\nprogress e220: e220 sql-joins 29% active\nprogress e223: e223 node-api 14% active\nprogress e226: e226 node-api 64% active\nprogress e229: e229 ts-101 83% active\nprogress e232: e232 testing-ttd 49% active\nprogress e235: e235 git-basics 46% active\nprogress e238: e238 git-basics 62% active\ncancel e2: e2 testing-ttd 0% cancelled\ncancel e13: e13 node-api 20% cancelled\ncancel e24: e24 testing-ttd 0% cancelled\ncancel e35: e35 testing-ttd 0% cancelled\ncancel e46: e46 sql-joins 4% cancelled\ncancel e57: e57 ts-101 0% cancelled\ncancel e68: e68 testing-ttd 0% cancelled\ncancel e79: e79 node-api 29% cancelled\ncancel e90: e90 sql-joins 0% cancelled\ncancel e101: e101 ts-101 0% cancelled\ncancel e112: e112 ts-101 19% cancelled\ncancel e123: e123 git-basics 0% cancelled\ncancel e134: e134 react-hooks 0% cancelled\ncancel e145: e145 testing-ttd 89% cancelled\ncancel e156: e156 ts-101 0% cancelled\ncancel e167: e167 react-hooks 0% cancelled\ncancel e178: e178 git-basics 25% cancelled\ncancel e189: e189 sql-joins 0% cancelled\ncancel e200: e200 git-basics 0% cancelled\ncancel e211: e211 sql-joins 95% cancelled\ncancel e222: e222 sql-joins 0% cancelled\ncancel e233: e233 node-api 0% cancelled\nleave e5: true\nleave e22: true\nleave e39: true\nleave e56: true\nleave e73: true\nleave e90: true\nleave e107: true\nleave e124: true\nleave e141: true\nleave e158: true\nleave e175: true\nleave e192: true\nleave e209: true\nleave e226: true\ndashboard u1: git-basics 0% active, node-api 0% active, testing-ttd 79% active, ts-101 80% active\ndashboard u2: sql-joins 0% active, ts-101 0% active, react-hooks 0% active, git-basics 0% active\ndashboard u3: node-api 0% active, sql-joins 1% active, git-basics 0% active, ts-101 12% active, react-hooks 0% active\ndashboard u4: git-basics 0% active, node-api 0% active, react-hooks 0% active, sql-joins 0% active, testing-ttd 86% active\ndashboard u5: react-hooks 0% active, ts-101 90% active, testing-ttd 26% active, git-basics 25% active\ndashboard u6: sql-joins 0% active, node-api 0% active, git-basics 0% active, react-hooks 0% active, testing-ttd 0% active\ndashboard u7: node-api 0% active, git-basics 0% active, ts-101 0% active, sql-joins 0% active\ndashboard u8: sql-joins 0% active, testing-ttd 0% active, git-basics 0% active, react-hooks 0% active\ndashboard u9: git-basics 0% active, react-hooks 93% active, sql-joins 0% active, node-api 0% active, ts-101 78% active, testing-ttd 97% active\ndashboard u10: ts-101 0% active, react-hooks 5% active, git-basics 0% active, testing-ttd 31% active, node-api 0% active, sql-joins 0% active\ndashboard u11: react-hooks 51% active, sql-joins 0% active, testing-ttd 20% active, git-basics 0% active, node-api 92% active, ts-101 0% active\ndashboard u12: git-basics 52% active, node-api 99% active, react-hooks 0% active, testing-ttd 0% active, ts-101 0% active, sql-joins 0% active\ndashboard u13: testing-ttd 0% active, react-hooks 0% active, node-api 0% active, ts-101 0% active, sql-joins 0% active\ndashboard u14: node-api 0% active, react-hooks 73% active, ts-101 36% active, sql-joins 7% active, testing-ttd 0% active\ndashboard u15: git-basics 35% active, testing-ttd 49% active, react-hooks 0% active, node-api 0% active\ndashboard u16: sql-joins 0% active, react-hooks 0% active, node-api 2% active, git-basics 0% active, ts-101 0% active\ndashboard u17: react-hooks 0% active, sql-joins 58% active, node-api 0% active, git-basics 0% active, testing-ttd 0% active, ts-101 91% active\ndashboard u18: node-api 0% active, ts-101 0% active, react-hooks 0% active, sql-joins 12% active, git-basics 38% active, testing-ttd 0% active\ndashboard u19: react-hooks 0% active, testing-ttd 24% active, sql-joins 0% active\ndashboard u20: ts-101 6% active, testing-ttd 0% active, react-hooks 0% active, git-basics 81% active\ndashboard u21: react-hooks 11% active, testing-ttd 0% active, node-api 0% active, git-basics 0% active, ts-101 38% active, sql-joins 29% active\ndashboard u22: ts-101 0% active, sql-joins 0% active, testing-ttd 25% active, git-basics 0% active, react-hooks 14% active\ndashboard u23: testing-ttd 71% active, git-basics 46% active, react-hooks 43% active, node-api 0% active, ts-101 0% active, sql-joins 0% active\ndashboard u24: sql-joins 0% active, react-hooks 84% active, git-basics 41% active\ndashboard u25: node-api 0% active, testing-ttd 0% active, git-basics 62% active, sql-joins 0% active, ts-101 66% active, react-hooks 89% active\ndashboard u26: node-api 27% active, git-basics 0% active, sql-joins 30% active, ts-101 0% active, testing-ttd 0% active\ndashboard u27: ts-101 0% active, sql-joins 0% active, testing-ttd 0% active, react-hooks 35% active, git-basics 0% active, node-api 0% active\ndashboard u28: node-api 0% active, sql-joins 100% completed, git-basics 0% active, testing-ttd 0% active, react-hooks 0% active, ts-101 83% active\ndashboard u29: git-basics 0% active, testing-ttd 67% active, node-api 74% active, sql-joins 0% active, react-hooks 1% active, ts-101 0% active\ndashboard u30: sql-joins 0% active, git-basics 0% active, node-api 0% active, react-hooks 94% active, ts-101 0% active, testing-ttd 11% active\ndashboard u31: node-api 64% active, sql-joins 0% active, git-basics 0% active, react-hooks 0% active\ndashboard u32: git-basics 0% active, testing-ttd 0% active, node-api 9% active, react-hooks 47% active, sql-joins 0% active, ts-101 0% active\ndashboard u33: testing-ttd 0% active, ts-101 0% active, sql-joins 62% active, node-api 0% active, git-basics 0% active, react-hooks 8% active\ndashboard u34: sql-joins 0% active, node-api 0% active, react-hooks 0% active, testing-ttd 50% active, git-basics 0% active, ts-101 0% active\ndashboard u35: testing-ttd 0% active, ts-101 0% active, sql-joins 0% active, react-hooks 0% active, node-api 0% active\ndashboard u36: sql-joins 0% active, node-api 0% active, ts-101 0% active, testing-ttd 66% active\ndashboard u37: git-basics 0% active, react-hooks 0% active, node-api 0% active, ts-101 0% active, testing-ttd 0% active, sql-joins 0% active\ndashboard u38: ts-101 96% active, testing-ttd 0% active, sql-joins 0% active, git-basics 0% active, react-hooks 0% active, node-api 14% active\ndashboard u39: testing-ttd 32% active, ts-101 0% active, react-hooks 0% active, node-api 73% active, git-basics 49% active, sql-joins 0% active\ndashboard u40: testing-ttd 0% active, node-api 0% active, ts-101 50% active, git-basics 71% active\ntamper e7: e7 ts-101 80% active\ntamper e30: e30 node-api 0% active\ntamper e53: e53 git-basics 0% active\ntamper e76: e76 ts-101 6% active\ntamper e99: e99 react-hooks 0% active\ntamper e122: e122 ts-101 0% active\ntamper e145: e145 testing-ttd 89% cancelled\ntamper e168: e168 node-api 0% active\ntamper e191: e191 sql-joins 0% active\ntamper e214: e214 testing-ttd 71% active\ntamper e237: e237 react-hooks 0% active\ndashboard u1: git-basics 0% active, node-api 0% active, testing-ttd 79% active, ts-101 80% active\ndashboard u4: git-basics 0% active, node-api 0% active, react-hooks 0% active, sql-joins 0% active, testing-ttd 86% active\ndashboard u7: node-api 0% active, git-basics 0% active, ts-101 0% active, sql-joins 0% active\ndashboard u10: ts-101 0% active, react-hooks 5% active, git-basics 0% active, testing-ttd 31% active, node-api 0% active, sql-joins 0% active\ndashboard u13: testing-ttd 0% active, react-hooks 0% active, node-api 0% active, ts-101 0% active, sql-joins 0% active\ndashboard u16: sql-joins 0% active, react-hooks 0% active, node-api 2% active, git-basics 0% active, ts-101 0% active\ndashboard u19: react-hooks 0% active, testing-ttd 24% active, sql-joins 0% active\ndashboard u22: ts-101 0% active, sql-joins 0% active, testing-ttd 25% active, git-basics 0% active, react-hooks 14% active\ndashboard u25: node-api 0% active, testing-ttd 0% active, git-basics 62% active, sql-joins 0% active, ts-101 66% active, react-hooks 89% active\ndashboard u28: node-api 0% active, sql-joins 100% completed, git-basics 0% active, testing-ttd 0% active, react-hooks 0% active, ts-101 83% active\ndashboard u31: node-api 64% active, sql-joins 0% active, git-basics 0% active, react-hooks 0% active\ndashboard u34: sql-joins 0% active, node-api 0% active, react-hooks 0% active, testing-ttd 50% active, git-basics 0% active, ts-101 0% active\ndashboard u37: git-basics 0% active, react-hooks 0% active, node-api 0% active, ts-101 0% active, testing-ttd 0% active, sql-joins 0% active\ndashboard u40: testing-ttd 0% active, node-api 0% active, ts-101 50% active, git-basics 71% active",
+          "hidden": true,
+          "score": 2
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,144 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_ttd_331",
+      "name": "tests-that-catch-bugs-quiz",
+      "type": "quiz",
+      "title": "Would these tests notice?",
+      "description": "Two pieces of evidence about the tests of the CodeDev coupon rule: a test file with full coverage, and one mutant that survived it.",
+      "difficulty": "medium",
+      "outcomes": [
+        "test-quality"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "// src/checkout/coupon.ts\nexport function applyCoupon(price: number, coupon: Coupon, today: string): number {\n  if (today > coupon.expiresOn) return price;\n  if (price <= MIN_PRICE) return price;                     // MIN_PRICE = 10_000\n  const discount = coupon.kind === \"percent\" ? Math.floor((price * coupon.value) / 100) : coupon.value;\n  return Math.max(price - discount, MIN_PRICE);\n}\n\n// src/checkout/coupon.test.ts\nconst c = (kind: \"percent\" | \"fixed\", value: number, expiresOn = \"2026-12-31\") => ({ kind, value, expiresOn });\ntest(\"percent coupon\", () => expect(applyCoupon(200000, c(\"percent\", 10), \"2026-10-26\")).toBe(180000));\ntest(\"fixed coupon\", () => expect(applyCoupon(199000, c(\"fixed\", 20000), \"2026-10-26\")).toBe(179000));\ntest(\"expired coupon\", () => expect(applyCoupon(199000, c(\"fixed\", 20000, \"2026-10-01\"), \"2026-10-26\")).toBe(199000));\ntest(\"cheap course\", () => expect(applyCoupon(5000, c(\"percent\", 50), \"2026-10-26\")).toBe(5000));\n\nCoverage report: coupon.ts  100% statements, 100% branches, 100% lines\n\nStatement: \"Because these four tests run every line and every branch of applyCoupon, at least one of them would fail if the last line were changed to return price - discount;\"",
+          "explanation": "False. Math.max(price - discount, MIN_PRICE) only matters when price - discount is below 10,000. In the tests it never is: 180,000 and 179,000 are far above it, the expired test returns before the line, and the cheap course returns on the line above. So without Math.max every test gives the same result and stays green, although a 50,000 VND coupon on a 49,000 VND course would now cost -1,000. Coverage records that the line ran; it says nothing about whether any assertion depends on what the line computes. To notice the change you need a case where the discount takes the price below the minimum. The misconception is that 100% line and branch coverage means every behaviour is checked.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "// src/checkout/coupon.ts\nexport function applyCoupon(price: number, coupon: Coupon, today: string): number {\n  if (today > coupon.expiresOn) return price;\n  if (price <= MIN_PRICE) return price;                     // MIN_PRICE = 10_000\n  const discount = coupon.kind === \"percent\" ? Math.floor((price * coupon.value) / 100) : coupon.value;\n  return Math.max(price - discount, MIN_PRICE);\n}\n\nMutation report for coupon.ts (the same four tests):\n[Survived] EqualityOperator  src/checkout/coupon.ts:3\n-  if (today > coupon.expiresOn) return price;\n+  if (today >= coupon.expiresOn) return price;\n\nA reviewer proposes one more test:\ntest(\"coupon used on its expiry day\", () =>\n  expect(applyCoupon(199000, { kind: \"fixed\", value: 20000, expiresOn: \"2026-10-26\" }, \"2026-10-26\")).toBe(179000));\n\nStatement: \"The new test passes on applyCoupon and fails on this mutant, so it kills the mutant: on the mutant it returns 199000.\"",
+          "explanation": "True. On the real code today (2026-10-26) is not after expiresOn (2026-10-26), so the coupon applies and the result is 199,000 - 20,000 = 179,000: the test passes. On the mutant, today >= expiresOn is true on the expiry day, so it returns the full 199,000 and the test fails: the mutant is killed. The existing \"expired coupon\" test could not do this, because 2026-10-26 is after 2026-10-01 for both > and >=. A mutant on a comparison is killed by a case exactly on the boundary, which is the same rule as in lesson 1.2. The misconception is that one test for \"expired\" and one for \"valid\" cover the expiry rule; the day itself is the case that matters.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_ttd_332",
+      "name": "tests-that-catch-bugs",
+      "type": "mini_coding",
+      "title": "Write tests that catch bugs",
+      "description": "The CodeDev checkout applies coupons with applyCoupon(price, coupon, today), and that function is correct. The rule (prices in VND, whole numbers): (1) a coupon can be used up to and including its expiresOn day; if today is after expiresOn the price is unchanged; (2) a \"percent\" coupon takes value% of the price, rounded DOWN to a whole VND; a \"fixed\" coupon takes value VND; (3) a coupon never takes a course below 10,000 VND: if price - discount is lower the learner pays 10,000, and a course that costs 10,000 VND or less (free courses included) is never discounted. Inputs are always valid (whole numbers >= 0, percent 1-100, dates \"YYYY-MM-DD\"). Your job is to write the tests, not the code: cases() returns a list of { name, input: { price, coupon: { kind, value, expiresOn }, today }, expected } with at least 6 cases, all names different, and every expected value equal to what applyCoupon returns. The test runner (do not change it) checks your cases against applyCoupon and then runs them against seven mutants, copies of applyCoupon with one planted bug each (ignored expiry, expiry a day early, rounding to nearest, no rounding, percent and fixed swapped, no minimum price, minimum price applied to cheap courses). A mutant is killed when at least one valid case gives a different result on it. Input: { \"mutants\": \"all\" } or a list of mutant names (an empty list checks only your cases). Output: \"cases: ok\" or the first problem with your cases, then one line per mutant, \"<name>: killed\" or \"<name>: survived (...)\". You pass when your cases are ok and every mutant is killed.",
+      "difficulty": "easy",
+      "outcomes": [
+        "test-quality",
+        "test-types"
+      ],
+      "points": 20,
+      "hints": [
+        "For each mutant, ask: which input would make it return a different price from applyCoupon? A mutant that survives is a behaviour none of your cases looks at.",
+        "Read the change printed next to each surviving mutant and find the edge it touches: the expiry DAY itself (not a day long past), a percent discount with a fraction of .5 or more, a discount bigger than the price, and a course that already costs less than 10,000 VND.",
+        "A similar rule: shipping is free from 500,000 VND (\"total >= 500000\"). A mutant that changes >= to > survives cases of 300,000 and 900,000, because both give the same answer either way. The case total = 500,000 (free) kills it, and 499,999 (paid) kills the mutant that changes the threshold to 499,999."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Your cases pass on the correct applyCoupon",
+          "input": {
+            "mutants": []
+          },
+          "hidden": false,
+          "score": 3,
+          "expected": "cases: ok"
+        },
+        {
+          "name": "Every mutant is killed",
+          "input": {
+            "mutants": "all"
+          },
+          "hidden": false,
+          "score": 3,
+          "expected": "cases: ok\nignores-expiry: killed\nexpires-a-day-early: killed\nrounds-to-nearest: killed\nno-rounding: killed\npercent-and-fixed-swapped: killed\nno-minimum-price: killed\nminimum-raises-cheap-courses: killed"
+        },
+        {
+          "name": "Expiry mutants: ignores-expiry, expires-a-day-early",
+          "input": {
+            "mutants": [
+              "ignores-expiry",
+              "expires-a-day-early"
+            ]
+          },
+          "hidden": true,
+          "score": 2,
+          "expected": "cases: ok\nignores-expiry: killed\nexpires-a-day-early: killed"
+        },
+        {
+          "name": "Rounding mutants: rounds-to-nearest, no-rounding",
+          "input": {
+            "mutants": [
+              "rounds-to-nearest",
+              "no-rounding"
+            ]
+          },
+          "hidden": true,
+          "score": 2,
+          "expected": "cases: ok\nrounds-to-nearest: killed\nno-rounding: killed"
+        },
+        {
+          "name": "Coupon kind mutant: percent-and-fixed-swapped",
+          "input": {
+            "mutants": [
+              "percent-and-fixed-swapped"
+            ]
+          },
+          "hidden": true,
+          "score": 2,
+          "expected": "cases: ok\npercent-and-fixed-swapped: killed"
+        },
+        {
+          "name": "Minimum price mutants: no-minimum-price, minimum-raises-cheap-courses",
+          "input": {
+            "mutants": [
+              "no-minimum-price",
+              "minimum-raises-cheap-courses"
+            ]
+          },
+          "hidden": true,
+          "score": 2,
+          "expected": "cases: ok\nno-minimum-price: killed\nminimum-raises-cheap-courses: killed"
+        }
+      ]
+    }
+  ]
+}

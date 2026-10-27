@@ -1,0 +1,50 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_ttd_231",
+      "name": "test-isolation-quiz",
+      "type": "quiz",
+      "title": "Alone, together, in parallel",
+      "description": "Two failures from the CodeDev API test suite: a test that passes alone and fails after another test of the same file, and two integration test files that run in parallel against one database.",
+      "difficulty": "medium",
+      "outcomes": [
+        "isolation"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "// src/config.ts\nexport const config = { maxAttempts: 5, graceMinutes: 15 };\n\n// src/attempts.ts\nexport const canSubmit = (s: { attemptsUsed: number }) => s.attemptsUsed < config.maxAttempts;\n\n// src/attempts.test.ts\ntest(\"a course can lower the attempt limit\", () => {\n  config.maxAttempts = 3;\n  expect(canSubmit({ attemptsUsed: 3 })).toBe(false);\n});\ntest(\"a learner who used 4 of 5 attempts can still submit\", () => {\n  expect(canSubmit({ attemptsUsed: 4 })).toBe(true);\n});\n\n$ npx vitest run src/attempts.test.ts\n FAIL  src/attempts.test.ts > a learner who used 4 of 5 attempts can still submit\nAssertionError: expected false to be true\n\n$ npx vitest run src/attempts.test.ts -t \"4 of 5\"\n Tests  1 passed | 1 skipped (2)\n\nStatement: \"The second test fails in the full run because the first test changed the shared config object and nothing restores it before the second test runs.\"",
+          "explanation": "True. config is created once when the module is imported, and both tests in the file use that same object. Tests in one file run one after another in the order they are written (Vitest's default), so the second test sees maxAttempts 3 left behind by the first and 4 < 3 is false. Run alone with -t, the first test is skipped and maxAttempts is still 5, so it passes. The misconception is that a test which passes alone must be correct, or that the failure is random: it fails every time the first test runs before it. The fix is to stop changing shared state (pass the limit in, or build the config per test) or to restore it in beforeEach, not to reorder the tests.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Two integration test files run with Vitest 3.x defaults against one PostgreSQL test database:\n\n// test/integration/users.test.ts\nbeforeAll(() => db.query(\"DELETE FROM users WHERE email = 'learner@codedev.test'\"));\ntest(\"sign-up creates an unverified user\", async () => {\n  const user = await signUp(db, { email: \"learner@codedev.test\", password: \"test-password-1\" });\n  expect(user.verified).toBe(false);\n});\n\n// test/integration/enrollments.test.ts\ntest(\"a new learner can enroll\", async () => {\n  const user = await signUp(db, { email: \"learner@codedev.test\", password: \"test-password-1\" });\n  expect((await enroll(db, user.id, \"ts-101\")).ok).toBe(true);\n});\n\nCI, about one run in three:\nerror: duplicate key value violates unique constraint \"users_email_key\"\n\nStatement: \"Because Vitest gives each test file its own module graph by default (the isolate option), these two files cannot affect each other through the database.\"",
+          "explanation": "False. Isolation per test file is about memory: each file gets fresh copies of the modules it imports, so a module-level cache does not leak from one file to another. Both files still connect to the same PostgreSQL database, and Vitest runs test files in parallel workers by default, so both can insert learner@codedev.test at about the same time, and the beforeAll in users.test.ts can delete the row the other file just created. The misconception is that the test runner's isolation covers external resources. The fix is unique data per test (for example an e-mail with randomUUID()), a transaction rolled back per test, or one database per worker; running with --no-file-parallelism only hides the problem.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

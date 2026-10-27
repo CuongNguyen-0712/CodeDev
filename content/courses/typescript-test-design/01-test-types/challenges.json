@@ -1,0 +1,50 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_ttd_111",
+      "name": "cheapest-test-quiz",
+      "type": "quiz",
+      "title": "Which test would have caught it?",
+      "description": "Two CodeDev bug reports with their code: decide whether the cheapest test that would have caught each bug is the one the statement names.",
+      "difficulty": "medium",
+      "outcomes": [
+        "test-types"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Bug report CD-1510: \"I have exactly 1000 EXP and my profile still says Level 4. The level table says Level 5 starts at 1000.\"\n\n// levels.ts\nconst LEVEL_STARTS = [0, 100, 300, 600, 1000]; // Level 1..5\n\nexport function levelFromExp(exp: number): number {\n  let level = 1;\n  for (let i = 1; i < LEVEL_STARTS.length; i++) {\n    if (exp > LEVEL_STARTS[i]) level = i + 1;\n  }\n  return level;\n}\n\nThe only test of the profile page is an end-to-end test that signs up a new learner (0 EXP) and checks that the page shows \"Level 1\".\n\nStatement: \"A unit test that calls levelFromExp(1000) and expects 5 would have caught this bug, without a database, a server or a browser.\"",
+          "explanation": "True. The bug is a comparison inside one function: exp > 1000 is false for exactly 1000, so the loop never reaches Level 5. levelFromExp takes a number and returns a number, so a unit test with the value from the bug report (1000, and 999 next to it) fails on this code in milliseconds and keeps failing until the comparison is >=. The end-to-end test could never see it: a new learner has 0 EXP, far from any boundary. The misconception is that a bug noticed on a page needs a test that goes through the page; where the bug is noticed and where it lives are different places.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Bug report CD-1527: \"After double-clicking Enroll, I see the course twice in My Courses.\" Production database:\n\nSELECT user_id, course_id, count(*) FROM enrollments GROUP BY 1, 2 HAVING count(*) > 1;\n user_id   | course_id  | count\n u_88213   | sql-basics |     2\n\nThe service:\n\nexport async function enrollLearner(repo: EnrollmentRepo, userId: string, courseId: string) {\n  if (await repo.exists(userId, courseId)) return;   // SELECT 1 FROM enrollments WHERE ...\n  await repo.insert(userId, courseId);              // INSERT INTO enrollments ...\n}\n\nThe enrollments table has no unique constraint on (user_id, course_id). The existing test uses an in-memory fake:\n\nit(\"does not enroll twice\", async () => {\n  const repo = new InMemoryEnrollmentRepo();\n  await enrollLearner(repo, \"u1\", \"sql-basics\");\n  await enrollLearner(repo, \"u1\", \"sql-basics\");\n  expect(await repo.count(\"u1\", \"sql-basics\")).toBe(1);\n}); // passes\n\nStatement: \"Another unit test with the in-memory fake repository, sending the two enroll calls at the same time with Promise.all, is the cheapest test that reliably catches this bug.\"",
+          "explanation": "False. Two requests can both run the SELECT before either INSERT, and only the database can stop the second insert: the missing piece is a unique constraint on (user_id, course_id) with INSERT ... ON CONFLICT DO NOTHING. The fake runs no SQL and has no constraint, so whether it lets the race through depends on how the fake happens to be written, not on the real table; and after the fix in the database, the fake would still behave the same. The cheapest test that can see this bug is an integration test against PostgreSQL that enrolls the same learner twice, concurrently, and counts the rows. The misconception is that a unit test is always the cheapest choice; it is only cheapest among tests that can actually see the bug.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

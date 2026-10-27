@@ -1,105 +1,159 @@
 {
   "publicId": "typescript-test-design",
-  "title": "Test Design in TypeScript: Unit, Property-Based & Contract Tests",
-  "concept": "Write tests that find bugs instead of confirming happy paths: equivalence classes and boundaries, test doubles, deterministic time and randomness, property-based testing with your own generators, contract tests for APIs and mutation testing to measure your tests.",
-  "description": "Write tests that find bugs instead of confirming happy paths: equivalence classes and boundaries, test doubles, deterministic time and randomness, property-based testing with your own generators, contract tests for APIs and mutation testing to measure your tests. 8 lessons, each starting from a real bug or incident, with graded challenges.",
-  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792642461/codedev/courses/typescript-test-design/cover",
-  "level": "intermediate",
-  "durationMinutes": 200,
+  "title": "Testing Fundamentals in TypeScript: Edge Cases, Test Doubles, Flaky Tests & Mutants",
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1793023994/codedev/courses/typescript-test-design/cover",
+  "concept": "Write tests that find bugs instead of confirming happy paths: choose the cheapest test that catches the bug, cover boundaries and invalid input, control time and shared state, use fakes where they help, fix flaky tests, and measure your tests by the mutants they kill.",
+  "description": "A beginner course for developers who write tests because CI asks for them and want the tests to start catching bugs. Every lesson starts from a situation on the CodeDev learning platform - a certificate refused at exactly 80% because of an off-by-one, a deadline test that failed every night at midnight, a service test that needed a real database, a pipeline that went red one run in five, a test suite that stayed green when the pricing rule was deleted - and fixes it with a habit you can check: unit, integration or end-to-end, boundaries and invalid input, assertions that fail for the right reason, an injected clock, fakes and mocks at the right boundary, isolation, the Fix the Flaky Pipeline scenario, an AI-written edge-case bug, writing tests that are graded by the mutants they kill, and mutation testing. 10 lessons with True/False quizzes on real tests and logs, and TypeScript challenges graded by hidden tests.",
+  "level": "beginner",
+  "durationMinutes": 240,
   "instructor": "CodeDev Engineering Team",
   "language": "TypeScript",
   "category": "Testing & QA",
   "cost": 0,
   "pointPrice": 0,
-  "reward": 100,
-  "accessModel": "premium",
+  "reward": 50,
+  "accessModel": "free",
   "publishStatus": "draft",
-  "offers": [
+  "offers": [],
+  "completionRules": {},
+  "domain": "quality",
+  "learningOutcomes": [
     {
-      "priceType": "points",
-      "amount": 300
+      "code": "test-types",
+      "text": "Choose unit, integration or end-to-end tests and write assertions that fail for the right reason"
     },
     {
-      "priceType": "money",
-      "amount": 149000,
-      "currency": "VND"
+      "code": "edge-cases",
+      "text": "Cover happy paths, boundaries, invalid input and repeated requests"
+    },
+    {
+      "code": "isolation",
+      "text": "Control time, randomness and shared state so tests are deterministic and isolated"
+    },
+    {
+      "code": "test-doubles",
+      "text": "Use fakes, stubs and mocks at the right boundary instead of mocking everything"
+    },
+    {
+      "code": "test-quality",
+      "text": "Recognise flaky tests and tests that cannot fail, and measure tests with mutants"
     }
   ],
+  "testedVersions": {
+    "TypeScript": "5.9.3 (tsc --strict in the code runner)",
+    "Vitest": "3.x (lesson examples)",
+    "StrykerJS": "lesson examples, check current docs"
+  },
+  "lastReviewedAt": "2026-10-26",
+  "sourceLinks": [
+    "https://martinfowler.com/articles/practical-test-pyramid.html",
+    "https://vitest.dev/guide/mocking",
+    "https://stryker-mutator.io/docs/"
+  ],
+  "owner": "CodeDev Engineering Team",
+  "knownIssues": [
+    "No test framework in the code runner: in lesson 3.3 learners write test cases as data that a small runner executes against the correct code and planted mutants"
+  ],
+  "scenario": {
+    "title": "Fix the Flaky Pipeline",
+    "quiz": "chal_quiz_ttd_311",
+    "fixBug": "chal_coding_ttd_312"
+  },
   "careerRoles": [
     "qa_engineer",
     "frontend_developer",
-    "fullstack_developer"
+    "backend_developer",
+    "fullstack_developer",
+    "student"
   ],
   "skills": {
     "testing": 5,
-    "typescript": 3,
-    "api_design": 1
+    "typescript": 3
   },
   "goals": [
-    "grow_in_role",
-    "first_job"
+    "fundamentals",
+    "first_job",
+    "grow_in_role"
   ],
   "prerequisites": [
-    "typescript-foundations",
-    "test-automation-foundations"
+    "typescript-foundations"
   ],
-  "modules": [],
-  "outline": [
+  "modules": [
     {
       "orderIndex": 1,
-      "title": "Test Design",
+      "title": "What to Test",
       "lessons": [
         {
           "orderIndex": 1,
-          "title": "Equivalence classes & boundary values",
-          "challenges": "Q(e) + C(m)"
+          "folder": "01-test-types",
+          "title": "Unit, integration or end-to-end: the cheapest test that catches the bug",
+          "sanityId": "lesson-ttd-1-1"
         },
         {
           "orderIndex": 2,
-          "title": "Test doubles: stubs, fakes & spies",
-          "challenges": "Q(m) + F(m)"
+          "folder": "02-boundaries-edge-cases",
+          "title": "Happy path, boundaries & invalid input",
+          "sanityId": "lesson-ttd-1-2"
         },
         {
           "orderIndex": 3,
-          "title": "Deterministic tests: fake clocks & seeded randomness",
-          "challenges": "F(m)"
+          "folder": "03-assertions",
+          "title": "Assertions that fail for the right reason",
+          "sanityId": "lesson-ttd-1-3"
         }
       ]
     },
     {
       "orderIndex": 2,
-      "title": "Properties",
+      "title": "Isolation",
       "lessons": [
         {
           "orderIndex": 1,
-          "title": "Property-based testing from scratch",
-          "challenges": "C(h)"
+          "folder": "04-deterministic-time",
+          "title": "Make time testable: inject the clock",
+          "sanityId": "lesson-ttd-2-1"
         },
         {
           "orderIndex": 2,
-          "title": "Shrinking failing inputs",
-          "challenges": "C(h)"
+          "folder": "05-fakes-mocks",
+          "title": "Fakes, stubs & mocks: where to draw the boundary",
+          "sanityId": "lesson-ttd-2-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "06-test-isolation",
+          "title": "Test isolation: shared state, order & parallel runs",
+          "sanityId": "lesson-ttd-2-3"
         }
       ]
     },
     {
       "orderIndex": 3,
-      "title": "Contracts & Quality",
+      "title": "Trust Your Tests",
       "lessons": [
         {
           "orderIndex": 1,
-          "title": "Contract tests for an API schema",
-          "challenges": "C(m)"
+          "folder": "07-flaky-pipeline",
+          "title": "Fix the flaky pipeline: tests that pass one run in five",
+          "sanityId": "lesson-ttd-3-1"
         },
         {
           "orderIndex": 2,
-          "title": "Mutation testing: do your tests notice?",
-          "challenges": "Q(m) + C(h)"
+          "folder": "08-spot-ai-edge-case",
+          "title": "Spot the AI mistake: the 80% certificate boundary",
+          "sanityId": "lesson-ttd-3-2"
         },
         {
           "orderIndex": 3,
-          "title": "Flaky tests: finding and fixing the cause",
-          "challenges": "Q(m) + F(m)"
+          "folder": "09-tests-that-catch-bugs",
+          "title": "Write tests that catch bugs, graded by mutants",
+          "sanityId": "lesson-ttd-3-3"
+        },
+        {
+          "orderIndex": 4,
+          "folder": "10-mutation-testing",
+          "title": "Mutation testing: measuring how good your tests are",
+          "sanityId": "lesson-ttd-3-4"
         }
       ]
     }

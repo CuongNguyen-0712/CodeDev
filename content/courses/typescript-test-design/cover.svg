@@ -29,17 +29,17 @@
   <g id="copy" font-family="Segoe UI, Inter, Arial, sans-serif">
     <rect x="112" y="152" width="92" height="92" rx="20" fill="#3178C6"/>
     <text x="194" y="232" text-anchor="end" font-size="40" font-weight="800" fill="#FFFFFF">TS</text>
-    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#8CB8EA">TYPESCRIPT · TEST DESIGN</text>
-    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">Test Design</text>
-    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">in TypeScript</text>
-    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Boundaries · Properties · Contract tests</text>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#8CB8EA">TYPESCRIPT · TESTING</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">Testing</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">Fundamentals</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Edge cases · Fakes · Flaky tests · Mutants</text>
     <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#CBE4FA">
       <rect x="110" y="660" width="179" height="52" rx="26" fill="#132238" stroke="#3178C6"/>
-      <text x="199.5" y="695" text-anchor="middle">property</text>
+      <text x="199.5" y="695" text-anchor="middle">edge case</text>
       <rect x="305" y="660" width="150" height="52" rx="26" fill="#132238" stroke="#3178C6"/>
-      <text x="380" y="695" text-anchor="middle">shrink</text>
+      <text x="380" y="695" text-anchor="middle">fake clock</text>
       <rect x="471" y="660" width="179" height="52" rx="26" fill="#132238" stroke="#3178C6"/>
-      <text x="560.5" y="695" text-anchor="middle">contract</text>
+      <text x="560.5" y="695" text-anchor="middle">flaky</text>
       <rect x="666" y="660" width="150" height="52" rx="26" fill="#132238" stroke="#3178C6"/>
       <text x="741" y="695" text-anchor="middle">mutant</text>
     </g>

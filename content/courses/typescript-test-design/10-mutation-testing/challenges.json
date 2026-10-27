@@ -1,0 +1,66 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_ttd_341",
+      "name": "mutation-testing-quiz",
+      "type": "quiz",
+      "title": "Read a mutation report",
+      "description": "Three pieces of evidence from mutation testing the CodeDev coupon rule: a score next to a coverage report, a mutant that survives every test, and a run on the files of one pull request.",
+      "difficulty": "medium",
+      "outcomes": [
+        "test-quality"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Two reports for the same test run of src/checkout/coupon.ts:\n\n$ npx vitest run --coverage\nFile       | % Stmts | % Branch | % Funcs | % Lines\ncoupon.ts  |   100   |   100    |   100   |   100\n\n$ npx stryker run\nFile       | % score | # killed | # timeout | # survived | # no cov | # errors\ncoupon.ts  |  57.14  |    4     |     0     |     3      |    0     |    0\n\nStatement: \"The two reports do not contradict each other: coverage says every line of coupon.ts ran during the tests, and the mutation score says 3 of the 7 changes made to those lines went unnoticed by the tests.\"",
+          "explanation": "True. Coverage records which code was executed. Mutation testing changes the code (a mutant), runs the tests again and checks whether at least one test fails. A line can run in every test while no assertion depends on what it computes, so 100% coverage and 3 surviving mutants are perfectly compatible: \"no cov 0\" even confirms every mutant sat on covered code. The score here is killed / (killed + survived + no coverage) = 4 / 7. The misconception is that coverage measures how well the code is tested; it measures how much of it was run.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "// src/checkout/coupon.ts\nexport function applyCoupon(price: number, coupon: Coupon, today: string): number {\n  if (today > coupon.expiresOn) return price;\n  if (price <= MIN_PRICE) return price;                     // MIN_PRICE = 10_000\n  const discount = coupon.kind === \"percent\" ? Math.floor((price * coupon.value) / 100) : coupon.value;\n  return Math.max(price - discount, MIN_PRICE);\n}\n\nOne mutant survives every test, even after a reviewer added more cases:\n[Survived] EqualityOperator  src/checkout/coupon.ts:4\n-  if (price <= MIN_PRICE) return price;\n+  if (price < MIN_PRICE) return price;\n\nStatement: \"This mutant shows a missing test: a case with a price of exactly 10,000 VND will kill it.\"",
+          "explanation": "False. The mutant only behaves differently when price is exactly 10,000. There the original returns 10,000 at once; the mutant goes on, computes some discount d and returns Math.max(10,000 - d, 10,000), which is 10,000 again. No input gives a different result, so no test can kill it: it is an equivalent mutant. The right response is to confirm that by reasoning (as here), then mark it as ignored with a comment in the code or exclude it in the tool's configuration, not to keep adding tests. The misconception is that every survivor is a missing test; most are, but equivalent mutants are why a 100% mutation score is not a useful target.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A pull request changes the coupon rule; its tests were written by an AI assistant.\n\n$ git diff --name-only origin/main\nsrc/checkout/coupon.ts\nsrc/checkout/coupon.test.ts\n\n$ npx stryker run --mutate src/checkout/coupon.ts\ncoupon.ts  % score 28.57  # killed 2  # survived 5  # no cov 0\nLine coverage of coupon.ts: 100%\n\nStatement: \"Running Stryker only on the changed file is a reasonable check for this pull request, and the 5 surviving mutants are a concrete list of behaviours that the AI-written tests do not check.\"",
+          "explanation": "True. Mutation testing is slow because it runs the tests once per mutant, so limiting it to the files a pull request changes (here with --mutate, or with an incremental mode that reuses earlier results) keeps it fast enough for review, and a full run can be scheduled nightly. Each survivor names a line and a change that no test noticed - for example a boundary or a rounding rule - which is exactly what a reviewer needs to ask for better tests, whoever wrote them. Check the options of your Stryker version in its documentation. The misconception is that tests generated together with the code check the code; here they run every line and kill 2 of 7 mutants.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

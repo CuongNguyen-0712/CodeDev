@@ -1,0 +1,5177 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_ttd_311",
+      "name": "fix-the-flaky-pipeline-evidence",
+      "type": "quiz",
+      "title": "Fix the Flaky Pipeline: read the evidence",
+      "description": "The test workflow of the CodeDev API goes red about one run in five and a re-run of the same commit is green. Six statements on one evidence pack - the CI history (A), two failure logs (B, C), the code and tests involved (D) and a pull request that adds retries (E) - take you from reading the evidence to a hypothesis, past a tempting wrong fix, to a real fix and how to prove it.",
+      "difficulty": "medium",
+      "outcomes": [
+        "isolation",
+        "test-quality"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence A - CI history, workflow \"test\" on main (vitest run), last 8 of 50 runs:\nRun    Commit   Started (UTC)        Duration  Result  Failed test\n#1849  9d03b7e  2026-10-26 08:41:12  2m 38s    pass    (re-run of #1848)\n#1848  9d03b7e  2026-10-26 08:37:55  2m 41s    FAIL    leaderboard.test.ts > ranks learners by points, ties by name\n#1847  c51a2f0  2026-10-26 07:58:20  2m 44s    pass\n#1846  4e1c9a2  2026-10-26 07:12:03  2m 40s    pass    (re-run of #1845)\n#1845  4e1c9a2  2026-10-26 07:08:19  2m 39s    FAIL    enrollment.test.ts > trial ends 7 days after enrolment\n#1844  b7710de  2026-10-25 16:20:47  2m 42s    pass\n#1843  0aa93f1  2026-10-25 14:55:09  2m 40s    pass\n#1842  0aa93f1  2026-10-25 14:31:26  2m 43s    pass\nLast 50 runs: 40 pass, 10 FAIL (6 x enrollment.test.ts, 4 x leaderboard.test.ts).\nEvery failed commit passed on a re-run. Median duration: pass 2m 41s, FAIL 2m 40s.\n\nStatement: \"Commits 4e1c9a2 and 9d03b7e each failed and then passed with exactly the same code, so the result depends on something that changes from run to run - such as the time a test runs at, the order the tests run in, or state left behind by another test - and not on the code alone.\"",
+          "explanation": "True. A re-run uses the same commit, the same dependencies and the same tests, yet the result flips, so the outcome depends on an input that is not in the code: the clock, the order of the tests, state shared between tests, randomness, or the network. The history also argues against the usual first suspect, a slow CI machine: failed runs take the same time as passing ones (median 2m 40s against 2m 41s). The misconception is to treat \"passed on re-run\" as \"nothing is wrong\"; it is the definition of a flaky test, and each failure is a real outcome that happens with some probability.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence B - failure log of run #1845:\n FAIL  src/enrollment/enrollment.test.ts > trial ends 7 days after enrolment\nAssertionError: expected '2026-11-02T07:09:41.000Z' to be '2026-11-02T07:09:40.000Z' // Object.is equality\n- Expected: 2026-11-02T07:09:40.000Z\n+ Received: 2026-11-02T07:09:41.000Z\n\nEvidence D - the enrolment code and its test:\n// src/enrollment/enrollment.ts\nexport async function enrollInTrial(db: Db, userId: string, courseId: string) {\n  const startedAt = Math.floor(Date.now() / 1000) * 1000;   // stored in whole seconds\n  const trialEndsAt = new Date(startedAt + 7 * DAY_MS).toISOString();\n  await db.enrollments.insert({ userId, courseId, trialEndsAt });\n  return { userId, courseId, trialEndsAt };\n}\n\n// src/enrollment/enrollment.test.ts\ntest(\"trial ends 7 days after enrolment\", async () => {\n  const expected = new Date(Math.floor(Date.now() / 1000) * 1000 + 7 * DAY_MS).toISOString();\n  const course = await createCourse(db, { slug: \"typescript-test-design\" }); // about 150 ms on CI\n  const enrollment = await enrollInTrial(db, \"u_8812\", course.id);\n  expect(enrollment.trialEndsAt).toBe(expected);\n});\n\nStatement: \"The expiry failure happens in runs where the clock passes a whole second between the test's Date.now() and the Date.now() inside enrollInTrial; with about 150 ms of setup between the two calls, that happens in some runs and not in others.\"",
+          "explanation": "True. The test computes its expected value first, then spends about 150 ms creating a course, then calls enrollInTrial, which reads the clock again. Both round down to the whole second. If both reads fall in the same second (07:09:40.2 and 07:09:40.35) the values match; if the second ticks over in between (07:09:40.9 and 07:09:41.05) the code rounds to 07:09:41 and the test expected 07:09:40 - exactly one second, as in log B. With 150 ms between the reads, roughly one run in seven crosses a second, which fits 6 failures in 50 runs. The misconception is that two Date.now() calls in one test see the same time; the fix is to give the code a clock the test controls.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence C - failure log of run #1848:\n FAIL  src/leaderboard/leaderboard.test.ts > ranks learners by points, ties by name\nAssertionError: expected [ 'binh 120', 'an 120', 'chi 80' ] to deeply equal [ 'an 120', 'binh 120', 'chi 80' ]\n\nEvidence D - the leaderboard code, its tests and the Vitest config:\n// vitest.config.ts\nexport default defineConfig({ test: { isolate: false } }); // PR #577: share modules between test files, CI 40% faster\n\n// src/leaderboard/leaderboard.ts\nconst totals = new Map<string, number>();   // one map for the whole module\nexport const setPoints = (user: string, points: number) => { totals.set(user, points); };\nexport const addPoints = (user: string, points: number) => { totals.set(user, (totals.get(user) ?? 0) + points); };\nexport const pointsOf = (user: string) => totals.get(user) ?? 0;\nexport const ranking = () =>\n  [...totals].sort((a, b) => b[1] - a[1]).map(([user, points]) => `${user} ${points}`);\n\n// src/leaderboard/leaderboard.test.ts\ntest(\"ranks learners by points, ties by name\", () => {\n  setPoints(\"an\", 120);\n  setPoints(\"binh\", 120);\n  setPoints(\"chi\", 80);\n  expect(ranking()).toEqual([\"an 120\", \"binh 120\", \"chi 80\"]);\n});\n\n// src/leaderboard/streak.test.ts\ntest(\"a 7-day streak adds 20 bonus points\", () => {\n  setPoints(\"binh\", 100);\n  addPoints(\"binh\", streakBonus(7));\n  expect(pointsOf(\"binh\")).toBe(120);\n});\n\nStatement: \"The leaderboard failure does not depend on other test files: running leaderboard.test.ts on its own would fail the same way about one run in five.\"",
+          "explanation": "False. On its own, the test starts with an empty map and inserts an, binh, chi in that order. The comparator only compares points, and Array.prototype.sort is stable, so the tie between an and binh keeps insertion order and the test passes every time. It fails only when streak.test.ts ran earlier in the same worker: with isolate: false the module, and its map, is shared between files, so binh is already in the map and setPoints(\"binh\", 120) keeps binh's earlier position. Which files share a worker, and in which order, changes between CI runs. Two lessons hide here: shared module state makes the result depend on order, and the code never implemented \"ties by name\" at all - the test passed by luck of insertion order. The misconception is that a test which passes alone is correct.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence E - PR #611 \"ci: retry flaky tests 3 times\":\n export default defineConfig({\n   test: {\n     isolate: false,\n+    retry: 3, // flaky tests: try again up to 3 times before failing the build\n   },\n });\n\nEvidence A - CI history, workflow \"test\" on main (vitest run), last 8 of 50 runs:\nRun    Commit   Started (UTC)        Duration  Result  Failed test\n#1849  9d03b7e  2026-10-26 08:41:12  2m 38s    pass    (re-run of #1848)\n#1848  9d03b7e  2026-10-26 08:37:55  2m 41s    FAIL    leaderboard.test.ts > ranks learners by points, ties by name\n#1847  c51a2f0  2026-10-26 07:58:20  2m 44s    pass\n#1846  4e1c9a2  2026-10-26 07:12:03  2m 40s    pass    (re-run of #1845)\n#1845  4e1c9a2  2026-10-26 07:08:19  2m 39s    FAIL    enrollment.test.ts > trial ends 7 days after enrolment\n#1844  b7710de  2026-10-25 16:20:47  2m 42s    pass\n#1843  0aa93f1  2026-10-25 14:55:09  2m 40s    pass\n#1842  0aa93f1  2026-10-25 14:31:26  2m 43s    pass\nLast 50 runs: 40 pass, 10 FAIL (6 x enrollment.test.ts, 4 x leaderboard.test.ts).\nEvery failed commit passed on a re-run. Median duration: pass 2m 41s, FAIL 2m 40s.\n\nStatement: \"Merging PR #611 fixes the pipeline: a test that fails and then passes on a retry has shown that the code works.\"",
+          "explanation": "False. A retry runs the same test again until the dice come up right; it changes how often the build is red, not why. The leaderboard test is pointing at a real bug - production ranks tied learners by insertion order, not by name - and with three retries it would almost always go green and hide it. The enrolment test would keep failing about one run in seven and pass on the retry, so every future timing bug in that file would be hidden too. Retries can be acceptable for a short time on tests that cross a real network, with a ticket to remove them; for unit tests that depend on the clock and on order they only remove the signal. The misconception is that a green retry is evidence; it is a second sample of a random result.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence D - the enrolment code and its test:\n// src/enrollment/enrollment.ts\nexport async function enrollInTrial(db: Db, userId: string, courseId: string) {\n  const startedAt = Math.floor(Date.now() / 1000) * 1000;   // stored in whole seconds\n  const trialEndsAt = new Date(startedAt + 7 * DAY_MS).toISOString();\n  await db.enrollments.insert({ userId, courseId, trialEndsAt });\n  return { userId, courseId, trialEndsAt };\n}\n\n// src/enrollment/enrollment.test.ts\ntest(\"trial ends 7 days after enrolment\", async () => {\n  const expected = new Date(Math.floor(Date.now() / 1000) * 1000 + 7 * DAY_MS).toISOString();\n  const course = await createCourse(db, { slug: \"typescript-test-design\" }); // about 150 ms on CI\n  const enrollment = await enrollInTrial(db, \"u_8812\", course.id);\n  expect(enrollment.trialEndsAt).toBe(expected);\n});\n\nEvidence D - the leaderboard code, its tests and the Vitest config:\n// vitest.config.ts\nexport default defineConfig({ test: { isolate: false } }); // PR #577: share modules between test files, CI 40% faster\n\n// src/leaderboard/leaderboard.ts\nconst totals = new Map<string, number>();   // one map for the whole module\nexport const setPoints = (user: string, points: number) => { totals.set(user, points); };\nexport const addPoints = (user: string, points: number) => { totals.set(user, (totals.get(user) ?? 0) + points); };\nexport const pointsOf = (user: string) => totals.get(user) ?? 0;\nexport const ranking = () =>\n  [...totals].sort((a, b) => b[1] - a[1]).map(([user, points]) => `${user} ${points}`);\n\n// src/leaderboard/leaderboard.test.ts\ntest(\"ranks learners by points, ties by name\", () => {\n  setPoints(\"an\", 120);\n  setPoints(\"binh\", 120);\n  setPoints(\"chi\", 80);\n  expect(ranking()).toEqual([\"an 120\", \"binh 120\", \"chi 80\"]);\n});\n\n// src/leaderboard/streak.test.ts\ntest(\"a 7-day streak adds 20 bonus points\", () => {\n  setPoints(\"binh\", 100);\n  addPoints(\"binh\", streakBonus(7));\n  expect(pointsOf(\"binh\")).toBe(120);\n});\n\nStatement: \"A fix that removes the causes is: enrollInTrial takes the current time from a clock parameter that the test sets to a fixed instant, ranking() sorts ties by name explicitly, and each test starts from an empty leaderboard (a reset in beforeEach, or a new leaderboard per test).\"",
+          "explanation": "True. Each change removes one source of nondeterminism instead of hiding it. With an injected clock the test and the code see the same instant, so there is no second to cross. An explicit tie-breaker makes the order a rule of the code (\"ties by name\", as the test name says) instead of an accident of which test inserted a user first. A fresh leaderboard per test removes the dependency on other files, so isolate: false can stay for speed. The misconception is that the fix belongs only in the tests: two of the three changes are in the production code, because the tests had found real problems in it.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence A - CI history, workflow \"test\" on main (vitest run), last 8 of 50 runs:\nRun    Commit   Started (UTC)        Duration  Result  Failed test\n#1849  9d03b7e  2026-10-26 08:41:12  2m 38s    pass    (re-run of #1848)\n#1848  9d03b7e  2026-10-26 08:37:55  2m 41s    FAIL    leaderboard.test.ts > ranks learners by points, ties by name\n#1847  c51a2f0  2026-10-26 07:58:20  2m 44s    pass\n#1846  4e1c9a2  2026-10-26 07:12:03  2m 40s    pass    (re-run of #1845)\n#1845  4e1c9a2  2026-10-26 07:08:19  2m 39s    FAIL    enrollment.test.ts > trial ends 7 days after enrolment\n#1844  b7710de  2026-10-25 16:20:47  2m 42s    pass\n#1843  0aa93f1  2026-10-25 14:55:09  2m 40s    pass\n#1842  0aa93f1  2026-10-25 14:31:26  2m 43s    pass\nLast 50 runs: 40 pass, 10 FAIL (6 x enrollment.test.ts, 4 x leaderboard.test.ts).\nEvery failed commit passed on a re-run. Median duration: pass 2m 41s, FAIL 2m 40s.\n\nStatement: \"After the fix, five passing CI runs in a row show that the flakiness is gone.\"",
+          "explanation": "False. Before the fix the pipeline already passed 4 runs in 5, so five green runs in a row happen with probability 0.8^5, about 33%, on code that is still broken - and the default file order may never put streak.test.ts before leaderboard.test.ts. Useful evidence forces the conditions that caused the failures: run the suite many times (for example 100) with a shuffled order and a different seed each time, and pin the clock to the edge of a second (07:09:40.999) in a test. A broken pipeline passes 100 runs with probability 0.8^100, about 2 in 10 billion. The misconception is that a few green runs prove the absence of a random failure.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_ttd_312",
+      "name": "fix-the-flaky-pipeline",
+      "type": "fix_bug",
+      "title": "Fix the Flaky Pipeline",
+      "description": "The CodeDev trial week module keeps a small leaderboard for learners on a 7-day trial and tells them when the trial ends. Its tests go red about one CI run in five: sometimes the trial end is wrong, sometimes the ranking comes back in a different order, and a re-run of the same code is green. Locally, one test at a time, everything passes. Fix startCohort(now) so that every cohort gives the same answer for the same start time and awards, whatever order the awards arrive in and whatever ran before: trialEndsAt() is 7 days after the moment the cohort started (the time the injected clock now() returned when startCohort ran), rounded down to the whole second, as an ISO string; ranking() lists every learner with points as \"name points\", most points first, ties in alphabetical order of name; and every cohort starts empty. Awards whose points are not a positive whole number are ignored (that part already works). Input (read by the test runner, do not change it): { runs, seed, starts, awards }. Run i starts a cohort with a clock fixed at starts[i % starts.length] and gives it the awards in an order shuffled by a seeded random generator, so the shuffles are the same on every submission. Output: the number of runs and the seed, then every different ranking and, per start time, every different trial end, each with the number of runs that gave it. A correct module prints exactly one ranking line and one trial line per start time.",
+      "difficulty": "easy",
+      "outcomes": [
+        "isolation"
+      ],
+      "points": 20,
+      "hints": [
+        "Run the starter on the first public test and read the output: which parts of the answer change from run to run, and which inputs does the code read that the test runner does not control?",
+        "Look at three lines: where the map of points is created (once for the file, or once per cohort?), what trialEndsAt() reads instead of the `now` it was given, and whether ranking() decides the order of tied learners or leaves it to the order the awards arrived in.",
+        "A similar case: `const seen = new Set<string>(); function createInbox(clock: () => number) { return { add(id: string) { seen.add(id); }, list: () => [...seen], receivedAt: () => Date.now() }; }`. Two inboxes share `seen`, `list()` follows arrival order and `receivedAt()` ignores the clock. Moving `seen` inside createInbox, sorting in list() and calling clock() makes every inbox independent and repeatable."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "One run: two learners tie, the trial ends 7 days after the start",
+          "input": {
+            "runs": 1,
+            "seed": 1,
+            "starts": [
+              "2030-03-01T09:00:00.000Z"
+            ],
+            "awards": [
+              {
+                "learner": "binh",
+                "points": 90
+              },
+              {
+                "learner": "an",
+                "points": 50
+              },
+              {
+                "learner": "chi",
+                "points": 30
+              },
+              {
+                "learner": "an",
+                "points": 40
+              }
+            ]
+          },
+          "hidden": false,
+          "score": 3,
+          "expected": "1 runs, seed 1\nranking: an 90, binh 90, chi 30 (1 run)\nstarted 2030-03-01T09:00:00.000Z: trial ends 2030-03-08T09:00:00.000Z (1 run)"
+        },
+        {
+          "name": "Five runs with two start times give one answer per start time",
+          "input": {
+            "runs": 5,
+            "seed": 7,
+            "starts": [
+              "2030-03-01T09:00:00.999Z",
+              "2030-03-01T09:00:01.000Z"
+            ],
+            "awards": [
+              {
+                "learner": "binh",
+                "points": 120
+              },
+              {
+                "learner": "an",
+                "points": 120
+              },
+              {
+                "learner": "chi",
+                "points": 80
+              }
+            ]
+          },
+          "hidden": false,
+          "score": 3,
+          "expected": "5 runs, seed 7\nranking: an 120, binh 120, chi 80 (5 runs)\nstarted 2030-03-01T09:00:00.999Z: trial ends 2030-03-08T09:00:00.000Z (3 runs)\nstarted 2030-03-01T09:00:01.000Z: trial ends 2030-03-08T09:00:01.000Z (2 runs)"
+        },
+        {
+          "name": "100 shuffled runs with ties and repeated awards",
+          "input": {
+            "runs": 100,
+            "seed": 42,
+            "starts": [
+              "2030-05-04T10:15:30.250Z",
+              "2030-05-04T10:15:30.750Z",
+              "2030-05-04T10:15:31.000Z",
+              "2030-05-04T10:15:29.999Z"
+            ],
+            "awards": [
+              {
+                "learner": "minh",
+                "points": 40
+              },
+              {
+                "learner": "lan",
+                "points": 25
+              },
+              {
+                "learner": "an",
+                "points": 60
+              },
+              {
+                "learner": "minh",
+                "points": 35
+              },
+              {
+                "learner": "khoa",
+                "points": 75
+              },
+              {
+                "learner": "lan",
+                "points": 50
+              },
+              {
+                "learner": "binh",
+                "points": 10
+              },
+              {
+                "learner": "an",
+                "points": 15
+              },
+              {
+                "learner": "trang",
+                "points": 10
+              },
+              {
+                "learner": "giang",
+                "points": 5
+              },
+              {
+                "learner": "giang",
+                "points": 5
+              },
+              {
+                "learner": "hoa",
+                "points": 10
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 2,
+          "expected": "100 runs, seed 42\nranking: an 75, khoa 75, lan 75, minh 75, binh 10, giang 10, hoa 10, trang 10 (100 runs)\nstarted 2030-05-04T10:15:30.250Z: trial ends 2030-05-11T10:15:30.000Z (25 runs)\nstarted 2030-05-04T10:15:30.750Z: trial ends 2030-05-11T10:15:30.000Z (25 runs)\nstarted 2030-05-04T10:15:31.000Z: trial ends 2030-05-11T10:15:31.000Z (25 runs)\nstarted 2030-05-04T10:15:29.999Z: trial ends 2030-05-11T10:15:29.000Z (25 runs)"
+        },
+        {
+          "name": "Start times just before a second, a year and a month end",
+          "input": {
+            "runs": 30,
+            "seed": 9,
+            "starts": [
+              "2030-12-31T23:59:59.999Z",
+              "2031-01-01T00:00:00.000Z",
+              "2030-02-28T23:59:59.500Z",
+              "2032-02-28T12:00:00.001Z"
+            ],
+            "awards": [
+              {
+                "learner": "vy",
+                "points": 10
+              },
+              {
+                "learner": "an",
+                "points": 10
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 2,
+          "expected": "30 runs, seed 9\nranking: an 10, vy 10 (30 runs)\nstarted 2030-12-31T23:59:59.999Z: trial ends 2031-01-07T23:59:59.000Z (8 runs)\nstarted 2031-01-01T00:00:00.000Z: trial ends 2031-01-08T00:00:00.000Z (8 runs)\nstarted 2030-02-28T23:59:59.500Z: trial ends 2030-03-07T23:59:59.000Z (7 runs)\nstarted 2032-02-28T12:00:00.001Z: trial ends 2032-03-06T12:00:00.000Z (7 runs)"
+        },
+        {
+          "name": "Invalid awards are ignored, valid ones still count",
+          "input": {
+            "runs": 20,
+            "seed": 3,
+            "starts": [
+              "2030-07-01T08:00:00.000Z"
+            ],
+            "awards": [
+              {
+                "learner": "an",
+                "points": 30
+              },
+              {
+                "learner": "an",
+                "points": 0
+              },
+              {
+                "learner": "binh",
+                "points": -10
+              },
+              {
+                "learner": "binh",
+                "points": 30
+              },
+              {
+                "learner": "chi",
+                "points": 12.5
+              },
+              {
+                "learner": "chi",
+                "points": 5
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 2,
+          "expected": "20 runs, seed 3\nranking: an 30, binh 30, chi 5 (20 runs)\nstarted 2030-07-01T08:00:00.000Z: trial ends 2030-07-08T08:00:00.000Z (20 runs)"
+        },
+        {
+          "name": "A cohort with only invalid awards ranks nobody",
+          "input": {
+            "runs": 10,
+            "seed": 5,
+            "starts": [
+              "2030-07-01T08:00:00.000Z"
+            ],
+            "awards": [
+              {
+                "learner": "an",
+                "points": 0
+              },
+              {
+                "learner": "binh",
+                "points": -5
+              },
+              {
+                "learner": "chi",
+                "points": 2.5
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 2,
+          "expected": "10 runs, seed 5\nranking: (nobody) (10 runs)\nstarted 2030-07-01T08:00:00.000Z: trial ends 2030-07-08T08:00:00.000Z (10 runs)"
+        },
+        {
+          "name": "Large: 100 shuffled runs of 1,200 awards for 40 learners",
+          "input": {
+            "runs": 100,
+            "seed": 2026,
+            "starts": [
+              "2030-09-15T06:30:00.999Z",
+              "2030-09-15T06:30:01.001Z",
+              "2030-09-15T06:29:59.500Z"
+            ],
+            "awards": [
+              {
+                "learner": "an",
+                "points": 28
+              },
+              {
+                "learner": "bao",
+                "points": 28
+              },
+              {
+                "learner": "binh",
+                "points": 1
+              },
+              {
+                "learner": "chi",
+                "points": 1
+              },
+              {
+                "learner": "dung",
+                "points": 19
+              },
+              {
+                "learner": "giang",
+                "points": 19
+              },
+              {
+                "learner": "ha",
+                "points": 10
+              },
+              {
+                "learner": "hai",
+                "points": 10
+              },
+              {
+                "learner": "hieu",
+                "points": 32
+              },
+              {
+                "learner": "hoa",
+                "points": 32
+              },
+              {
+                "learner": "hung",
+                "points": 42
+              },
+              {
+                "learner": "huong",
+                "points": 42
+              },
+              {
+                "learner": "khanh",
+                "points": 24
+              },
+              {
+                "learner": "khoa",
+                "points": 24
+              },
+              {
+                "learner": "lan",
+                "points": 30
+              },
+              {
+                "learner": "linh",
+                "points": 30
+              },
+              {
+                "learner": "long",
+                "points": 46
+              },
+              {
+                "learner": "mai",
+                "points": 46
+              },
+              {
+                "learner": "minh",
+                "points": 25
+              },
+              {
+                "learner": "nam",
+                "points": 25
+              },
+              {
+                "learner": "ngoc",
+                "points": 28
+              },
+              {
+                "learner": "nhung",
+                "points": 28
+              },
+              {
+                "learner": "phong",
+                "points": 5
+              },
+              {
+                "learner": "phuc",
+                "points": 5
+              },
+              {
+                "learner": "quan",
+                "points": 6
+              },
+              {
+                "learner": "quang",
+                "points": 6
+              },
+              {
+                "learner": "son",
+                "points": 32
+              },
+              {
+                "learner": "tam",
+                "points": 32
+              },
+              {
+                "learner": "thanh",
+                "points": 13
+              },
+              {
+                "learner": "thao",
+                "points": 13
+              },
+              {
+                "learner": "thu",
+                "points": 45
+              },
+              {
+                "learner": "trang",
+                "points": 45
+              },
+              {
+                "learner": "trung",
+                "points": 25
+              },
+              {
+                "learner": "tuan",
+                "points": 25
+              },
+              {
+                "learner": "tu",
+                "points": 34
+              },
+              {
+                "learner": "uyen",
+                "points": 34
+              },
+              {
+                "learner": "van",
+                "points": 25
+              },
+              {
+                "learner": "viet",
+                "points": 25
+              },
+              {
+                "learner": "vy",
+                "points": 46
+              },
+              {
+                "learner": "yen",
+                "points": 46
+              },
+              {
+                "learner": "an",
+                "points": 27
+              },
+              {
+                "learner": "bao",
+                "points": 27
+              },
+              {
+                "learner": "binh",
+                "points": 11
+              },
+              {
+                "learner": "chi",
+                "points": 11
+              },
+              {
+                "learner": "dung",
+                "points": 36
+              },
+              {
+                "learner": "giang",
+                "points": 36
+              },
+              {
+                "learner": "ha",
+                "points": 14
+              },
+              {
+                "learner": "hai",
+                "points": 14
+              },
+              {
+                "learner": "hieu",
+                "points": 26
+              },
+              {
+                "learner": "hoa",
+                "points": 26
+              },
+              {
+                "learner": "hung",
+                "points": 12
+              },
+              {
+                "learner": "huong",
+                "points": 12
+              },
+              {
+                "learner": "khanh",
+                "points": 36
+              },
+              {
+                "learner": "khoa",
+                "points": 36
+              },
+              {
+                "learner": "lan",
+                "points": 34
+              },
+              {
+                "learner": "linh",
+                "points": 34
+              },
+              {
+                "learner": "long",
+                "points": 18
+              },
+              {
+                "learner": "mai",
+                "points": 18
+              },
+              {
+                "learner": "minh",
+                "points": 25
+              },
+              {
+                "learner": "nam",
+                "points": 25
+              },
+              {
+                "learner": "ngoc",
+                "points": 36
+              },
+              {
+                "learner": "nhung",
+                "points": 36
+              },
+              {
+                "learner": "phong",
+                "points": 11
+              },
+              {
+                "learner": "phuc",
+                "points": 11
+              },
+              {
+                "learner": "quan",
+                "points": 15
+              },
+              {
+                "learner": "quang",
+                "points": 15
+              },
+              {
+                "learner": "son",
+                "points": 35
+              },
+              {
+                "learner": "tam",
+                "points": 35
+              },
+              {
+                "learner": "thanh",
+                "points": 39
+              },
+              {
+                "learner": "thao",
+                "points": 39
+              },
+              {
+                "learner": "thu",
+                "points": 23
+              },
+              {
+                "learner": "trang",
+                "points": 23
+              },
+              {
+                "learner": "trung",
+                "points": 30
+              },
+              {
+                "learner": "tuan",
+                "points": 30
+              },
+              {
+                "learner": "tu",
+                "points": 39
+              },
+              {
+                "learner": "uyen",
+                "points": 39
+              },
+              {
+                "learner": "van",
+                "points": 20
+              },
+              {
+                "learner": "viet",
+                "points": 20
+              },
+              {
+                "learner": "vy",
+                "points": 39
+              },
+              {
+                "learner": "yen",
+                "points": 39
+              },
+              {
+                "learner": "an",
+                "points": 31
+              },
+              {
+                "learner": "bao",
+                "points": 31
+              },
+              {
+                "learner": "binh",
+                "points": 25
+              },
+              {
+                "learner": "chi",
+                "points": 25
+              },
+              {
+                "learner": "dung",
+                "points": 14
+              },
+              {
+                "learner": "giang",
+                "points": 14
+              },
+              {
+                "learner": "ha",
+                "points": 15
+              },
+              {
+                "learner": "hai",
+                "points": 15
+              },
+              {
+                "learner": "hieu",
+                "points": 3
+              },
+              {
+                "learner": "hoa",
+                "points": 3
+              },
+              {
+                "learner": "hung",
+                "points": 23
+              },
+              {
+                "learner": "huong",
+                "points": 23
+              },
+              {
+                "learner": "khanh",
+                "points": 10
+              },
+              {
+                "learner": "khoa",
+                "points": 10
+              },
+              {
+                "learner": "lan",
+                "points": 11
+              },
+              {
+                "learner": "linh",
+                "points": 11
+              },
+              {
+                "learner": "long",
+                "points": 25
+              },
+              {
+                "learner": "mai",
+                "points": 25
+              },
+              {
+                "learner": "minh",
+                "points": 41
+              },
+              {
+                "learner": "nam",
+                "points": 41
+              },
+              {
+                "learner": "ngoc",
+                "points": 8
+              },
+              {
+                "learner": "nhung",
+                "points": 8
+              },
+              {
+                "learner": "phong",
+                "points": 38
+              },
+              {
+                "learner": "phuc",
+                "points": 38
+              },
+              {
+                "learner": "quan",
+                "points": 12
+              },
+              {
+                "learner": "quang",
+                "points": 12
+              },
+              {
+                "learner": "son",
+                "points": 34
+              },
+              {
+                "learner": "tam",
+                "points": 34
+              },
+              {
+                "learner": "thanh",
+                "points": 48
+              },
+              {
+                "learner": "thao",
+                "points": 48
+              },
+              {
+                "learner": "thu",
+                "points": 16
+              },
+              {
+                "learner": "trang",
+                "points": 16
+              },
+              {
+                "learner": "trung",
+                "points": 8
+              },
+              {
+                "learner": "tuan",
+                "points": 8
+              },
+              {
+                "learner": "tu",
+                "points": 4
+              },
+              {
+                "learner": "uyen",
+                "points": 4
+              },
+              {
+                "learner": "van",
+                "points": 45
+              },
+              {
+                "learner": "viet",
+                "points": 45
+              },
+              {
+                "learner": "vy",
+                "points": 30
+              },
+              {
+                "learner": "yen",
+                "points": 30
+              },
+              {
+                "learner": "an",
+                "points": 50
+              },
+              {
+                "learner": "bao",
+                "points": 50
+              },
+              {
+                "learner": "binh",
+                "points": 37
+              },
+              {
+                "learner": "chi",
+                "points": 37
+              },
+              {
+                "learner": "dung",
+                "points": 44
+              },
+              {
+                "learner": "giang",
+                "points": 44
+              },
+              {
+                "learner": "ha",
+                "points": 18
+              },
+              {
+                "learner": "hai",
+                "points": 18
+              },
+              {
+                "learner": "hieu",
+                "points": 22
+              },
+              {
+                "learner": "hoa",
+                "points": 22
+              },
+              {
+                "learner": "hung",
+                "points": 39
+              },
+              {
+                "learner": "huong",
+                "points": 39
+              },
+              {
+                "learner": "khanh",
+                "points": 47
+              },
+              {
+                "learner": "khoa",
+                "points": 47
+              },
+              {
+                "learner": "lan",
+                "points": 25
+              },
+              {
+                "learner": "linh",
+                "points": 25
+              },
+              {
+                "learner": "long",
+                "points": 17
+              },
+              {
+                "learner": "mai",
+                "points": 17
+              },
+              {
+                "learner": "minh",
+                "points": 48
+              },
+              {
+                "learner": "nam",
+                "points": 48
+              },
+              {
+                "learner": "ngoc",
+                "points": 33
+              },
+              {
+                "learner": "nhung",
+                "points": 33
+              },
+              {
+                "learner": "phong",
+                "points": 49
+              },
+              {
+                "learner": "phuc",
+                "points": 49
+              },
+              {
+                "learner": "quan",
+                "points": 6
+              },
+              {
+                "learner": "quang",
+                "points": 6
+              },
+              {
+                "learner": "son",
+                "points": 49
+              },
+              {
+                "learner": "tam",
+                "points": 49
+              },
+              {
+                "learner": "thanh",
+                "points": 38
+              },
+              {
+                "learner": "thao",
+                "points": 38
+              },
+              {
+                "learner": "thu",
+                "points": 18
+              },
+              {
+                "learner": "trang",
+                "points": 18
+              },
+              {
+                "learner": "trung",
+                "points": 31
+              },
+              {
+                "learner": "tuan",
+                "points": 31
+              },
+              {
+                "learner": "tu",
+                "points": 46
+              },
+              {
+                "learner": "uyen",
+                "points": 46
+              },
+              {
+                "learner": "van",
+                "points": 5
+              },
+              {
+                "learner": "viet",
+                "points": 5
+              },
+              {
+                "learner": "vy",
+                "points": 40
+              },
+              {
+                "learner": "yen",
+                "points": 40
+              },
+              {
+                "learner": "an",
+                "points": 49
+              },
+              {
+                "learner": "bao",
+                "points": 49
+              },
+              {
+                "learner": "binh",
+                "points": 15
+              },
+              {
+                "learner": "chi",
+                "points": 15
+              },
+              {
+                "learner": "dung",
+                "points": 31
+              },
+              {
+                "learner": "giang",
+                "points": 31
+              },
+              {
+                "learner": "ha",
+                "points": 3
+              },
+              {
+                "learner": "hai",
+                "points": 3
+              },
+              {
+                "learner": "hieu",
+                "points": 36
+              },
+              {
+                "learner": "hoa",
+                "points": 36
+              },
+              {
+                "learner": "hung",
+                "points": 28
+              },
+              {
+                "learner": "huong",
+                "points": 28
+              },
+              {
+                "learner": "khanh",
+                "points": 10
+              },
+              {
+                "learner": "khoa",
+                "points": 10
+              },
+              {
+                "learner": "lan",
+                "points": 42
+              },
+              {
+                "learner": "linh",
+                "points": 42
+              },
+              {
+                "learner": "long",
+                "points": 39
+              },
+              {
+                "learner": "mai",
+                "points": 39
+              },
+              {
+                "learner": "minh",
+                "points": 17
+              },
+              {
+                "learner": "nam",
+                "points": 17
+              },
+              {
+                "learner": "ngoc",
+                "points": 22
+              },
+              {
+                "learner": "nhung",
+                "points": 22
+              },
+              {
+                "learner": "phong",
+                "points": 10
+              },
+              {
+                "learner": "phuc",
+                "points": 10
+              },
+              {
+                "learner": "quan",
+                "points": 17
+              },
+              {
+                "learner": "quang",
+                "points": 17
+              },
+              {
+                "learner": "son",
+                "points": 33
+              },
+              {
+                "learner": "tam",
+                "points": 33
+              },
+              {
+                "learner": "thanh",
+                "points": 8
+              },
+              {
+                "learner": "thao",
+                "points": 8
+              },
+              {
+                "learner": "thu",
+                "points": 41
+              },
+              {
+                "learner": "trang",
+                "points": 41
+              },
+              {
+                "learner": "trung",
+                "points": 24
+              },
+              {
+                "learner": "tuan",
+                "points": 24
+              },
+              {
+                "learner": "tu",
+                "points": 11
+              },
+              {
+                "learner": "uyen",
+                "points": 11
+              },
+              {
+                "learner": "van",
+                "points": 39
+              },
+              {
+                "learner": "viet",
+                "points": 39
+              },
+              {
+                "learner": "vy",
+                "points": 11
+              },
+              {
+                "learner": "yen",
+                "points": 11
+              },
+              {
+                "learner": "an",
+                "points": 2
+              },
+              {
+                "learner": "bao",
+                "points": 2
+              },
+              {
+                "learner": "binh",
+                "points": 42
+              },
+              {
+                "learner": "chi",
+                "points": 42
+              },
+              {
+                "learner": "dung",
+                "points": 39
+              },
+              {
+                "learner": "giang",
+                "points": 39
+              },
+              {
+                "learner": "ha",
+                "points": 32
+              },
+              {
+                "learner": "hai",
+                "points": 32
+              },
+              {
+                "learner": "hieu",
+                "points": 50
+              },
+              {
+                "learner": "hoa",
+                "points": 50
+              },
+              {
+                "learner": "hung",
+                "points": 11
+              },
+              {
+                "learner": "huong",
+                "points": 11
+              },
+              {
+                "learner": "khanh",
+                "points": 30
+              },
+              {
+                "learner": "khoa",
+                "points": 30
+              },
+              {
+                "learner": "lan",
+                "points": 25
+              },
+              {
+                "learner": "linh",
+                "points": 25
+              },
+              {
+                "learner": "long",
+                "points": 26
+              },
+              {
+                "learner": "mai",
+                "points": 26
+              },
+              {
+                "learner": "minh",
+                "points": 23
+              },
+              {
+                "learner": "nam",
+                "points": 23
+              },
+              {
+                "learner": "ngoc",
+                "points": 32
+              },
+              {
+                "learner": "nhung",
+                "points": 32
+              },
+              {
+                "learner": "phong",
+                "points": 19
+              },
+              {
+                "learner": "phuc",
+                "points": 19
+              },
+              {
+                "learner": "quan",
+                "points": 29
+              },
+              {
+                "learner": "quang",
+                "points": 29
+              },
+              {
+                "learner": "son",
+                "points": 32
+              },
+              {
+                "learner": "tam",
+                "points": 32
+              },
+              {
+                "learner": "thanh",
+                "points": 3
+              },
+              {
+                "learner": "thao",
+                "points": 3
+              },
+              {
+                "learner": "thu",
+                "points": 43
+              },
+              {
+                "learner": "trang",
+                "points": 43
+              },
+              {
+                "learner": "trung",
+                "points": 17
+              },
+              {
+                "learner": "tuan",
+                "points": 17
+              },
+              {
+                "learner": "tu",
+                "points": 22
+              },
+              {
+                "learner": "uyen",
+                "points": 22
+              },
+              {
+                "learner": "van",
+                "points": 16
+              },
+              {
+                "learner": "viet",
+                "points": 16
+              },
+              {
+                "learner": "vy",
+                "points": 49
+              },
+              {
+                "learner": "yen",
+                "points": 49
+              },
+              {
+                "learner": "an",
+                "points": 50
+              },
+              {
+                "learner": "bao",
+                "points": 50
+              },
+              {
+                "learner": "binh",
+                "points": 17
+              },
+              {
+                "learner": "chi",
+                "points": 17
+              },
+              {
+                "learner": "dung",
+                "points": 10
+              },
+              {
+                "learner": "giang",
+                "points": 10
+              },
+              {
+                "learner": "ha",
+                "points": 20
+              },
+              {
+                "learner": "hai",
+                "points": 20
+              },
+              {
+                "learner": "hieu",
+                "points": 19
+              },
+              {
+                "learner": "hoa",
+                "points": 19
+              },
+              {
+                "learner": "hung",
+                "points": 36
+              },
+              {
+                "learner": "huong",
+                "points": 36
+              },
+              {
+                "learner": "khanh",
+                "points": 39
+              },
+              {
+                "learner": "khoa",
+                "points": 39
+              },
+              {
+                "learner": "lan",
+                "points": 6
+              },
+              {
+                "learner": "linh",
+                "points": 6
+              },
+              {
+                "learner": "long",
+                "points": 16
+              },
+              {
+                "learner": "mai",
+                "points": 16
+              },
+              {
+                "learner": "minh",
+                "points": 33
+              },
+              {
+                "learner": "nam",
+                "points": 33
+              },
+              {
+                "learner": "ngoc",
+                "points": 40
+              },
+              {
+                "learner": "nhung",
+                "points": 40
+              },
+              {
+                "learner": "phong",
+                "points": 9
+              },
+              {
+                "learner": "phuc",
+                "points": 9
+              },
+              {
+                "learner": "quan",
+                "points": 6
+              },
+              {
+                "learner": "quang",
+                "points": 6
+              },
+              {
+                "learner": "son",
+                "points": 25
+              },
+              {
+                "learner": "tam",
+                "points": 25
+              },
+              {
+                "learner": "thanh",
+                "points": 46
+              },
+              {
+                "learner": "thao",
+                "points": 46
+              },
+              {
+                "learner": "thu",
+                "points": 32
+              },
+              {
+                "learner": "trang",
+                "points": 32
+              },
+              {
+                "learner": "trung",
+                "points": 27
+              },
+              {
+                "learner": "tuan",
+                "points": 27
+              },
+              {
+                "learner": "tu",
+                "points": 37
+              },
+              {
+                "learner": "uyen",
+                "points": 37
+              },
+              {
+                "learner": "van",
+                "points": 24
+              },
+              {
+                "learner": "viet",
+                "points": 24
+              },
+              {
+                "learner": "vy",
+                "points": 13
+              },
+              {
+                "learner": "yen",
+                "points": 13
+              },
+              {
+                "learner": "an",
+                "points": 23
+              },
+              {
+                "learner": "bao",
+                "points": 23
+              },
+              {
+                "learner": "binh",
+                "points": 37
+              },
+              {
+                "learner": "chi",
+                "points": 37
+              },
+              {
+                "learner": "dung",
+                "points": 28
+              },
+              {
+                "learner": "giang",
+                "points": 28
+              },
+              {
+                "learner": "ha",
+                "points": 3
+              },
+              {
+                "learner": "hai",
+                "points": 3
+              },
+              {
+                "learner": "hieu",
+                "points": 31
+              },
+              {
+                "learner": "hoa",
+                "points": 31
+              },
+              {
+                "learner": "hung",
+                "points": 16
+              },
+              {
+                "learner": "huong",
+                "points": 16
+              },
+              {
+                "learner": "khanh",
+                "points": 11
+              },
+              {
+                "learner": "khoa",
+                "points": 11
+              },
+              {
+                "learner": "lan",
+                "points": 44
+              },
+              {
+                "learner": "linh",
+                "points": 44
+              },
+              {
+                "learner": "long",
+                "points": 39
+              },
+              {
+                "learner": "mai",
+                "points": 39
+              },
+              {
+                "learner": "minh",
+                "points": 22
+              },
+              {
+                "learner": "nam",
+                "points": 22
+              },
+              {
+                "learner": "ngoc",
+                "points": 15
+              },
+              {
+                "learner": "nhung",
+                "points": 15
+              },
+              {
+                "learner": "phong",
+                "points": 42
+              },
+              {
+                "learner": "phuc",
+                "points": 42
+              },
+              {
+                "learner": "quan",
+                "points": 18
+              },
+              {
+                "learner": "quang",
+                "points": 18
+              },
+              {
+                "learner": "son",
+                "points": 39
+              },
+              {
+                "learner": "tam",
+                "points": 39
+              },
+              {
+                "learner": "thanh",
+                "points": 26
+              },
+              {
+                "learner": "thao",
+                "points": 26
+              },
+              {
+                "learner": "thu",
+                "points": 39
+              },
+              {
+                "learner": "trang",
+                "points": 39
+              },
+              {
+                "learner": "trung",
+                "points": 23
+              },
+              {
+                "learner": "tuan",
+                "points": 23
+              },
+              {
+                "learner": "tu",
+                "points": 37
+              },
+              {
+                "learner": "uyen",
+                "points": 37
+              },
+              {
+                "learner": "van",
+                "points": 26
+              },
+              {
+                "learner": "viet",
+                "points": 26
+              },
+              {
+                "learner": "vy",
+                "points": 35
+              },
+              {
+                "learner": "yen",
+                "points": 35
+              },
+              {
+                "learner": "an",
+                "points": 29
+              },
+              {
+                "learner": "bao",
+                "points": 29
+              },
+              {
+                "learner": "binh",
+                "points": 27
+              },
+              {
+                "learner": "chi",
+                "points": 27
+              },
+              {
+                "learner": "dung",
+                "points": 15
+              },
+              {
+                "learner": "giang",
+                "points": 15
+              },
+              {
+                "learner": "ha",
+                "points": 30
+              },
+              {
+                "learner": "hai",
+                "points": 30
+              },
+              {
+                "learner": "hieu",
+                "points": 33
+              },
+              {
+                "learner": "hoa",
+                "points": 33
+              },
+              {
+                "learner": "hung",
+                "points": 46
+              },
+              {
+                "learner": "huong",
+                "points": 46
+              },
+              {
+                "learner": "khanh",
+                "points": 1
+              },
+              {
+                "learner": "khoa",
+                "points": 1
+              },
+              {
+                "learner": "lan",
+                "points": 38
+              },
+              {
+                "learner": "linh",
+                "points": 38
+              },
+              {
+                "learner": "long",
+                "points": 10
+              },
+              {
+                "learner": "mai",
+                "points": 10
+              },
+              {
+                "learner": "minh",
+                "points": 14
+              },
+              {
+                "learner": "nam",
+                "points": 14
+              },
+              {
+                "learner": "ngoc",
+                "points": 15
+              },
+              {
+                "learner": "nhung",
+                "points": 15
+              },
+              {
+                "learner": "phong",
+                "points": 44
+              },
+              {
+                "learner": "phuc",
+                "points": 44
+              },
+              {
+                "learner": "quan",
+                "points": 17
+              },
+              {
+                "learner": "quang",
+                "points": 17
+              },
+              {
+                "learner": "son",
+                "points": 35
+              },
+              {
+                "learner": "tam",
+                "points": 35
+              },
+              {
+                "learner": "thanh",
+                "points": 6
+              },
+              {
+                "learner": "thao",
+                "points": 6
+              },
+              {
+                "learner": "thu",
+                "points": 29
+              },
+              {
+                "learner": "trang",
+                "points": 29
+              },
+              {
+                "learner": "trung",
+                "points": 34
+              },
+              {
+                "learner": "tuan",
+                "points": 34
+              },
+              {
+                "learner": "tu",
+                "points": 28
+              },
+              {
+                "learner": "uyen",
+                "points": 28
+              },
+              {
+                "learner": "van",
+                "points": 19
+              },
+              {
+                "learner": "viet",
+                "points": 19
+              },
+              {
+                "learner": "vy",
+                "points": 28
+              },
+              {
+                "learner": "yen",
+                "points": 28
+              },
+              {
+                "learner": "an",
+                "points": 22
+              },
+              {
+                "learner": "bao",
+                "points": 22
+              },
+              {
+                "learner": "binh",
+                "points": 41
+              },
+              {
+                "learner": "chi",
+                "points": 41
+              },
+              {
+                "learner": "dung",
+                "points": 7
+              },
+              {
+                "learner": "giang",
+                "points": 7
+              },
+              {
+                "learner": "ha",
+                "points": 23
+              },
+              {
+                "learner": "hai",
+                "points": 23
+              },
+              {
+                "learner": "hieu",
+                "points": 11
+              },
+              {
+                "learner": "hoa",
+                "points": 11
+              },
+              {
+                "learner": "hung",
+                "points": 39
+              },
+              {
+                "learner": "huong",
+                "points": 39
+              },
+              {
+                "learner": "khanh",
+                "points": 8
+              },
+              {
+                "learner": "khoa",
+                "points": 8
+              },
+              {
+                "learner": "lan",
+                "points": 46
+              },
+              {
+                "learner": "linh",
+                "points": 46
+              },
+              {
+                "learner": "long",
+                "points": 29
+              },
+              {
+                "learner": "mai",
+                "points": 29
+              },
+              {
+                "learner": "minh",
+                "points": 1
+              },
+              {
+                "learner": "nam",
+                "points": 1
+              },
+              {
+                "learner": "ngoc",
+                "points": 22
+              },
+              {
+                "learner": "nhung",
+                "points": 22
+              },
+              {
+                "learner": "phong",
+                "points": 50
+              },
+              {
+                "learner": "phuc",
+                "points": 50
+              },
+              {
+                "learner": "quan",
+                "points": 7
+              },
+              {
+                "learner": "quang",
+                "points": 7
+              },
+              {
+                "learner": "son",
+                "points": 8
+              },
+              {
+                "learner": "tam",
+                "points": 8
+              },
+              {
+                "learner": "thanh",
+                "points": 41
+              },
+              {
+                "learner": "thao",
+                "points": 41
+              },
+              {
+                "learner": "thu",
+                "points": 27
+              },
+              {
+                "learner": "trang",
+                "points": 27
+              },
+              {
+                "learner": "trung",
+                "points": 50
+              },
+              {
+                "learner": "tuan",
+                "points": 50
+              },
+              {
+                "learner": "tu",
+                "points": 12
+              },
+              {
+                "learner": "uyen",
+                "points": 12
+              },
+              {
+                "learner": "van",
+                "points": 5
+              },
+              {
+                "learner": "viet",
+                "points": 5
+              },
+              {
+                "learner": "vy",
+                "points": 20
+              },
+              {
+                "learner": "yen",
+                "points": 20
+              },
+              {
+                "learner": "an",
+                "points": 14
+              },
+              {
+                "learner": "bao",
+                "points": 14
+              },
+              {
+                "learner": "binh",
+                "points": 43
+              },
+              {
+                "learner": "chi",
+                "points": 43
+              },
+              {
+                "learner": "dung",
+                "points": 45
+              },
+              {
+                "learner": "giang",
+                "points": 45
+              },
+              {
+                "learner": "ha",
+                "points": 23
+              },
+              {
+                "learner": "hai",
+                "points": 23
+              },
+              {
+                "learner": "hieu",
+                "points": 31
+              },
+              {
+                "learner": "hoa",
+                "points": 31
+              },
+              {
+                "learner": "hung",
+                "points": 49
+              },
+              {
+                "learner": "huong",
+                "points": 49
+              },
+              {
+                "learner": "khanh",
+                "points": 9
+              },
+              {
+                "learner": "khoa",
+                "points": 9
+              },
+              {
+                "learner": "lan",
+                "points": 13
+              },
+              {
+                "learner": "linh",
+                "points": 13
+              },
+              {
+                "learner": "long",
+                "points": 6
+              },
+              {
+                "learner": "mai",
+                "points": 6
+              },
+              {
+                "learner": "minh",
+                "points": 29
+              },
+              {
+                "learner": "nam",
+                "points": 29
+              },
+              {
+                "learner": "ngoc",
+                "points": 28
+              },
+              {
+                "learner": "nhung",
+                "points": 28
+              },
+              {
+                "learner": "phong",
+                "points": 12
+              },
+              {
+                "learner": "phuc",
+                "points": 12
+              },
+              {
+                "learner": "quan",
+                "points": 39
+              },
+              {
+                "learner": "quang",
+                "points": 39
+              },
+              {
+                "learner": "son",
+                "points": 10
+              },
+              {
+                "learner": "tam",
+                "points": 10
+              },
+              {
+                "learner": "thanh",
+                "points": 48
+              },
+              {
+                "learner": "thao",
+                "points": 48
+              },
+              {
+                "learner": "thu",
+                "points": 14
+              },
+              {
+                "learner": "trang",
+                "points": 14
+              },
+              {
+                "learner": "trung",
+                "points": 24
+              },
+              {
+                "learner": "tuan",
+                "points": 24
+              },
+              {
+                "learner": "tu",
+                "points": 8
+              },
+              {
+                "learner": "uyen",
+                "points": 8
+              },
+              {
+                "learner": "van",
+                "points": 28
+              },
+              {
+                "learner": "viet",
+                "points": 28
+              },
+              {
+                "learner": "vy",
+                "points": 33
+              },
+              {
+                "learner": "yen",
+                "points": 33
+              },
+              {
+                "learner": "an",
+                "points": 6
+              },
+              {
+                "learner": "bao",
+                "points": 6
+              },
+              {
+                "learner": "binh",
+                "points": 10
+              },
+              {
+                "learner": "chi",
+                "points": 10
+              },
+              {
+                "learner": "dung",
+                "points": 39
+              },
+              {
+                "learner": "giang",
+                "points": 39
+              },
+              {
+                "learner": "ha",
+                "points": 41
+              },
+              {
+                "learner": "hai",
+                "points": 41
+              },
+              {
+                "learner": "hieu",
+                "points": 14
+              },
+              {
+                "learner": "hoa",
+                "points": 14
+              },
+              {
+                "learner": "hung",
+                "points": 6
+              },
+              {
+                "learner": "huong",
+                "points": 6
+              },
+              {
+                "learner": "khanh",
+                "points": 8
+              },
+              {
+                "learner": "khoa",
+                "points": 8
+              },
+              {
+                "learner": "lan",
+                "points": 41
+              },
+              {
+                "learner": "linh",
+                "points": 41
+              },
+              {
+                "learner": "long",
+                "points": 6
+              },
+              {
+                "learner": "mai",
+                "points": 6
+              },
+              {
+                "learner": "minh",
+                "points": 38
+              },
+              {
+                "learner": "nam",
+                "points": 38
+              },
+              {
+                "learner": "ngoc",
+                "points": 9
+              },
+              {
+                "learner": "nhung",
+                "points": 9
+              },
+              {
+                "learner": "phong",
+                "points": 47
+              },
+              {
+                "learner": "phuc",
+                "points": 47
+              },
+              {
+                "learner": "quan",
+                "points": 45
+              },
+              {
+                "learner": "quang",
+                "points": 45
+              },
+              {
+                "learner": "son",
+                "points": 23
+              },
+              {
+                "learner": "tam",
+                "points": 23
+              },
+              {
+                "learner": "thanh",
+                "points": 16
+              },
+              {
+                "learner": "thao",
+                "points": 16
+              },
+              {
+                "learner": "thu",
+                "points": 40
+              },
+              {
+                "learner": "trang",
+                "points": 40
+              },
+              {
+                "learner": "trung",
+                "points": 50
+              },
+              {
+                "learner": "tuan",
+                "points": 50
+              },
+              {
+                "learner": "tu",
+                "points": 26
+              },
+              {
+                "learner": "uyen",
+                "points": 26
+              },
+              {
+                "learner": "van",
+                "points": 24
+              },
+              {
+                "learner": "viet",
+                "points": 24
+              },
+              {
+                "learner": "vy",
+                "points": 40
+              },
+              {
+                "learner": "yen",
+                "points": 40
+              },
+              {
+                "learner": "an",
+                "points": 43
+              },
+              {
+                "learner": "bao",
+                "points": 43
+              },
+              {
+                "learner": "binh",
+                "points": 17
+              },
+              {
+                "learner": "chi",
+                "points": 17
+              },
+              {
+                "learner": "dung",
+                "points": 42
+              },
+              {
+                "learner": "giang",
+                "points": 42
+              },
+              {
+                "learner": "ha",
+                "points": 9
+              },
+              {
+                "learner": "hai",
+                "points": 9
+              },
+              {
+                "learner": "hieu",
+                "points": 44
+              },
+              {
+                "learner": "hoa",
+                "points": 44
+              },
+              {
+                "learner": "hung",
+                "points": 36
+              },
+              {
+                "learner": "huong",
+                "points": 36
+              },
+              {
+                "learner": "khanh",
+                "points": 20
+              },
+              {
+                "learner": "khoa",
+                "points": 20
+              },
+              {
+                "learner": "lan",
+                "points": 30
+              },
+              {
+                "learner": "linh",
+                "points": 30
+              },
+              {
+                "learner": "long",
+                "points": 19
+              },
+              {
+                "learner": "mai",
+                "points": 19
+              },
+              {
+                "learner": "minh",
+                "points": 32
+              },
+              {
+                "learner": "nam",
+                "points": 32
+              },
+              {
+                "learner": "ngoc",
+                "points": 22
+              },
+              {
+                "learner": "nhung",
+                "points": 22
+              },
+              {
+                "learner": "phong",
+                "points": 10
+              },
+              {
+                "learner": "phuc",
+                "points": 10
+              },
+              {
+                "learner": "quan",
+                "points": 34
+              },
+              {
+                "learner": "quang",
+                "points": 34
+              },
+              {
+                "learner": "son",
+                "points": 22
+              },
+              {
+                "learner": "tam",
+                "points": 22
+              },
+              {
+                "learner": "thanh",
+                "points": 45
+              },
+              {
+                "learner": "thao",
+                "points": 45
+              },
+              {
+                "learner": "thu",
+                "points": 46
+              },
+              {
+                "learner": "trang",
+                "points": 46
+              },
+              {
+                "learner": "trung",
+                "points": 4
+              },
+              {
+                "learner": "tuan",
+                "points": 4
+              },
+              {
+                "learner": "tu",
+                "points": 8
+              },
+              {
+                "learner": "uyen",
+                "points": 8
+              },
+              {
+                "learner": "van",
+                "points": 22
+              },
+              {
+                "learner": "viet",
+                "points": 22
+              },
+              {
+                "learner": "vy",
+                "points": 30
+              },
+              {
+                "learner": "yen",
+                "points": 30
+              },
+              {
+                "learner": "an",
+                "points": 26
+              },
+              {
+                "learner": "bao",
+                "points": 26
+              },
+              {
+                "learner": "binh",
+                "points": 9
+              },
+              {
+                "learner": "chi",
+                "points": 9
+              },
+              {
+                "learner": "dung",
+                "points": 15
+              },
+              {
+                "learner": "giang",
+                "points": 15
+              },
+              {
+                "learner": "ha",
+                "points": 42
+              },
+              {
+                "learner": "hai",
+                "points": 42
+              },
+              {
+                "learner": "hieu",
+                "points": 32
+              },
+              {
+                "learner": "hoa",
+                "points": 32
+              },
+              {
+                "learner": "hung",
+                "points": 16
+              },
+              {
+                "learner": "huong",
+                "points": 16
+              },
+              {
+                "learner": "khanh",
+                "points": 28
+              },
+              {
+                "learner": "khoa",
+                "points": 28
+              },
+              {
+                "learner": "lan",
+                "points": 13
+              },
+              {
+                "learner": "linh",
+                "points": 13
+              },
+              {
+                "learner": "long",
+                "points": 39
+              },
+              {
+                "learner": "mai",
+                "points": 39
+              },
+              {
+                "learner": "minh",
+                "points": 48
+              },
+              {
+                "learner": "nam",
+                "points": 48
+              },
+              {
+                "learner": "ngoc",
+                "points": 40
+              },
+              {
+                "learner": "nhung",
+                "points": 40
+              },
+              {
+                "learner": "phong",
+                "points": 22
+              },
+              {
+                "learner": "phuc",
+                "points": 22
+              },
+              {
+                "learner": "quan",
+                "points": 30
+              },
+              {
+                "learner": "quang",
+                "points": 30
+              },
+              {
+                "learner": "son",
+                "points": 34
+              },
+              {
+                "learner": "tam",
+                "points": 34
+              },
+              {
+                "learner": "thanh",
+                "points": 32
+              },
+              {
+                "learner": "thao",
+                "points": 32
+              },
+              {
+                "learner": "thu",
+                "points": 3
+              },
+              {
+                "learner": "trang",
+                "points": 3
+              },
+              {
+                "learner": "trung",
+                "points": 15
+              },
+              {
+                "learner": "tuan",
+                "points": 15
+              },
+              {
+                "learner": "tu",
+                "points": 23
+              },
+              {
+                "learner": "uyen",
+                "points": 23
+              },
+              {
+                "learner": "van",
+                "points": 2
+              },
+              {
+                "learner": "viet",
+                "points": 2
+              },
+              {
+                "learner": "vy",
+                "points": 43
+              },
+              {
+                "learner": "yen",
+                "points": 43
+              },
+              {
+                "learner": "an",
+                "points": 34
+              },
+              {
+                "learner": "bao",
+                "points": 34
+              },
+              {
+                "learner": "binh",
+                "points": 5
+              },
+              {
+                "learner": "chi",
+                "points": 5
+              },
+              {
+                "learner": "dung",
+                "points": 2
+              },
+              {
+                "learner": "giang",
+                "points": 2
+              },
+              {
+                "learner": "ha",
+                "points": 2
+              },
+              {
+                "learner": "hai",
+                "points": 2
+              },
+              {
+                "learner": "hieu",
+                "points": 8
+              },
+              {
+                "learner": "hoa",
+                "points": 8
+              },
+              {
+                "learner": "hung",
+                "points": 16
+              },
+              {
+                "learner": "huong",
+                "points": 16
+              },
+              {
+                "learner": "khanh",
+                "points": 5
+              },
+              {
+                "learner": "khoa",
+                "points": 5
+              },
+              {
+                "learner": "lan",
+                "points": 47
+              },
+              {
+                "learner": "linh",
+                "points": 47
+              },
+              {
+                "learner": "long",
+                "points": 44
+              },
+              {
+                "learner": "mai",
+                "points": 44
+              },
+              {
+                "learner": "minh",
+                "points": 24
+              },
+              {
+                "learner": "nam",
+                "points": 24
+              },
+              {
+                "learner": "ngoc",
+                "points": 22
+              },
+              {
+                "learner": "nhung",
+                "points": 22
+              },
+              {
+                "learner": "phong",
+                "points": 9
+              },
+              {
+                "learner": "phuc",
+                "points": 9
+              },
+              {
+                "learner": "quan",
+                "points": 47
+              },
+              {
+                "learner": "quang",
+                "points": 47
+              },
+              {
+                "learner": "son",
+                "points": 44
+              },
+              {
+                "learner": "tam",
+                "points": 44
+              },
+              {
+                "learner": "thanh",
+                "points": 4
+              },
+              {
+                "learner": "thao",
+                "points": 4
+              },
+              {
+                "learner": "thu",
+                "points": 42
+              },
+              {
+                "learner": "trang",
+                "points": 42
+              },
+              {
+                "learner": "trung",
+                "points": 11
+              },
+              {
+                "learner": "tuan",
+                "points": 11
+              },
+              {
+                "learner": "tu",
+                "points": 11
+              },
+              {
+                "learner": "uyen",
+                "points": 11
+              },
+              {
+                "learner": "van",
+                "points": 27
+              },
+              {
+                "learner": "viet",
+                "points": 27
+              },
+              {
+                "learner": "vy",
+                "points": 32
+              },
+              {
+                "learner": "yen",
+                "points": 32
+              },
+              {
+                "learner": "ngoc",
+                "points": 1
+              },
+              {
+                "learner": "hieu",
+                "points": -5
+              },
+              {
+                "learner": "nam",
+                "points": 44
+              },
+              {
+                "learner": "giang",
+                "points": -1
+              },
+              {
+                "learner": "uyen",
+                "points": 15
+              },
+              {
+                "learner": "binh",
+                "points": 0
+              },
+              {
+                "learner": "bao",
+                "points": 48
+              },
+              {
+                "learner": "tam",
+                "points": 2.5
+              },
+              {
+                "learner": "bao",
+                "points": 27
+              },
+              {
+                "learner": "hai",
+                "points": 0.1
+              },
+              {
+                "learner": "khoa",
+                "points": 3
+              },
+              {
+                "learner": "hieu",
+                "points": -5
+              },
+              {
+                "learner": "linh",
+                "points": 26
+              },
+              {
+                "learner": "binh",
+                "points": -1
+              },
+              {
+                "learner": "binh",
+                "points": 37
+              },
+              {
+                "learner": "ha",
+                "points": 0
+              },
+              {
+                "learner": "phong",
+                "points": 32
+              },
+              {
+                "learner": "trung",
+                "points": 2.5
+              },
+              {
+                "learner": "dung",
+                "points": 35
+              },
+              {
+                "learner": "ha",
+                "points": 0.1
+              },
+              {
+                "learner": "trung",
+                "points": 19
+              },
+              {
+                "learner": "giang",
+                "points": -5
+              },
+              {
+                "learner": "tam",
+                "points": 21
+              },
+              {
+                "learner": "quang",
+                "points": -1
+              },
+              {
+                "learner": "son",
+                "points": 40
+              },
+              {
+                "learner": "ha",
+                "points": 0
+              },
+              {
+                "learner": "phong",
+                "points": 19
+              },
+              {
+                "learner": "ha",
+                "points": 2.5
+              },
+              {
+                "learner": "giang",
+                "points": 34
+              },
+              {
+                "learner": "giang",
+                "points": 0.1
+              },
+              {
+                "learner": "long",
+                "points": 31
+              },
+              {
+                "learner": "mai",
+                "points": -5
+              },
+              {
+                "learner": "mai",
+                "points": 5
+              },
+              {
+                "learner": "long",
+                "points": -1
+              },
+              {
+                "learner": "linh",
+                "points": 49
+              },
+              {
+                "learner": "lan",
+                "points": 0
+              },
+              {
+                "learner": "tuan",
+                "points": 15
+              },
+              {
+                "learner": "trang",
+                "points": 2.5
+              },
+              {
+                "learner": "khoa",
+                "points": 35
+              },
+              {
+                "learner": "long",
+                "points": 0.1
+              },
+              {
+                "learner": "yen",
+                "points": 42
+              },
+              {
+                "learner": "khoa",
+                "points": -5
+              },
+              {
+                "learner": "trang",
+                "points": 29
+              },
+              {
+                "learner": "tu",
+                "points": -1
+              },
+              {
+                "learner": "uyen",
+                "points": 27
+              },
+              {
+                "learner": "hai",
+                "points": 0
+              },
+              {
+                "learner": "mai",
+                "points": 23
+              },
+              {
+                "learner": "hai",
+                "points": 2.5
+              },
+              {
+                "learner": "yen",
+                "points": 3
+              },
+              {
+                "learner": "thanh",
+                "points": 0.1
+              },
+              {
+                "learner": "ha",
+                "points": 24
+              },
+              {
+                "learner": "binh",
+                "points": -5
+              },
+              {
+                "learner": "son",
+                "points": 49
+              },
+              {
+                "learner": "thanh",
+                "points": -1
+              },
+              {
+                "learner": "long",
+                "points": 24
+              },
+              {
+                "learner": "yen",
+                "points": 0
+              },
+              {
+                "learner": "vy",
+                "points": 11
+              },
+              {
+                "learner": "hieu",
+                "points": 2.5
+              },
+              {
+                "learner": "nhung",
+                "points": 5
+              },
+              {
+                "learner": "ngoc",
+                "points": 0.1
+              },
+              {
+                "learner": "hai",
+                "points": 41
+              },
+              {
+                "learner": "khanh",
+                "points": -5
+              },
+              {
+                "learner": "tuan",
+                "points": 30
+              },
+              {
+                "learner": "phong",
+                "points": -1
+              },
+              {
+                "learner": "huong",
+                "points": 19
+              },
+              {
+                "learner": "thu",
+                "points": 0
+              },
+              {
+                "learner": "lan",
+                "points": 40
+              },
+              {
+                "learner": "bao",
+                "points": 2.5
+              },
+              {
+                "learner": "nhung",
+                "points": 30
+              },
+              {
+                "learner": "hoa",
+                "points": 0.1
+              },
+              {
+                "learner": "quang",
+                "points": 22
+              },
+              {
+                "learner": "ha",
+                "points": -5
+              },
+              {
+                "learner": "nam",
+                "points": 10
+              },
+              {
+                "learner": "vy",
+                "points": -1
+              },
+              {
+                "learner": "dung",
+                "points": 23
+              },
+              {
+                "learner": "mai",
+                "points": 0
+              },
+              {
+                "learner": "ngoc",
+                "points": 26
+              },
+              {
+                "learner": "thu",
+                "points": 2.5
+              },
+              {
+                "learner": "giang",
+                "points": 39
+              },
+              {
+                "learner": "bao",
+                "points": 0.1
+              },
+              {
+                "learner": "giang",
+                "points": 42
+              },
+              {
+                "learner": "nhung",
+                "points": -5
+              },
+              {
+                "learner": "khoa",
+                "points": 41
+              },
+              {
+                "learner": "dung",
+                "points": -1
+              },
+              {
+                "learner": "khanh",
+                "points": 3
+              },
+              {
+                "learner": "chi",
+                "points": 0
+              },
+              {
+                "learner": "van",
+                "points": 34
+              },
+              {
+                "learner": "hai",
+                "points": 2.5
+              },
+              {
+                "learner": "bao",
+                "points": 32
+              },
+              {
+                "learner": "van",
+                "points": 0.1
+              },
+              {
+                "learner": "binh",
+                "points": 2
+              },
+              {
+                "learner": "nhung",
+                "points": -5
+              },
+              {
+                "learner": "phuc",
+                "points": 49
+              },
+              {
+                "learner": "bao",
+                "points": -1
+              },
+              {
+                "learner": "yen",
+                "points": 16
+              },
+              {
+                "learner": "binh",
+                "points": 0
+              },
+              {
+                "learner": "binh",
+                "points": 27
+              },
+              {
+                "learner": "ngoc",
+                "points": 2.5
+              },
+              {
+                "learner": "lan",
+                "points": 22
+              },
+              {
+                "learner": "dung",
+                "points": 0.1
+              },
+              {
+                "learner": "quan",
+                "points": 26
+              },
+              {
+                "learner": "quang",
+                "points": -5
+              },
+              {
+                "learner": "nhung",
+                "points": 50
+              },
+              {
+                "learner": "chi",
+                "points": -1
+              },
+              {
+                "learner": "minh",
+                "points": 34
+              },
+              {
+                "learner": "minh",
+                "points": 0
+              },
+              {
+                "learner": "linh",
+                "points": 20
+              },
+              {
+                "learner": "son",
+                "points": 2.5
+              },
+              {
+                "learner": "phong",
+                "points": 14
+              },
+              {
+                "learner": "tam",
+                "points": 0.1
+              },
+              {
+                "learner": "huong",
+                "points": 23
+              },
+              {
+                "learner": "chi",
+                "points": -5
+              },
+              {
+                "learner": "khoa",
+                "points": 10
+              },
+              {
+                "learner": "quang",
+                "points": -1
+              },
+              {
+                "learner": "hai",
+                "points": 10
+              },
+              {
+                "learner": "ngoc",
+                "points": 0
+              },
+              {
+                "learner": "trung",
+                "points": 1
+              },
+              {
+                "learner": "hieu",
+                "points": 2.5
+              },
+              {
+                "learner": "long",
+                "points": 24
+              },
+              {
+                "learner": "son",
+                "points": 0.1
+              },
+              {
+                "learner": "quang",
+                "points": 35
+              },
+              {
+                "learner": "tam",
+                "points": -5
+              },
+              {
+                "learner": "vy",
+                "points": 29
+              },
+              {
+                "learner": "hoa",
+                "points": -1
+              },
+              {
+                "learner": "mai",
+                "points": 7
+              },
+              {
+                "learner": "binh",
+                "points": 0
+              },
+              {
+                "learner": "tu",
+                "points": 41
+              },
+              {
+                "learner": "hung",
+                "points": 2.5
+              },
+              {
+                "learner": "hoa",
+                "points": 10
+              },
+              {
+                "learner": "chi",
+                "points": 0.1
+              },
+              {
+                "learner": "nam",
+                "points": 2
+              },
+              {
+                "learner": "nam",
+                "points": -5
+              },
+              {
+                "learner": "bao",
+                "points": 49
+              },
+              {
+                "learner": "an",
+                "points": -1
+              },
+              {
+                "learner": "mai",
+                "points": 27
+              },
+              {
+                "learner": "khoa",
+                "points": 0
+              },
+              {
+                "learner": "an",
+                "points": 25
+              },
+              {
+                "learner": "yen",
+                "points": 2.5
+              },
+              {
+                "learner": "khanh",
+                "points": 12
+              },
+              {
+                "learner": "hieu",
+                "points": 0.1
+              },
+              {
+                "learner": "chi",
+                "points": 31
+              },
+              {
+                "learner": "son",
+                "points": -5
+              },
+              {
+                "learner": "minh",
+                "points": 39
+              },
+              {
+                "learner": "van",
+                "points": -1
+              },
+              {
+                "learner": "son",
+                "points": 33
+              },
+              {
+                "learner": "thao",
+                "points": 0
+              },
+              {
+                "learner": "binh",
+                "points": 35
+              },
+              {
+                "learner": "an",
+                "points": 2.5
+              },
+              {
+                "learner": "thao",
+                "points": 13
+              },
+              {
+                "learner": "son",
+                "points": 0.1
+              },
+              {
+                "learner": "uyen",
+                "points": 49
+              },
+              {
+                "learner": "minh",
+                "points": -5
+              },
+              {
+                "learner": "thu",
+                "points": 11
+              },
+              {
+                "learner": "uyen",
+                "points": -1
+              },
+              {
+                "learner": "tam",
+                "points": 37
+              },
+              {
+                "learner": "hai",
+                "points": 0
+              },
+              {
+                "learner": "trung",
+                "points": 4
+              },
+              {
+                "learner": "binh",
+                "points": 2.5
+              },
+              {
+                "learner": "minh",
+                "points": 1
+              },
+              {
+                "learner": "bao",
+                "points": 0.1
+              },
+              {
+                "learner": "ngoc",
+                "points": 26
+              },
+              {
+                "learner": "quang",
+                "points": -5
+              },
+              {
+                "learner": "tuan",
+                "points": 10
+              },
+              {
+                "learner": "trang",
+                "points": -1
+              },
+              {
+                "learner": "uyen",
+                "points": 18
+              },
+              {
+                "learner": "quan",
+                "points": 0
+              },
+              {
+                "learner": "hai",
+                "points": 17
+              },
+              {
+                "learner": "bao",
+                "points": 2.5
+              },
+              {
+                "learner": "huong",
+                "points": 24
+              },
+              {
+                "learner": "uyen",
+                "points": 0.1
+              },
+              {
+                "learner": "giang",
+                "points": 28
+              },
+              {
+                "learner": "minh",
+                "points": -5
+              },
+              {
+                "learner": "hai",
+                "points": 40
+              },
+              {
+                "learner": "chi",
+                "points": -1
+              },
+              {
+                "learner": "nhung",
+                "points": 6
+              },
+              {
+                "learner": "linh",
+                "points": 0
+              },
+              {
+                "learner": "nhung",
+                "points": 36
+              },
+              {
+                "learner": "giang",
+                "points": 2.5
+              },
+              {
+                "learner": "dung",
+                "points": 30
+              },
+              {
+                "learner": "quang",
+                "points": 0.1
+              },
+              {
+                "learner": "son",
+                "points": 23
+              },
+              {
+                "learner": "an",
+                "points": -5
+              },
+              {
+                "learner": "viet",
+                "points": 23
+              },
+              {
+                "learner": "hung",
+                "points": -1
+              },
+              {
+                "learner": "ha",
+                "points": 32
+              },
+              {
+                "learner": "ngoc",
+                "points": 0
+              },
+              {
+                "learner": "yen",
+                "points": 32
+              },
+              {
+                "learner": "lan",
+                "points": 2.5
+              },
+              {
+                "learner": "tu",
+                "points": 47
+              },
+              {
+                "learner": "ha",
+                "points": 0.1
+              },
+              {
+                "learner": "viet",
+                "points": 7
+              },
+              {
+                "learner": "viet",
+                "points": -5
+              },
+              {
+                "learner": "phuc",
+                "points": 11
+              },
+              {
+                "learner": "hung",
+                "points": -1
+              },
+              {
+                "learner": "tuan",
+                "points": 12
+              },
+              {
+                "learner": "nhung",
+                "points": 0
+              },
+              {
+                "learner": "chi",
+                "points": 23
+              },
+              {
+                "learner": "phong",
+                "points": 2.5
+              },
+              {
+                "learner": "son",
+                "points": 46
+              },
+              {
+                "learner": "thanh",
+                "points": 0.1
+              },
+              {
+                "learner": "ha",
+                "points": 27
+              },
+              {
+                "learner": "giang",
+                "points": -5
+              },
+              {
+                "learner": "bao",
+                "points": 8
+              },
+              {
+                "learner": "phong",
+                "points": -1
+              },
+              {
+                "learner": "trung",
+                "points": 18
+              },
+              {
+                "learner": "khoa",
+                "points": 0
+              },
+              {
+                "learner": "vy",
+                "points": 49
+              },
+              {
+                "learner": "bao",
+                "points": 2.5
+              },
+              {
+                "learner": "vy",
+                "points": 24
+              },
+              {
+                "learner": "khoa",
+                "points": 0.1
+              },
+              {
+                "learner": "giang",
+                "points": 47
+              },
+              {
+                "learner": "quan",
+                "points": -5
+              },
+              {
+                "learner": "hung",
+                "points": 5
+              },
+              {
+                "learner": "tuan",
+                "points": -1
+              },
+              {
+                "learner": "yen",
+                "points": 40
+              },
+              {
+                "learner": "long",
+                "points": 0
+              },
+              {
+                "learner": "mai",
+                "points": 27
+              },
+              {
+                "learner": "tu",
+                "points": 2.5
+              },
+              {
+                "learner": "hieu",
+                "points": 47
+              },
+              {
+                "learner": "long",
+                "points": 0.1
+              },
+              {
+                "learner": "huong",
+                "points": 3
+              },
+              {
+                "learner": "yen",
+                "points": -5
+              },
+              {
+                "learner": "mai",
+                "points": 37
+              },
+              {
+                "learner": "vy",
+                "points": -1
+              },
+              {
+                "learner": "van",
+                "points": 39
+              },
+              {
+                "learner": "hoa",
+                "points": 0
+              },
+              {
+                "learner": "khanh",
+                "points": 40
+              },
+              {
+                "learner": "huong",
+                "points": 2.5
+              },
+              {
+                "learner": "tu",
+                "points": 24
+              },
+              {
+                "learner": "trung",
+                "points": 0.1
+              },
+              {
+                "learner": "phuc",
+                "points": 43
+              },
+              {
+                "learner": "hung",
+                "points": -5
+              },
+              {
+                "learner": "phong",
+                "points": 2
+              },
+              {
+                "learner": "hieu",
+                "points": -1
+              },
+              {
+                "learner": "dung",
+                "points": 32
+              },
+              {
+                "learner": "trang",
+                "points": 0
+              },
+              {
+                "learner": "minh",
+                "points": 42
+              },
+              {
+                "learner": "lan",
+                "points": 2.5
+              },
+              {
+                "learner": "nam",
+                "points": 49
+              },
+              {
+                "learner": "hieu",
+                "points": 0.1
+              },
+              {
+                "learner": "dung",
+                "points": 13
+              },
+              {
+                "learner": "linh",
+                "points": -5
+              },
+              {
+                "learner": "hieu",
+                "points": 13
+              },
+              {
+                "learner": "nhung",
+                "points": -1
+              },
+              {
+                "learner": "binh",
+                "points": 22
+              },
+              {
+                "learner": "chi",
+                "points": 0
+              },
+              {
+                "learner": "vy",
+                "points": 47
+              },
+              {
+                "learner": "lan",
+                "points": 2.5
+              },
+              {
+                "learner": "minh",
+                "points": 26
+              },
+              {
+                "learner": "tuan",
+                "points": 0.1
+              },
+              {
+                "learner": "tuan",
+                "points": 47
+              },
+              {
+                "learner": "nhung",
+                "points": -5
+              },
+              {
+                "learner": "giang",
+                "points": 8
+              },
+              {
+                "learner": "nhung",
+                "points": -1
+              },
+              {
+                "learner": "khanh",
+                "points": 26
+              },
+              {
+                "learner": "phong",
+                "points": 0
+              },
+              {
+                "learner": "long",
+                "points": 17
+              },
+              {
+                "learner": "nam",
+                "points": 2.5
+              },
+              {
+                "learner": "thu",
+                "points": 27
+              },
+              {
+                "learner": "ha",
+                "points": 0.1
+              },
+              {
+                "learner": "khanh",
+                "points": 11
+              },
+              {
+                "learner": "nhung",
+                "points": -5
+              },
+              {
+                "learner": "hieu",
+                "points": 46
+              },
+              {
+                "learner": "khanh",
+                "points": -1
+              },
+              {
+                "learner": "dung",
+                "points": 12
+              },
+              {
+                "learner": "bao",
+                "points": 0
+              },
+              {
+                "learner": "tam",
+                "points": 1
+              },
+              {
+                "learner": "an",
+                "points": 2.5
+              },
+              {
+                "learner": "chi",
+                "points": 25
+              },
+              {
+                "learner": "yen",
+                "points": 0.1
+              },
+              {
+                "learner": "linh",
+                "points": 28
+              },
+              {
+                "learner": "khoa",
+                "points": -5
+              },
+              {
+                "learner": "uyen",
+                "points": 22
+              },
+              {
+                "learner": "lan",
+                "points": -1
+              },
+              {
+                "learner": "hai",
+                "points": 40
+              },
+              {
+                "learner": "quan",
+                "points": 0
+              },
+              {
+                "learner": "yen",
+                "points": 22
+              },
+              {
+                "learner": "huong",
+                "points": 2.5
+              },
+              {
+                "learner": "thao",
+                "points": 27
+              },
+              {
+                "learner": "binh",
+                "points": 0.1
+              },
+              {
+                "learner": "thanh",
+                "points": 18
+              },
+              {
+                "learner": "hai",
+                "points": -5
+              },
+              {
+                "learner": "yen",
+                "points": 9
+              },
+              {
+                "learner": "phuc",
+                "points": -1
+              },
+              {
+                "learner": "hung",
+                "points": 38
+              },
+              {
+                "learner": "phong",
+                "points": 0
+              },
+              {
+                "learner": "chi",
+                "points": 33
+              },
+              {
+                "learner": "giang",
+                "points": 2.5
+              },
+              {
+                "learner": "lan",
+                "points": 25
+              },
+              {
+                "learner": "quan",
+                "points": 0.1
+              },
+              {
+                "learner": "ha",
+                "points": 8
+              },
+              {
+                "learner": "tuan",
+                "points": -5
+              },
+              {
+                "learner": "thu",
+                "points": 48
+              },
+              {
+                "learner": "phuc",
+                "points": -1
+              },
+              {
+                "learner": "hai",
+                "points": 35
+              },
+              {
+                "learner": "ha",
+                "points": 0
+              },
+              {
+                "learner": "ha",
+                "points": 23
+              },
+              {
+                "learner": "hieu",
+                "points": 2.5
+              },
+              {
+                "learner": "long",
+                "points": 46
+              },
+              {
+                "learner": "hai",
+                "points": 0.1
+              },
+              {
+                "learner": "phong",
+                "points": 29
+              },
+              {
+                "learner": "hoa",
+                "points": -5
+              },
+              {
+                "learner": "mai",
+                "points": 18
+              },
+              {
+                "learner": "binh",
+                "points": -1
+              },
+              {
+                "learner": "giang",
+                "points": 4
+              },
+              {
+                "learner": "binh",
+                "points": 0
+              },
+              {
+                "learner": "huong",
+                "points": 35
+              },
+              {
+                "learner": "uyen",
+                "points": 2.5
+              },
+              {
+                "learner": "trung",
+                "points": 29
+              },
+              {
+                "learner": "phuc",
+                "points": 0.1
+              },
+              {
+                "learner": "lan",
+                "points": 35
+              },
+              {
+                "learner": "viet",
+                "points": -5
+              },
+              {
+                "learner": "tam",
+                "points": 43
+              },
+              {
+                "learner": "son",
+                "points": -1
+              },
+              {
+                "learner": "hoa",
+                "points": 1
+              },
+              {
+                "learner": "nam",
+                "points": 0
+              },
+              {
+                "learner": "an",
+                "points": 44
+              },
+              {
+                "learner": "ngoc",
+                "points": 2.5
+              },
+              {
+                "learner": "uyen",
+                "points": 27
+              },
+              {
+                "learner": "ngoc",
+                "points": 0.1
+              },
+              {
+                "learner": "hieu",
+                "points": 34
+              },
+              {
+                "learner": "viet",
+                "points": -5
+              },
+              {
+                "learner": "trung",
+                "points": 16
+              },
+              {
+                "learner": "phuc",
+                "points": -1
+              },
+              {
+                "learner": "hai",
+                "points": 22
+              },
+              {
+                "learner": "trang",
+                "points": 0
+              },
+              {
+                "learner": "huong",
+                "points": 9
+              },
+              {
+                "learner": "long",
+                "points": 2.5
+              },
+              {
+                "learner": "quan",
+                "points": 21
+              },
+              {
+                "learner": "nhung",
+                "points": 0.1
+              },
+              {
+                "learner": "binh",
+                "points": 41
+              },
+              {
+                "learner": "binh",
+                "points": -5
+              },
+              {
+                "learner": "linh",
+                "points": 14
+              },
+              {
+                "learner": "thu",
+                "points": -1
+              },
+              {
+                "learner": "binh",
+                "points": 40
+              },
+              {
+                "learner": "trung",
+                "points": 0
+              },
+              {
+                "learner": "hieu",
+                "points": 38
+              },
+              {
+                "learner": "tam",
+                "points": 2.5
+              },
+              {
+                "learner": "phuc",
+                "points": 15
+              },
+              {
+                "learner": "yen",
+                "points": 0.1
+              },
+              {
+                "learner": "uyen",
+                "points": 30
+              },
+              {
+                "learner": "nhung",
+                "points": -5
+              },
+              {
+                "learner": "trang",
+                "points": 10
+              },
+              {
+                "learner": "mai",
+                "points": -1
+              },
+              {
+                "learner": "phong",
+                "points": 1
+              },
+              {
+                "learner": "lan",
+                "points": 0
+              },
+              {
+                "learner": "thu",
+                "points": 48
+              },
+              {
+                "learner": "huong",
+                "points": 2.5
+              },
+              {
+                "learner": "hung",
+                "points": 15
+              },
+              {
+                "learner": "tu",
+                "points": 0.1
+              },
+              {
+                "learner": "phong",
+                "points": 45
+              },
+              {
+                "learner": "tuan",
+                "points": -5
+              },
+              {
+                "learner": "yen",
+                "points": 12
+              },
+              {
+                "learner": "khanh",
+                "points": -1
+              },
+              {
+                "learner": "trung",
+                "points": 33
+              },
+              {
+                "learner": "thu",
+                "points": 0
+              },
+              {
+                "learner": "chi",
+                "points": 45
+              },
+              {
+                "learner": "minh",
+                "points": 2.5
+              },
+              {
+                "learner": "mai",
+                "points": 17
+              },
+              {
+                "learner": "long",
+                "points": 0.1
+              },
+              {
+                "learner": "giang",
+                "points": 29
+              },
+              {
+                "learner": "hieu",
+                "points": -5
+              },
+              {
+                "learner": "phuc",
+                "points": 46
+              },
+              {
+                "learner": "tam",
+                "points": -1
+              },
+              {
+                "learner": "hieu",
+                "points": 12
+              },
+              {
+                "learner": "hoa",
+                "points": 0
+              },
+              {
+                "learner": "trung",
+                "points": 49
+              },
+              {
+                "learner": "hieu",
+                "points": 2.5
+              },
+              {
+                "learner": "trung",
+                "points": 21
+              },
+              {
+                "learner": "tuan",
+                "points": 0.1
+              },
+              {
+                "learner": "hieu",
+                "points": 22
+              },
+              {
+                "learner": "khoa",
+                "points": -5
+              },
+              {
+                "learner": "hai",
+                "points": 46
+              },
+              {
+                "learner": "van",
+                "points": -1
+              },
+              {
+                "learner": "hai",
+                "points": 43
+              },
+              {
+                "learner": "dung",
+                "points": 0
+              },
+              {
+                "learner": "son",
+                "points": 32
+              },
+              {
+                "learner": "nam",
+                "points": 2.5
+              },
+              {
+                "learner": "trang",
+                "points": 35
+              },
+              {
+                "learner": "khoa",
+                "points": 0.1
+              },
+              {
+                "learner": "long",
+                "points": 48
+              },
+              {
+                "learner": "khoa",
+                "points": -5
+              },
+              {
+                "learner": "lan",
+                "points": 40
+              },
+              {
+                "learner": "long",
+                "points": -1
+              },
+              {
+                "learner": "lan",
+                "points": 1
+              },
+              {
+                "learner": "thu",
+                "points": 0
+              },
+              {
+                "learner": "tam",
+                "points": 29
+              },
+              {
+                "learner": "quang",
+                "points": 2.5
+              },
+              {
+                "learner": "hieu",
+                "points": 23
+              },
+              {
+                "learner": "dung",
+                "points": 0.1
+              },
+              {
+                "learner": "quan",
+                "points": 22
+              },
+              {
+                "learner": "trung",
+                "points": -5
+              },
+              {
+                "learner": "minh",
+                "points": 8
+              },
+              {
+                "learner": "thu",
+                "points": -1
+              },
+              {
+                "learner": "binh",
+                "points": 38
+              },
+              {
+                "learner": "tu",
+                "points": 0
+              },
+              {
+                "learner": "mai",
+                "points": 37
+              },
+              {
+                "learner": "viet",
+                "points": 2.5
+              },
+              {
+                "learner": "trung",
+                "points": 3
+              },
+              {
+                "learner": "hoa",
+                "points": 0.1
+              },
+              {
+                "learner": "mai",
+                "points": 18
+              },
+              {
+                "learner": "son",
+                "points": -5
+              },
+              {
+                "learner": "quang",
+                "points": 36
+              },
+              {
+                "learner": "lan",
+                "points": -1
+              },
+              {
+                "learner": "lan",
+                "points": 48
+              },
+              {
+                "learner": "hieu",
+                "points": 0
+              },
+              {
+                "learner": "bao",
+                "points": 48
+              },
+              {
+                "learner": "son",
+                "points": 2.5
+              },
+              {
+                "learner": "ngoc",
+                "points": 39
+              },
+              {
+                "learner": "linh",
+                "points": 0.1
+              },
+              {
+                "learner": "trang",
+                "points": 20
+              },
+              {
+                "learner": "tam",
+                "points": -5
+              },
+              {
+                "learner": "linh",
+                "points": 7
+              },
+              {
+                "learner": "phuc",
+                "points": -1
+              },
+              {
+                "learner": "giang",
+                "points": 44
+              },
+              {
+                "learner": "linh",
+                "points": 0
+              },
+              {
+                "learner": "dung",
+                "points": 17
+              },
+              {
+                "learner": "ngoc",
+                "points": 2.5
+              },
+              {
+                "learner": "phong",
+                "points": 33
+              },
+              {
+                "learner": "uyen",
+                "points": 0.1
+              },
+              {
+                "learner": "thanh",
+                "points": 23
+              },
+              {
+                "learner": "quang",
+                "points": -5
+              },
+              {
+                "learner": "minh",
+                "points": 47
+              },
+              {
+                "learner": "long",
+                "points": -1
+              },
+              {
+                "learner": "ngoc",
+                "points": 22
+              },
+              {
+                "learner": "an",
+                "points": 0
+              },
+              {
+                "learner": "quan",
+                "points": 21
+              },
+              {
+                "learner": "quang",
+                "points": 2.5
+              },
+              {
+                "learner": "mai",
+                "points": 40
+              },
+              {
+                "learner": "nhung",
+                "points": 0.1
+              },
+              {
+                "learner": "ha",
+                "points": 9
+              },
+              {
+                "learner": "nam",
+                "points": -5
+              },
+              {
+                "learner": "thu",
+                "points": 11
+              },
+              {
+                "learner": "hung",
+                "points": -1
+              },
+              {
+                "learner": "thao",
+                "points": 34
+              },
+              {
+                "learner": "nam",
+                "points": 0
+              },
+              {
+                "learner": "hoa",
+                "points": 41
+              },
+              {
+                "learner": "mai",
+                "points": 2.5
+              },
+              {
+                "learner": "minh",
+                "points": 28
+              },
+              {
+                "learner": "huong",
+                "points": 0.1
+              },
+              {
+                "learner": "ngoc",
+                "points": 20
+              },
+              {
+                "learner": "trung",
+                "points": -5
+              },
+              {
+                "learner": "son",
+                "points": 40
+              },
+              {
+                "learner": "bao",
+                "points": -1
+              },
+              {
+                "learner": "hoa",
+                "points": 39
+              },
+              {
+                "learner": "tam",
+                "points": 0
+              },
+              {
+                "learner": "quang",
+                "points": 28
+              },
+              {
+                "learner": "quan",
+                "points": 2.5
+              },
+              {
+                "learner": "hoa",
+                "points": 48
+              },
+              {
+                "learner": "phong",
+                "points": 0.1
+              },
+              {
+                "learner": "hai",
+                "points": 1
+              },
+              {
+                "learner": "viet",
+                "points": -5
+              },
+              {
+                "learner": "thanh",
+                "points": 26
+              },
+              {
+                "learner": "mai",
+                "points": -1
+              },
+              {
+                "learner": "hung",
+                "points": 34
+              },
+              {
+                "learner": "lan",
+                "points": 0
+              },
+              {
+                "learner": "lan",
+                "points": 27
+              },
+              {
+                "learner": "minh",
+                "points": 2.5
+              },
+              {
+                "learner": "long",
+                "points": 26
+              },
+              {
+                "learner": "minh",
+                "points": 0.1
+              },
+              {
+                "learner": "thao",
+                "points": 43
+              },
+              {
+                "learner": "yen",
+                "points": -5
+              },
+              {
+                "learner": "yen",
+                "points": 47
+              },
+              {
+                "learner": "ngoc",
+                "points": -1
+              },
+              {
+                "learner": "linh",
+                "points": 49
+              },
+              {
+                "learner": "quang",
+                "points": 0
+              },
+              {
+                "learner": "son",
+                "points": 3
+              },
+              {
+                "learner": "vy",
+                "points": 2.5
+              },
+              {
+                "learner": "nhung",
+                "points": 4
+              },
+              {
+                "learner": "khoa",
+                "points": 0.1
+              },
+              {
+                "learner": "phuc",
+                "points": 10
+              },
+              {
+                "learner": "thao",
+                "points": -5
+              },
+              {
+                "learner": "dung",
+                "points": 42
+              },
+              {
+                "learner": "quan",
+                "points": -1
+              },
+              {
+                "learner": "thanh",
+                "points": 16
+              },
+              {
+                "learner": "viet",
+                "points": 0
+              },
+              {
+                "learner": "vy",
+                "points": 34
+              },
+              {
+                "learner": "linh",
+                "points": 2.5
+              },
+              {
+                "learner": "mai",
+                "points": 29
+              },
+              {
+                "learner": "thu",
+                "points": 0.1
+              },
+              {
+                "learner": "trung",
+                "points": 31
+              },
+              {
+                "learner": "trang",
+                "points": -5
+              },
+              {
+                "learner": "phong",
+                "points": 50
+              },
+              {
+                "learner": "phong",
+                "points": -1
+              },
+              {
+                "learner": "ha",
+                "points": 16
+              },
+              {
+                "learner": "thanh",
+                "points": 0
+              },
+              {
+                "learner": "thanh",
+                "points": 50
+              },
+              {
+                "learner": "giang",
+                "points": 2.5
+              },
+              {
+                "learner": "quan",
+                "points": 23
+              },
+              {
+                "learner": "hieu",
+                "points": 0.1
+              },
+              {
+                "learner": "dung",
+                "points": 37
+              },
+              {
+                "learner": "tuan",
+                "points": -5
+              },
+              {
+                "learner": "yen",
+                "points": 27
+              },
+              {
+                "learner": "an",
+                "points": -1
+              },
+              {
+                "learner": "van",
+                "points": 48
+              },
+              {
+                "learner": "tu",
+                "points": 0
+              },
+              {
+                "learner": "thanh",
+                "points": 18
+              },
+              {
+                "learner": "bao",
+                "points": 2.5
+              },
+              {
+                "learner": "bao",
+                "points": 3
+              },
+              {
+                "learner": "uyen",
+                "points": 0.1
+              },
+              {
+                "learner": "ha",
+                "points": 29
+              },
+              {
+                "learner": "mai",
+                "points": -5
+              },
+              {
+                "learner": "thu",
+                "points": 48
+              },
+              {
+                "learner": "hoa",
+                "points": -1
+              },
+              {
+                "learner": "ngoc",
+                "points": 17
+              },
+              {
+                "learner": "yen",
+                "points": 0
+              },
+              {
+                "learner": "mai",
+                "points": 9
+              },
+              {
+                "learner": "giang",
+                "points": 2.5
+              },
+              {
+                "learner": "tam",
+                "points": 42
+              },
+              {
+                "learner": "viet",
+                "points": 0.1
+              },
+              {
+                "learner": "phong",
+                "points": 30
+              },
+              {
+                "learner": "huong",
+                "points": -5
+              },
+              {
+                "learner": "long",
+                "points": 39
+              },
+              {
+                "learner": "quang",
+                "points": -1
+              },
+              {
+                "learner": "tam",
+                "points": 3
+              },
+              {
+                "learner": "mai",
+                "points": 0
+              },
+              {
+                "learner": "phong",
+                "points": 10
+              },
+              {
+                "learner": "viet",
+                "points": 2.5
+              },
+              {
+                "learner": "hoa",
+                "points": 14
+              },
+              {
+                "learner": "phuc",
+                "points": 0.1
+              },
+              {
+                "learner": "giang",
+                "points": 38
+              },
+              {
+                "learner": "hieu",
+                "points": -5
+              },
+              {
+                "learner": "nhung",
+                "points": 46
+              },
+              {
+                "learner": "phuc",
+                "points": -1
+              },
+              {
+                "learner": "hoa",
+                "points": 5
+              },
+              {
+                "learner": "tam",
+                "points": 0
+              },
+              {
+                "learner": "tam",
+                "points": 13
+              },
+              {
+                "learner": "hung",
+                "points": 2.5
+              },
+              {
+                "learner": "hung",
+                "points": 35
+              },
+              {
+                "learner": "an",
+                "points": 0.1
+              },
+              {
+                "learner": "minh",
+                "points": 48
+              },
+              {
+                "learner": "trang",
+                "points": -5
+              },
+              {
+                "learner": "hoa",
+                "points": 38
+              },
+              {
+                "learner": "son",
+                "points": -1
+              },
+              {
+                "learner": "khoa",
+                "points": 15
+              },
+              {
+                "learner": "mai",
+                "points": 0
+              },
+              {
+                "learner": "tu",
+                "points": 25
+              },
+              {
+                "learner": "thao",
+                "points": 2.5
+              },
+              {
+                "learner": "quang",
+                "points": 28
+              },
+              {
+                "learner": "yen",
+                "points": 0.1
+              },
+              {
+                "learner": "an",
+                "points": 42
+              },
+              {
+                "learner": "thao",
+                "points": -5
+              },
+              {
+                "learner": "nhung",
+                "points": 2
+              },
+              {
+                "learner": "linh",
+                "points": -1
+              },
+              {
+                "learner": "binh",
+                "points": 44
+              },
+              {
+                "learner": "trang",
+                "points": 0
+              },
+              {
+                "learner": "khanh",
+                "points": 5
+              },
+              {
+                "learner": "thao",
+                "points": 2.5
+              },
+              {
+                "learner": "linh",
+                "points": 28
+              },
+              {
+                "learner": "trang",
+                "points": 0.1
+              },
+              {
+                "learner": "trang",
+                "points": 33
+              },
+              {
+                "learner": "thanh",
+                "points": -5
+              },
+              {
+                "learner": "long",
+                "points": 1
+              },
+              {
+                "learner": "thao",
+                "points": -1
+              },
+              {
+                "learner": "dung",
+                "points": 10
+              },
+              {
+                "learner": "son",
+                "points": 0
+              },
+              {
+                "learner": "nam",
+                "points": 39
+              },
+              {
+                "learner": "phuc",
+                "points": 2.5
+              },
+              {
+                "learner": "nam",
+                "points": 9
+              },
+              {
+                "learner": "vy",
+                "points": 0.1
+              },
+              {
+                "learner": "tuan",
+                "points": 50
+              },
+              {
+                "learner": "khoa",
+                "points": -5
+              },
+              {
+                "learner": "vy",
+                "points": 24
+              },
+              {
+                "learner": "mai",
+                "points": -1
+              },
+              {
+                "learner": "hai",
+                "points": 34
+              },
+              {
+                "learner": "thao",
+                "points": 0
+              },
+              {
+                "learner": "long",
+                "points": 41
+              },
+              {
+                "learner": "vy",
+                "points": 2.5
+              },
+              {
+                "learner": "hoa",
+                "points": 48
+              },
+              {
+                "learner": "thanh",
+                "points": 0.1
+              },
+              {
+                "learner": "ngoc",
+                "points": 37
+              },
+              {
+                "learner": "khoa",
+                "points": -5
+              },
+              {
+                "learner": "mai",
+                "points": 16
+              },
+              {
+                "learner": "hieu",
+                "points": -1
+              },
+              {
+                "learner": "tu",
+                "points": 26
+              },
+              {
+                "learner": "quang",
+                "points": 0
+              },
+              {
+                "learner": "phuc",
+                "points": 9
+              },
+              {
+                "learner": "thu",
+                "points": 2.5
+              },
+              {
+                "learner": "dung",
+                "points": 41
+              },
+              {
+                "learner": "trang",
+                "points": 0.1
+              },
+              {
+                "learner": "hung",
+                "points": 23
+              },
+              {
+                "learner": "khoa",
+                "points": -5
+              },
+              {
+                "learner": "thu",
+                "points": 14
+              },
+              {
+                "learner": "tuan",
+                "points": -1
+              },
+              {
+                "learner": "huong",
+                "points": 41
+              },
+              {
+                "learner": "yen",
+                "points": 0
+              },
+              {
+                "learner": "huong",
+                "points": 9
+              },
+              {
+                "learner": "ha",
+                "points": 2.5
+              },
+              {
+                "learner": "uyen",
+                "points": 41
+              },
+              {
+                "learner": "trang",
+                "points": 0.1
+              },
+              {
+                "learner": "hoa",
+                "points": 13
+              },
+              {
+                "learner": "binh",
+                "points": -5
+              },
+              {
+                "learner": "lan",
+                "points": 24
+              },
+              {
+                "learner": "binh",
+                "points": -1
+              },
+              {
+                "learner": "binh",
+                "points": 30
+              },
+              {
+                "learner": "minh",
+                "points": 0
+              },
+              {
+                "learner": "viet",
+                "points": 40
+              },
+              {
+                "learner": "hung",
+                "points": 2.5
+              },
+              {
+                "learner": "vy",
+                "points": 1
+              },
+              {
+                "learner": "huong",
+                "points": 0.1
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 2,
+          "expected": "100 runs, seed 2026\nranking: yen 739, son 721, vy 708, lan 707, giang 699, minh 693, mai 689, dung 678, long 676, linh 666, thu 665, binh 653, bao 649, hoa 649, tam 644, phong 642, hieu 627, hai 614, trung 597, trang 585, huong 578, uyen 575, nam 573, hung 565, thanh 564, ngoc 560, phuc 560, nhung 551, an 545, tuan 537, thao 530, tu 509, chi 494, quang 477, ha 453, van 448, quan 441, viet 397, khoa 390, khanh 383 (100 runs)\nstarted 2030-09-15T06:30:00.999Z: trial ends 2030-09-22T06:30:00.000Z (34 runs)\nstarted 2030-09-15T06:30:01.001Z: trial ends 2030-09-22T06:30:01.000Z (33 runs)\nstarted 2030-09-15T06:29:59.500Z: trial ends 2030-09-22T06:29:59.000Z (33 runs)"
+        }
+      ]
+    }
+  ]
+}

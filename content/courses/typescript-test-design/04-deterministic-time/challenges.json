@@ -1,0 +1,1759 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_ttd_211",
+      "name": "inject-the-clock-quiz",
+      "type": "quiz",
+      "title": "Whose clock is the test reading?",
+      "description": "Two tests from the deadline incident: one freezes the system time with Vitest and reads the day of the month, the other passes a clock to submissionStatus but builds that clock from the real time.",
+      "difficulty": "medium",
+      "outcomes": [
+        "isolation"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A test in the CodeDev API (Vitest 3.x) freezes the clock before checking the \"due today\" banner:\n\nvi.useFakeTimers();\nvi.setSystemTime(new Date(\"2026-11-01T06:30:00+07:00\"));\nconst day = new Date().getDate();\n\nThe test passes on a developer laptop in Hanoi (time zone Asia/Ho_Chi_Minh). The CI runner's time zone is UTC.\n\nStatement: \"Because the system time is frozen, day is 1 on the laptop and on the CI runner.\"",
+          "explanation": "False. vi.setSystemTime freezes an instant: 2026-11-01T06:30:00+07:00 is 2026-10-31T23:30:00Z everywhere. getDate() then converts that instant to the local time zone of the process running the test, so the laptop in UTC+7 gets 1 (1 November, 06:30) and the UTC runner gets 31 (31 October, 23:30). The misconception is that a fake clock makes all date arithmetic deterministic; it fixes the instant, not the time zone. Use getUTCDate() with an explicit offset, or Intl.DateTimeFormat with a timeZone option, and run the suite with TZ=UTC as well as your local zone.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "After the fix, submissionStatus(assignment, clock) reads the time only from clock.now(). A teammate updates the old test like this:\n\ntest(\"a submission before today's deadline is on time\", () => {\n  const now = new Date();\n  const today = now.toISOString().slice(0, 10);\n  const quiz = { id: \"ts-quiz-3\", deadline: `${today}T23:59`, utcOffsetMinutes: 420, graceMinutes: 15 };\n  expect(submissionStatus(quiz, { now: () => now })).toBe(\"on-time\");\n});\n\nStatement: \"This test can still fail when the nightly CI run starts at 01:30 Vietnam time.\"",
+          "explanation": "True. The function no longer reads the real clock, but the test does: it builds both now and the deadline from new Date(). At 01:30 on 28 October in Vietnam the instant is 2026-10-27T18:30Z, so today is \"2026-10-27\" and the deadline is 27 October 23:59 in UTC+7 (16:59Z), more than the 15-minute grace in the past: the function correctly answers closed. The misconception is that injecting a clock makes a test deterministic by itself. It only helps when the test passes a fixed instant, for example { now: () => new Date(\"2026-10-31T16:59:00Z\") } with a fixed deadline.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_ttd_212",
+      "name": "submission-deadline-with-clock",
+      "type": "mini_coding",
+      "title": "A deadline function that takes a clock",
+      "description": "CodeDev decides whether a learner may still submit an assignment. The shipped submissionStatus read new Date() inside, so its test built \"today\" from the real clock and failed every night between 00:00 and 07:00 Vietnam time. Write submissionStatus(assignment, clock) so that it reads the current time only from clock.now() (never new Date() or Date.now()). assignment.deadline is a wall-clock time \"YYYY-MM-DDTHH:mm\" in the learner's fixed UTC offset assignment.utcOffsetMinutes (420 = UTC+7, 0 = UTC, -300 = UTC-5, an integer between -720 and 840); the deadline instant is that wall time at second 0 in that offset, so \"2026-10-31T23:59\" at 420 is 2026-10-31T16:59:00.000Z. Return \"on-time\" when now <= deadline, \"late\" when deadline < now <= deadline + graceMinutes, \"closed\" when now is later than that, and \"invalid\" when the deadline does not match YYYY-MM-DDTHH:mm exactly, is not a real date and time (2026-02-29T10:00, 2026-10-31T24:00, minute 60, month 13), or graceMinutes is not a whole number >= 0. Input (read by the runner): a JSON list of { assignment: { id, deadline, utcOffsetMinutes, graceMinutes }, at: [ISO instants] }. For every instant the runner builds a clock fixed at it and prints \"<id> at <instant>: <status>\", one line per instant.",
+      "difficulty": "easy",
+      "outcomes": [
+        "isolation"
+      ],
+      "points": 20,
+      "hints": [
+        "If you had to compare two numbers to decide on-time, late or closed, which two numbers would they be, and in which unit? Where does each one come from?",
+        "Look at Date.UTC(year, monthIndex, day, hours, minutes): it reads its arguments as UTC and returns milliseconds. The wall time is in the learner's offset, so the real instant is earlier than that UTC reading for a positive offset. For the invalid cases, check what Date.UTC does with day 30 of February, and compare the fields of the result with what you parsed.",
+        "A similar example on other values: a live session at \"2027-01-05T09:00\" in UTC-5 (offset -300) starts at Date.UTC(2027, 0, 5, 9, 0) - (-300) * 60000, which is 2027-01-05T14:00:00.000Z. With 10 minutes of grace, a clock at 14:10:00.000Z is still inside the grace period and one at 14:10:00.001Z is not."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "UTC+7 deadline with 15 minutes of grace: on time, late, closed",
+          "input": [
+            {
+              "assignment": {
+                "id": "ts-quiz-3",
+                "deadline": "2026-10-31T23:59",
+                "utcOffsetMinutes": 420,
+                "graceMinutes": 15
+              },
+              "at": [
+                "2026-10-31T16:00:00.000Z",
+                "2026-10-31T17:05:00.000Z",
+                "2026-10-31T17:30:00.000Z"
+              ]
+            }
+          ],
+          "expected": "ts-quiz-3 at 2026-10-31T16:00:00.000Z: on-time\nts-quiz-3 at 2026-10-31T17:05:00.000Z: late\nts-quiz-3 at 2026-10-31T17:30:00.000Z: closed",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Exactly at the deadline is on time, exactly at the end of grace is late, 1 ms later is closed",
+          "input": [
+            {
+              "assignment": {
+                "id": "ts-quiz-3",
+                "deadline": "2026-10-31T23:59",
+                "utcOffsetMinutes": 420,
+                "graceMinutes": 15
+              },
+              "at": [
+                "2026-10-31T16:59:00.000Z",
+                "2026-10-31T16:59:00.001Z",
+                "2026-10-31T17:14:00.000Z",
+                "2026-10-31T17:14:00.001Z"
+              ]
+            }
+          ],
+          "expected": "ts-quiz-3 at 2026-10-31T16:59:00.000Z: on-time\nts-quiz-3 at 2026-10-31T16:59:00.001Z: late\nts-quiz-3 at 2026-10-31T17:14:00.000Z: late\nts-quiz-3 at 2026-10-31T17:14:00.001Z: closed",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "The incident: between 00:00 and 07:00 Vietnam time the UTC date is still yesterday",
+          "input": [
+            {
+              "assignment": {
+                "id": "sql-lab-2",
+                "deadline": "2026-10-31T23:59",
+                "utcOffsetMinutes": 420,
+                "graceMinutes": 15
+              },
+              "at": [
+                "2026-11-01T00:10:00+07:00",
+                "2026-11-01T06:30:00+07:00",
+                "2026-10-31T23:30:00+07:00"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "sql-lab-2-utc",
+                "deadline": "2026-10-31T23:59",
+                "utcOffsetMinutes": 0,
+                "graceMinutes": 15
+              },
+              "at": [
+                "2026-11-01T00:10:00+07:00",
+                "2026-11-01T06:30:00+07:00",
+                "2026-11-01T07:10:00+07:00"
+              ]
+            }
+          ],
+          "expected": "sql-lab-2 at 2026-11-01T00:10:00+07:00: late\nsql-lab-2 at 2026-11-01T06:30:00+07:00: closed\nsql-lab-2 at 2026-10-31T23:30:00+07:00: on-time\nsql-lab-2-utc at 2026-11-01T00:10:00+07:00: on-time\nsql-lab-2-utc at 2026-11-01T06:30:00+07:00: on-time\nsql-lab-2-utc at 2026-11-01T07:10:00+07:00: late",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Midnight deadlines in UTC+7, UTC and UTC-5",
+          "input": [
+            {
+              "assignment": {
+                "id": "midnight-vn",
+                "deadline": "2026-11-01T00:00",
+                "utcOffsetMinutes": 420,
+                "graceMinutes": 10
+              },
+              "at": [
+                "2026-10-31T16:59:59.999Z",
+                "2026-10-31T17:00:00.000Z",
+                "2026-10-31T17:10:00.000Z",
+                "2026-10-31T18:00:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "midnight-utc",
+                "deadline": "2026-11-01T00:00",
+                "utcOffsetMinutes": 0,
+                "graceMinutes": 10
+              },
+              "at": [
+                "2026-10-31T18:00:00.000Z",
+                "2026-11-01T00:05:00.000Z",
+                "2026-11-01T00:10:01.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "midnight-ny",
+                "deadline": "2026-11-01T00:00",
+                "utcOffsetMinutes": -300,
+                "graceMinutes": 10
+              },
+              "at": [
+                "2026-11-01T04:59:00.000Z",
+                "2026-11-01T05:00:00.000Z",
+                "2026-11-01T05:10:00.000Z",
+                "2026-11-01T05:10:00.001Z"
+              ]
+            }
+          ],
+          "expected": "midnight-vn at 2026-10-31T16:59:59.999Z: on-time\nmidnight-vn at 2026-10-31T17:00:00.000Z: on-time\nmidnight-vn at 2026-10-31T17:10:00.000Z: late\nmidnight-vn at 2026-10-31T18:00:00.000Z: closed\nmidnight-utc at 2026-10-31T18:00:00.000Z: on-time\nmidnight-utc at 2026-11-01T00:05:00.000Z: late\nmidnight-utc at 2026-11-01T00:10:01.000Z: closed\nmidnight-ny at 2026-11-01T04:59:00.000Z: on-time\nmidnight-ny at 2026-11-01T05:00:00.000Z: on-time\nmidnight-ny at 2026-11-01T05:10:00.000Z: late\nmidnight-ny at 2026-11-01T05:10:00.001Z: closed",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Month and year ends: deadline on 31 Dec, on 1 Jan at 00:00, on 1 Mar of a non-leap year",
+          "input": [
+            {
+              "assignment": {
+                "id": "final-2026",
+                "deadline": "2026-12-31T23:59",
+                "utcOffsetMinutes": 420,
+                "graceMinutes": 30
+              },
+              "at": [
+                "2026-12-31T16:59:00.000Z",
+                "2027-01-01T00:20:00+07:00",
+                "2026-12-31T17:29:00.000Z",
+                "2026-12-31T17:29:00.001Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "new-year",
+                "deadline": "2027-01-01T00:00",
+                "utcOffsetMinutes": 420,
+                "graceMinutes": 0
+              },
+              "at": [
+                "2026-12-31T16:59:59.000Z",
+                "2026-12-31T17:00:00.000Z",
+                "2026-12-31T17:00:00.001Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "march",
+                "deadline": "2026-03-01T00:30",
+                "utcOffsetMinutes": 420,
+                "graceMinutes": 5
+              },
+              "at": [
+                "2026-02-28T17:30:00.000Z",
+                "2026-02-28T17:34:00.000Z",
+                "2026-02-28T17:36:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "leap-day",
+                "deadline": "2028-02-29T23:59",
+                "utcOffsetMinutes": 420,
+                "graceMinutes": 0
+              },
+              "at": [
+                "2028-02-29T16:59:00.000Z",
+                "2028-02-29T17:00:00.000Z"
+              ]
+            }
+          ],
+          "expected": "final-2026 at 2026-12-31T16:59:00.000Z: on-time\nfinal-2026 at 2027-01-01T00:20:00+07:00: late\nfinal-2026 at 2026-12-31T17:29:00.000Z: late\nfinal-2026 at 2026-12-31T17:29:00.001Z: closed\nnew-year at 2026-12-31T16:59:59.000Z: on-time\nnew-year at 2026-12-31T17:00:00.000Z: on-time\nnew-year at 2026-12-31T17:00:00.001Z: closed\nmarch at 2026-02-28T17:30:00.000Z: on-time\nmarch at 2026-02-28T17:34:00.000Z: late\nmarch at 2026-02-28T17:36:00.000Z: closed\nleap-day at 2028-02-29T16:59:00.000Z: on-time\nleap-day at 2028-02-29T17:00:00.000Z: closed",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Invalid input: impossible dates, wrong format, negative or fractional grace",
+          "input": [
+            {
+              "assignment": {
+                "id": "feb-29-2026",
+                "deadline": "2026-02-29T23:59",
+                "utcOffsetMinutes": 420,
+                "graceMinutes": 15
+              },
+              "at": [
+                "2026-02-28T10:00:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "hour-24",
+                "deadline": "2026-10-31T24:00",
+                "utcOffsetMinutes": 420,
+                "graceMinutes": 15
+              },
+              "at": [
+                "2026-10-31T10:00:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "minute-60",
+                "deadline": "2026-10-31T23:60",
+                "utcOffsetMinutes": 420,
+                "graceMinutes": 15
+              },
+              "at": [
+                "2026-10-31T10:00:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "month-13",
+                "deadline": "2026-13-01T10:00",
+                "utcOffsetMinutes": 420,
+                "graceMinutes": 15
+              },
+              "at": [
+                "2026-10-31T10:00:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "space",
+                "deadline": "2026-10-31 23:59",
+                "utcOffsetMinutes": 420,
+                "graceMinutes": 15
+              },
+              "at": [
+                "2026-10-31T10:00:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "with-seconds",
+                "deadline": "2026-10-31T23:59:00",
+                "utcOffsetMinutes": 420,
+                "graceMinutes": 15
+              },
+              "at": [
+                "2026-10-31T10:00:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "empty",
+                "deadline": "",
+                "utcOffsetMinutes": 420,
+                "graceMinutes": 15
+              },
+              "at": [
+                "2026-10-31T10:00:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "negative-grace",
+                "deadline": "2026-10-31T23:59",
+                "utcOffsetMinutes": 420,
+                "graceMinutes": -5
+              },
+              "at": [
+                "2026-10-31T10:00:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "half-minute-grace",
+                "deadline": "2026-10-31T23:59",
+                "utcOffsetMinutes": 420,
+                "graceMinutes": 2.5
+              },
+              "at": [
+                "2026-10-31T10:00:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "zero-grace",
+                "deadline": "2026-10-31T23:59",
+                "utcOffsetMinutes": 420,
+                "graceMinutes": 0
+              },
+              "at": [
+                "2026-10-31T16:59:00.000Z",
+                "2026-10-31T16:59:00.001Z"
+              ]
+            }
+          ],
+          "expected": "feb-29-2026 at 2026-02-28T10:00:00.000Z: invalid\nhour-24 at 2026-10-31T10:00:00.000Z: invalid\nminute-60 at 2026-10-31T10:00:00.000Z: invalid\nmonth-13 at 2026-10-31T10:00:00.000Z: invalid\nspace at 2026-10-31T10:00:00.000Z: invalid\nwith-seconds at 2026-10-31T10:00:00.000Z: invalid\nempty at 2026-10-31T10:00:00.000Z: invalid\nnegative-grace at 2026-10-31T10:00:00.000Z: invalid\nhalf-minute-grace at 2026-10-31T10:00:00.000Z: invalid\nzero-grace at 2026-10-31T16:59:00.000Z: on-time\nzero-grace at 2026-10-31T16:59:00.001Z: closed",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Large: 18 weekly deadlines in four offsets, checked around each deadline",
+          "input": [
+            {
+              "assignment": {
+                "id": "quiz-w1-420",
+                "deadline": "2026-09-06T23:59",
+                "utcOffsetMinutes": 420,
+                "graceMinutes": 17
+              },
+              "at": [
+                "2026-09-05T16:59:00.000Z",
+                "2026-09-06T16:58:00.000Z",
+                "2026-09-06T16:59:00.000Z",
+                "2026-09-06T16:59:00.001Z",
+                "2026-09-06T16:59:30.000Z",
+                "2026-09-06T17:16:00.000Z",
+                "2026-09-06T17:16:00.001Z",
+                "2026-09-06T17:59:00.000Z",
+                "2026-09-06T23:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w1-0",
+                "deadline": "2026-09-06T23:59",
+                "utcOffsetMinutes": 0,
+                "graceMinutes": 0
+              },
+              "at": [
+                "2026-09-05T23:59:00.000Z",
+                "2026-09-06T23:58:00.000Z",
+                "2026-09-06T23:59:00.000Z",
+                "2026-09-06T23:59:00.001Z",
+                "2026-09-06T23:59:30.000Z",
+                "2026-09-06T23:59:00.000Z",
+                "2026-09-06T23:59:00.001Z",
+                "2026-09-07T00:59:00.000Z",
+                "2026-09-07T06:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w1--300",
+                "deadline": "2026-09-06T23:59",
+                "utcOffsetMinutes": -300,
+                "graceMinutes": 0
+              },
+              "at": [
+                "2026-09-06T04:59:00.000Z",
+                "2026-09-07T04:58:00.000Z",
+                "2026-09-07T04:59:00.000Z",
+                "2026-09-07T04:59:00.001Z",
+                "2026-09-07T04:59:30.000Z",
+                "2026-09-07T04:59:00.000Z",
+                "2026-09-07T04:59:00.001Z",
+                "2026-09-07T05:59:00.000Z",
+                "2026-09-07T11:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w1-330",
+                "deadline": "2026-09-06T23:59",
+                "utcOffsetMinutes": 330,
+                "graceMinutes": 20
+              },
+              "at": [
+                "2026-09-05T18:29:00.000Z",
+                "2026-09-06T18:28:00.000Z",
+                "2026-09-06T18:29:00.000Z",
+                "2026-09-06T18:29:00.001Z",
+                "2026-09-06T18:29:30.000Z",
+                "2026-09-06T18:49:00.000Z",
+                "2026-09-06T18:49:00.001Z",
+                "2026-09-06T19:29:00.000Z",
+                "2026-09-07T01:29:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w2-420",
+                "deadline": "2026-09-13T23:59",
+                "utcOffsetMinutes": 420,
+                "graceMinutes": 22
+              },
+              "at": [
+                "2026-09-12T16:59:00.000Z",
+                "2026-09-13T16:58:00.000Z",
+                "2026-09-13T16:59:00.000Z",
+                "2026-09-13T16:59:00.001Z",
+                "2026-09-13T16:59:30.000Z",
+                "2026-09-13T17:21:00.000Z",
+                "2026-09-13T17:21:00.001Z",
+                "2026-09-13T17:59:00.000Z",
+                "2026-09-13T23:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w2-0",
+                "deadline": "2026-09-13T23:59",
+                "utcOffsetMinutes": 0,
+                "graceMinutes": 5
+              },
+              "at": [
+                "2026-09-12T23:59:00.000Z",
+                "2026-09-13T23:58:00.000Z",
+                "2026-09-13T23:59:00.000Z",
+                "2026-09-13T23:59:00.001Z",
+                "2026-09-13T23:59:30.000Z",
+                "2026-09-14T00:04:00.000Z",
+                "2026-09-14T00:04:00.001Z",
+                "2026-09-14T00:59:00.000Z",
+                "2026-09-14T06:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w2--300",
+                "deadline": "2026-09-13T23:59",
+                "utcOffsetMinutes": -300,
+                "graceMinutes": 0
+              },
+              "at": [
+                "2026-09-13T04:59:00.000Z",
+                "2026-09-14T04:58:00.000Z",
+                "2026-09-14T04:59:00.000Z",
+                "2026-09-14T04:59:00.001Z",
+                "2026-09-14T04:59:30.000Z",
+                "2026-09-14T04:59:00.000Z",
+                "2026-09-14T04:59:00.001Z",
+                "2026-09-14T05:59:00.000Z",
+                "2026-09-14T11:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w2-330",
+                "deadline": "2026-09-13T23:59",
+                "utcOffsetMinutes": 330,
+                "graceMinutes": 25
+              },
+              "at": [
+                "2026-09-12T18:29:00.000Z",
+                "2026-09-13T18:28:00.000Z",
+                "2026-09-13T18:29:00.000Z",
+                "2026-09-13T18:29:00.001Z",
+                "2026-09-13T18:29:30.000Z",
+                "2026-09-13T18:54:00.000Z",
+                "2026-09-13T18:54:00.001Z",
+                "2026-09-13T19:29:00.000Z",
+                "2026-09-14T01:29:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w3-420",
+                "deadline": "2026-09-20T23:59",
+                "utcOffsetMinutes": 420,
+                "graceMinutes": 27
+              },
+              "at": [
+                "2026-09-19T16:59:00.000Z",
+                "2026-09-20T16:58:00.000Z",
+                "2026-09-20T16:59:00.000Z",
+                "2026-09-20T16:59:00.001Z",
+                "2026-09-20T16:59:30.000Z",
+                "2026-09-20T17:26:00.000Z",
+                "2026-09-20T17:26:00.001Z",
+                "2026-09-20T17:59:00.000Z",
+                "2026-09-20T23:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w3-0",
+                "deadline": "2026-09-20T23:59",
+                "utcOffsetMinutes": 0,
+                "graceMinutes": 10
+              },
+              "at": [
+                "2026-09-19T23:59:00.000Z",
+                "2026-09-20T23:58:00.000Z",
+                "2026-09-20T23:59:00.000Z",
+                "2026-09-20T23:59:00.001Z",
+                "2026-09-20T23:59:30.000Z",
+                "2026-09-21T00:09:00.000Z",
+                "2026-09-21T00:09:00.001Z",
+                "2026-09-21T00:59:00.000Z",
+                "2026-09-21T06:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w3--300",
+                "deadline": "2026-09-20T23:59",
+                "utcOffsetMinutes": -300,
+                "graceMinutes": 0
+              },
+              "at": [
+                "2026-09-20T04:59:00.000Z",
+                "2026-09-21T04:58:00.000Z",
+                "2026-09-21T04:59:00.000Z",
+                "2026-09-21T04:59:00.001Z",
+                "2026-09-21T04:59:30.000Z",
+                "2026-09-21T04:59:00.000Z",
+                "2026-09-21T04:59:00.001Z",
+                "2026-09-21T05:59:00.000Z",
+                "2026-09-21T11:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w3-330",
+                "deadline": "2026-09-20T23:59",
+                "utcOffsetMinutes": 330,
+                "graceMinutes": 30
+              },
+              "at": [
+                "2026-09-19T18:29:00.000Z",
+                "2026-09-20T18:28:00.000Z",
+                "2026-09-20T18:29:00.000Z",
+                "2026-09-20T18:29:00.001Z",
+                "2026-09-20T18:29:30.000Z",
+                "2026-09-20T18:59:00.000Z",
+                "2026-09-20T18:59:00.001Z",
+                "2026-09-20T19:29:00.000Z",
+                "2026-09-21T01:29:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w4-420",
+                "deadline": "2026-09-27T23:59",
+                "utcOffsetMinutes": 420,
+                "graceMinutes": 1
+              },
+              "at": [
+                "2026-09-26T16:59:00.000Z",
+                "2026-09-27T16:58:00.000Z",
+                "2026-09-27T16:59:00.000Z",
+                "2026-09-27T16:59:00.001Z",
+                "2026-09-27T16:59:30.000Z",
+                "2026-09-27T17:00:00.000Z",
+                "2026-09-27T17:00:00.001Z",
+                "2026-09-27T17:59:00.000Z",
+                "2026-09-27T23:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w4-0",
+                "deadline": "2026-09-27T23:59",
+                "utcOffsetMinutes": 0,
+                "graceMinutes": 15
+              },
+              "at": [
+                "2026-09-26T23:59:00.000Z",
+                "2026-09-27T23:58:00.000Z",
+                "2026-09-27T23:59:00.000Z",
+                "2026-09-27T23:59:00.001Z",
+                "2026-09-27T23:59:30.000Z",
+                "2026-09-28T00:14:00.000Z",
+                "2026-09-28T00:14:00.001Z",
+                "2026-09-28T00:59:00.000Z",
+                "2026-09-28T06:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w4--300",
+                "deadline": "2026-09-27T23:59",
+                "utcOffsetMinutes": -300,
+                "graceMinutes": 0
+              },
+              "at": [
+                "2026-09-27T04:59:00.000Z",
+                "2026-09-28T04:58:00.000Z",
+                "2026-09-28T04:59:00.000Z",
+                "2026-09-28T04:59:00.001Z",
+                "2026-09-28T04:59:30.000Z",
+                "2026-09-28T04:59:00.000Z",
+                "2026-09-28T04:59:00.001Z",
+                "2026-09-28T05:59:00.000Z",
+                "2026-09-28T11:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w4-330",
+                "deadline": "2026-09-27T23:59",
+                "utcOffsetMinutes": 330,
+                "graceMinutes": 4
+              },
+              "at": [
+                "2026-09-26T18:29:00.000Z",
+                "2026-09-27T18:28:00.000Z",
+                "2026-09-27T18:29:00.000Z",
+                "2026-09-27T18:29:00.001Z",
+                "2026-09-27T18:29:30.000Z",
+                "2026-09-27T18:33:00.000Z",
+                "2026-09-27T18:33:00.001Z",
+                "2026-09-27T19:29:00.000Z",
+                "2026-09-28T01:29:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w5-420",
+                "deadline": "2026-10-04T23:59",
+                "utcOffsetMinutes": 420,
+                "graceMinutes": 6
+              },
+              "at": [
+                "2026-10-03T16:59:00.000Z",
+                "2026-10-04T16:58:00.000Z",
+                "2026-10-04T16:59:00.000Z",
+                "2026-10-04T16:59:00.001Z",
+                "2026-10-04T16:59:30.000Z",
+                "2026-10-04T17:05:00.000Z",
+                "2026-10-04T17:05:00.001Z",
+                "2026-10-04T17:59:00.000Z",
+                "2026-10-04T23:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w5-0",
+                "deadline": "2026-10-04T23:59",
+                "utcOffsetMinutes": 0,
+                "graceMinutes": 20
+              },
+              "at": [
+                "2026-10-03T23:59:00.000Z",
+                "2026-10-04T23:58:00.000Z",
+                "2026-10-04T23:59:00.000Z",
+                "2026-10-04T23:59:00.001Z",
+                "2026-10-04T23:59:30.000Z",
+                "2026-10-05T00:19:00.000Z",
+                "2026-10-05T00:19:00.001Z",
+                "2026-10-05T00:59:00.000Z",
+                "2026-10-05T06:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w5--300",
+                "deadline": "2026-10-04T23:59",
+                "utcOffsetMinutes": -300,
+                "graceMinutes": 0
+              },
+              "at": [
+                "2026-10-04T04:59:00.000Z",
+                "2026-10-05T04:58:00.000Z",
+                "2026-10-05T04:59:00.000Z",
+                "2026-10-05T04:59:00.001Z",
+                "2026-10-05T04:59:30.000Z",
+                "2026-10-05T04:59:00.000Z",
+                "2026-10-05T04:59:00.001Z",
+                "2026-10-05T05:59:00.000Z",
+                "2026-10-05T11:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w5-330",
+                "deadline": "2026-10-04T23:59",
+                "utcOffsetMinutes": 330,
+                "graceMinutes": 9
+              },
+              "at": [
+                "2026-10-03T18:29:00.000Z",
+                "2026-10-04T18:28:00.000Z",
+                "2026-10-04T18:29:00.000Z",
+                "2026-10-04T18:29:00.001Z",
+                "2026-10-04T18:29:30.000Z",
+                "2026-10-04T18:38:00.000Z",
+                "2026-10-04T18:38:00.001Z",
+                "2026-10-04T19:29:00.000Z",
+                "2026-10-05T01:29:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w6-420",
+                "deadline": "2026-10-11T23:59",
+                "utcOffsetMinutes": 420,
+                "graceMinutes": 11
+              },
+              "at": [
+                "2026-10-10T16:59:00.000Z",
+                "2026-10-11T16:58:00.000Z",
+                "2026-10-11T16:59:00.000Z",
+                "2026-10-11T16:59:00.001Z",
+                "2026-10-11T16:59:30.000Z",
+                "2026-10-11T17:10:00.000Z",
+                "2026-10-11T17:10:00.001Z",
+                "2026-10-11T17:59:00.000Z",
+                "2026-10-11T23:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w6-0",
+                "deadline": "2026-10-11T23:59",
+                "utcOffsetMinutes": 0,
+                "graceMinutes": 25
+              },
+              "at": [
+                "2026-10-10T23:59:00.000Z",
+                "2026-10-11T23:58:00.000Z",
+                "2026-10-11T23:59:00.000Z",
+                "2026-10-11T23:59:00.001Z",
+                "2026-10-11T23:59:30.000Z",
+                "2026-10-12T00:24:00.000Z",
+                "2026-10-12T00:24:00.001Z",
+                "2026-10-12T00:59:00.000Z",
+                "2026-10-12T06:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w6--300",
+                "deadline": "2026-10-11T23:59",
+                "utcOffsetMinutes": -300,
+                "graceMinutes": 0
+              },
+              "at": [
+                "2026-10-11T04:59:00.000Z",
+                "2026-10-12T04:58:00.000Z",
+                "2026-10-12T04:59:00.000Z",
+                "2026-10-12T04:59:00.001Z",
+                "2026-10-12T04:59:30.000Z",
+                "2026-10-12T04:59:00.000Z",
+                "2026-10-12T04:59:00.001Z",
+                "2026-10-12T05:59:00.000Z",
+                "2026-10-12T11:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w6-330",
+                "deadline": "2026-10-11T23:59",
+                "utcOffsetMinutes": 330,
+                "graceMinutes": 14
+              },
+              "at": [
+                "2026-10-10T18:29:00.000Z",
+                "2026-10-11T18:28:00.000Z",
+                "2026-10-11T18:29:00.000Z",
+                "2026-10-11T18:29:00.001Z",
+                "2026-10-11T18:29:30.000Z",
+                "2026-10-11T18:43:00.000Z",
+                "2026-10-11T18:43:00.001Z",
+                "2026-10-11T19:29:00.000Z",
+                "2026-10-12T01:29:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w7-420",
+                "deadline": "2026-10-18T23:59",
+                "utcOffsetMinutes": 420,
+                "graceMinutes": 16
+              },
+              "at": [
+                "2026-10-17T16:59:00.000Z",
+                "2026-10-18T16:58:00.000Z",
+                "2026-10-18T16:59:00.000Z",
+                "2026-10-18T16:59:00.001Z",
+                "2026-10-18T16:59:30.000Z",
+                "2026-10-18T17:15:00.000Z",
+                "2026-10-18T17:15:00.001Z",
+                "2026-10-18T17:59:00.000Z",
+                "2026-10-18T23:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w7-0",
+                "deadline": "2026-10-18T23:59",
+                "utcOffsetMinutes": 0,
+                "graceMinutes": 30
+              },
+              "at": [
+                "2026-10-17T23:59:00.000Z",
+                "2026-10-18T23:58:00.000Z",
+                "2026-10-18T23:59:00.000Z",
+                "2026-10-18T23:59:00.001Z",
+                "2026-10-18T23:59:30.000Z",
+                "2026-10-19T00:29:00.000Z",
+                "2026-10-19T00:29:00.001Z",
+                "2026-10-19T00:59:00.000Z",
+                "2026-10-19T06:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w7--300",
+                "deadline": "2026-10-18T23:59",
+                "utcOffsetMinutes": -300,
+                "graceMinutes": 0
+              },
+              "at": [
+                "2026-10-18T04:59:00.000Z",
+                "2026-10-19T04:58:00.000Z",
+                "2026-10-19T04:59:00.000Z",
+                "2026-10-19T04:59:00.001Z",
+                "2026-10-19T04:59:30.000Z",
+                "2026-10-19T04:59:00.000Z",
+                "2026-10-19T04:59:00.001Z",
+                "2026-10-19T05:59:00.000Z",
+                "2026-10-19T11:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w7-330",
+                "deadline": "2026-10-18T23:59",
+                "utcOffsetMinutes": 330,
+                "graceMinutes": 19
+              },
+              "at": [
+                "2026-10-17T18:29:00.000Z",
+                "2026-10-18T18:28:00.000Z",
+                "2026-10-18T18:29:00.000Z",
+                "2026-10-18T18:29:00.001Z",
+                "2026-10-18T18:29:30.000Z",
+                "2026-10-18T18:48:00.000Z",
+                "2026-10-18T18:48:00.001Z",
+                "2026-10-18T19:29:00.000Z",
+                "2026-10-19T01:29:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w8-420",
+                "deadline": "2026-10-25T23:59",
+                "utcOffsetMinutes": 420,
+                "graceMinutes": 21
+              },
+              "at": [
+                "2026-10-24T16:59:00.000Z",
+                "2026-10-25T16:58:00.000Z",
+                "2026-10-25T16:59:00.000Z",
+                "2026-10-25T16:59:00.001Z",
+                "2026-10-25T16:59:30.000Z",
+                "2026-10-25T17:20:00.000Z",
+                "2026-10-25T17:20:00.001Z",
+                "2026-10-25T17:59:00.000Z",
+                "2026-10-25T23:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w8-0",
+                "deadline": "2026-10-25T23:59",
+                "utcOffsetMinutes": 0,
+                "graceMinutes": 4
+              },
+              "at": [
+                "2026-10-24T23:59:00.000Z",
+                "2026-10-25T23:58:00.000Z",
+                "2026-10-25T23:59:00.000Z",
+                "2026-10-25T23:59:00.001Z",
+                "2026-10-25T23:59:30.000Z",
+                "2026-10-26T00:03:00.000Z",
+                "2026-10-26T00:03:00.001Z",
+                "2026-10-26T00:59:00.000Z",
+                "2026-10-26T06:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w8--300",
+                "deadline": "2026-10-25T23:59",
+                "utcOffsetMinutes": -300,
+                "graceMinutes": 0
+              },
+              "at": [
+                "2026-10-25T04:59:00.000Z",
+                "2026-10-26T04:58:00.000Z",
+                "2026-10-26T04:59:00.000Z",
+                "2026-10-26T04:59:00.001Z",
+                "2026-10-26T04:59:30.000Z",
+                "2026-10-26T04:59:00.000Z",
+                "2026-10-26T04:59:00.001Z",
+                "2026-10-26T05:59:00.000Z",
+                "2026-10-26T11:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w8-330",
+                "deadline": "2026-10-25T23:59",
+                "utcOffsetMinutes": 330,
+                "graceMinutes": 24
+              },
+              "at": [
+                "2026-10-24T18:29:00.000Z",
+                "2026-10-25T18:28:00.000Z",
+                "2026-10-25T18:29:00.000Z",
+                "2026-10-25T18:29:00.001Z",
+                "2026-10-25T18:29:30.000Z",
+                "2026-10-25T18:53:00.000Z",
+                "2026-10-25T18:53:00.001Z",
+                "2026-10-25T19:29:00.000Z",
+                "2026-10-26T01:29:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w9-420",
+                "deadline": "2026-11-01T23:59",
+                "utcOffsetMinutes": 420,
+                "graceMinutes": 26
+              },
+              "at": [
+                "2026-10-31T16:59:00.000Z",
+                "2026-11-01T16:58:00.000Z",
+                "2026-11-01T16:59:00.000Z",
+                "2026-11-01T16:59:00.001Z",
+                "2026-11-01T16:59:30.000Z",
+                "2026-11-01T17:25:00.000Z",
+                "2026-11-01T17:25:00.001Z",
+                "2026-11-01T17:59:00.000Z",
+                "2026-11-01T23:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w9-0",
+                "deadline": "2026-11-01T23:59",
+                "utcOffsetMinutes": 0,
+                "graceMinutes": 9
+              },
+              "at": [
+                "2026-10-31T23:59:00.000Z",
+                "2026-11-01T23:58:00.000Z",
+                "2026-11-01T23:59:00.000Z",
+                "2026-11-01T23:59:00.001Z",
+                "2026-11-01T23:59:30.000Z",
+                "2026-11-02T00:08:00.000Z",
+                "2026-11-02T00:08:00.001Z",
+                "2026-11-02T00:59:00.000Z",
+                "2026-11-02T06:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w9--300",
+                "deadline": "2026-11-01T23:59",
+                "utcOffsetMinutes": -300,
+                "graceMinutes": 0
+              },
+              "at": [
+                "2026-11-01T04:59:00.000Z",
+                "2026-11-02T04:58:00.000Z",
+                "2026-11-02T04:59:00.000Z",
+                "2026-11-02T04:59:00.001Z",
+                "2026-11-02T04:59:30.000Z",
+                "2026-11-02T04:59:00.000Z",
+                "2026-11-02T04:59:00.001Z",
+                "2026-11-02T05:59:00.000Z",
+                "2026-11-02T11:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w9-330",
+                "deadline": "2026-11-01T23:59",
+                "utcOffsetMinutes": 330,
+                "graceMinutes": 29
+              },
+              "at": [
+                "2026-10-31T18:29:00.000Z",
+                "2026-11-01T18:28:00.000Z",
+                "2026-11-01T18:29:00.000Z",
+                "2026-11-01T18:29:00.001Z",
+                "2026-11-01T18:29:30.000Z",
+                "2026-11-01T18:58:00.000Z",
+                "2026-11-01T18:58:00.001Z",
+                "2026-11-01T19:29:00.000Z",
+                "2026-11-02T01:29:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w10-420",
+                "deadline": "2026-11-08T23:59",
+                "utcOffsetMinutes": 420,
+                "graceMinutes": 0
+              },
+              "at": [
+                "2026-11-07T16:59:00.000Z",
+                "2026-11-08T16:58:00.000Z",
+                "2026-11-08T16:59:00.000Z",
+                "2026-11-08T16:59:00.001Z",
+                "2026-11-08T16:59:30.000Z",
+                "2026-11-08T16:59:00.000Z",
+                "2026-11-08T16:59:00.001Z",
+                "2026-11-08T17:59:00.000Z",
+                "2026-11-08T23:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w10-0",
+                "deadline": "2026-11-08T23:59",
+                "utcOffsetMinutes": 0,
+                "graceMinutes": 14
+              },
+              "at": [
+                "2026-11-07T23:59:00.000Z",
+                "2026-11-08T23:58:00.000Z",
+                "2026-11-08T23:59:00.000Z",
+                "2026-11-08T23:59:00.001Z",
+                "2026-11-08T23:59:30.000Z",
+                "2026-11-09T00:13:00.000Z",
+                "2026-11-09T00:13:00.001Z",
+                "2026-11-09T00:59:00.000Z",
+                "2026-11-09T06:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w10--300",
+                "deadline": "2026-11-08T23:59",
+                "utcOffsetMinutes": -300,
+                "graceMinutes": 0
+              },
+              "at": [
+                "2026-11-08T04:59:00.000Z",
+                "2026-11-09T04:58:00.000Z",
+                "2026-11-09T04:59:00.000Z",
+                "2026-11-09T04:59:00.001Z",
+                "2026-11-09T04:59:30.000Z",
+                "2026-11-09T04:59:00.000Z",
+                "2026-11-09T04:59:00.001Z",
+                "2026-11-09T05:59:00.000Z",
+                "2026-11-09T11:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w10-330",
+                "deadline": "2026-11-08T23:59",
+                "utcOffsetMinutes": 330,
+                "graceMinutes": 3
+              },
+              "at": [
+                "2026-11-07T18:29:00.000Z",
+                "2026-11-08T18:28:00.000Z",
+                "2026-11-08T18:29:00.000Z",
+                "2026-11-08T18:29:00.001Z",
+                "2026-11-08T18:29:30.000Z",
+                "2026-11-08T18:32:00.000Z",
+                "2026-11-08T18:32:00.001Z",
+                "2026-11-08T19:29:00.000Z",
+                "2026-11-09T01:29:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w11-420",
+                "deadline": "2026-11-15T23:59",
+                "utcOffsetMinutes": 420,
+                "graceMinutes": 5
+              },
+              "at": [
+                "2026-11-14T16:59:00.000Z",
+                "2026-11-15T16:58:00.000Z",
+                "2026-11-15T16:59:00.000Z",
+                "2026-11-15T16:59:00.001Z",
+                "2026-11-15T16:59:30.000Z",
+                "2026-11-15T17:04:00.000Z",
+                "2026-11-15T17:04:00.001Z",
+                "2026-11-15T17:59:00.000Z",
+                "2026-11-15T23:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w11-0",
+                "deadline": "2026-11-15T23:59",
+                "utcOffsetMinutes": 0,
+                "graceMinutes": 19
+              },
+              "at": [
+                "2026-11-14T23:59:00.000Z",
+                "2026-11-15T23:58:00.000Z",
+                "2026-11-15T23:59:00.000Z",
+                "2026-11-15T23:59:00.001Z",
+                "2026-11-15T23:59:30.000Z",
+                "2026-11-16T00:18:00.000Z",
+                "2026-11-16T00:18:00.001Z",
+                "2026-11-16T00:59:00.000Z",
+                "2026-11-16T06:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w11--300",
+                "deadline": "2026-11-15T23:59",
+                "utcOffsetMinutes": -300,
+                "graceMinutes": 0
+              },
+              "at": [
+                "2026-11-15T04:59:00.000Z",
+                "2026-11-16T04:58:00.000Z",
+                "2026-11-16T04:59:00.000Z",
+                "2026-11-16T04:59:00.001Z",
+                "2026-11-16T04:59:30.000Z",
+                "2026-11-16T04:59:00.000Z",
+                "2026-11-16T04:59:00.001Z",
+                "2026-11-16T05:59:00.000Z",
+                "2026-11-16T11:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w11-330",
+                "deadline": "2026-11-15T23:59",
+                "utcOffsetMinutes": 330,
+                "graceMinutes": 8
+              },
+              "at": [
+                "2026-11-14T18:29:00.000Z",
+                "2026-11-15T18:28:00.000Z",
+                "2026-11-15T18:29:00.000Z",
+                "2026-11-15T18:29:00.001Z",
+                "2026-11-15T18:29:30.000Z",
+                "2026-11-15T18:37:00.000Z",
+                "2026-11-15T18:37:00.001Z",
+                "2026-11-15T19:29:00.000Z",
+                "2026-11-16T01:29:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w12-420",
+                "deadline": "2026-11-22T23:59",
+                "utcOffsetMinutes": 420,
+                "graceMinutes": 10
+              },
+              "at": [
+                "2026-11-21T16:59:00.000Z",
+                "2026-11-22T16:58:00.000Z",
+                "2026-11-22T16:59:00.000Z",
+                "2026-11-22T16:59:00.001Z",
+                "2026-11-22T16:59:30.000Z",
+                "2026-11-22T17:09:00.000Z",
+                "2026-11-22T17:09:00.001Z",
+                "2026-11-22T17:59:00.000Z",
+                "2026-11-22T23:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w12-0",
+                "deadline": "2026-11-22T23:59",
+                "utcOffsetMinutes": 0,
+                "graceMinutes": 24
+              },
+              "at": [
+                "2026-11-21T23:59:00.000Z",
+                "2026-11-22T23:58:00.000Z",
+                "2026-11-22T23:59:00.000Z",
+                "2026-11-22T23:59:00.001Z",
+                "2026-11-22T23:59:30.000Z",
+                "2026-11-23T00:23:00.000Z",
+                "2026-11-23T00:23:00.001Z",
+                "2026-11-23T00:59:00.000Z",
+                "2026-11-23T06:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w12--300",
+                "deadline": "2026-11-22T23:59",
+                "utcOffsetMinutes": -300,
+                "graceMinutes": 0
+              },
+              "at": [
+                "2026-11-22T04:59:00.000Z",
+                "2026-11-23T04:58:00.000Z",
+                "2026-11-23T04:59:00.000Z",
+                "2026-11-23T04:59:00.001Z",
+                "2026-11-23T04:59:30.000Z",
+                "2026-11-23T04:59:00.000Z",
+                "2026-11-23T04:59:00.001Z",
+                "2026-11-23T05:59:00.000Z",
+                "2026-11-23T11:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w12-330",
+                "deadline": "2026-11-22T23:59",
+                "utcOffsetMinutes": 330,
+                "graceMinutes": 13
+              },
+              "at": [
+                "2026-11-21T18:29:00.000Z",
+                "2026-11-22T18:28:00.000Z",
+                "2026-11-22T18:29:00.000Z",
+                "2026-11-22T18:29:00.001Z",
+                "2026-11-22T18:29:30.000Z",
+                "2026-11-22T18:42:00.000Z",
+                "2026-11-22T18:42:00.001Z",
+                "2026-11-22T19:29:00.000Z",
+                "2026-11-23T01:29:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w13-420",
+                "deadline": "2026-11-29T23:59",
+                "utcOffsetMinutes": 420,
+                "graceMinutes": 15
+              },
+              "at": [
+                "2026-11-28T16:59:00.000Z",
+                "2026-11-29T16:58:00.000Z",
+                "2026-11-29T16:59:00.000Z",
+                "2026-11-29T16:59:00.001Z",
+                "2026-11-29T16:59:30.000Z",
+                "2026-11-29T17:14:00.000Z",
+                "2026-11-29T17:14:00.001Z",
+                "2026-11-29T17:59:00.000Z",
+                "2026-11-29T23:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w13-0",
+                "deadline": "2026-11-29T23:59",
+                "utcOffsetMinutes": 0,
+                "graceMinutes": 29
+              },
+              "at": [
+                "2026-11-28T23:59:00.000Z",
+                "2026-11-29T23:58:00.000Z",
+                "2026-11-29T23:59:00.000Z",
+                "2026-11-29T23:59:00.001Z",
+                "2026-11-29T23:59:30.000Z",
+                "2026-11-30T00:28:00.000Z",
+                "2026-11-30T00:28:00.001Z",
+                "2026-11-30T00:59:00.000Z",
+                "2026-11-30T06:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w13--300",
+                "deadline": "2026-11-29T23:59",
+                "utcOffsetMinutes": -300,
+                "graceMinutes": 0
+              },
+              "at": [
+                "2026-11-29T04:59:00.000Z",
+                "2026-11-30T04:58:00.000Z",
+                "2026-11-30T04:59:00.000Z",
+                "2026-11-30T04:59:00.001Z",
+                "2026-11-30T04:59:30.000Z",
+                "2026-11-30T04:59:00.000Z",
+                "2026-11-30T04:59:00.001Z",
+                "2026-11-30T05:59:00.000Z",
+                "2026-11-30T11:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w13-330",
+                "deadline": "2026-11-29T23:59",
+                "utcOffsetMinutes": 330,
+                "graceMinutes": 18
+              },
+              "at": [
+                "2026-11-28T18:29:00.000Z",
+                "2026-11-29T18:28:00.000Z",
+                "2026-11-29T18:29:00.000Z",
+                "2026-11-29T18:29:00.001Z",
+                "2026-11-29T18:29:30.000Z",
+                "2026-11-29T18:47:00.000Z",
+                "2026-11-29T18:47:00.001Z",
+                "2026-11-29T19:29:00.000Z",
+                "2026-11-30T01:29:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w14-420",
+                "deadline": "2026-12-06T23:59",
+                "utcOffsetMinutes": 420,
+                "graceMinutes": 20
+              },
+              "at": [
+                "2026-12-05T16:59:00.000Z",
+                "2026-12-06T16:58:00.000Z",
+                "2026-12-06T16:59:00.000Z",
+                "2026-12-06T16:59:00.001Z",
+                "2026-12-06T16:59:30.000Z",
+                "2026-12-06T17:19:00.000Z",
+                "2026-12-06T17:19:00.001Z",
+                "2026-12-06T17:59:00.000Z",
+                "2026-12-06T23:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w14-0",
+                "deadline": "2026-12-06T23:59",
+                "utcOffsetMinutes": 0,
+                "graceMinutes": 3
+              },
+              "at": [
+                "2026-12-05T23:59:00.000Z",
+                "2026-12-06T23:58:00.000Z",
+                "2026-12-06T23:59:00.000Z",
+                "2026-12-06T23:59:00.001Z",
+                "2026-12-06T23:59:30.000Z",
+                "2026-12-07T00:02:00.000Z",
+                "2026-12-07T00:02:00.001Z",
+                "2026-12-07T00:59:00.000Z",
+                "2026-12-07T06:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w14--300",
+                "deadline": "2026-12-06T23:59",
+                "utcOffsetMinutes": -300,
+                "graceMinutes": 0
+              },
+              "at": [
+                "2026-12-06T04:59:00.000Z",
+                "2026-12-07T04:58:00.000Z",
+                "2026-12-07T04:59:00.000Z",
+                "2026-12-07T04:59:00.001Z",
+                "2026-12-07T04:59:30.000Z",
+                "2026-12-07T04:59:00.000Z",
+                "2026-12-07T04:59:00.001Z",
+                "2026-12-07T05:59:00.000Z",
+                "2026-12-07T11:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w14-330",
+                "deadline": "2026-12-06T23:59",
+                "utcOffsetMinutes": 330,
+                "graceMinutes": 23
+              },
+              "at": [
+                "2026-12-05T18:29:00.000Z",
+                "2026-12-06T18:28:00.000Z",
+                "2026-12-06T18:29:00.000Z",
+                "2026-12-06T18:29:00.001Z",
+                "2026-12-06T18:29:30.000Z",
+                "2026-12-06T18:52:00.000Z",
+                "2026-12-06T18:52:00.001Z",
+                "2026-12-06T19:29:00.000Z",
+                "2026-12-07T01:29:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w15-420",
+                "deadline": "2026-12-13T23:59",
+                "utcOffsetMinutes": 420,
+                "graceMinutes": 25
+              },
+              "at": [
+                "2026-12-12T16:59:00.000Z",
+                "2026-12-13T16:58:00.000Z",
+                "2026-12-13T16:59:00.000Z",
+                "2026-12-13T16:59:00.001Z",
+                "2026-12-13T16:59:30.000Z",
+                "2026-12-13T17:24:00.000Z",
+                "2026-12-13T17:24:00.001Z",
+                "2026-12-13T17:59:00.000Z",
+                "2026-12-13T23:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w15-0",
+                "deadline": "2026-12-13T23:59",
+                "utcOffsetMinutes": 0,
+                "graceMinutes": 8
+              },
+              "at": [
+                "2026-12-12T23:59:00.000Z",
+                "2026-12-13T23:58:00.000Z",
+                "2026-12-13T23:59:00.000Z",
+                "2026-12-13T23:59:00.001Z",
+                "2026-12-13T23:59:30.000Z",
+                "2026-12-14T00:07:00.000Z",
+                "2026-12-14T00:07:00.001Z",
+                "2026-12-14T00:59:00.000Z",
+                "2026-12-14T06:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w15--300",
+                "deadline": "2026-12-13T23:59",
+                "utcOffsetMinutes": -300,
+                "graceMinutes": 0
+              },
+              "at": [
+                "2026-12-13T04:59:00.000Z",
+                "2026-12-14T04:58:00.000Z",
+                "2026-12-14T04:59:00.000Z",
+                "2026-12-14T04:59:00.001Z",
+                "2026-12-14T04:59:30.000Z",
+                "2026-12-14T04:59:00.000Z",
+                "2026-12-14T04:59:00.001Z",
+                "2026-12-14T05:59:00.000Z",
+                "2026-12-14T11:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w15-330",
+                "deadline": "2026-12-13T23:59",
+                "utcOffsetMinutes": 330,
+                "graceMinutes": 28
+              },
+              "at": [
+                "2026-12-12T18:29:00.000Z",
+                "2026-12-13T18:28:00.000Z",
+                "2026-12-13T18:29:00.000Z",
+                "2026-12-13T18:29:00.001Z",
+                "2026-12-13T18:29:30.000Z",
+                "2026-12-13T18:57:00.000Z",
+                "2026-12-13T18:57:00.001Z",
+                "2026-12-13T19:29:00.000Z",
+                "2026-12-14T01:29:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w16-420",
+                "deadline": "2026-12-20T23:59",
+                "utcOffsetMinutes": 420,
+                "graceMinutes": 30
+              },
+              "at": [
+                "2026-12-19T16:59:00.000Z",
+                "2026-12-20T16:58:00.000Z",
+                "2026-12-20T16:59:00.000Z",
+                "2026-12-20T16:59:00.001Z",
+                "2026-12-20T16:59:30.000Z",
+                "2026-12-20T17:29:00.000Z",
+                "2026-12-20T17:29:00.001Z",
+                "2026-12-20T17:59:00.000Z",
+                "2026-12-20T23:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w16-0",
+                "deadline": "2026-12-20T23:59",
+                "utcOffsetMinutes": 0,
+                "graceMinutes": 13
+              },
+              "at": [
+                "2026-12-19T23:59:00.000Z",
+                "2026-12-20T23:58:00.000Z",
+                "2026-12-20T23:59:00.000Z",
+                "2026-12-20T23:59:00.001Z",
+                "2026-12-20T23:59:30.000Z",
+                "2026-12-21T00:12:00.000Z",
+                "2026-12-21T00:12:00.001Z",
+                "2026-12-21T00:59:00.000Z",
+                "2026-12-21T06:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w16--300",
+                "deadline": "2026-12-20T23:59",
+                "utcOffsetMinutes": -300,
+                "graceMinutes": 0
+              },
+              "at": [
+                "2026-12-20T04:59:00.000Z",
+                "2026-12-21T04:58:00.000Z",
+                "2026-12-21T04:59:00.000Z",
+                "2026-12-21T04:59:00.001Z",
+                "2026-12-21T04:59:30.000Z",
+                "2026-12-21T04:59:00.000Z",
+                "2026-12-21T04:59:00.001Z",
+                "2026-12-21T05:59:00.000Z",
+                "2026-12-21T11:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w16-330",
+                "deadline": "2026-12-20T23:59",
+                "utcOffsetMinutes": 330,
+                "graceMinutes": 2
+              },
+              "at": [
+                "2026-12-19T18:29:00.000Z",
+                "2026-12-20T18:28:00.000Z",
+                "2026-12-20T18:29:00.000Z",
+                "2026-12-20T18:29:00.001Z",
+                "2026-12-20T18:29:30.000Z",
+                "2026-12-20T18:31:00.000Z",
+                "2026-12-20T18:31:00.001Z",
+                "2026-12-20T19:29:00.000Z",
+                "2026-12-21T01:29:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w17-420",
+                "deadline": "2026-12-27T23:59",
+                "utcOffsetMinutes": 420,
+                "graceMinutes": 4
+              },
+              "at": [
+                "2026-12-26T16:59:00.000Z",
+                "2026-12-27T16:58:00.000Z",
+                "2026-12-27T16:59:00.000Z",
+                "2026-12-27T16:59:00.001Z",
+                "2026-12-27T16:59:30.000Z",
+                "2026-12-27T17:03:00.000Z",
+                "2026-12-27T17:03:00.001Z",
+                "2026-12-27T17:59:00.000Z",
+                "2026-12-27T23:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w17-0",
+                "deadline": "2026-12-27T23:59",
+                "utcOffsetMinutes": 0,
+                "graceMinutes": 18
+              },
+              "at": [
+                "2026-12-26T23:59:00.000Z",
+                "2026-12-27T23:58:00.000Z",
+                "2026-12-27T23:59:00.000Z",
+                "2026-12-27T23:59:00.001Z",
+                "2026-12-27T23:59:30.000Z",
+                "2026-12-28T00:17:00.000Z",
+                "2026-12-28T00:17:00.001Z",
+                "2026-12-28T00:59:00.000Z",
+                "2026-12-28T06:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w17--300",
+                "deadline": "2026-12-27T23:59",
+                "utcOffsetMinutes": -300,
+                "graceMinutes": 0
+              },
+              "at": [
+                "2026-12-27T04:59:00.000Z",
+                "2026-12-28T04:58:00.000Z",
+                "2026-12-28T04:59:00.000Z",
+                "2026-12-28T04:59:00.001Z",
+                "2026-12-28T04:59:30.000Z",
+                "2026-12-28T04:59:00.000Z",
+                "2026-12-28T04:59:00.001Z",
+                "2026-12-28T05:59:00.000Z",
+                "2026-12-28T11:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w17-330",
+                "deadline": "2026-12-27T23:59",
+                "utcOffsetMinutes": 330,
+                "graceMinutes": 7
+              },
+              "at": [
+                "2026-12-26T18:29:00.000Z",
+                "2026-12-27T18:28:00.000Z",
+                "2026-12-27T18:29:00.000Z",
+                "2026-12-27T18:29:00.001Z",
+                "2026-12-27T18:29:30.000Z",
+                "2026-12-27T18:36:00.000Z",
+                "2026-12-27T18:36:00.001Z",
+                "2026-12-27T19:29:00.000Z",
+                "2026-12-28T01:29:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w18-420",
+                "deadline": "2027-01-03T23:59",
+                "utcOffsetMinutes": 420,
+                "graceMinutes": 9
+              },
+              "at": [
+                "2027-01-02T16:59:00.000Z",
+                "2027-01-03T16:58:00.000Z",
+                "2027-01-03T16:59:00.000Z",
+                "2027-01-03T16:59:00.001Z",
+                "2027-01-03T16:59:30.000Z",
+                "2027-01-03T17:08:00.000Z",
+                "2027-01-03T17:08:00.001Z",
+                "2027-01-03T17:59:00.000Z",
+                "2027-01-03T23:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w18-0",
+                "deadline": "2027-01-03T23:59",
+                "utcOffsetMinutes": 0,
+                "graceMinutes": 23
+              },
+              "at": [
+                "2027-01-02T23:59:00.000Z",
+                "2027-01-03T23:58:00.000Z",
+                "2027-01-03T23:59:00.000Z",
+                "2027-01-03T23:59:00.001Z",
+                "2027-01-03T23:59:30.000Z",
+                "2027-01-04T00:22:00.000Z",
+                "2027-01-04T00:22:00.001Z",
+                "2027-01-04T00:59:00.000Z",
+                "2027-01-04T06:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w18--300",
+                "deadline": "2027-01-03T23:59",
+                "utcOffsetMinutes": -300,
+                "graceMinutes": 0
+              },
+              "at": [
+                "2027-01-03T04:59:00.000Z",
+                "2027-01-04T04:58:00.000Z",
+                "2027-01-04T04:59:00.000Z",
+                "2027-01-04T04:59:00.001Z",
+                "2027-01-04T04:59:30.000Z",
+                "2027-01-04T04:59:00.000Z",
+                "2027-01-04T04:59:00.001Z",
+                "2027-01-04T05:59:00.000Z",
+                "2027-01-04T11:59:00.000Z"
+              ]
+            },
+            {
+              "assignment": {
+                "id": "quiz-w18-330",
+                "deadline": "2027-01-03T23:59",
+                "utcOffsetMinutes": 330,
+                "graceMinutes": 12
+              },
+              "at": [
+                "2027-01-02T18:29:00.000Z",
+                "2027-01-03T18:28:00.000Z",
+                "2027-01-03T18:29:00.000Z",
+                "2027-01-03T18:29:00.001Z",
+                "2027-01-03T18:29:30.000Z",
+                "2027-01-03T18:41:00.000Z",
+                "2027-01-03T18:41:00.001Z",
+                "2027-01-03T19:29:00.000Z",
+                "2027-01-04T01:29:00.000Z"
+              ]
+            }
+          ],
+          "expected": "quiz-w1-420 at 2026-09-05T16:59:00.000Z: on-time\nquiz-w1-420 at 2026-09-06T16:58:00.000Z: on-time\nquiz-w1-420 at 2026-09-06T16:59:00.000Z: on-time\nquiz-w1-420 at 2026-09-06T16:59:00.001Z: late\nquiz-w1-420 at 2026-09-06T16:59:30.000Z: late\nquiz-w1-420 at 2026-09-06T17:16:00.000Z: late\nquiz-w1-420 at 2026-09-06T17:16:00.001Z: closed\nquiz-w1-420 at 2026-09-06T17:59:00.000Z: closed\nquiz-w1-420 at 2026-09-06T23:59:00.000Z: closed\nquiz-w1-0 at 2026-09-05T23:59:00.000Z: on-time\nquiz-w1-0 at 2026-09-06T23:58:00.000Z: on-time\nquiz-w1-0 at 2026-09-06T23:59:00.000Z: on-time\nquiz-w1-0 at 2026-09-06T23:59:00.001Z: closed\nquiz-w1-0 at 2026-09-06T23:59:30.000Z: closed\nquiz-w1-0 at 2026-09-06T23:59:00.000Z: on-time\nquiz-w1-0 at 2026-09-06T23:59:00.001Z: closed\nquiz-w1-0 at 2026-09-07T00:59:00.000Z: closed\nquiz-w1-0 at 2026-09-07T06:59:00.000Z: closed\nquiz-w1--300 at 2026-09-06T04:59:00.000Z: on-time\nquiz-w1--300 at 2026-09-07T04:58:00.000Z: on-time\nquiz-w1--300 at 2026-09-07T04:59:00.000Z: on-time\nquiz-w1--300 at 2026-09-07T04:59:00.001Z: closed\nquiz-w1--300 at 2026-09-07T04:59:30.000Z: closed\nquiz-w1--300 at 2026-09-07T04:59:00.000Z: on-time\nquiz-w1--300 at 2026-09-07T04:59:00.001Z: closed\nquiz-w1--300 at 2026-09-07T05:59:00.000Z: closed\nquiz-w1--300 at 2026-09-07T11:59:00.000Z: closed\nquiz-w1-330 at 2026-09-05T18:29:00.000Z: on-time\nquiz-w1-330 at 2026-09-06T18:28:00.000Z: on-time\nquiz-w1-330 at 2026-09-06T18:29:00.000Z: on-time\nquiz-w1-330 at 2026-09-06T18:29:00.001Z: late\nquiz-w1-330 at 2026-09-06T18:29:30.000Z: late\nquiz-w1-330 at 2026-09-06T18:49:00.000Z: late\nquiz-w1-330 at 2026-09-06T18:49:00.001Z: closed\nquiz-w1-330 at 2026-09-06T19:29:00.000Z: closed\nquiz-w1-330 at 2026-09-07T01:29:00.000Z: closed\nquiz-w2-420 at 2026-09-12T16:59:00.000Z: on-time\nquiz-w2-420 at 2026-09-13T16:58:00.000Z: on-time\nquiz-w2-420 at 2026-09-13T16:59:00.000Z: on-time\nquiz-w2-420 at 2026-09-13T16:59:00.001Z: late\nquiz-w2-420 at 2026-09-13T16:59:30.000Z: late\nquiz-w2-420 at 2026-09-13T17:21:00.000Z: late\nquiz-w2-420 at 2026-09-13T17:21:00.001Z: closed\nquiz-w2-420 at 2026-09-13T17:59:00.000Z: closed\nquiz-w2-420 at 2026-09-13T23:59:00.000Z: closed\nquiz-w2-0 at 2026-09-12T23:59:00.000Z: on-time\nquiz-w2-0 at 2026-09-13T23:58:00.000Z: on-time\nquiz-w2-0 at 2026-09-13T23:59:00.000Z: on-time\nquiz-w2-0 at 2026-09-13T23:59:00.001Z: late\nquiz-w2-0 at 2026-09-13T23:59:30.000Z: late\nquiz-w2-0 at 2026-09-14T00:04:00.000Z: late\nquiz-w2-0 at 2026-09-14T00:04:00.001Z: closed\nquiz-w2-0 at 2026-09-14T00:59:00.000Z: closed\nquiz-w2-0 at 2026-09-14T06:59:00.000Z: closed\nquiz-w2--300 at 2026-09-13T04:59:00.000Z: on-time\nquiz-w2--300 at 2026-09-14T04:58:00.000Z: on-time\nquiz-w2--300 at 2026-09-14T04:59:00.000Z: on-time\nquiz-w2--300 at 2026-09-14T04:59:00.001Z: closed\nquiz-w2--300 at 2026-09-14T04:59:30.000Z: closed\nquiz-w2--300 at 2026-09-14T04:59:00.000Z: on-time\nquiz-w2--300 at 2026-09-14T04:59:00.001Z: closed\nquiz-w2--300 at 2026-09-14T05:59:00.000Z: closed\nquiz-w2--300 at 2026-09-14T11:59:00.000Z: closed\nquiz-w2-330 at 2026-09-12T18:29:00.000Z: on-time\nquiz-w2-330 at 2026-09-13T18:28:00.000Z: on-time\nquiz-w2-330 at 2026-09-13T18:29:00.000Z: on-time\nquiz-w2-330 at 2026-09-13T18:29:00.001Z: late\nquiz-w2-330 at 2026-09-13T18:29:30.000Z: late\nquiz-w2-330 at 2026-09-13T18:54:00.000Z: late\nquiz-w2-330 at 2026-09-13T18:54:00.001Z: closed\nquiz-w2-330 at 2026-09-13T19:29:00.000Z: closed\nquiz-w2-330 at 2026-09-14T01:29:00.000Z: closed\nquiz-w3-420 at 2026-09-19T16:59:00.000Z: on-time\nquiz-w3-420 at 2026-09-20T16:58:00.000Z: on-time\nquiz-w3-420 at 2026-09-20T16:59:00.000Z: on-time\nquiz-w3-420 at 2026-09-20T16:59:00.001Z: late\nquiz-w3-420 at 2026-09-20T16:59:30.000Z: late\nquiz-w3-420 at 2026-09-20T17:26:00.000Z: late\nquiz-w3-420 at 2026-09-20T17:26:00.001Z: closed\nquiz-w3-420 at 2026-09-20T17:59:00.000Z: closed\nquiz-w3-420 at 2026-09-20T23:59:00.000Z: closed\nquiz-w3-0 at 2026-09-19T23:59:00.000Z: on-time\nquiz-w3-0 at 2026-09-20T23:58:00.000Z: on-time\nquiz-w3-0 at 2026-09-20T23:59:00.000Z: on-time\nquiz-w3-0 at 2026-09-20T23:59:00.001Z: late\nquiz-w3-0 at 2026-09-20T23:59:30.000Z: late\nquiz-w3-0 at 2026-09-21T00:09:00.000Z: late\nquiz-w3-0 at 2026-09-21T00:09:00.001Z: closed\nquiz-w3-0 at 2026-09-21T00:59:00.000Z: closed\nquiz-w3-0 at 2026-09-21T06:59:00.000Z: closed\nquiz-w3--300 at 2026-09-20T04:59:00.000Z: on-time\nquiz-w3--300 at 2026-09-21T04:58:00.000Z: on-time\nquiz-w3--300 at 2026-09-21T04:59:00.000Z: on-time\nquiz-w3--300 at 2026-09-21T04:59:00.001Z: closed\nquiz-w3--300 at 2026-09-21T04:59:30.000Z: closed\nquiz-w3--300 at 2026-09-21T04:59:00.000Z: on-time\nquiz-w3--300 at 2026-09-21T04:59:00.001Z: closed\nquiz-w3--300 at 2026-09-21T05:59:00.000Z: closed\nquiz-w3--300 at 2026-09-21T11:59:00.000Z: closed\nquiz-w3-330 at 2026-09-19T18:29:00.000Z: on-time\nquiz-w3-330 at 2026-09-20T18:28:00.000Z: on-time\nquiz-w3-330 at 2026-09-20T18:29:00.000Z: on-time\nquiz-w3-330 at 2026-09-20T18:29:00.001Z: late\nquiz-w3-330 at 2026-09-20T18:29:30.000Z: late\nquiz-w3-330 at 2026-09-20T18:59:00.000Z: late\nquiz-w3-330 at 2026-09-20T18:59:00.001Z: closed\nquiz-w3-330 at 2026-09-20T19:29:00.000Z: closed\nquiz-w3-330 at 2026-09-21T01:29:00.000Z: closed\nquiz-w4-420 at 2026-09-26T16:59:00.000Z: on-time\nquiz-w4-420 at 2026-09-27T16:58:00.000Z: on-time\nquiz-w4-420 at 2026-09-27T16:59:00.000Z: on-time\nquiz-w4-420 at 2026-09-27T16:59:00.001Z: late\nquiz-w4-420 at 2026-09-27T16:59:30.000Z: late\nquiz-w4-420 at 2026-09-27T17:00:00.000Z: late\nquiz-w4-420 at 2026-09-27T17:00:00.001Z: closed\nquiz-w4-420 at 2026-09-27T17:59:00.000Z: closed\nquiz-w4-420 at 2026-09-27T23:59:00.000Z: closed\nquiz-w4-0 at 2026-09-26T23:59:00.000Z: on-time\nquiz-w4-0 at 2026-09-27T23:58:00.000Z: on-time\nquiz-w4-0 at 2026-09-27T23:59:00.000Z: on-time\nquiz-w4-0 at 2026-09-27T23:59:00.001Z: late\nquiz-w4-0 at 2026-09-27T23:59:30.000Z: late\nquiz-w4-0 at 2026-09-28T00:14:00.000Z: late\nquiz-w4-0 at 2026-09-28T00:14:00.001Z: closed\nquiz-w4-0 at 2026-09-28T00:59:00.000Z: closed\nquiz-w4-0 at 2026-09-28T06:59:00.000Z: closed\nquiz-w4--300 at 2026-09-27T04:59:00.000Z: on-time\nquiz-w4--300 at 2026-09-28T04:58:00.000Z: on-time\nquiz-w4--300 at 2026-09-28T04:59:00.000Z: on-time\nquiz-w4--300 at 2026-09-28T04:59:00.001Z: closed\nquiz-w4--300 at 2026-09-28T04:59:30.000Z: closed\nquiz-w4--300 at 2026-09-28T04:59:00.000Z: on-time\nquiz-w4--300 at 2026-09-28T04:59:00.001Z: closed\nquiz-w4--300 at 2026-09-28T05:59:00.000Z: closed\nquiz-w4--300 at 2026-09-28T11:59:00.000Z: closed\nquiz-w4-330 at 2026-09-26T18:29:00.000Z: on-time\nquiz-w4-330 at 2026-09-27T18:28:00.000Z: on-time\nquiz-w4-330 at 2026-09-27T18:29:00.000Z: on-time\nquiz-w4-330 at 2026-09-27T18:29:00.001Z: late\nquiz-w4-330 at 2026-09-27T18:29:30.000Z: late\nquiz-w4-330 at 2026-09-27T18:33:00.000Z: late\nquiz-w4-330 at 2026-09-27T18:33:00.001Z: closed\nquiz-w4-330 at 2026-09-27T19:29:00.000Z: closed\nquiz-w4-330 at 2026-09-28T01:29:00.000Z: closed\nquiz-w5-420 at 2026-10-03T16:59:00.000Z: on-time\nquiz-w5-420 at 2026-10-04T16:58:00.000Z: on-time\nquiz-w5-420 at 2026-10-04T16:59:00.000Z: on-time\nquiz-w5-420 at 2026-10-04T16:59:00.001Z: late\nquiz-w5-420 at 2026-10-04T16:59:30.000Z: late\nquiz-w5-420 at 2026-10-04T17:05:00.000Z: late\nquiz-w5-420 at 2026-10-04T17:05:00.001Z: closed\nquiz-w5-420 at 2026-10-04T17:59:00.000Z: closed\nquiz-w5-420 at 2026-10-04T23:59:00.000Z: closed\nquiz-w5-0 at 2026-10-03T23:59:00.000Z: on-time\nquiz-w5-0 at 2026-10-04T23:58:00.000Z: on-time\nquiz-w5-0 at 2026-10-04T23:59:00.000Z: on-time\nquiz-w5-0 at 2026-10-04T23:59:00.001Z: late\nquiz-w5-0 at 2026-10-04T23:59:30.000Z: late\nquiz-w5-0 at 2026-10-05T00:19:00.000Z: late\nquiz-w5-0 at 2026-10-05T00:19:00.001Z: closed\nquiz-w5-0 at 2026-10-05T00:59:00.000Z: closed\nquiz-w5-0 at 2026-10-05T06:59:00.000Z: closed\nquiz-w5--300 at 2026-10-04T04:59:00.000Z: on-time\nquiz-w5--300 at 2026-10-05T04:58:00.000Z: on-time\nquiz-w5--300 at 2026-10-05T04:59:00.000Z: on-time\nquiz-w5--300 at 2026-10-05T04:59:00.001Z: closed\nquiz-w5--300 at 2026-10-05T04:59:30.000Z: closed\nquiz-w5--300 at 2026-10-05T04:59:00.000Z: on-time\nquiz-w5--300 at 2026-10-05T04:59:00.001Z: closed\nquiz-w5--300 at 2026-10-05T05:59:00.000Z: closed\nquiz-w5--300 at 2026-10-05T11:59:00.000Z: closed\nquiz-w5-330 at 2026-10-03T18:29:00.000Z: on-time\nquiz-w5-330 at 2026-10-04T18:28:00.000Z: on-time\nquiz-w5-330 at 2026-10-04T18:29:00.000Z: on-time\nquiz-w5-330 at 2026-10-04T18:29:00.001Z: late\nquiz-w5-330 at 2026-10-04T18:29:30.000Z: late\nquiz-w5-330 at 2026-10-04T18:38:00.000Z: late\nquiz-w5-330 at 2026-10-04T18:38:00.001Z: closed\nquiz-w5-330 at 2026-10-04T19:29:00.000Z: closed\nquiz-w5-330 at 2026-10-05T01:29:00.000Z: closed\nquiz-w6-420 at 2026-10-10T16:59:00.000Z: on-time\nquiz-w6-420 at 2026-10-11T16:58:00.000Z: on-time\nquiz-w6-420 at 2026-10-11T16:59:00.000Z: on-time\nquiz-w6-420 at 2026-10-11T16:59:00.001Z: late\nquiz-w6-420 at 2026-10-11T16:59:30.000Z: late\nquiz-w6-420 at 2026-10-11T17:10:00.000Z: late\nquiz-w6-420 at 2026-10-11T17:10:00.001Z: closed\nquiz-w6-420 at 2026-10-11T17:59:00.000Z: closed\nquiz-w6-420 at 2026-10-11T23:59:00.000Z: closed\nquiz-w6-0 at 2026-10-10T23:59:00.000Z: on-time\nquiz-w6-0 at 2026-10-11T23:58:00.000Z: on-time\nquiz-w6-0 at 2026-10-11T23:59:00.000Z: on-time\nquiz-w6-0 at 2026-10-11T23:59:00.001Z: late\nquiz-w6-0 at 2026-10-11T23:59:30.000Z: late\nquiz-w6-0 at 2026-10-12T00:24:00.000Z: late\nquiz-w6-0 at 2026-10-12T00:24:00.001Z: closed\nquiz-w6-0 at 2026-10-12T00:59:00.000Z: closed\nquiz-w6-0 at 2026-10-12T06:59:00.000Z: closed\nquiz-w6--300 at 2026-10-11T04:59:00.000Z: on-time\nquiz-w6--300 at 2026-10-12T04:58:00.000Z: on-time\nquiz-w6--300 at 2026-10-12T04:59:00.000Z: on-time\nquiz-w6--300 at 2026-10-12T04:59:00.001Z: closed\nquiz-w6--300 at 2026-10-12T04:59:30.000Z: closed\nquiz-w6--300 at 2026-10-12T04:59:00.000Z: on-time\nquiz-w6--300 at 2026-10-12T04:59:00.001Z: closed\nquiz-w6--300 at 2026-10-12T05:59:00.000Z: closed\nquiz-w6--300 at 2026-10-12T11:59:00.000Z: closed\nquiz-w6-330 at 2026-10-10T18:29:00.000Z: on-time\nquiz-w6-330 at 2026-10-11T18:28:00.000Z: on-time\nquiz-w6-330 at 2026-10-11T18:29:00.000Z: on-time\nquiz-w6-330 at 2026-10-11T18:29:00.001Z: late\nquiz-w6-330 at 2026-10-11T18:29:30.000Z: late\nquiz-w6-330 at 2026-10-11T18:43:00.000Z: late\nquiz-w6-330 at 2026-10-11T18:43:00.001Z: closed\nquiz-w6-330 at 2026-10-11T19:29:00.000Z: closed\nquiz-w6-330 at 2026-10-12T01:29:00.000Z: closed\nquiz-w7-420 at 2026-10-17T16:59:00.000Z: on-time\nquiz-w7-420 at 2026-10-18T16:58:00.000Z: on-time\nquiz-w7-420 at 2026-10-18T16:59:00.000Z: on-time\nquiz-w7-420 at 2026-10-18T16:59:00.001Z: late\nquiz-w7-420 at 2026-10-18T16:59:30.000Z: late\nquiz-w7-420 at 2026-10-18T17:15:00.000Z: late\nquiz-w7-420 at 2026-10-18T17:15:00.001Z: closed\nquiz-w7-420 at 2026-10-18T17:59:00.000Z: closed\nquiz-w7-420 at 2026-10-18T23:59:00.000Z: closed\nquiz-w7-0 at 2026-10-17T23:59:00.000Z: on-time\nquiz-w7-0 at 2026-10-18T23:58:00.000Z: on-time\nquiz-w7-0 at 2026-10-18T23:59:00.000Z: on-time\nquiz-w7-0 at 2026-10-18T23:59:00.001Z: late\nquiz-w7-0 at 2026-10-18T23:59:30.000Z: late\nquiz-w7-0 at 2026-10-19T00:29:00.000Z: late\nquiz-w7-0 at 2026-10-19T00:29:00.001Z: closed\nquiz-w7-0 at 2026-10-19T00:59:00.000Z: closed\nquiz-w7-0 at 2026-10-19T06:59:00.000Z: closed\nquiz-w7--300 at 2026-10-18T04:59:00.000Z: on-time\nquiz-w7--300 at 2026-10-19T04:58:00.000Z: on-time\nquiz-w7--300 at 2026-10-19T04:59:00.000Z: on-time\nquiz-w7--300 at 2026-10-19T04:59:00.001Z: closed\nquiz-w7--300 at 2026-10-19T04:59:30.000Z: closed\nquiz-w7--300 at 2026-10-19T04:59:00.000Z: on-time\nquiz-w7--300 at 2026-10-19T04:59:00.001Z: closed\nquiz-w7--300 at 2026-10-19T05:59:00.000Z: closed\nquiz-w7--300 at 2026-10-19T11:59:00.000Z: closed\nquiz-w7-330 at 2026-10-17T18:29:00.000Z: on-time\nquiz-w7-330 at 2026-10-18T18:28:00.000Z: on-time\nquiz-w7-330 at 2026-10-18T18:29:00.000Z: on-time\nquiz-w7-330 at 2026-10-18T18:29:00.001Z: late\nquiz-w7-330 at 2026-10-18T18:29:30.000Z: late\nquiz-w7-330 at 2026-10-18T18:48:00.000Z: late\nquiz-w7-330 at 2026-10-18T18:48:00.001Z: closed\nquiz-w7-330 at 2026-10-18T19:29:00.000Z: closed\nquiz-w7-330 at 2026-10-19T01:29:00.000Z: closed\nquiz-w8-420 at 2026-10-24T16:59:00.000Z: on-time\nquiz-w8-420 at 2026-10-25T16:58:00.000Z: on-time\nquiz-w8-420 at 2026-10-25T16:59:00.000Z: on-time\nquiz-w8-420 at 2026-10-25T16:59:00.001Z: late\nquiz-w8-420 at 2026-10-25T16:59:30.000Z: late\nquiz-w8-420 at 2026-10-25T17:20:00.000Z: late\nquiz-w8-420 at 2026-10-25T17:20:00.001Z: closed\nquiz-w8-420 at 2026-10-25T17:59:00.000Z: closed\nquiz-w8-420 at 2026-10-25T23:59:00.000Z: closed\nquiz-w8-0 at 2026-10-24T23:59:00.000Z: on-time\nquiz-w8-0 at 2026-10-25T23:58:00.000Z: on-time\nquiz-w8-0 at 2026-10-25T23:59:00.000Z: on-time\nquiz-w8-0 at 2026-10-25T23:59:00.001Z: late\nquiz-w8-0 at 2026-10-25T23:59:30.000Z: late\nquiz-w8-0 at 2026-10-26T00:03:00.000Z: late\nquiz-w8-0 at 2026-10-26T00:03:00.001Z: closed\nquiz-w8-0 at 2026-10-26T00:59:00.000Z: closed\nquiz-w8-0 at 2026-10-26T06:59:00.000Z: closed\nquiz-w8--300 at 2026-10-25T04:59:00.000Z: on-time\nquiz-w8--300 at 2026-10-26T04:58:00.000Z: on-time\nquiz-w8--300 at 2026-10-26T04:59:00.000Z: on-time\nquiz-w8--300 at 2026-10-26T04:59:00.001Z: closed\nquiz-w8--300 at 2026-10-26T04:59:30.000Z: closed\nquiz-w8--300 at 2026-10-26T04:59:00.000Z: on-time\nquiz-w8--300 at 2026-10-26T04:59:00.001Z: closed\nquiz-w8--300 at 2026-10-26T05:59:00.000Z: closed\nquiz-w8--300 at 2026-10-26T11:59:00.000Z: closed\nquiz-w8-330 at 2026-10-24T18:29:00.000Z: on-time\nquiz-w8-330 at 2026-10-25T18:28:00.000Z: on-time\nquiz-w8-330 at 2026-10-25T18:29:00.000Z: on-time\nquiz-w8-330 at 2026-10-25T18:29:00.001Z: late\nquiz-w8-330 at 2026-10-25T18:29:30.000Z: late\nquiz-w8-330 at 2026-10-25T18:53:00.000Z: late\nquiz-w8-330 at 2026-10-25T18:53:00.001Z: closed\nquiz-w8-330 at 2026-10-25T19:29:00.000Z: closed\nquiz-w8-330 at 2026-10-26T01:29:00.000Z: closed\nquiz-w9-420 at 2026-10-31T16:59:00.000Z: on-time\nquiz-w9-420 at 2026-11-01T16:58:00.000Z: on-time\nquiz-w9-420 at 2026-11-01T16:59:00.000Z: on-time\nquiz-w9-420 at 2026-11-01T16:59:00.001Z: late\nquiz-w9-420 at 2026-11-01T16:59:30.000Z: late\nquiz-w9-420 at 2026-11-01T17:25:00.000Z: late\nquiz-w9-420 at 2026-11-01T17:25:00.001Z: closed\nquiz-w9-420 at 2026-11-01T17:59:00.000Z: closed\nquiz-w9-420 at 2026-11-01T23:59:00.000Z: closed\nquiz-w9-0 at 2026-10-31T23:59:00.000Z: on-time\nquiz-w9-0 at 2026-11-01T23:58:00.000Z: on-time\nquiz-w9-0 at 2026-11-01T23:59:00.000Z: on-time\nquiz-w9-0 at 2026-11-01T23:59:00.001Z: late\nquiz-w9-0 at 2026-11-01T23:59:30.000Z: late\nquiz-w9-0 at 2026-11-02T00:08:00.000Z: late\nquiz-w9-0 at 2026-11-02T00:08:00.001Z: closed\nquiz-w9-0 at 2026-11-02T00:59:00.000Z: closed\nquiz-w9-0 at 2026-11-02T06:59:00.000Z: closed\nquiz-w9--300 at 2026-11-01T04:59:00.000Z: on-time\nquiz-w9--300 at 2026-11-02T04:58:00.000Z: on-time\nquiz-w9--300 at 2026-11-02T04:59:00.000Z: on-time\nquiz-w9--300 at 2026-11-02T04:59:00.001Z: closed\nquiz-w9--300 at 2026-11-02T04:59:30.000Z: closed\nquiz-w9--300 at 2026-11-02T04:59:00.000Z: on-time\nquiz-w9--300 at 2026-11-02T04:59:00.001Z: closed\nquiz-w9--300 at 2026-11-02T05:59:00.000Z: closed\nquiz-w9--300 at 2026-11-02T11:59:00.000Z: closed\nquiz-w9-330 at 2026-10-31T18:29:00.000Z: on-time\nquiz-w9-330 at 2026-11-01T18:28:00.000Z: on-time\nquiz-w9-330 at 2026-11-01T18:29:00.000Z: on-time\nquiz-w9-330 at 2026-11-01T18:29:00.001Z: late\nquiz-w9-330 at 2026-11-01T18:29:30.000Z: late\nquiz-w9-330 at 2026-11-01T18:58:00.000Z: late\nquiz-w9-330 at 2026-11-01T18:58:00.001Z: closed\nquiz-w9-330 at 2026-11-01T19:29:00.000Z: closed\nquiz-w9-330 at 2026-11-02T01:29:00.000Z: closed\nquiz-w10-420 at 2026-11-07T16:59:00.000Z: on-time\nquiz-w10-420 at 2026-11-08T16:58:00.000Z: on-time\nquiz-w10-420 at 2026-11-08T16:59:00.000Z: on-time\nquiz-w10-420 at 2026-11-08T16:59:00.001Z: closed\nquiz-w10-420 at 2026-11-08T16:59:30.000Z: closed\nquiz-w10-420 at 2026-11-08T16:59:00.000Z: on-time\nquiz-w10-420 at 2026-11-08T16:59:00.001Z: closed\nquiz-w10-420 at 2026-11-08T17:59:00.000Z: closed\nquiz-w10-420 at 2026-11-08T23:59:00.000Z: closed\nquiz-w10-0 at 2026-11-07T23:59:00.000Z: on-time\nquiz-w10-0 at 2026-11-08T23:58:00.000Z: on-time\nquiz-w10-0 at 2026-11-08T23:59:00.000Z: on-time\nquiz-w10-0 at 2026-11-08T23:59:00.001Z: late\nquiz-w10-0 at 2026-11-08T23:59:30.000Z: late\nquiz-w10-0 at 2026-11-09T00:13:00.000Z: late\nquiz-w10-0 at 2026-11-09T00:13:00.001Z: closed\nquiz-w10-0 at 2026-11-09T00:59:00.000Z: closed\nquiz-w10-0 at 2026-11-09T06:59:00.000Z: closed\nquiz-w10--300 at 2026-11-08T04:59:00.000Z: on-time\nquiz-w10--300 at 2026-11-09T04:58:00.000Z: on-time\nquiz-w10--300 at 2026-11-09T04:59:00.000Z: on-time\nquiz-w10--300 at 2026-11-09T04:59:00.001Z: closed\nquiz-w10--300 at 2026-11-09T04:59:30.000Z: closed\nquiz-w10--300 at 2026-11-09T04:59:00.000Z: on-time\nquiz-w10--300 at 2026-11-09T04:59:00.001Z: closed\nquiz-w10--300 at 2026-11-09T05:59:00.000Z: closed\nquiz-w10--300 at 2026-11-09T11:59:00.000Z: closed\nquiz-w10-330 at 2026-11-07T18:29:00.000Z: on-time\nquiz-w10-330 at 2026-11-08T18:28:00.000Z: on-time\nquiz-w10-330 at 2026-11-08T18:29:00.000Z: on-time\nquiz-w10-330 at 2026-11-08T18:29:00.001Z: late\nquiz-w10-330 at 2026-11-08T18:29:30.000Z: late\nquiz-w10-330 at 2026-11-08T18:32:00.000Z: late\nquiz-w10-330 at 2026-11-08T18:32:00.001Z: closed\nquiz-w10-330 at 2026-11-08T19:29:00.000Z: closed\nquiz-w10-330 at 2026-11-09T01:29:00.000Z: closed\nquiz-w11-420 at 2026-11-14T16:59:00.000Z: on-time\nquiz-w11-420 at 2026-11-15T16:58:00.000Z: on-time\nquiz-w11-420 at 2026-11-15T16:59:00.000Z: on-time\nquiz-w11-420 at 2026-11-15T16:59:00.001Z: late\nquiz-w11-420 at 2026-11-15T16:59:30.000Z: late\nquiz-w11-420 at 2026-11-15T17:04:00.000Z: late\nquiz-w11-420 at 2026-11-15T17:04:00.001Z: closed\nquiz-w11-420 at 2026-11-15T17:59:00.000Z: closed\nquiz-w11-420 at 2026-11-15T23:59:00.000Z: closed\nquiz-w11-0 at 2026-11-14T23:59:00.000Z: on-time\nquiz-w11-0 at 2026-11-15T23:58:00.000Z: on-time\nquiz-w11-0 at 2026-11-15T23:59:00.000Z: on-time\nquiz-w11-0 at 2026-11-15T23:59:00.001Z: late\nquiz-w11-0 at 2026-11-15T23:59:30.000Z: late\nquiz-w11-0 at 2026-11-16T00:18:00.000Z: late\nquiz-w11-0 at 2026-11-16T00:18:00.001Z: closed\nquiz-w11-0 at 2026-11-16T00:59:00.000Z: closed\nquiz-w11-0 at 2026-11-16T06:59:00.000Z: closed\nquiz-w11--300 at 2026-11-15T04:59:00.000Z: on-time\nquiz-w11--300 at 2026-11-16T04:58:00.000Z: on-time\nquiz-w11--300 at 2026-11-16T04:59:00.000Z: on-time\nquiz-w11--300 at 2026-11-16T04:59:00.001Z: closed\nquiz-w11--300 at 2026-11-16T04:59:30.000Z: closed\nquiz-w11--300 at 2026-11-16T04:59:00.000Z: on-time\nquiz-w11--300 at 2026-11-16T04:59:00.001Z: closed\nquiz-w11--300 at 2026-11-16T05:59:00.000Z: closed\nquiz-w11--300 at 2026-11-16T11:59:00.000Z: closed\nquiz-w11-330 at 2026-11-14T18:29:00.000Z: on-time\nquiz-w11-330 at 2026-11-15T18:28:00.000Z: on-time\nquiz-w11-330 at 2026-11-15T18:29:00.000Z: on-time\nquiz-w11-330 at 2026-11-15T18:29:00.001Z: late\nquiz-w11-330 at 2026-11-15T18:29:30.000Z: late\nquiz-w11-330 at 2026-11-15T18:37:00.000Z: late\nquiz-w11-330 at 2026-11-15T18:37:00.001Z: closed\nquiz-w11-330 at 2026-11-15T19:29:00.000Z: closed\nquiz-w11-330 at 2026-11-16T01:29:00.000Z: closed\nquiz-w12-420 at 2026-11-21T16:59:00.000Z: on-time\nquiz-w12-420 at 2026-11-22T16:58:00.000Z: on-time\nquiz-w12-420 at 2026-11-22T16:59:00.000Z: on-time\nquiz-w12-420 at 2026-11-22T16:59:00.001Z: late\nquiz-w12-420 at 2026-11-22T16:59:30.000Z: late\nquiz-w12-420 at 2026-11-22T17:09:00.000Z: late\nquiz-w12-420 at 2026-11-22T17:09:00.001Z: closed\nquiz-w12-420 at 2026-11-22T17:59:00.000Z: closed\nquiz-w12-420 at 2026-11-22T23:59:00.000Z: closed\nquiz-w12-0 at 2026-11-21T23:59:00.000Z: on-time\nquiz-w12-0 at 2026-11-22T23:58:00.000Z: on-time\nquiz-w12-0 at 2026-11-22T23:59:00.000Z: on-time\nquiz-w12-0 at 2026-11-22T23:59:00.001Z: late\nquiz-w12-0 at 2026-11-22T23:59:30.000Z: late\nquiz-w12-0 at 2026-11-23T00:23:00.000Z: late\nquiz-w12-0 at 2026-11-23T00:23:00.001Z: closed\nquiz-w12-0 at 2026-11-23T00:59:00.000Z: closed\nquiz-w12-0 at 2026-11-23T06:59:00.000Z: closed\nquiz-w12--300 at 2026-11-22T04:59:00.000Z: on-time\nquiz-w12--300 at 2026-11-23T04:58:00.000Z: on-time\nquiz-w12--300 at 2026-11-23T04:59:00.000Z: on-time\nquiz-w12--300 at 2026-11-23T04:59:00.001Z: closed\nquiz-w12--300 at 2026-11-23T04:59:30.000Z: closed\nquiz-w12--300 at 2026-11-23T04:59:00.000Z: on-time\nquiz-w12--300 at 2026-11-23T04:59:00.001Z: closed\nquiz-w12--300 at 2026-11-23T05:59:00.000Z: closed\nquiz-w12--300 at 2026-11-23T11:59:00.000Z: closed\nquiz-w12-330 at 2026-11-21T18:29:00.000Z: on-time\nquiz-w12-330 at 2026-11-22T18:28:00.000Z: on-time\nquiz-w12-330 at 2026-11-22T18:29:00.000Z: on-time\nquiz-w12-330 at 2026-11-22T18:29:00.001Z: late\nquiz-w12-330 at 2026-11-22T18:29:30.000Z: late\nquiz-w12-330 at 2026-11-22T18:42:00.000Z: late\nquiz-w12-330 at 2026-11-22T18:42:00.001Z: closed\nquiz-w12-330 at 2026-11-22T19:29:00.000Z: closed\nquiz-w12-330 at 2026-11-23T01:29:00.000Z: closed\nquiz-w13-420 at 2026-11-28T16:59:00.000Z: on-time\nquiz-w13-420 at 2026-11-29T16:58:00.000Z: on-time\nquiz-w13-420 at 2026-11-29T16:59:00.000Z: on-time\nquiz-w13-420 at 2026-11-29T16:59:00.001Z: late\nquiz-w13-420 at 2026-11-29T16:59:30.000Z: late\nquiz-w13-420 at 2026-11-29T17:14:00.000Z: late\nquiz-w13-420 at 2026-11-29T17:14:00.001Z: closed\nquiz-w13-420 at 2026-11-29T17:59:00.000Z: closed\nquiz-w13-420 at 2026-11-29T23:59:00.000Z: closed\nquiz-w13-0 at 2026-11-28T23:59:00.000Z: on-time\nquiz-w13-0 at 2026-11-29T23:58:00.000Z: on-time\nquiz-w13-0 at 2026-11-29T23:59:00.000Z: on-time\nquiz-w13-0 at 2026-11-29T23:59:00.001Z: late\nquiz-w13-0 at 2026-11-29T23:59:30.000Z: late\nquiz-w13-0 at 2026-11-30T00:28:00.000Z: late\nquiz-w13-0 at 2026-11-30T00:28:00.001Z: closed\nquiz-w13-0 at 2026-11-30T00:59:00.000Z: closed\nquiz-w13-0 at 2026-11-30T06:59:00.000Z: closed\nquiz-w13--300 at 2026-11-29T04:59:00.000Z: on-time\nquiz-w13--300 at 2026-11-30T04:58:00.000Z: on-time\nquiz-w13--300 at 2026-11-30T04:59:00.000Z: on-time\nquiz-w13--300 at 2026-11-30T04:59:00.001Z: closed\nquiz-w13--300 at 2026-11-30T04:59:30.000Z: closed\nquiz-w13--300 at 2026-11-30T04:59:00.000Z: on-time\nquiz-w13--300 at 2026-11-30T04:59:00.001Z: closed\nquiz-w13--300 at 2026-11-30T05:59:00.000Z: closed\nquiz-w13--300 at 2026-11-30T11:59:00.000Z: closed\nquiz-w13-330 at 2026-11-28T18:29:00.000Z: on-time\nquiz-w13-330 at 2026-11-29T18:28:00.000Z: on-time\nquiz-w13-330 at 2026-11-29T18:29:00.000Z: on-time\nquiz-w13-330 at 2026-11-29T18:29:00.001Z: late\nquiz-w13-330 at 2026-11-29T18:29:30.000Z: late\nquiz-w13-330 at 2026-11-29T18:47:00.000Z: late\nquiz-w13-330 at 2026-11-29T18:47:00.001Z: closed\nquiz-w13-330 at 2026-11-29T19:29:00.000Z: closed\nquiz-w13-330 at 2026-11-30T01:29:00.000Z: closed\nquiz-w14-420 at 2026-12-05T16:59:00.000Z: on-time\nquiz-w14-420 at 2026-12-06T16:58:00.000Z: on-time\nquiz-w14-420 at 2026-12-06T16:59:00.000Z: on-time\nquiz-w14-420 at 2026-12-06T16:59:00.001Z: late\nquiz-w14-420 at 2026-12-06T16:59:30.000Z: late\nquiz-w14-420 at 2026-12-06T17:19:00.000Z: late\nquiz-w14-420 at 2026-12-06T17:19:00.001Z: closed\nquiz-w14-420 at 2026-12-06T17:59:00.000Z: closed\nquiz-w14-420 at 2026-12-06T23:59:00.000Z: closed\nquiz-w14-0 at 2026-12-05T23:59:00.000Z: on-time\nquiz-w14-0 at 2026-12-06T23:58:00.000Z: on-time\nquiz-w14-0 at 2026-12-06T23:59:00.000Z: on-time\nquiz-w14-0 at 2026-12-06T23:59:00.001Z: late\nquiz-w14-0 at 2026-12-06T23:59:30.000Z: late\nquiz-w14-0 at 2026-12-07T00:02:00.000Z: late\nquiz-w14-0 at 2026-12-07T00:02:00.001Z: closed\nquiz-w14-0 at 2026-12-07T00:59:00.000Z: closed\nquiz-w14-0 at 2026-12-07T06:59:00.000Z: closed\nquiz-w14--300 at 2026-12-06T04:59:00.000Z: on-time\nquiz-w14--300 at 2026-12-07T04:58:00.000Z: on-time\nquiz-w14--300 at 2026-12-07T04:59:00.000Z: on-time\nquiz-w14--300 at 2026-12-07T04:59:00.001Z: closed\nquiz-w14--300 at 2026-12-07T04:59:30.000Z: closed\nquiz-w14--300 at 2026-12-07T04:59:00.000Z: on-time\nquiz-w14--300 at 2026-12-07T04:59:00.001Z: closed\nquiz-w14--300 at 2026-12-07T05:59:00.000Z: closed\nquiz-w14--300 at 2026-12-07T11:59:00.000Z: closed\nquiz-w14-330 at 2026-12-05T18:29:00.000Z: on-time\nquiz-w14-330 at 2026-12-06T18:28:00.000Z: on-time\nquiz-w14-330 at 2026-12-06T18:29:00.000Z: on-time\nquiz-w14-330 at 2026-12-06T18:29:00.001Z: late\nquiz-w14-330 at 2026-12-06T18:29:30.000Z: late\nquiz-w14-330 at 2026-12-06T18:52:00.000Z: late\nquiz-w14-330 at 2026-12-06T18:52:00.001Z: closed\nquiz-w14-330 at 2026-12-06T19:29:00.000Z: closed\nquiz-w14-330 at 2026-12-07T01:29:00.000Z: closed\nquiz-w15-420 at 2026-12-12T16:59:00.000Z: on-time\nquiz-w15-420 at 2026-12-13T16:58:00.000Z: on-time\nquiz-w15-420 at 2026-12-13T16:59:00.000Z: on-time\nquiz-w15-420 at 2026-12-13T16:59:00.001Z: late\nquiz-w15-420 at 2026-12-13T16:59:30.000Z: late\nquiz-w15-420 at 2026-12-13T17:24:00.000Z: late\nquiz-w15-420 at 2026-12-13T17:24:00.001Z: closed\nquiz-w15-420 at 2026-12-13T17:59:00.000Z: closed\nquiz-w15-420 at 2026-12-13T23:59:00.000Z: closed\nquiz-w15-0 at 2026-12-12T23:59:00.000Z: on-time\nquiz-w15-0 at 2026-12-13T23:58:00.000Z: on-time\nquiz-w15-0 at 2026-12-13T23:59:00.000Z: on-time\nquiz-w15-0 at 2026-12-13T23:59:00.001Z: late\nquiz-w15-0 at 2026-12-13T23:59:30.000Z: late\nquiz-w15-0 at 2026-12-14T00:07:00.000Z: late\nquiz-w15-0 at 2026-12-14T00:07:00.001Z: closed\nquiz-w15-0 at 2026-12-14T00:59:00.000Z: closed\nquiz-w15-0 at 2026-12-14T06:59:00.000Z: closed\nquiz-w15--300 at 2026-12-13T04:59:00.000Z: on-time\nquiz-w15--300 at 2026-12-14T04:58:00.000Z: on-time\nquiz-w15--300 at 2026-12-14T04:59:00.000Z: on-time\nquiz-w15--300 at 2026-12-14T04:59:00.001Z: closed\nquiz-w15--300 at 2026-12-14T04:59:30.000Z: closed\nquiz-w15--300 at 2026-12-14T04:59:00.000Z: on-time\nquiz-w15--300 at 2026-12-14T04:59:00.001Z: closed\nquiz-w15--300 at 2026-12-14T05:59:00.000Z: closed\nquiz-w15--300 at 2026-12-14T11:59:00.000Z: closed\nquiz-w15-330 at 2026-12-12T18:29:00.000Z: on-time\nquiz-w15-330 at 2026-12-13T18:28:00.000Z: on-time\nquiz-w15-330 at 2026-12-13T18:29:00.000Z: on-time\nquiz-w15-330 at 2026-12-13T18:29:00.001Z: late\nquiz-w15-330 at 2026-12-13T18:29:30.000Z: late\nquiz-w15-330 at 2026-12-13T18:57:00.000Z: late\nquiz-w15-330 at 2026-12-13T18:57:00.001Z: closed\nquiz-w15-330 at 2026-12-13T19:29:00.000Z: closed\nquiz-w15-330 at 2026-12-14T01:29:00.000Z: closed\nquiz-w16-420 at 2026-12-19T16:59:00.000Z: on-time\nquiz-w16-420 at 2026-12-20T16:58:00.000Z: on-time\nquiz-w16-420 at 2026-12-20T16:59:00.000Z: on-time\nquiz-w16-420 at 2026-12-20T16:59:00.001Z: late\nquiz-w16-420 at 2026-12-20T16:59:30.000Z: late\nquiz-w16-420 at 2026-12-20T17:29:00.000Z: late\nquiz-w16-420 at 2026-12-20T17:29:00.001Z: closed\nquiz-w16-420 at 2026-12-20T17:59:00.000Z: closed\nquiz-w16-420 at 2026-12-20T23:59:00.000Z: closed\nquiz-w16-0 at 2026-12-19T23:59:00.000Z: on-time\nquiz-w16-0 at 2026-12-20T23:58:00.000Z: on-time\nquiz-w16-0 at 2026-12-20T23:59:00.000Z: on-time\nquiz-w16-0 at 2026-12-20T23:59:00.001Z: late\nquiz-w16-0 at 2026-12-20T23:59:30.000Z: late\nquiz-w16-0 at 2026-12-21T00:12:00.000Z: late\nquiz-w16-0 at 2026-12-21T00:12:00.001Z: closed\nquiz-w16-0 at 2026-12-21T00:59:00.000Z: closed\nquiz-w16-0 at 2026-12-21T06:59:00.000Z: closed\nquiz-w16--300 at 2026-12-20T04:59:00.000Z: on-time\nquiz-w16--300 at 2026-12-21T04:58:00.000Z: on-time\nquiz-w16--300 at 2026-12-21T04:59:00.000Z: on-time\nquiz-w16--300 at 2026-12-21T04:59:00.001Z: closed\nquiz-w16--300 at 2026-12-21T04:59:30.000Z: closed\nquiz-w16--300 at 2026-12-21T04:59:00.000Z: on-time\nquiz-w16--300 at 2026-12-21T04:59:00.001Z: closed\nquiz-w16--300 at 2026-12-21T05:59:00.000Z: closed\nquiz-w16--300 at 2026-12-21T11:59:00.000Z: closed\nquiz-w16-330 at 2026-12-19T18:29:00.000Z: on-time\nquiz-w16-330 at 2026-12-20T18:28:00.000Z: on-time\nquiz-w16-330 at 2026-12-20T18:29:00.000Z: on-time\nquiz-w16-330 at 2026-12-20T18:29:00.001Z: late\nquiz-w16-330 at 2026-12-20T18:29:30.000Z: late\nquiz-w16-330 at 2026-12-20T18:31:00.000Z: late\nquiz-w16-330 at 2026-12-20T18:31:00.001Z: closed\nquiz-w16-330 at 2026-12-20T19:29:00.000Z: closed\nquiz-w16-330 at 2026-12-21T01:29:00.000Z: closed\nquiz-w17-420 at 2026-12-26T16:59:00.000Z: on-time\nquiz-w17-420 at 2026-12-27T16:58:00.000Z: on-time\nquiz-w17-420 at 2026-12-27T16:59:00.000Z: on-time\nquiz-w17-420 at 2026-12-27T16:59:00.001Z: late\nquiz-w17-420 at 2026-12-27T16:59:30.000Z: late\nquiz-w17-420 at 2026-12-27T17:03:00.000Z: late\nquiz-w17-420 at 2026-12-27T17:03:00.001Z: closed\nquiz-w17-420 at 2026-12-27T17:59:00.000Z: closed\nquiz-w17-420 at 2026-12-27T23:59:00.000Z: closed\nquiz-w17-0 at 2026-12-26T23:59:00.000Z: on-time\nquiz-w17-0 at 2026-12-27T23:58:00.000Z: on-time\nquiz-w17-0 at 2026-12-27T23:59:00.000Z: on-time\nquiz-w17-0 at 2026-12-27T23:59:00.001Z: late\nquiz-w17-0 at 2026-12-27T23:59:30.000Z: late\nquiz-w17-0 at 2026-12-28T00:17:00.000Z: late\nquiz-w17-0 at 2026-12-28T00:17:00.001Z: closed\nquiz-w17-0 at 2026-12-28T00:59:00.000Z: closed\nquiz-w17-0 at 2026-12-28T06:59:00.000Z: closed\nquiz-w17--300 at 2026-12-27T04:59:00.000Z: on-time\nquiz-w17--300 at 2026-12-28T04:58:00.000Z: on-time\nquiz-w17--300 at 2026-12-28T04:59:00.000Z: on-time\nquiz-w17--300 at 2026-12-28T04:59:00.001Z: closed\nquiz-w17--300 at 2026-12-28T04:59:30.000Z: closed\nquiz-w17--300 at 2026-12-28T04:59:00.000Z: on-time\nquiz-w17--300 at 2026-12-28T04:59:00.001Z: closed\nquiz-w17--300 at 2026-12-28T05:59:00.000Z: closed\nquiz-w17--300 at 2026-12-28T11:59:00.000Z: closed\nquiz-w17-330 at 2026-12-26T18:29:00.000Z: on-time\nquiz-w17-330 at 2026-12-27T18:28:00.000Z: on-time\nquiz-w17-330 at 2026-12-27T18:29:00.000Z: on-time\nquiz-w17-330 at 2026-12-27T18:29:00.001Z: late\nquiz-w17-330 at 2026-12-27T18:29:30.000Z: late\nquiz-w17-330 at 2026-12-27T18:36:00.000Z: late\nquiz-w17-330 at 2026-12-27T18:36:00.001Z: closed\nquiz-w17-330 at 2026-12-27T19:29:00.000Z: closed\nquiz-w17-330 at 2026-12-28T01:29:00.000Z: closed\nquiz-w18-420 at 2027-01-02T16:59:00.000Z: on-time\nquiz-w18-420 at 2027-01-03T16:58:00.000Z: on-time\nquiz-w18-420 at 2027-01-03T16:59:00.000Z: on-time\nquiz-w18-420 at 2027-01-03T16:59:00.001Z: late\nquiz-w18-420 at 2027-01-03T16:59:30.000Z: late\nquiz-w18-420 at 2027-01-03T17:08:00.000Z: late\nquiz-w18-420 at 2027-01-03T17:08:00.001Z: closed\nquiz-w18-420 at 2027-01-03T17:59:00.000Z: closed\nquiz-w18-420 at 2027-01-03T23:59:00.000Z: closed\nquiz-w18-0 at 2027-01-02T23:59:00.000Z: on-time\nquiz-w18-0 at 2027-01-03T23:58:00.000Z: on-time\nquiz-w18-0 at 2027-01-03T23:59:00.000Z: on-time\nquiz-w18-0 at 2027-01-03T23:59:00.001Z: late\nquiz-w18-0 at 2027-01-03T23:59:30.000Z: late\nquiz-w18-0 at 2027-01-04T00:22:00.000Z: late\nquiz-w18-0 at 2027-01-04T00:22:00.001Z: closed\nquiz-w18-0 at 2027-01-04T00:59:00.000Z: closed\nquiz-w18-0 at 2027-01-04T06:59:00.000Z: closed\nquiz-w18--300 at 2027-01-03T04:59:00.000Z: on-time\nquiz-w18--300 at 2027-01-04T04:58:00.000Z: on-time\nquiz-w18--300 at 2027-01-04T04:59:00.000Z: on-time\nquiz-w18--300 at 2027-01-04T04:59:00.001Z: closed\nquiz-w18--300 at 2027-01-04T04:59:30.000Z: closed\nquiz-w18--300 at 2027-01-04T04:59:00.000Z: on-time\nquiz-w18--300 at 2027-01-04T04:59:00.001Z: closed\nquiz-w18--300 at 2027-01-04T05:59:00.000Z: closed\nquiz-w18--300 at 2027-01-04T11:59:00.000Z: closed\nquiz-w18-330 at 2027-01-02T18:29:00.000Z: on-time\nquiz-w18-330 at 2027-01-03T18:28:00.000Z: on-time\nquiz-w18-330 at 2027-01-03T18:29:00.000Z: on-time\nquiz-w18-330 at 2027-01-03T18:29:00.001Z: late\nquiz-w18-330 at 2027-01-03T18:29:30.000Z: late\nquiz-w18-330 at 2027-01-03T18:41:00.000Z: late\nquiz-w18-330 at 2027-01-03T18:41:00.001Z: closed\nquiz-w18-330 at 2027-01-03T19:29:00.000Z: closed\nquiz-w18-330 at 2027-01-04T01:29:00.000Z: closed",
+          "hidden": true,
+          "score": 2
+        }
+      ]
+    }
+  ]
+}

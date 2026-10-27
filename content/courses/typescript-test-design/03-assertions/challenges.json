@@ -1,0 +1,50 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_ttd_131",
+      "name": "assertions-quiz",
+      "type": "quiz",
+      "title": "Can this test fail?",
+      "description": "Two green tests from the CodeDev suite: decide whether each one would catch the bug next to it.",
+      "difficulty": "medium",
+      "outcomes": [
+        "test-types"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "// coupons.ts\nconst COUPONS: Record<string, Coupon> = loadCoupons();\n\nexport function applyCoupon(cart: Cart, code: string): Cart {\n  const coupon = COUPONS[code];\n  if (coupon.expiresAt < cart.now) throw new Error(\"coupon expired\");\n  return { ...cart, total: cart.total - coupon.discount };\n}\n\n// coupons.test.ts\nit(\"rejects an expired coupon\", () => {\n  expect(() => applyCoupon(cart, \"SUMMER24\")).toThrow();\n});\n\n$ npx vitest run coupons\n ✓ coupons.test.ts > rejects an expired coupon\n\nThe coupon list was reloaded last week and \"SUMMER24\" is no longer in COUPONS.\n\nStatement: \"This green test shows that applyCoupon still rejects expired coupons.\"",
+          "explanation": "False. With SUMMER24 gone, COUPONS[code] is undefined at runtime (the Record type promises a coupon for every string key, so tsc does not object), and coupon.expiresAt throws TypeError: Cannot read properties of undefined (reading 'expiresAt'). toThrow() with no argument accepts any error, so the crash counts as a pass. The test no longer reaches the expiry check at all. Write toThrow(\"coupon expired\") and the test fails with a message that shows the TypeError, which also reveals that an unknown coupon code crashes instead of being refused. The misconception is that \"it threw\" means \"it threw for the reason in the test name\".",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "// enrollments.test.ts\nit(\"refuses a second enrollment in the same course\", async () => {\n  await enroll(\"u1\", \"sql-basics\");\n  try {\n    await enroll(\"u1\", \"sql-basics\");\n  } catch (error) {\n    expect((error as Error).message).toBe(\"already_enrolled\");\n  }\n});\n\n$ npx vitest run enrollments\n ✓ enrollments.test.ts > refuses a second enrollment in the same course\n\nA pull request changes enroll so that the second call resolves normally and inserts a second row.\n\nStatement: \"After that pull request, this test still passes.\"",
+          "explanation": "True. When the second enroll resolves, the catch block never runs, so the only expect in the test never runs either. A test that finishes without a failed assertion passes, even with zero assertions. Rewrite it as await expect(enroll(\"u1\", \"sql-basics\")).rejects.toThrow(\"already_enrolled\"), or at least add expect.assertions(1) at the top, and the pull request turns it red. The misconception is that an expect written in the test always runs; inside catch, .then or a loop it only runs if the code goes that way.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
