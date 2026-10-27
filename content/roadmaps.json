@@ -9,10 +9,11 @@
         { "title": "JavaScript Fundamentals", "description": "Values, arrays and objects, closures, modules, errors and tests in modern JavaScript.", "courses": ["js-modern-foundations"] },
         { "title": "TypeScript", "description": "Types, narrowing, generics and discriminated unions that catch bugs before users do.", "courses": ["typescript-foundations"] },
         { "title": "Asynchronous JavaScript", "description": "Promises, cancellation, retries and race conditions in UI code.", "courses": ["javascript-async-architecture_2026100901"] },
-        { "title": "React with TypeScript", "description": "Components, state, effects and data fetching with typed props and hooks.", "courses": ["typescript-react-frontend"] },
+        { "title": "React with TypeScript", "description": "Components, state, effects and data fetching with typed props and hooks.", "courses": ["typescript-react-frontend", "nextjs-rendering-caching"] },
         { "title": "Testing the Frontend", "description": "Unit, integration and property-based tests that find real bugs.", "courses": ["test-automation-foundations", "typescript-test-design"] },
         { "title": "Web Performance", "description": "Core Web Vitals, rendering, data loading and performance budgets.", "courses": ["frontend-web-performance"] },
-        { "title": "Advanced TypeScript", "description": "Type-level programming for safe APIs and libraries.", "courses": ["typescript-type-level"] }
+        { "title": "Advanced TypeScript", "description": "Type-level programming for safe APIs and libraries.", "courses": ["typescript-type-level"] },
+        { "title": "Working with AI Coding Tools", "description": "Specs, tests and review habits that make code written with an AI assistant or agent safe to ship.", "courses": ["ai-assisted-development", "agentic-coding-practice"] }
       ]
     },
     {
@@ -21,13 +22,15 @@
       "description": "Pick a server language, learn SQL, then build APIs and services that stay correct under concurrency, failures and attacks.",
       "nodes": [
         { "title": "A Server Language", "description": "Learn one language well first: JavaScript, Python, Java, Go, PHP or C#.", "courses": ["js-modern-foundations", "python-foundations-automation", "java21-foundations", "go-foundations", "php-foundations", "csharp-foundations"] },
-        { "title": "Databases & SQL", "description": "Schemas, keys, constraints and transactions; queries, joins and aggregation without wrong numbers.", "courses": ["sql-data-modeling", "sql-data-analysis-foundations"] },
-        { "title": "Building APIs", "description": "Routing, validation, errors, pagination and clean service code.", "courses": ["php-modern-apis", "csharp-async-services", "javascript-async-architecture_2026100901", "web-http-fundamentals"] },
-        { "title": "Concurrency & Async", "description": "Goroutines, virtual threads, asyncio and the bugs they bring.", "courses": ["go-concurrency", "java21-virtual-threads", "python-asyncio-services"] },
+        { "title": "Databases & SQL", "description": "Schemas, keys, constraints and transactions; queries, joins and aggregation without wrong numbers.", "courses": ["sql-data-modeling", "sql-data-analysis-foundations", "postgres-performance", "redis-patterns"] },
+        { "title": "Building APIs", "description": "Routing, validation, errors, pagination and clean service code.", "courses": ["php-modern-apis", "csharp-async-services", "javascript-async-architecture_2026100901", "web-http-fundamentals", "nestjs-modular-monolith", "api-design-production"] },
+        { "title": "Architecture & Testing", "description": "Modules, dependency direction and when to split a service; tests that catch bugs instead of confirming happy paths.", "courses": ["software-architecture-fundamentals", "typescript-test-design"] },
+        { "title": "Concurrency & Async", "description": "Goroutines, virtual threads, asyncio and the bugs they bring.", "courses": ["go-concurrency", "java21-virtual-threads", "python-asyncio-services", "background-jobs-messaging"] },
         { "title": "Performance", "description": "Profiling, event loop health, caching and backpressure.", "courses": ["nodejs-high-performance"] },
-        { "title": "API Security", "description": "Authentication, authorization, input handling and abuse protection.", "courses": ["nodejs-api-security"] },
-        { "title": "Distributed Systems", "description": "Resilient microservices, timeouts, retries and cloud-native services.", "courses": ["java-resilient-microservices", "go-cloud-native"] },
-        { "title": "Systems Languages", "description": "Rust and C++ for services where memory and latency matter.", "courses": ["rust-foundations", "rust-practical", "cpp23-modern"] }
+        { "title": "API Security", "description": "Authentication, authorization, input handling and abuse protection.", "courses": ["nodejs-api-security", "supply-chain-security"] },
+        { "title": "Distributed Systems", "description": "Resilient microservices, timeouts, retries and cloud-native services.", "courses": ["java-resilient-microservices", "go-cloud-native", "observability-opentelemetry"] },
+        { "title": "Systems Languages", "description": "Rust and C++ for services where memory and latency matter.", "courses": ["rust-foundations", "rust-practical", "cpp23-modern"] },
+        { "title": "AI Features", "description": "How LLMs behave, building LLM features with structured output and tools, and evaluating them with guardrails.", "courses": ["ai-llm-foundations", "nodejs-ai-engineering", "llm-evaluation-guardrails"] }
       ]
     },
     {
@@ -36,13 +39,13 @@
       "description": "Ship complete features: a typed React frontend, a backend API with a database, tests, deployment and AI features.",
       "nodes": [
         { "title": "Web & JavaScript Foundations", "description": "HTML, CSS, accessibility, modern JavaScript and HTTP.", "courses": ["web-foundations-html-css-a11y", "js-modern-foundations", "web-http-fundamentals"] },
-        { "title": "TypeScript & React", "description": "Typed components, state and data fetching.", "courses": ["typescript-foundations", "typescript-react-frontend"] },
-        { "title": "Backend Basics", "description": "Asynchronous server code and a second backend language.", "courses": ["javascript-async-architecture_2026100901", "php-foundations", "csharp-foundations"] },
+        { "title": "TypeScript & React", "description": "Typed components, state and data fetching.", "courses": ["typescript-foundations", "typescript-react-frontend", "nextjs-rendering-caching"] },
+        { "title": "Backend Basics", "description": "Asynchronous server code and a second backend language.", "courses": ["javascript-async-architecture_2026100901", "php-foundations", "csharp-foundations", "nestjs-modular-monolith"] },
         { "title": "Databases & SQL", "description": "Model and query the data your features need.", "courses": ["sql-data-modeling", "sql-data-analysis-foundations"] },
-        { "title": "APIs & Security", "description": "Design APIs and protect them.", "courses": ["php-modern-apis", "nodejs-api-security"] },
+        { "title": "APIs & Security", "description": "Design APIs and protect them.", "courses": ["php-modern-apis", "nodejs-api-security", "api-design-production"] },
         { "title": "Testing", "description": "Automated tests across the stack.", "courses": ["test-automation-foundations", "typescript-test-design"] },
         { "title": "Delivery", "description": "Containers, CI pipelines and performance in production.", "courses": ["devops-foundations-ci-containers", "nodejs-high-performance", "frontend-web-performance"] },
-        { "title": "AI Features", "description": "LLM calls, retrieval and evaluation inside a product.", "courses": ["nodejs-ai-engineering"] }
+        { "title": "AI Features", "description": "LLM calls, retrieval and evaluation inside a product.", "courses": ["ai-llm-foundations", "ai-assisted-development", "nodejs-ai-engineering"] }
       ]
     },
     {
@@ -67,9 +70,9 @@
         { "title": "Linux, Containers & CI", "description": "Processes, logs, images, environment config and pipelines.", "courses": ["devops-foundations-ci-containers"] },
         { "title": "Scripting & Automation", "description": "Python for automation and tooling.", "courses": ["python-foundations-automation"] },
         { "title": "Go for Tooling", "description": "The language of most cloud infrastructure.", "courses": ["go-foundations", "go-concurrency"] },
-        { "title": "Cloud-Native Services", "description": "Health checks, graceful shutdown, config and observability.", "courses": ["go-cloud-native"] },
-        { "title": "Performance & Reliability", "description": "Load tests, SLOs, error budgets and chaos experiments.", "courses": ["qa-performance-reliability", "nodejs-high-performance"] },
-        { "title": "Securing Services", "description": "Hardening the APIs you deploy.", "courses": ["nodejs-api-security"] },
+        { "title": "Cloud-Native Services", "description": "Health checks, graceful shutdown, config and observability.", "courses": ["go-cloud-native", "background-jobs-messaging"] },
+        { "title": "Performance & Reliability", "description": "Load tests, SLOs, error budgets and chaos experiments.", "courses": ["qa-performance-reliability", "nodejs-high-performance", "observability-opentelemetry"] },
+        { "title": "Securing Services", "description": "Hardening the APIs you deploy.", "courses": ["nodejs-api-security", "supply-chain-security"] },
         { "title": "Systems Programming", "description": "What really happens below the runtime.", "courses": ["c-systems-programming", "rust-practical"] }
       ]
     },
@@ -82,7 +85,7 @@
         { "title": "Data & SQL", "description": "Getting and shaping the data a model learns from.", "courses": ["sql-data-analysis-foundations", "python-data-pipelines"] },
         { "title": "Machine Learning from Scratch", "description": "Regression, classification and gradient descent without libraries.", "courses": ["python-ml-from-scratch"] },
         { "title": "Evaluating Models", "description": "Metrics, leakage, calibration and drift.", "courses": ["python-ml-evaluation"] },
-        { "title": "LLM Applications", "description": "Retrieval-augmented generation, embeddings and AI services.", "courses": ["python-rag-from-scratch", "nodejs-ai-engineering"] },
+        { "title": "LLM Applications", "description": "Retrieval-augmented generation, embeddings and AI services.", "courses": ["ai-llm-foundations", "python-rag-from-scratch", "nodejs-ai-engineering", "llm-evaluation-guardrails"] },
         { "title": "Serving Models", "description": "Async Python services around your models.", "courses": ["python-asyncio-services"] }
       ]
     },
@@ -96,7 +99,8 @@
         { "title": "API Testing", "description": "Testing HTTP APIs, contracts and data.", "courses": ["web-http-fundamentals", "python-api-testing"] },
         { "title": "Test Design", "description": "Boundaries, properties, contracts and mutation testing.", "courses": ["typescript-test-design"] },
         { "title": "Performance & Reliability Testing", "description": "Load, latency percentiles and chaos experiments.", "courses": ["qa-performance-reliability"] },
-        { "title": "Tests in CI", "description": "Pipelines that run your tests on every change.", "courses": ["devops-foundations-ci-containers"] }
+        { "title": "Tests in CI", "description": "Pipelines that run your tests on every change.", "courses": ["devops-foundations-ci-containers"] },
+        { "title": "Testing AI-Written Code", "description": "Review AI pull requests, spot tests that cannot fail and keep invented packages and secrets out.", "courses": ["ai-assisted-development"] }
       ]
     },
     {
@@ -105,10 +109,10 @@
       "description": "Move and model data reliably: Python and SQL, analytics queries, pipelines with idempotent loads, async services and the ML they feed.",
       "nodes": [
         { "title": "Python", "description": "Scripting, files and data structures.", "courses": ["python-foundations-automation"] },
-        { "title": "SQL", "description": "Joins, aggregation, correct numbers and the schemas behind them.", "courses": ["sql-data-analysis-foundations", "sql-data-modeling"] },
+        { "title": "SQL", "description": "Joins, aggregation, correct numbers and the schemas behind them.", "courses": ["sql-data-analysis-foundations", "sql-data-modeling", "postgres-performance"] },
         { "title": "Analytics SQL", "description": "Window functions, cohorts and deduplication.", "courses": ["sql-window-analytics"] },
         { "title": "Data Pipelines", "description": "Extract, validate, transform and load without duplicates.", "courses": ["python-data-pipelines"] },
-        { "title": "Async Services", "description": "High-throughput Python services and workers.", "courses": ["python-asyncio-services"] },
+        { "title": "Async Services", "description": "High-throughput Python services and workers.", "courses": ["python-asyncio-services", "background-jobs-messaging", "redis-patterns"] },
         { "title": "Containers & CI", "description": "Package and ship pipelines.", "courses": ["devops-foundations-ci-containers"] },
         { "title": "Feeding Machine Learning", "description": "What models need from the data platform.", "courses": ["python-ml-from-scratch", "python-rag-from-scratch"] }
       ]
@@ -131,14 +135,15 @@
       "title": "Programming Foundations",
       "description": "Start from zero and try every major language family before choosing a career path: the web, Python and JavaScript, C and C++, typed languages, Go and Rust, SQL and testing.",
       "nodes": [
-        { "title": "The Web", "description": "HTML, CSS and accessibility.", "courses": ["web-foundations-html-css-a11y"] },
+        { "title": "The Web", "description": "HTML, CSS and accessibility.", "courses": ["web-foundations-html-css-a11y", "web-http-fundamentals"] },
         { "title": "Your First Language", "description": "Python or JavaScript.", "courses": ["python-foundations-automation", "js-modern-foundations"] },
         { "title": "How Computers Run Code", "description": "Memory, pointers and types in C and C++.", "courses": ["c-foundations-memory", "cpp-foundations"] },
         { "title": "Typed Languages", "description": "Java, C#, Kotlin and TypeScript.", "courses": ["java21-foundations", "csharp-foundations", "kotlin-foundations", "typescript-foundations"] },
         { "title": "Modern Systems Languages", "description": "Go and Rust.", "courses": ["go-foundations", "rust-foundations"] },
         { "title": "Server-Side Web", "description": "PHP, still behind a large part of the web.", "courses": ["php-foundations"] },
-        { "title": "Data & SQL", "description": "Ask questions of a database.", "courses": ["sql-data-analysis-foundations"] },
-        { "title": "Testing Your Code", "description": "Automated tests from day one.", "courses": ["test-automation-foundations"] }
+        { "title": "Data & SQL", "description": "Ask questions of a database.", "courses": ["sql-data-analysis-foundations", "sql-data-modeling"] },
+        { "title": "Testing Your Code", "description": "Automated tests from day one.", "courses": ["test-automation-foundations", "typescript-test-design"] },
+        { "title": "Software Design & AI", "description": "How the pieces of an application fit together, and how large language models really work before you build with them.", "courses": ["software-architecture-fundamentals", "ai-llm-foundations"] }
       ]
     }
   ]
