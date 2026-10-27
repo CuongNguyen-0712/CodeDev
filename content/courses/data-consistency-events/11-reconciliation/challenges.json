@@ -1,0 +1,5725 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_dce_421",
+      "name": "reconciliation-quiz",
+      "type": "quiz",
+      "title": "Reconciliation: find and fix drift",
+      "description": "Two statements on the nightly reconciliation of the CodeDev leaderboard: a learner the reconciler deferred, and a week of runs that each ended with zero open differences.",
+      "difficulty": "medium",
+      "outcomes": [
+        "eventual-consistency"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Dry-run output of the reconciler, grace period 120 s. The leaderboard projector applies each ProgressRecorded event as an increment (UPDATE leaderboard SET xp = xp + $delta):\n\nreconcile-leaderboard 02:00:00 dry-run\n  u_17  source xp=420  read model xp=380  last source change 01:59:58  -> deferred (in flight)\n\nprogress outbox 01:59:58 ProgressRecorded u_17 lesson=l_9 xpDelta=+40  published=false\n\nStatement: \"Writing xp=420 for u_17 now, instead of deferring, risks giving the learner 460 XP once the projector applies the +40 event that is still in flight.\"",
+          "explanation": "True. The source already includes the +40 (420), and the read model is behind only because the event has not been published and applied yet. If the reconciler sets 420 and the projector then applies its increment, the read model ends at 460: the reconciler and the projector corrected the same gap twice. The grace period skips keys whose source changed recently so the normal pipeline can finish; a later run sees the key settled. The misconception is that a reconciler setting an absolute value can never make things worse; it can whenever it races with an incremental projector.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Hourly reconciliation runs of the leaderboard (cap 500 fixes per run, grace period 300 s):\n\nrun    found  applied  over cap  deferred  open after run\n09:00    212      212         0         4               0\n10:00    198      198         0         6               0\n11:00    205      205         0         3               0\n12:00    221      221         0         5               0\n\nAll differences found are \"wrong value\"; every one is on a learner who finished a lesson on the mobile app.\n\nStatement: \"Every run ends with 0 open differences, so the leaderboard is consistent and the reconciliation can safely move from hourly to daily.\"",
+          "explanation": "False. \"0 open after run\" only shows that each run applied what it found. About 200 new differences appear every hour, all with one pattern (mobile lessons), which points to a projector bug that keeps creating drift; the reconciler is hiding it. Running it daily would leave up to a day of wrong leaderboard values. Drift found per run is the metric to watch and alert on, and a steady non-zero rate with one pattern is a bug to fix at the source. The misconception is that a reconciler fixes a system; it repairs symptoms and tells you where to look.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_dce_422",
+      "name": "reconcile-read-models",
+      "type": "mini_coding",
+      "title": "Reconcile the leaderboard and certificates with the source of truth",
+      "description": "The CodeDev leaderboard (total XP per learner) and the issued certificates are read models built from events, and they drift. Write reconcile(source, model, opts), which compares them with the source of truth (enrollments and progress) and returns the commands that fix them. Expected state: only enrollments with status \"active\" count. A learner's expected XP is the sum of the xp of the progress rows of their active enrollments (an active enrollment without a progress row adds 0); every learner with at least one active enrollment must have a leaderboard row, even with 0 XP, and nobody else. A certificate is expected for an active enrollment whose progress has totalLessons > 0 and completedLessons >= totalLessons. Progress rows without an active enrollment are ignored. Differences: an expected certificate that is not in the model: { op: \"certificate.issue\", userId, courseId }; a certificate in the model that is not expected: { op: \"certificate.revoke\", userId, courseId }; an expected leaderboard row that is missing: { op: \"leaderboard.upsert\", userId, xp, was: null }; one with another value: { op: \"leaderboard.upsert\", userId, xp, was: <model value> }; a leaderboard row that is not expected: { op: \"leaderboard.delete\", userId, was }. Grace period: a leaderboard command is in flight when any enrollment or progress row of that learner (any course, any status) has now - updatedAt < graceSeconds; a certificate command when the enrollment or progress row of that userId and courseId does; a change exactly graceSeconds old is settled. In-flight commands go to deferred and do not count against the cap. Priority: certificate.issue, then certificate.revoke, then leaderboard.upsert of a missing row, then leaderboard.upsert of a wrong value (larger |xp - was| first), then leaderboard.delete; ties by userId, then courseId, with plain string comparison (< and >). Sort the commands that are not in flight by this priority: the first maxFixes are the fixes, the rest go to skippedByCap; deferred is sorted the same way. Unless opts.dryRun, apply the fixes (and only them) to the model: issue sets certificates[\"userId:courseId\"] = { userId, courseId, issuedAt: now }, revoke deletes it, upsert sets leaderboard[userId] = xp, delete removes it. In a dry run return the same report and change nothing. Options: graceSeconds and maxFixes must be whole numbers >= 0, otherwise return { error: \"invalid options\" } and change nothing. The runner reads { now, graceSeconds, maxFixes, dryRun, enrollments, progress, leaderboard, certificates }, prints the fixes, the commands over the cap, the deferred ones and a summary as text, then the read model. Do not change the types or the runner.",
+      "difficulty": "hard",
+      "outcomes": [
+        "eventual-consistency"
+      ],
+      "points": 40,
+      "hints": [
+        "Split the job in four parts you can test on their own: what the read models should contain according to the source, which differences exist, which of them are still in flight, and in which order the rest are fixed. Which of these parts needs the clock, and which one is the only part allowed to change the model?",
+        "Build the expected state first: a Map from userId to expected XP and a Set of \"userId:courseId\" keys that deserve a certificate, both from active enrollments only. Then walk both directions for each read model (expected but missing or different, present but not expected). For the grace period, keep the latest updatedAt per learner and per \"userId:courseId\" over enrollments and progress together. Write one comparator for the priority and use it for both lists.",
+        "A similar case on other data, with grace 60 s, cap 1 and now = 1000: a learner has active enrollments in two courses with xp 50 and 30, last change at 900; the leaderboard says 70. A second learner has only a cancelled enrollment (last change at 990) and a leaderboard row of 20. The first gives an upsert xp=80 (wrong value, was 70); the second a delete, but 1000 - 990 = 10 < 60, so it is deferred. With cap 1 the upsert is the one fix; with cap 0 it would go to skippedByCap and the model would stay as it was."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Missing, extra and wrong values are found and applied",
+          "input": {
+            "now": 129600,
+            "graceSeconds": 300,
+            "maxFixes": 10,
+            "dryRun": false,
+            "enrollments": [
+              {
+                "userId": "u1",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 20000
+              },
+              {
+                "userId": "u1",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 21000
+              },
+              {
+                "userId": "u2",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 22000
+              },
+              {
+                "userId": "u3",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 23000
+              }
+            ],
+            "progress": [
+              {
+                "userId": "u1",
+                "courseId": "redis-patterns",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 130,
+                "updatedAt": 30000
+              },
+              {
+                "userId": "u1",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 3,
+                "totalLessons": 10,
+                "xp": 40,
+                "updatedAt": 30100
+              },
+              {
+                "userId": "u2",
+                "courseId": "redis-patterns",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 125,
+                "updatedAt": 30200
+              },
+              {
+                "userId": "u3",
+                "courseId": "redis-patterns",
+                "completedLessons": 5,
+                "totalLessons": 12,
+                "xp": 60,
+                "updatedAt": 30300
+              }
+            ],
+            "leaderboard": {
+              "u1": 130,
+              "u2": 125,
+              "u9": 75
+            },
+            "certificates": [
+              {
+                "userId": "u1",
+                "courseId": "redis-patterns",
+                "issuedAt": 30010
+              },
+              {
+                "userId": "u3",
+                "courseId": "redis-patterns",
+                "issuedAt": 30400
+              }
+            ]
+          },
+          "expected": {
+            "mode": "apply",
+            "fixes": [
+              "certificate.issue u2 redis-patterns (missing)",
+              "certificate.revoke u3 redis-patterns (extra)",
+              "leaderboard.upsert u3 xp=60 (missing)",
+              "leaderboard.upsert u1 xp=170 (wrong value, was 130)",
+              "leaderboard.delete u9 (extra, was 75)"
+            ],
+            "skippedByCap": [],
+            "deferred": [],
+            "summary": "5 applied, 0 over the cap, 0 in flight",
+            "leaderboard": [
+              "u1 170",
+              "u2 125",
+              "u3 60"
+            ],
+            "certificates": [
+              "u1 redis-patterns issuedAt=30010",
+              "u2 redis-patterns issuedAt=129600"
+            ]
+          },
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Dry run with a cap of 3: fixes in priority order, the rest over the cap, nothing changes",
+          "input": {
+            "now": 129600,
+            "graceSeconds": 300,
+            "maxFixes": 3,
+            "dryRun": true,
+            "enrollments": [
+              {
+                "userId": "u4",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 1000
+              },
+              {
+                "userId": "u5",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 1000
+              },
+              {
+                "userId": "u6",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 1000
+              },
+              {
+                "userId": "u7",
+                "courseId": "api-design-production",
+                "status": "cancelled",
+                "updatedAt": 2000
+              }
+            ],
+            "progress": [
+              {
+                "userId": "u4",
+                "courseId": "api-design-production",
+                "completedLessons": 10,
+                "totalLessons": 10,
+                "xp": 110,
+                "updatedAt": 5000
+              },
+              {
+                "userId": "u5",
+                "courseId": "api-design-production",
+                "completedLessons": 4,
+                "totalLessons": 10,
+                "xp": 45,
+                "updatedAt": 5000
+              },
+              {
+                "userId": "u6",
+                "courseId": "api-design-production",
+                "completedLessons": 6,
+                "totalLessons": 10,
+                "xp": 70,
+                "updatedAt": 5000
+              },
+              {
+                "userId": "u7",
+                "courseId": "api-design-production",
+                "completedLessons": 10,
+                "totalLessons": 10,
+                "xp": 100,
+                "updatedAt": 1900
+              }
+            ],
+            "leaderboard": {
+              "u5": 20,
+              "u6": 65,
+              "u7": 100
+            },
+            "certificates": [
+              {
+                "userId": "u7",
+                "courseId": "api-design-production",
+                "issuedAt": 1950
+              }
+            ]
+          },
+          "expected": {
+            "mode": "dry-run",
+            "fixes": [
+              "certificate.issue u4 api-design-production (missing)",
+              "certificate.revoke u7 api-design-production (extra)",
+              "leaderboard.upsert u4 xp=110 (missing)"
+            ],
+            "skippedByCap": [
+              "leaderboard.upsert u5 xp=45 (wrong value, was 20)",
+              "leaderboard.upsert u6 xp=70 (wrong value, was 65)",
+              "leaderboard.delete u7 (extra, was 100)"
+            ],
+            "deferred": [],
+            "summary": "3 planned, 3 over the cap, 0 in flight",
+            "leaderboard": [
+              "u5 20",
+              "u6 65",
+              "u7 100"
+            ],
+            "certificates": [
+              "u7 api-design-production issuedAt=1950"
+            ]
+          },
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Grace period: in-flight keys are deferred, a change exactly graceSeconds old is fixed",
+          "input": {
+            "now": 129600,
+            "graceSeconds": 300,
+            "maxFixes": 20,
+            "dryRun": false,
+            "enrollments": [
+              {
+                "userId": "u10",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 10000
+              },
+              {
+                "userId": "u11",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 10000
+              },
+              {
+                "userId": "u12",
+                "courseId": "redis-patterns",
+                "status": "cancelled",
+                "updatedAt": 129480
+              },
+              {
+                "userId": "u13",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 129301
+              },
+              {
+                "userId": "u14",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 10000
+              },
+              {
+                "userId": "u14",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 129590
+              }
+            ],
+            "progress": [
+              {
+                "userId": "u10",
+                "courseId": "redis-patterns",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 140,
+                "updatedAt": 129300
+              },
+              {
+                "userId": "u11",
+                "courseId": "redis-patterns",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 150,
+                "updatedAt": 129301
+              },
+              {
+                "userId": "u12",
+                "courseId": "redis-patterns",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 135,
+                "updatedAt": 20000
+              },
+              {
+                "userId": "u13",
+                "courseId": "redis-patterns",
+                "completedLessons": 2,
+                "totalLessons": 12,
+                "xp": 20,
+                "updatedAt": 15000
+              },
+              {
+                "userId": "u14",
+                "courseId": "redis-patterns",
+                "completedLessons": 7,
+                "totalLessons": 12,
+                "xp": 80,
+                "updatedAt": 15000
+              }
+            ],
+            "leaderboard": {
+              "u10": 120,
+              "u11": 130,
+              "u12": 135,
+              "u14": 60
+            },
+            "certificates": [
+              {
+                "userId": "u12",
+                "courseId": "redis-patterns",
+                "issuedAt": 20100
+              }
+            ]
+          },
+          "expected": {
+            "mode": "apply",
+            "fixes": [
+              "certificate.issue u10 redis-patterns (missing)",
+              "leaderboard.upsert u10 xp=140 (wrong value, was 120)"
+            ],
+            "skippedByCap": [],
+            "deferred": [
+              "certificate.issue u11 redis-patterns (missing)",
+              "certificate.revoke u12 redis-patterns (extra)",
+              "leaderboard.upsert u13 xp=20 (missing)",
+              "leaderboard.upsert u11 xp=150 (wrong value, was 130)",
+              "leaderboard.upsert u14 xp=80 (wrong value, was 60)",
+              "leaderboard.delete u12 (extra, was 135)"
+            ],
+            "summary": "2 applied, 0 over the cap, 6 in flight",
+            "leaderboard": [
+              "u10 140",
+              "u11 130",
+              "u12 135",
+              "u14 60"
+            ],
+            "certificates": [
+              "u10 redis-patterns issuedAt=129600",
+              "u12 redis-patterns issuedAt=20100"
+            ]
+          },
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Cancelled enrollments: their XP is not counted and their certificate is revoked",
+          "input": {
+            "now": 129600,
+            "graceSeconds": 600,
+            "maxFixes": 10,
+            "dryRun": false,
+            "enrollments": [
+              {
+                "userId": "u20",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 3000
+              },
+              {
+                "userId": "u20",
+                "courseId": "postgres-performance",
+                "status": "cancelled",
+                "updatedAt": 9000
+              },
+              {
+                "userId": "u21",
+                "courseId": "postgres-performance",
+                "status": "cancelled",
+                "updatedAt": 9500
+              }
+            ],
+            "progress": [
+              {
+                "userId": "u20",
+                "courseId": "redis-patterns",
+                "completedLessons": 3,
+                "totalLessons": 12,
+                "xp": 30,
+                "updatedAt": 3500
+              },
+              {
+                "userId": "u20",
+                "courseId": "postgres-performance",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 160,
+                "updatedAt": 8000
+              },
+              {
+                "userId": "u21",
+                "courseId": "postgres-performance",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 150,
+                "updatedAt": 8000
+              }
+            ],
+            "leaderboard": {
+              "u20": 190,
+              "u21": 150
+            },
+            "certificates": [
+              {
+                "userId": "u20",
+                "courseId": "postgres-performance",
+                "issuedAt": 8100
+              },
+              {
+                "userId": "u21",
+                "courseId": "postgres-performance",
+                "issuedAt": 8200
+              }
+            ]
+          },
+          "expected": {
+            "mode": "apply",
+            "fixes": [
+              "certificate.revoke u20 postgres-performance (extra)",
+              "certificate.revoke u21 postgres-performance (extra)",
+              "leaderboard.upsert u20 xp=30 (wrong value, was 190)",
+              "leaderboard.delete u21 (extra, was 150)"
+            ],
+            "skippedByCap": [],
+            "deferred": [],
+            "summary": "4 applied, 0 over the cap, 0 in flight",
+            "leaderboard": [
+              "u20 30"
+            ],
+            "certificates": []
+          },
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Priority ties: larger XP difference first, then userId and courseId; a cap of 0 fixes nothing",
+          "input": {
+            "now": 129600,
+            "graceSeconds": 0,
+            "maxFixes": 0,
+            "dryRun": false,
+            "enrollments": [
+              {
+                "userId": "u31",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 100
+              },
+              {
+                "userId": "u30",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 100
+              },
+              {
+                "userId": "u30",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 100
+              },
+              {
+                "userId": "u32",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 100
+              },
+              {
+                "userId": "u33",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 129600
+              }
+            ],
+            "progress": [
+              {
+                "userId": "u31",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 8,
+                "totalLessons": 8,
+                "xp": 90,
+                "updatedAt": 200
+              },
+              {
+                "userId": "u30",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 8,
+                "totalLessons": 8,
+                "xp": 85,
+                "updatedAt": 200
+              },
+              {
+                "userId": "u30",
+                "courseId": "redis-patterns",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 120,
+                "updatedAt": 200
+              },
+              {
+                "userId": "u32",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 1,
+                "totalLessons": 8,
+                "xp": 10,
+                "updatedAt": 200
+              },
+              {
+                "userId": "u33",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 1,
+                "totalLessons": 8,
+                "xp": 15,
+                "updatedAt": 129600
+              }
+            ],
+            "leaderboard": {
+              "u30": 200,
+              "u31": 80,
+              "u32": 50,
+              "u33": 0,
+              "u40": 5,
+              "u35": 5
+            },
+            "certificates": []
+          },
+          "expected": {
+            "mode": "apply",
+            "fixes": [],
+            "skippedByCap": [
+              "certificate.issue u30 redis-patterns (missing)",
+              "certificate.issue u30 sql-data-modeling (missing)",
+              "certificate.issue u31 sql-data-modeling (missing)",
+              "leaderboard.upsert u32 xp=10 (wrong value, was 50)",
+              "leaderboard.upsert u33 xp=15 (wrong value, was 0)",
+              "leaderboard.upsert u31 xp=90 (wrong value, was 80)",
+              "leaderboard.upsert u30 xp=205 (wrong value, was 200)",
+              "leaderboard.delete u35 (extra, was 5)",
+              "leaderboard.delete u40 (extra, was 5)"
+            ],
+            "deferred": [],
+            "summary": "0 applied, 9 over the cap, 0 in flight",
+            "leaderboard": [
+              "u30 200",
+              "u31 80",
+              "u32 50",
+              "u33 0",
+              "u35 5",
+              "u40 5"
+            ],
+            "certificates": []
+          },
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Invalid options: negative grace period or a fractional cap change nothing",
+          "input": {
+            "now": 129600,
+            "graceSeconds": -5,
+            "maxFixes": 2.5,
+            "dryRun": false,
+            "enrollments": [
+              {
+                "userId": "u50",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 100
+              }
+            ],
+            "progress": [
+              {
+                "userId": "u50",
+                "courseId": "redis-patterns",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 130,
+                "updatedAt": 200
+              }
+            ],
+            "leaderboard": {},
+            "certificates": []
+          },
+          "expected": {
+            "error": "invalid options",
+            "leaderboard": [],
+            "certificates": []
+          },
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Clean read model: progress without an enrollment and a course with 0 lessons change nothing",
+          "input": {
+            "now": 129600,
+            "graceSeconds": 300,
+            "maxFixes": 5,
+            "dryRun": false,
+            "enrollments": [
+              {
+                "userId": "u60",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 100
+              },
+              {
+                "userId": "u60",
+                "courseId": "draft-course",
+                "status": "active",
+                "updatedAt": 100
+              },
+              {
+                "userId": "u61",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 100
+              }
+            ],
+            "progress": [
+              {
+                "userId": "u60",
+                "courseId": "redis-patterns",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 125,
+                "updatedAt": 200
+              },
+              {
+                "userId": "u60",
+                "courseId": "draft-course",
+                "completedLessons": 0,
+                "totalLessons": 0,
+                "xp": 0,
+                "updatedAt": 200
+              },
+              {
+                "userId": "u62",
+                "courseId": "redis-patterns",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 140,
+                "updatedAt": 300
+              }
+            ],
+            "leaderboard": {
+              "u60": 125,
+              "u61": 0
+            },
+            "certificates": [
+              {
+                "userId": "u60",
+                "courseId": "redis-patterns",
+                "issuedAt": 250
+              }
+            ]
+          },
+          "expected": {
+            "mode": "apply",
+            "fixes": [],
+            "skippedByCap": [],
+            "deferred": [],
+            "summary": "0 applied, 0 over the cap, 0 in flight",
+            "leaderboard": [
+              "u60 125",
+              "u61 0"
+            ],
+            "certificates": [
+              "u60 redis-patterns issuedAt=250"
+            ]
+          },
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Large input: 120 learners, a cap of 15 fixes per run",
+          "input": {
+            "now": 129600,
+            "graceSeconds": 300,
+            "maxFixes": 15,
+            "dryRun": false,
+            "enrollments": [
+              {
+                "userId": "u001",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 113852
+              },
+              {
+                "userId": "u001",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 120769
+              },
+              {
+                "userId": "u001",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 95444
+              },
+              {
+                "userId": "u002",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 115725
+              },
+              {
+                "userId": "u002",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 114789
+              },
+              {
+                "userId": "u003",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 129335
+              },
+              {
+                "userId": "u003",
+                "courseId": "redis-patterns",
+                "status": "cancelled",
+                "updatedAt": 115376
+              },
+              {
+                "userId": "u003",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 108166
+              },
+              {
+                "userId": "u004",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 120067
+              },
+              {
+                "userId": "u004",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 116385
+              },
+              {
+                "userId": "u005",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 122175
+              },
+              {
+                "userId": "u005",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 99636
+              },
+              {
+                "userId": "u005",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 113311
+              },
+              {
+                "userId": "u005",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 107407
+              },
+              {
+                "userId": "u006",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 118325
+              },
+              {
+                "userId": "u006",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 98156
+              },
+              {
+                "userId": "u006",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 106708
+              },
+              {
+                "userId": "u007",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 99414
+              },
+              {
+                "userId": "u007",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 95544
+              },
+              {
+                "userId": "u007",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 125859
+              },
+              {
+                "userId": "u008",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 129594
+              },
+              {
+                "userId": "u008",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 122445
+              },
+              {
+                "userId": "u009",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 107433
+              },
+              {
+                "userId": "u010",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 118363
+              },
+              {
+                "userId": "u010",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 106148
+              },
+              {
+                "userId": "u011",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 110684
+              },
+              {
+                "userId": "u011",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 93860
+              },
+              {
+                "userId": "u012",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 129565
+              },
+              {
+                "userId": "u013",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 119688
+              },
+              {
+                "userId": "u013",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 129547
+              },
+              {
+                "userId": "u014",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 129588
+              },
+              {
+                "userId": "u014",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 120747
+              },
+              {
+                "userId": "u015",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 95114
+              },
+              {
+                "userId": "u015",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 96085
+              },
+              {
+                "userId": "u015",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 102518
+              },
+              {
+                "userId": "u016",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 124219
+              },
+              {
+                "userId": "u016",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 98824
+              },
+              {
+                "userId": "u016",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 103302
+              },
+              {
+                "userId": "u017",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 103755
+              },
+              {
+                "userId": "u017",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 106059
+              },
+              {
+                "userId": "u017",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 103911
+              },
+              {
+                "userId": "u017",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 119324
+              },
+              {
+                "userId": "u019",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 115678
+              },
+              {
+                "userId": "u019",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 129600
+              },
+              {
+                "userId": "u020",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 102799
+              },
+              {
+                "userId": "u020",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 103368
+              },
+              {
+                "userId": "u020",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 99479
+              },
+              {
+                "userId": "u021",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 103110
+              },
+              {
+                "userId": "u021",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 98816
+              },
+              {
+                "userId": "u022",
+                "courseId": "sql-data-modeling",
+                "status": "cancelled",
+                "updatedAt": 119311
+              },
+              {
+                "userId": "u022",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 98396
+              },
+              {
+                "userId": "u022",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 122360
+              },
+              {
+                "userId": "u023",
+                "courseId": "sql-data-modeling",
+                "status": "cancelled",
+                "updatedAt": 104139
+              },
+              {
+                "userId": "u023",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 100815
+              },
+              {
+                "userId": "u024",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 119480
+              },
+              {
+                "userId": "u024",
+                "courseId": "redis-patterns",
+                "status": "cancelled",
+                "updatedAt": 112033
+              },
+              {
+                "userId": "u024",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 108809
+              },
+              {
+                "userId": "u025",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 95779
+              },
+              {
+                "userId": "u025",
+                "courseId": "redis-patterns",
+                "status": "cancelled",
+                "updatedAt": 115123
+              },
+              {
+                "userId": "u025",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 119053
+              },
+              {
+                "userId": "u025",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 113039
+              },
+              {
+                "userId": "u026",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 100112
+              },
+              {
+                "userId": "u026",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 107210
+              },
+              {
+                "userId": "u026",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 129319
+              },
+              {
+                "userId": "u027",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 117183
+              },
+              {
+                "userId": "u027",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 99851
+              },
+              {
+                "userId": "u027",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 95496
+              },
+              {
+                "userId": "u027",
+                "courseId": "api-design-production",
+                "status": "cancelled",
+                "updatedAt": 102822
+              },
+              {
+                "userId": "u028",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 121120
+              },
+              {
+                "userId": "u028",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 104956
+              },
+              {
+                "userId": "u029",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 102204
+              },
+              {
+                "userId": "u030",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 111483
+              },
+              {
+                "userId": "u030",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 119094
+              },
+              {
+                "userId": "u030",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 113586
+              },
+              {
+                "userId": "u031",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 110242
+              },
+              {
+                "userId": "u031",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 121054
+              },
+              {
+                "userId": "u031",
+                "courseId": "api-design-production",
+                "status": "cancelled",
+                "updatedAt": 93997
+              },
+              {
+                "userId": "u033",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 122370
+              },
+              {
+                "userId": "u033",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 100521
+              },
+              {
+                "userId": "u033",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 124754
+              },
+              {
+                "userId": "u033",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 129421
+              },
+              {
+                "userId": "u034",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 118136
+              },
+              {
+                "userId": "u034",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 96917
+              },
+              {
+                "userId": "u035",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 101457
+              },
+              {
+                "userId": "u035",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 113985
+              },
+              {
+                "userId": "u035",
+                "courseId": "postgres-performance",
+                "status": "cancelled",
+                "updatedAt": 117225
+              },
+              {
+                "userId": "u036",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 105469
+              },
+              {
+                "userId": "u036",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 121310
+              },
+              {
+                "userId": "u037",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 110922
+              },
+              {
+                "userId": "u037",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 112940
+              },
+              {
+                "userId": "u037",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 100855
+              },
+              {
+                "userId": "u037",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 97532
+              },
+              {
+                "userId": "u038",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 119310
+              },
+              {
+                "userId": "u038",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 111467
+              },
+              {
+                "userId": "u039",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 100330
+              },
+              {
+                "userId": "u039",
+                "courseId": "redis-patterns",
+                "status": "cancelled",
+                "updatedAt": 109329
+              },
+              {
+                "userId": "u040",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 115214
+              },
+              {
+                "userId": "u040",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 129457
+              },
+              {
+                "userId": "u040",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 106846
+              },
+              {
+                "userId": "u041",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 110858
+              },
+              {
+                "userId": "u041",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 103523
+              },
+              {
+                "userId": "u041",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 116137
+              },
+              {
+                "userId": "u042",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 114615
+              },
+              {
+                "userId": "u042",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 96694
+              },
+              {
+                "userId": "u043",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 97518
+              },
+              {
+                "userId": "u043",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 101299
+              },
+              {
+                "userId": "u043",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 129515
+              },
+              {
+                "userId": "u044",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 125360
+              },
+              {
+                "userId": "u044",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 95551
+              },
+              {
+                "userId": "u045",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 96236
+              },
+              {
+                "userId": "u045",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 100944
+              },
+              {
+                "userId": "u046",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 125770
+              },
+              {
+                "userId": "u046",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 114922
+              },
+              {
+                "userId": "u047",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 98603
+              },
+              {
+                "userId": "u047",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 97760
+              },
+              {
+                "userId": "u047",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 110610
+              },
+              {
+                "userId": "u048",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 109741
+              },
+              {
+                "userId": "u048",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 96196
+              },
+              {
+                "userId": "u048",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 111925
+              },
+              {
+                "userId": "u049",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 113276
+              },
+              {
+                "userId": "u049",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 108765
+              },
+              {
+                "userId": "u049",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 129432
+              },
+              {
+                "userId": "u050",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 110240
+              },
+              {
+                "userId": "u050",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 93279
+              },
+              {
+                "userId": "u050",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 110726
+              },
+              {
+                "userId": "u050",
+                "courseId": "api-design-production",
+                "status": "cancelled",
+                "updatedAt": 116069
+              },
+              {
+                "userId": "u051",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 110415
+              },
+              {
+                "userId": "u051",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 97906
+              },
+              {
+                "userId": "u052",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 113201
+              },
+              {
+                "userId": "u052",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 106962
+              },
+              {
+                "userId": "u053",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 116650
+              },
+              {
+                "userId": "u054",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 123240
+              },
+              {
+                "userId": "u054",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 115517
+              },
+              {
+                "userId": "u054",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 93739
+              },
+              {
+                "userId": "u054",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 122309
+              },
+              {
+                "userId": "u055",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 104621
+              },
+              {
+                "userId": "u055",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 100994
+              },
+              {
+                "userId": "u055",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 123253
+              },
+              {
+                "userId": "u056",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 114666
+              },
+              {
+                "userId": "u056",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 103548
+              },
+              {
+                "userId": "u057",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 119258
+              },
+              {
+                "userId": "u057",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 100260
+              },
+              {
+                "userId": "u058",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 111935
+              },
+              {
+                "userId": "u058",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 96033
+              },
+              {
+                "userId": "u058",
+                "courseId": "api-design-production",
+                "status": "cancelled",
+                "updatedAt": 93780
+              },
+              {
+                "userId": "u059",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 95280
+              },
+              {
+                "userId": "u060",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 129395
+              },
+              {
+                "userId": "u060",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 121309
+              },
+              {
+                "userId": "u060",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 124784
+              },
+              {
+                "userId": "u061",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 112838
+              },
+              {
+                "userId": "u061",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 103188
+              },
+              {
+                "userId": "u062",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 96960
+              },
+              {
+                "userId": "u062",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 99455
+              },
+              {
+                "userId": "u062",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 122576
+              },
+              {
+                "userId": "u062",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 94369
+              },
+              {
+                "userId": "u063",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 109178
+              },
+              {
+                "userId": "u063",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 95272
+              },
+              {
+                "userId": "u063",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 121998
+              },
+              {
+                "userId": "u063",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 118119
+              },
+              {
+                "userId": "u064",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 120804
+              },
+              {
+                "userId": "u064",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 94468
+              },
+              {
+                "userId": "u064",
+                "courseId": "postgres-performance",
+                "status": "cancelled",
+                "updatedAt": 121565
+              },
+              {
+                "userId": "u065",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 104542
+              },
+              {
+                "userId": "u065",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 98149
+              },
+              {
+                "userId": "u065",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 121538
+              },
+              {
+                "userId": "u066",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 123730
+              },
+              {
+                "userId": "u066",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 102979
+              },
+              {
+                "userId": "u067",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 99209
+              },
+              {
+                "userId": "u067",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 116189
+              },
+              {
+                "userId": "u068",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 114425
+              },
+              {
+                "userId": "u068",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 111101
+              },
+              {
+                "userId": "u069",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 117851
+              },
+              {
+                "userId": "u069",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 116722
+              },
+              {
+                "userId": "u069",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 116736
+              },
+              {
+                "userId": "u070",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 129301
+              },
+              {
+                "userId": "u070",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 129566
+              },
+              {
+                "userId": "u071",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 106854
+              },
+              {
+                "userId": "u071",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 129580
+              },
+              {
+                "userId": "u072",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 103679
+              },
+              {
+                "userId": "u072",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 116967
+              },
+              {
+                "userId": "u072",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 104693
+              },
+              {
+                "userId": "u073",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 129326
+              },
+              {
+                "userId": "u073",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 111450
+              },
+              {
+                "userId": "u073",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 98005
+              },
+              {
+                "userId": "u074",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 125986
+              },
+              {
+                "userId": "u074",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 110692
+              },
+              {
+                "userId": "u074",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 109686
+              },
+              {
+                "userId": "u075",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 97970
+              },
+              {
+                "userId": "u075",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 105675
+              },
+              {
+                "userId": "u076",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 108041
+              },
+              {
+                "userId": "u076",
+                "courseId": "redis-patterns",
+                "status": "cancelled",
+                "updatedAt": 98403
+              },
+              {
+                "userId": "u076",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 100351
+              },
+              {
+                "userId": "u076",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 108740
+              },
+              {
+                "userId": "u077",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 106995
+              },
+              {
+                "userId": "u077",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 95481
+              },
+              {
+                "userId": "u078",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 118860
+              },
+              {
+                "userId": "u078",
+                "courseId": "api-design-production",
+                "status": "cancelled",
+                "updatedAt": 122773
+              },
+              {
+                "userId": "u079",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 103666
+              },
+              {
+                "userId": "u080",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 109201
+              },
+              {
+                "userId": "u080",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 117128
+              },
+              {
+                "userId": "u080",
+                "courseId": "api-design-production",
+                "status": "cancelled",
+                "updatedAt": 124619
+              },
+              {
+                "userId": "u081",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 109795
+              },
+              {
+                "userId": "u081",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 97309
+              },
+              {
+                "userId": "u081",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 123157
+              },
+              {
+                "userId": "u082",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 119730
+              },
+              {
+                "userId": "u082",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 121731
+              },
+              {
+                "userId": "u083",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 115027
+              },
+              {
+                "userId": "u083",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 94264
+              },
+              {
+                "userId": "u083",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 121177
+              },
+              {
+                "userId": "u084",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 103980
+              },
+              {
+                "userId": "u084",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 112816
+              },
+              {
+                "userId": "u084",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 117421
+              },
+              {
+                "userId": "u085",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 125344
+              },
+              {
+                "userId": "u085",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 105424
+              },
+              {
+                "userId": "u086",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 125160
+              },
+              {
+                "userId": "u086",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 104329
+              },
+              {
+                "userId": "u086",
+                "courseId": "api-design-production",
+                "status": "cancelled",
+                "updatedAt": 114502
+              },
+              {
+                "userId": "u087",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 105888
+              },
+              {
+                "userId": "u087",
+                "courseId": "postgres-performance",
+                "status": "cancelled",
+                "updatedAt": 120663
+              },
+              {
+                "userId": "u088",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 125782
+              },
+              {
+                "userId": "u088",
+                "courseId": "postgres-performance",
+                "status": "cancelled",
+                "updatedAt": 113853
+              },
+              {
+                "userId": "u089",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 103493
+              },
+              {
+                "userId": "u089",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 115060
+              },
+              {
+                "userId": "u089",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 120739
+              },
+              {
+                "userId": "u090",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 101147
+              },
+              {
+                "userId": "u091",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 120496
+              },
+              {
+                "userId": "u091",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 117894
+              },
+              {
+                "userId": "u092",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 129511
+              },
+              {
+                "userId": "u092",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 129485
+              },
+              {
+                "userId": "u092",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 124345
+              },
+              {
+                "userId": "u093",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 125690
+              },
+              {
+                "userId": "u094",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 106614
+              },
+              {
+                "userId": "u094",
+                "courseId": "redis-patterns",
+                "status": "cancelled",
+                "updatedAt": 112747
+              },
+              {
+                "userId": "u095",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 113767
+              },
+              {
+                "userId": "u095",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 95849
+              },
+              {
+                "userId": "u096",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 113533
+              },
+              {
+                "userId": "u097",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 116146
+              },
+              {
+                "userId": "u097",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 117774
+              },
+              {
+                "userId": "u097",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 105933
+              },
+              {
+                "userId": "u097",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 95560
+              },
+              {
+                "userId": "u098",
+                "courseId": "sql-data-modeling",
+                "status": "cancelled",
+                "updatedAt": 101093
+              },
+              {
+                "userId": "u098",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 120805
+              },
+              {
+                "userId": "u099",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 102962
+              },
+              {
+                "userId": "u099",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 109737
+              },
+              {
+                "userId": "u099",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 125957
+              },
+              {
+                "userId": "u100",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 118679
+              },
+              {
+                "userId": "u100",
+                "courseId": "api-design-production",
+                "status": "cancelled",
+                "updatedAt": 100551
+              },
+              {
+                "userId": "u101",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 105614
+              },
+              {
+                "userId": "u101",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 124200
+              },
+              {
+                "userId": "u101",
+                "courseId": "api-design-production",
+                "status": "cancelled",
+                "updatedAt": 129502
+              },
+              {
+                "userId": "u102",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 108632
+              },
+              {
+                "userId": "u102",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 102891
+              },
+              {
+                "userId": "u102",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 98447
+              },
+              {
+                "userId": "u102",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 111209
+              },
+              {
+                "userId": "u103",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 100567
+              },
+              {
+                "userId": "u103",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 104839
+              },
+              {
+                "userId": "u103",
+                "courseId": "postgres-performance",
+                "status": "cancelled",
+                "updatedAt": 120839
+              },
+              {
+                "userId": "u103",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 103545
+              },
+              {
+                "userId": "u104",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 121043
+              },
+              {
+                "userId": "u104",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 102007
+              },
+              {
+                "userId": "u104",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 102774
+              },
+              {
+                "userId": "u105",
+                "courseId": "redis-patterns",
+                "status": "cancelled",
+                "updatedAt": 104624
+              },
+              {
+                "userId": "u105",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 94320
+              },
+              {
+                "userId": "u106",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 117459
+              },
+              {
+                "userId": "u106",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 93425
+              },
+              {
+                "userId": "u106",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 93784
+              },
+              {
+                "userId": "u107",
+                "courseId": "sql-data-modeling",
+                "status": "cancelled",
+                "updatedAt": 95774
+              },
+              {
+                "userId": "u107",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 123199
+              },
+              {
+                "userId": "u107",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 108076
+              },
+              {
+                "userId": "u107",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 108883
+              },
+              {
+                "userId": "u108",
+                "courseId": "sql-data-modeling",
+                "status": "cancelled",
+                "updatedAt": 113676
+              },
+              {
+                "userId": "u108",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 96885
+              },
+              {
+                "userId": "u108",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 119405
+              },
+              {
+                "userId": "u108",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 125678
+              },
+              {
+                "userId": "u109",
+                "courseId": "postgres-performance",
+                "status": "cancelled",
+                "updatedAt": 121793
+              },
+              {
+                "userId": "u109",
+                "courseId": "api-design-production",
+                "status": "cancelled",
+                "updatedAt": 103625
+              },
+              {
+                "userId": "u110",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 110560
+              },
+              {
+                "userId": "u110",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 122707
+              },
+              {
+                "userId": "u111",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 108248
+              },
+              {
+                "userId": "u112",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 125940
+              },
+              {
+                "userId": "u112",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 101135
+              },
+              {
+                "userId": "u114",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 108017
+              },
+              {
+                "userId": "u114",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 109551
+              },
+              {
+                "userId": "u114",
+                "courseId": "postgres-performance",
+                "status": "cancelled",
+                "updatedAt": 99955
+              },
+              {
+                "userId": "u114",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 93238
+              },
+              {
+                "userId": "u115",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 106207
+              },
+              {
+                "userId": "u115",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 99322
+              },
+              {
+                "userId": "u115",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 105767
+              },
+              {
+                "userId": "u115",
+                "courseId": "api-design-production",
+                "status": "cancelled",
+                "updatedAt": 125944
+              },
+              {
+                "userId": "u116",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 102892
+              },
+              {
+                "userId": "u116",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 113300
+              },
+              {
+                "userId": "u116",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 96946
+              },
+              {
+                "userId": "u116",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 94474
+              },
+              {
+                "userId": "u117",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 95017
+              },
+              {
+                "userId": "u117",
+                "courseId": "postgres-performance",
+                "status": "cancelled",
+                "updatedAt": 104054
+              },
+              {
+                "userId": "u117",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 101500
+              },
+              {
+                "userId": "u118",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 95865
+              },
+              {
+                "userId": "u118",
+                "courseId": "postgres-performance",
+                "status": "active",
+                "updatedAt": 124872
+              },
+              {
+                "userId": "u119",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 97380
+              },
+              {
+                "userId": "u120",
+                "courseId": "sql-data-modeling",
+                "status": "active",
+                "updatedAt": 113049
+              },
+              {
+                "userId": "u120",
+                "courseId": "redis-patterns",
+                "status": "active",
+                "updatedAt": 99380
+              },
+              {
+                "userId": "u120",
+                "courseId": "postgres-performance",
+                "status": "cancelled",
+                "updatedAt": 99619
+              },
+              {
+                "userId": "u120",
+                "courseId": "api-design-production",
+                "status": "active",
+                "updatedAt": 123001
+              }
+            ],
+            "progress": [
+              {
+                "userId": "u001",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 0,
+                "totalLessons": 12,
+                "xp": 3,
+                "updatedAt": 114481
+              },
+              {
+                "userId": "u001",
+                "courseId": "redis-patterns",
+                "completedLessons": 7,
+                "totalLessons": 12,
+                "xp": 73,
+                "updatedAt": 121486
+              },
+              {
+                "userId": "u001",
+                "courseId": "api-design-production",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 120,
+                "updatedAt": 97588
+              },
+              {
+                "userId": "u002",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 5,
+                "totalLessons": 12,
+                "xp": 51,
+                "updatedAt": 117407
+              },
+              {
+                "userId": "u002",
+                "courseId": "postgres-performance",
+                "completedLessons": 8,
+                "totalLessons": 12,
+                "xp": 81,
+                "updatedAt": 116090
+              },
+              {
+                "userId": "u003",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 124,
+                "updatedAt": 129544
+              },
+              {
+                "userId": "u003",
+                "courseId": "redis-patterns",
+                "completedLessons": 3,
+                "totalLessons": 12,
+                "xp": 34,
+                "updatedAt": 118148
+              },
+              {
+                "userId": "u003",
+                "courseId": "api-design-production",
+                "completedLessons": 6,
+                "totalLessons": 12,
+                "xp": 64,
+                "updatedAt": 109216
+              },
+              {
+                "userId": "u004",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 10,
+                "totalLessons": 12,
+                "xp": 100,
+                "updatedAt": 122239
+              },
+              {
+                "userId": "u004",
+                "courseId": "postgres-performance",
+                "completedLessons": 3,
+                "totalLessons": 12,
+                "xp": 33,
+                "updatedAt": 117335
+              },
+              {
+                "userId": "u005",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 3,
+                "totalLessons": 12,
+                "xp": 30,
+                "updatedAt": 122913
+              },
+              {
+                "userId": "u005",
+                "courseId": "redis-patterns",
+                "completedLessons": 10,
+                "totalLessons": 12,
+                "xp": 103,
+                "updatedAt": 101495
+              },
+              {
+                "userId": "u005",
+                "courseId": "postgres-performance",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 122,
+                "updatedAt": 114209
+              },
+              {
+                "userId": "u005",
+                "courseId": "api-design-production",
+                "completedLessons": 8,
+                "totalLessons": 12,
+                "xp": 83,
+                "updatedAt": 110397
+              },
+              {
+                "userId": "u006",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 4,
+                "totalLessons": 12,
+                "xp": 41,
+                "updatedAt": 121168
+              },
+              {
+                "userId": "u006",
+                "courseId": "postgres-performance",
+                "completedLessons": 10,
+                "totalLessons": 12,
+                "xp": 100,
+                "updatedAt": 98712
+              },
+              {
+                "userId": "u006",
+                "courseId": "api-design-production",
+                "completedLessons": 3,
+                "totalLessons": 12,
+                "xp": 30,
+                "updatedAt": 107465
+              },
+              {
+                "userId": "u007",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 9,
+                "totalLessons": 12,
+                "xp": 92,
+                "updatedAt": 101251
+              },
+              {
+                "userId": "u007",
+                "courseId": "redis-patterns",
+                "completedLessons": 11,
+                "totalLessons": 12,
+                "xp": 111,
+                "updatedAt": 97780
+              },
+              {
+                "userId": "u007",
+                "courseId": "postgres-performance",
+                "completedLessons": 9,
+                "totalLessons": 12,
+                "xp": 90,
+                "updatedAt": 127904
+              },
+              {
+                "userId": "u008",
+                "courseId": "postgres-performance",
+                "completedLessons": 2,
+                "totalLessons": 12,
+                "xp": 20,
+                "updatedAt": 129538
+              },
+              {
+                "userId": "u008",
+                "courseId": "api-design-production",
+                "completedLessons": 2,
+                "totalLessons": 12,
+                "xp": 20,
+                "updatedAt": 124914
+              },
+              {
+                "userId": "u009",
+                "courseId": "postgres-performance",
+                "completedLessons": 11,
+                "totalLessons": 12,
+                "xp": 113,
+                "updatedAt": 109845
+              },
+              {
+                "userId": "u010",
+                "courseId": "postgres-performance",
+                "completedLessons": 1,
+                "totalLessons": 12,
+                "xp": 14,
+                "updatedAt": 121240
+              },
+              {
+                "userId": "u010",
+                "courseId": "api-design-production",
+                "completedLessons": 11,
+                "totalLessons": 12,
+                "xp": 113,
+                "updatedAt": 106264
+              },
+              {
+                "userId": "u011",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 1,
+                "totalLessons": 12,
+                "xp": 10,
+                "updatedAt": 111942
+              },
+              {
+                "userId": "u011",
+                "courseId": "api-design-production",
+                "completedLessons": 4,
+                "totalLessons": 12,
+                "xp": 44,
+                "updatedAt": 95827
+              },
+              {
+                "userId": "u012",
+                "courseId": "redis-patterns",
+                "completedLessons": 10,
+                "totalLessons": 12,
+                "xp": 102,
+                "updatedAt": 129396
+              },
+              {
+                "userId": "u013",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 4,
+                "totalLessons": 12,
+                "xp": 43,
+                "updatedAt": 121868
+              },
+              {
+                "userId": "u013",
+                "courseId": "api-design-production",
+                "completedLessons": 10,
+                "totalLessons": 12,
+                "xp": 104,
+                "updatedAt": 129392
+              },
+              {
+                "userId": "u014",
+                "courseId": "redis-patterns",
+                "completedLessons": 11,
+                "totalLessons": 12,
+                "xp": 112,
+                "updatedAt": 129540
+              },
+              {
+                "userId": "u014",
+                "courseId": "api-design-production",
+                "completedLessons": 4,
+                "totalLessons": 12,
+                "xp": 40,
+                "updatedAt": 122208
+              },
+              {
+                "userId": "u015",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 0,
+                "totalLessons": 12,
+                "xp": 0,
+                "updatedAt": 129347
+              },
+              {
+                "userId": "u015",
+                "courseId": "postgres-performance",
+                "completedLessons": 1,
+                "totalLessons": 12,
+                "xp": 14,
+                "updatedAt": 129499
+              },
+              {
+                "userId": "u015",
+                "courseId": "api-design-production",
+                "completedLessons": 10,
+                "totalLessons": 12,
+                "xp": 101,
+                "updatedAt": 105110
+              },
+              {
+                "userId": "u016",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 2,
+                "totalLessons": 12,
+                "xp": 21,
+                "updatedAt": 127005
+              },
+              {
+                "userId": "u016",
+                "courseId": "redis-patterns",
+                "completedLessons": 7,
+                "totalLessons": 12,
+                "xp": 73,
+                "updatedAt": 101561
+              },
+              {
+                "userId": "u016",
+                "courseId": "api-design-production",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 123,
+                "updatedAt": 106250
+              },
+              {
+                "userId": "u017",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 3,
+                "totalLessons": 12,
+                "xp": 33,
+                "updatedAt": 105388
+              },
+              {
+                "userId": "u017",
+                "courseId": "redis-patterns",
+                "completedLessons": 10,
+                "totalLessons": 12,
+                "xp": 100,
+                "updatedAt": 107851
+              },
+              {
+                "userId": "u017",
+                "courseId": "postgres-performance",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 120,
+                "updatedAt": 104521
+              },
+              {
+                "userId": "u017",
+                "courseId": "api-design-production",
+                "completedLessons": 5,
+                "totalLessons": 12,
+                "xp": 53,
+                "updatedAt": 120648
+              },
+              {
+                "userId": "u019",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 10,
+                "totalLessons": 12,
+                "xp": 102,
+                "updatedAt": 115906
+              },
+              {
+                "userId": "u019",
+                "courseId": "postgres-performance",
+                "completedLessons": 5,
+                "totalLessons": 12,
+                "xp": 51,
+                "updatedAt": 129384
+              },
+              {
+                "userId": "u020",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 7,
+                "totalLessons": 12,
+                "xp": 73,
+                "updatedAt": 103789
+              },
+              {
+                "userId": "u020",
+                "courseId": "redis-patterns",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 123,
+                "updatedAt": 104946
+              },
+              {
+                "userId": "u020",
+                "courseId": "api-design-production",
+                "completedLessons": 0,
+                "totalLessons": 12,
+                "xp": 3,
+                "updatedAt": 102412
+              },
+              {
+                "userId": "u021",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 4,
+                "totalLessons": 12,
+                "xp": 41,
+                "updatedAt": 104402
+              },
+              {
+                "userId": "u021",
+                "courseId": "postgres-performance",
+                "completedLessons": 1,
+                "totalLessons": 12,
+                "xp": 12,
+                "updatedAt": 101603
+              },
+              {
+                "userId": "u022",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 10,
+                "totalLessons": 12,
+                "xp": 100,
+                "updatedAt": 120945
+              },
+              {
+                "userId": "u022",
+                "courseId": "redis-patterns",
+                "completedLessons": 11,
+                "totalLessons": 12,
+                "xp": 114,
+                "updatedAt": 98961
+              },
+              {
+                "userId": "u022",
+                "courseId": "api-design-production",
+                "completedLessons": 11,
+                "totalLessons": 12,
+                "xp": 112,
+                "updatedAt": 122862
+              },
+              {
+                "userId": "u023",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 1,
+                "totalLessons": 12,
+                "xp": 13,
+                "updatedAt": 129313
+              },
+              {
+                "userId": "u023",
+                "courseId": "api-design-production",
+                "completedLessons": 5,
+                "totalLessons": 12,
+                "xp": 51,
+                "updatedAt": 101131
+              },
+              {
+                "userId": "u024",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 8,
+                "totalLessons": 12,
+                "xp": 84,
+                "updatedAt": 120057
+              },
+              {
+                "userId": "u024",
+                "courseId": "redis-patterns",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 123,
+                "updatedAt": 113241
+              },
+              {
+                "userId": "u024",
+                "courseId": "api-design-production",
+                "completedLessons": 1,
+                "totalLessons": 12,
+                "xp": 10,
+                "updatedAt": 110425
+              },
+              {
+                "userId": "u025",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 2,
+                "totalLessons": 12,
+                "xp": 23,
+                "updatedAt": 97940
+              },
+              {
+                "userId": "u025",
+                "courseId": "redis-patterns",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 124,
+                "updatedAt": 116237
+              },
+              {
+                "userId": "u025",
+                "courseId": "postgres-performance",
+                "completedLessons": 5,
+                "totalLessons": 12,
+                "xp": 54,
+                "updatedAt": 121101
+              },
+              {
+                "userId": "u025",
+                "courseId": "api-design-production",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 120,
+                "updatedAt": 113272
+              },
+              {
+                "userId": "u026",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 121,
+                "updatedAt": 102275
+              },
+              {
+                "userId": "u026",
+                "courseId": "postgres-performance",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 123,
+                "updatedAt": 109754
+              },
+              {
+                "userId": "u026",
+                "courseId": "api-design-production",
+                "completedLessons": 0,
+                "totalLessons": 12,
+                "xp": 0,
+                "updatedAt": 129446
+              },
+              {
+                "userId": "u027",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 11,
+                "totalLessons": 12,
+                "xp": 110,
+                "updatedAt": 117356
+              },
+              {
+                "userId": "u027",
+                "courseId": "redis-patterns",
+                "completedLessons": 6,
+                "totalLessons": 12,
+                "xp": 60,
+                "updatedAt": 101121
+              },
+              {
+                "userId": "u027",
+                "courseId": "postgres-performance",
+                "completedLessons": 5,
+                "totalLessons": 12,
+                "xp": 51,
+                "updatedAt": 97553
+              },
+              {
+                "userId": "u027",
+                "courseId": "api-design-production",
+                "completedLessons": 4,
+                "totalLessons": 12,
+                "xp": 42,
+                "updatedAt": 103059
+              },
+              {
+                "userId": "u028",
+                "courseId": "redis-patterns",
+                "completedLessons": 2,
+                "totalLessons": 12,
+                "xp": 20,
+                "updatedAt": 123842
+              },
+              {
+                "userId": "u028",
+                "courseId": "postgres-performance",
+                "completedLessons": 9,
+                "totalLessons": 12,
+                "xp": 92,
+                "updatedAt": 105540
+              },
+              {
+                "userId": "u029",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 8,
+                "totalLessons": 12,
+                "xp": 81,
+                "updatedAt": 104917
+              },
+              {
+                "userId": "u030",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 120,
+                "updatedAt": 114412
+              },
+              {
+                "userId": "u030",
+                "courseId": "postgres-performance",
+                "completedLessons": 11,
+                "totalLessons": 12,
+                "xp": 113,
+                "updatedAt": 119762
+              },
+              {
+                "userId": "u030",
+                "courseId": "api-design-production",
+                "completedLessons": 5,
+                "totalLessons": 12,
+                "xp": 50,
+                "updatedAt": 129493
+              },
+              {
+                "userId": "u031",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 1,
+                "totalLessons": 12,
+                "xp": 11,
+                "updatedAt": 112506
+              },
+              {
+                "userId": "u031",
+                "courseId": "redis-patterns",
+                "completedLessons": 4,
+                "totalLessons": 12,
+                "xp": 42,
+                "updatedAt": 122502
+              },
+              {
+                "userId": "u031",
+                "courseId": "api-design-production",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 121,
+                "updatedAt": 94141
+              },
+              {
+                "userId": "u033",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 120,
+                "updatedAt": 123784
+              },
+              {
+                "userId": "u033",
+                "courseId": "redis-patterns",
+                "completedLessons": 1,
+                "totalLessons": 12,
+                "xp": 11,
+                "updatedAt": 102352
+              },
+              {
+                "userId": "u033",
+                "courseId": "postgres-performance",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 120,
+                "updatedAt": 125576
+              },
+              {
+                "userId": "u033",
+                "courseId": "api-design-production",
+                "completedLessons": 11,
+                "totalLessons": 12,
+                "xp": 111,
+                "updatedAt": 129393
+              },
+              {
+                "userId": "u034",
+                "courseId": "postgres-performance",
+                "completedLessons": 10,
+                "totalLessons": 12,
+                "xp": 100,
+                "updatedAt": 120685
+              },
+              {
+                "userId": "u034",
+                "courseId": "api-design-production",
+                "completedLessons": 0,
+                "totalLessons": 12,
+                "xp": 2,
+                "updatedAt": 96922
+              },
+              {
+                "userId": "u035",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 3,
+                "totalLessons": 12,
+                "xp": 32,
+                "updatedAt": 102958
+              },
+              {
+                "userId": "u035",
+                "courseId": "redis-patterns",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 121,
+                "updatedAt": 116935
+              },
+              {
+                "userId": "u035",
+                "courseId": "postgres-performance",
+                "completedLessons": 2,
+                "totalLessons": 12,
+                "xp": 20,
+                "updatedAt": 119048
+              },
+              {
+                "userId": "u036",
+                "courseId": "postgres-performance",
+                "completedLessons": 11,
+                "totalLessons": 12,
+                "xp": 110,
+                "updatedAt": 105999
+              },
+              {
+                "userId": "u036",
+                "courseId": "api-design-production",
+                "completedLessons": 1,
+                "totalLessons": 12,
+                "xp": 13,
+                "updatedAt": 122425
+              },
+              {
+                "userId": "u037",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 121,
+                "updatedAt": 110997
+              },
+              {
+                "userId": "u037",
+                "courseId": "redis-patterns",
+                "completedLessons": 6,
+                "totalLessons": 12,
+                "xp": 63,
+                "updatedAt": 114592
+              },
+              {
+                "userId": "u037",
+                "courseId": "postgres-performance",
+                "completedLessons": 2,
+                "totalLessons": 12,
+                "xp": 21,
+                "updatedAt": 101373
+              },
+              {
+                "userId": "u037",
+                "courseId": "api-design-production",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 123,
+                "updatedAt": 99149
+              },
+              {
+                "userId": "u038",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 1,
+                "totalLessons": 12,
+                "xp": 13,
+                "updatedAt": 119599
+              },
+              {
+                "userId": "u038",
+                "courseId": "redis-patterns",
+                "completedLessons": 8,
+                "totalLessons": 12,
+                "xp": 83,
+                "updatedAt": 113366
+              },
+              {
+                "userId": "u039",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 6,
+                "totalLessons": 12,
+                "xp": 60,
+                "updatedAt": 103157
+              },
+              {
+                "userId": "u039",
+                "courseId": "redis-patterns",
+                "completedLessons": 3,
+                "totalLessons": 12,
+                "xp": 32,
+                "updatedAt": 111472
+              },
+              {
+                "userId": "u040",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 124,
+                "updatedAt": 117367
+              },
+              {
+                "userId": "u040",
+                "courseId": "redis-patterns",
+                "completedLessons": 8,
+                "totalLessons": 12,
+                "xp": 84,
+                "updatedAt": 129478
+              },
+              {
+                "userId": "u040",
+                "courseId": "postgres-performance",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 122,
+                "updatedAt": 109087
+              },
+              {
+                "userId": "u041",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 1,
+                "totalLessons": 12,
+                "xp": 13,
+                "updatedAt": 112234
+              },
+              {
+                "userId": "u041",
+                "courseId": "redis-patterns",
+                "completedLessons": 0,
+                "totalLessons": 12,
+                "xp": 2,
+                "updatedAt": 105122
+              },
+              {
+                "userId": "u041",
+                "courseId": "postgres-performance",
+                "completedLessons": 7,
+                "totalLessons": 12,
+                "xp": 73,
+                "updatedAt": 116778
+              },
+              {
+                "userId": "u042",
+                "courseId": "redis-patterns",
+                "completedLessons": 3,
+                "totalLessons": 12,
+                "xp": 31,
+                "updatedAt": 117024
+              },
+              {
+                "userId": "u042",
+                "courseId": "postgres-performance",
+                "completedLessons": 2,
+                "totalLessons": 12,
+                "xp": 24,
+                "updatedAt": 98140
+              },
+              {
+                "userId": "u043",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 1,
+                "totalLessons": 12,
+                "xp": 10,
+                "updatedAt": 98433
+              },
+              {
+                "userId": "u043",
+                "courseId": "redis-patterns",
+                "completedLessons": 9,
+                "totalLessons": 12,
+                "xp": 92,
+                "updatedAt": 102824
+              },
+              {
+                "userId": "u043",
+                "courseId": "postgres-performance",
+                "completedLessons": 3,
+                "totalLessons": 12,
+                "xp": 31,
+                "updatedAt": 129367
+              },
+              {
+                "userId": "u044",
+                "courseId": "redis-patterns",
+                "completedLessons": 8,
+                "totalLessons": 12,
+                "xp": 83,
+                "updatedAt": 127354
+              },
+              {
+                "userId": "u044",
+                "courseId": "api-design-production",
+                "completedLessons": 7,
+                "totalLessons": 12,
+                "xp": 70,
+                "updatedAt": 97866
+              },
+              {
+                "userId": "u045",
+                "courseId": "postgres-performance",
+                "completedLessons": 5,
+                "totalLessons": 12,
+                "xp": 53,
+                "updatedAt": 98046
+              },
+              {
+                "userId": "u045",
+                "courseId": "api-design-production",
+                "completedLessons": 0,
+                "totalLessons": 12,
+                "xp": 4,
+                "updatedAt": 102660
+              },
+              {
+                "userId": "u046",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 11,
+                "totalLessons": 12,
+                "xp": 113,
+                "updatedAt": 126689
+              },
+              {
+                "userId": "u046",
+                "courseId": "api-design-production",
+                "completedLessons": 8,
+                "totalLessons": 12,
+                "xp": 80,
+                "updatedAt": 115465
+              },
+              {
+                "userId": "u047",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 9,
+                "totalLessons": 12,
+                "xp": 92,
+                "updatedAt": 98755
+              },
+              {
+                "userId": "u047",
+                "courseId": "postgres-performance",
+                "completedLessons": 1,
+                "totalLessons": 12,
+                "xp": 14,
+                "updatedAt": 99829
+              },
+              {
+                "userId": "u047",
+                "courseId": "api-design-production",
+                "completedLessons": 6,
+                "totalLessons": 12,
+                "xp": 62,
+                "updatedAt": 113476
+              },
+              {
+                "userId": "u048",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 0,
+                "totalLessons": 12,
+                "xp": 4,
+                "updatedAt": 112704
+              },
+              {
+                "userId": "u048",
+                "courseId": "postgres-performance",
+                "completedLessons": 11,
+                "totalLessons": 12,
+                "xp": 113,
+                "updatedAt": 97880
+              },
+              {
+                "userId": "u048",
+                "courseId": "api-design-production",
+                "completedLessons": 3,
+                "totalLessons": 12,
+                "xp": 32,
+                "updatedAt": 114756
+              },
+              {
+                "userId": "u049",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 1,
+                "totalLessons": 12,
+                "xp": 14,
+                "updatedAt": 116026
+              },
+              {
+                "userId": "u049",
+                "courseId": "postgres-performance",
+                "completedLessons": 9,
+                "totalLessons": 12,
+                "xp": 94,
+                "updatedAt": 111479
+              },
+              {
+                "userId": "u049",
+                "courseId": "api-design-production",
+                "completedLessons": 11,
+                "totalLessons": 12,
+                "xp": 110,
+                "updatedAt": 129389
+              },
+              {
+                "userId": "u050",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 10,
+                "totalLessons": 12,
+                "xp": 103,
+                "updatedAt": 112089
+              },
+              {
+                "userId": "u050",
+                "courseId": "redis-patterns",
+                "completedLessons": 1,
+                "totalLessons": 12,
+                "xp": 10,
+                "updatedAt": 93934
+              },
+              {
+                "userId": "u050",
+                "courseId": "postgres-performance",
+                "completedLessons": 5,
+                "totalLessons": 12,
+                "xp": 52,
+                "updatedAt": 112389
+              },
+              {
+                "userId": "u050",
+                "courseId": "api-design-production",
+                "completedLessons": 6,
+                "totalLessons": 12,
+                "xp": 64,
+                "updatedAt": 117678
+              },
+              {
+                "userId": "u051",
+                "courseId": "redis-patterns",
+                "completedLessons": 6,
+                "totalLessons": 12,
+                "xp": 61,
+                "updatedAt": 113021
+              },
+              {
+                "userId": "u051",
+                "courseId": "postgres-performance",
+                "completedLessons": 2,
+                "totalLessons": 12,
+                "xp": 22,
+                "updatedAt": 100767
+              },
+              {
+                "userId": "u052",
+                "courseId": "postgres-performance",
+                "completedLessons": 4,
+                "totalLessons": 12,
+                "xp": 44,
+                "updatedAt": 113646
+              },
+              {
+                "userId": "u052",
+                "courseId": "api-design-production",
+                "completedLessons": 8,
+                "totalLessons": 12,
+                "xp": 81,
+                "updatedAt": 108867
+              },
+              {
+                "userId": "u053",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 6,
+                "totalLessons": 12,
+                "xp": 63,
+                "updatedAt": 117634
+              },
+              {
+                "userId": "u054",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 122,
+                "updatedAt": 124579
+              },
+              {
+                "userId": "u054",
+                "courseId": "redis-patterns",
+                "completedLessons": 3,
+                "totalLessons": 12,
+                "xp": 34,
+                "updatedAt": 117294
+              },
+              {
+                "userId": "u054",
+                "courseId": "postgres-performance",
+                "completedLessons": 5,
+                "totalLessons": 12,
+                "xp": 53,
+                "updatedAt": 96270
+              },
+              {
+                "userId": "u054",
+                "courseId": "api-design-production",
+                "completedLessons": 7,
+                "totalLessons": 12,
+                "xp": 73,
+                "updatedAt": 124790
+              },
+              {
+                "userId": "u055",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 3,
+                "totalLessons": 12,
+                "xp": 31,
+                "updatedAt": 105663
+              },
+              {
+                "userId": "u055",
+                "courseId": "redis-patterns",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 122,
+                "updatedAt": 103104
+              },
+              {
+                "userId": "u055",
+                "courseId": "api-design-production",
+                "completedLessons": 5,
+                "totalLessons": 12,
+                "xp": 53,
+                "updatedAt": 125949
+              },
+              {
+                "userId": "u056",
+                "courseId": "redis-patterns",
+                "completedLessons": 6,
+                "totalLessons": 12,
+                "xp": 61,
+                "updatedAt": 116155
+              },
+              {
+                "userId": "u056",
+                "courseId": "postgres-performance",
+                "completedLessons": 2,
+                "totalLessons": 12,
+                "xp": 20,
+                "updatedAt": 104897
+              },
+              {
+                "userId": "u057",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 7,
+                "totalLessons": 12,
+                "xp": 73,
+                "updatedAt": 121975
+              },
+              {
+                "userId": "u057",
+                "courseId": "api-design-production",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 120,
+                "updatedAt": 103086
+              },
+              {
+                "userId": "u058",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 7,
+                "totalLessons": 12,
+                "xp": 73,
+                "updatedAt": 113703
+              },
+              {
+                "userId": "u058",
+                "courseId": "redis-patterns",
+                "completedLessons": 3,
+                "totalLessons": 12,
+                "xp": 31,
+                "updatedAt": 96059
+              },
+              {
+                "userId": "u058",
+                "courseId": "api-design-production",
+                "completedLessons": 10,
+                "totalLessons": 12,
+                "xp": 100,
+                "updatedAt": 96065
+              },
+              {
+                "userId": "u059",
+                "courseId": "redis-patterns",
+                "completedLessons": 4,
+                "totalLessons": 12,
+                "xp": 43,
+                "updatedAt": 96629
+              },
+              {
+                "userId": "u060",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 4,
+                "totalLessons": 12,
+                "xp": 44,
+                "updatedAt": 129593
+              },
+              {
+                "userId": "u060",
+                "courseId": "redis-patterns",
+                "completedLessons": 0,
+                "totalLessons": 12,
+                "xp": 1,
+                "updatedAt": 123589
+              },
+              {
+                "userId": "u060",
+                "courseId": "postgres-performance",
+                "completedLessons": 8,
+                "totalLessons": 12,
+                "xp": 80,
+                "updatedAt": 124995
+              },
+              {
+                "userId": "u061",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 5,
+                "totalLessons": 12,
+                "xp": 54,
+                "updatedAt": 115694
+              },
+              {
+                "userId": "u061",
+                "courseId": "redis-patterns",
+                "completedLessons": 5,
+                "totalLessons": 12,
+                "xp": 54,
+                "updatedAt": 103330
+              },
+              {
+                "userId": "u062",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 8,
+                "totalLessons": 12,
+                "xp": 80,
+                "updatedAt": 99261
+              },
+              {
+                "userId": "u062",
+                "courseId": "redis-patterns",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 121,
+                "updatedAt": 101210
+              },
+              {
+                "userId": "u062",
+                "courseId": "postgres-performance",
+                "completedLessons": 3,
+                "totalLessons": 12,
+                "xp": 31,
+                "updatedAt": 124843
+              },
+              {
+                "userId": "u062",
+                "courseId": "api-design-production",
+                "completedLessons": 0,
+                "totalLessons": 12,
+                "xp": 1,
+                "updatedAt": 96256
+              },
+              {
+                "userId": "u063",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 7,
+                "totalLessons": 12,
+                "xp": 73,
+                "updatedAt": 110747
+              },
+              {
+                "userId": "u063",
+                "courseId": "redis-patterns",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 122,
+                "updatedAt": 96221
+              },
+              {
+                "userId": "u063",
+                "courseId": "postgres-performance",
+                "completedLessons": 1,
+                "totalLessons": 12,
+                "xp": 11,
+                "updatedAt": 123650
+              },
+              {
+                "userId": "u063",
+                "courseId": "api-design-production",
+                "completedLessons": 4,
+                "totalLessons": 12,
+                "xp": 42,
+                "updatedAt": 120962
+              },
+              {
+                "userId": "u064",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 1,
+                "totalLessons": 12,
+                "xp": 10,
+                "updatedAt": 121483
+              },
+              {
+                "userId": "u064",
+                "courseId": "redis-patterns",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 121,
+                "updatedAt": 97411
+              },
+              {
+                "userId": "u064",
+                "courseId": "postgres-performance",
+                "completedLessons": 8,
+                "totalLessons": 12,
+                "xp": 84,
+                "updatedAt": 122825
+              },
+              {
+                "userId": "u065",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 11,
+                "totalLessons": 12,
+                "xp": 111,
+                "updatedAt": 106912
+              },
+              {
+                "userId": "u065",
+                "courseId": "redis-patterns",
+                "completedLessons": 7,
+                "totalLessons": 12,
+                "xp": 71,
+                "updatedAt": 99025
+              },
+              {
+                "userId": "u065",
+                "courseId": "api-design-production",
+                "completedLessons": 5,
+                "totalLessons": 12,
+                "xp": 50,
+                "updatedAt": 124196
+              },
+              {
+                "userId": "u066",
+                "courseId": "postgres-performance",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 123,
+                "updatedAt": 124661
+              },
+              {
+                "userId": "u066",
+                "courseId": "api-design-production",
+                "completedLessons": 2,
+                "totalLessons": 12,
+                "xp": 21,
+                "updatedAt": 105324
+              },
+              {
+                "userId": "u067",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 121,
+                "updatedAt": 101317
+              },
+              {
+                "userId": "u067",
+                "courseId": "redis-patterns",
+                "completedLessons": 9,
+                "totalLessons": 12,
+                "xp": 92,
+                "updatedAt": 116761
+              },
+              {
+                "userId": "u068",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 124,
+                "updatedAt": 115224
+              },
+              {
+                "userId": "u068",
+                "courseId": "postgres-performance",
+                "completedLessons": 5,
+                "totalLessons": 12,
+                "xp": 50,
+                "updatedAt": 111731
+              },
+              {
+                "userId": "u069",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 7,
+                "totalLessons": 12,
+                "xp": 74,
+                "updatedAt": 119441
+              },
+              {
+                "userId": "u069",
+                "courseId": "redis-patterns",
+                "completedLessons": 10,
+                "totalLessons": 12,
+                "xp": 101,
+                "updatedAt": 118410
+              },
+              {
+                "userId": "u069",
+                "courseId": "postgres-performance",
+                "completedLessons": 1,
+                "totalLessons": 12,
+                "xp": 10,
+                "updatedAt": 119432
+              },
+              {
+                "userId": "u070",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 122,
+                "updatedAt": 129502
+              },
+              {
+                "userId": "u070",
+                "courseId": "postgres-performance",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 122,
+                "updatedAt": 129501
+              },
+              {
+                "userId": "u071",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 0,
+                "totalLessons": 12,
+                "xp": 2,
+                "updatedAt": 109299
+              },
+              {
+                "userId": "u071",
+                "courseId": "postgres-performance",
+                "completedLessons": 6,
+                "totalLessons": 12,
+                "xp": 63,
+                "updatedAt": 129518
+              },
+              {
+                "userId": "u072",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 3,
+                "totalLessons": 12,
+                "xp": 30,
+                "updatedAt": 105399
+              },
+              {
+                "userId": "u072",
+                "courseId": "redis-patterns",
+                "completedLessons": 1,
+                "totalLessons": 12,
+                "xp": 13,
+                "updatedAt": 119696
+              },
+              {
+                "userId": "u072",
+                "courseId": "postgres-performance",
+                "completedLessons": 11,
+                "totalLessons": 12,
+                "xp": 112,
+                "updatedAt": 106375
+              },
+              {
+                "userId": "u073",
+                "courseId": "redis-patterns",
+                "completedLessons": 5,
+                "totalLessons": 12,
+                "xp": 53,
+                "updatedAt": 129554
+              },
+              {
+                "userId": "u073",
+                "courseId": "postgres-performance",
+                "completedLessons": 7,
+                "totalLessons": 12,
+                "xp": 74,
+                "updatedAt": 112510
+              },
+              {
+                "userId": "u073",
+                "courseId": "api-design-production",
+                "completedLessons": 11,
+                "totalLessons": 12,
+                "xp": 112,
+                "updatedAt": 100945
+              },
+              {
+                "userId": "u074",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 1,
+                "totalLessons": 12,
+                "xp": 12,
+                "updatedAt": 127253
+              },
+              {
+                "userId": "u074",
+                "courseId": "redis-patterns",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 120,
+                "updatedAt": 112254
+              },
+              {
+                "userId": "u074",
+                "courseId": "api-design-production",
+                "completedLessons": 9,
+                "totalLessons": 12,
+                "xp": 94,
+                "updatedAt": 110390
+              },
+              {
+                "userId": "u075",
+                "courseId": "redis-patterns",
+                "completedLessons": 11,
+                "totalLessons": 12,
+                "xp": 114,
+                "updatedAt": 98079
+              },
+              {
+                "userId": "u075",
+                "courseId": "api-design-production",
+                "completedLessons": 6,
+                "totalLessons": 12,
+                "xp": 62,
+                "updatedAt": 107031
+              },
+              {
+                "userId": "u076",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 7,
+                "totalLessons": 12,
+                "xp": 71,
+                "updatedAt": 109187
+              },
+              {
+                "userId": "u076",
+                "courseId": "redis-patterns",
+                "completedLessons": 11,
+                "totalLessons": 12,
+                "xp": 114,
+                "updatedAt": 100070
+              },
+              {
+                "userId": "u076",
+                "courseId": "postgres-performance",
+                "completedLessons": 2,
+                "totalLessons": 12,
+                "xp": 21,
+                "updatedAt": 103114
+              },
+              {
+                "userId": "u076",
+                "courseId": "api-design-production",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 122,
+                "updatedAt": 111277
+              },
+              {
+                "userId": "u077",
+                "courseId": "redis-patterns",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 122,
+                "updatedAt": 107345
+              },
+              {
+                "userId": "u077",
+                "courseId": "api-design-production",
+                "completedLessons": 8,
+                "totalLessons": 12,
+                "xp": 83,
+                "updatedAt": 97198
+              },
+              {
+                "userId": "u078",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 120,
+                "updatedAt": 121087
+              },
+              {
+                "userId": "u078",
+                "courseId": "api-design-production",
+                "completedLessons": 1,
+                "totalLessons": 12,
+                "xp": 11,
+                "updatedAt": 123504
+              },
+              {
+                "userId": "u079",
+                "courseId": "api-design-production",
+                "completedLessons": 7,
+                "totalLessons": 12,
+                "xp": 71,
+                "updatedAt": 104738
+              },
+              {
+                "userId": "u080",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 120,
+                "updatedAt": 110451
+              },
+              {
+                "userId": "u080",
+                "courseId": "postgres-performance",
+                "completedLessons": 8,
+                "totalLessons": 12,
+                "xp": 81,
+                "updatedAt": 119084
+              },
+              {
+                "userId": "u080",
+                "courseId": "api-design-production",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 120,
+                "updatedAt": 125745
+              },
+              {
+                "userId": "u081",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 10,
+                "totalLessons": 12,
+                "xp": 103,
+                "updatedAt": 111468
+              },
+              {
+                "userId": "u081",
+                "courseId": "postgres-performance",
+                "completedLessons": 10,
+                "totalLessons": 12,
+                "xp": 100,
+                "updatedAt": 97332
+              },
+              {
+                "userId": "u081",
+                "courseId": "api-design-production",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 124,
+                "updatedAt": 123711
+              },
+              {
+                "userId": "u082",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 120,
+                "updatedAt": 121597
+              },
+              {
+                "userId": "u082",
+                "courseId": "redis-patterns",
+                "completedLessons": 0,
+                "totalLessons": 12,
+                "xp": 2,
+                "updatedAt": 122793
+              },
+              {
+                "userId": "u083",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 9,
+                "totalLessons": 12,
+                "xp": 91,
+                "updatedAt": 117508
+              },
+              {
+                "userId": "u083",
+                "courseId": "postgres-performance",
+                "completedLessons": 7,
+                "totalLessons": 12,
+                "xp": 71,
+                "updatedAt": 95145
+              },
+              {
+                "userId": "u083",
+                "courseId": "api-design-production",
+                "completedLessons": 8,
+                "totalLessons": 12,
+                "xp": 81,
+                "updatedAt": 123554
+              },
+              {
+                "userId": "u084",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 124,
+                "updatedAt": 105150
+              },
+              {
+                "userId": "u084",
+                "courseId": "redis-patterns",
+                "completedLessons": 3,
+                "totalLessons": 12,
+                "xp": 30,
+                "updatedAt": 115396
+              },
+              {
+                "userId": "u084",
+                "courseId": "postgres-performance",
+                "completedLessons": 0,
+                "totalLessons": 12,
+                "xp": 2,
+                "updatedAt": 119523
+              },
+              {
+                "userId": "u085",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 9,
+                "totalLessons": 12,
+                "xp": 94,
+                "updatedAt": 127184
+              },
+              {
+                "userId": "u085",
+                "courseId": "api-design-production",
+                "completedLessons": 4,
+                "totalLessons": 12,
+                "xp": 41,
+                "updatedAt": 107604
+              },
+              {
+                "userId": "u086",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 1,
+                "totalLessons": 12,
+                "xp": 12,
+                "updatedAt": 129491
+              },
+              {
+                "userId": "u086",
+                "courseId": "redis-patterns",
+                "completedLessons": 6,
+                "totalLessons": 12,
+                "xp": 61,
+                "updatedAt": 104566
+              },
+              {
+                "userId": "u086",
+                "courseId": "api-design-production",
+                "completedLessons": 3,
+                "totalLessons": 12,
+                "xp": 33,
+                "updatedAt": 115463
+              },
+              {
+                "userId": "u087",
+                "courseId": "redis-patterns",
+                "completedLessons": 7,
+                "totalLessons": 12,
+                "xp": 73,
+                "updatedAt": 108552
+              },
+              {
+                "userId": "u087",
+                "courseId": "postgres-performance",
+                "completedLessons": 4,
+                "totalLessons": 12,
+                "xp": 41,
+                "updatedAt": 121728
+              },
+              {
+                "userId": "u088",
+                "courseId": "redis-patterns",
+                "completedLessons": 11,
+                "totalLessons": 12,
+                "xp": 110,
+                "updatedAt": 127150
+              },
+              {
+                "userId": "u088",
+                "courseId": "postgres-performance",
+                "completedLessons": 6,
+                "totalLessons": 12,
+                "xp": 62,
+                "updatedAt": 115083
+              },
+              {
+                "userId": "u089",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 1,
+                "totalLessons": 12,
+                "xp": 14,
+                "updatedAt": 104943
+              },
+              {
+                "userId": "u089",
+                "courseId": "postgres-performance",
+                "completedLessons": 4,
+                "totalLessons": 12,
+                "xp": 44,
+                "updatedAt": 115096
+              },
+              {
+                "userId": "u089",
+                "courseId": "api-design-production",
+                "completedLessons": 10,
+                "totalLessons": 12,
+                "xp": 104,
+                "updatedAt": 121889
+              },
+              {
+                "userId": "u090",
+                "courseId": "api-design-production",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 124,
+                "updatedAt": 101883
+              },
+              {
+                "userId": "u091",
+                "courseId": "redis-patterns",
+                "completedLessons": 9,
+                "totalLessons": 12,
+                "xp": 91,
+                "updatedAt": 121422
+              },
+              {
+                "userId": "u091",
+                "courseId": "api-design-production",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 122,
+                "updatedAt": 118654
+              },
+              {
+                "userId": "u092",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 5,
+                "totalLessons": 12,
+                "xp": 53,
+                "updatedAt": 129515
+              },
+              {
+                "userId": "u092",
+                "courseId": "redis-patterns",
+                "completedLessons": 10,
+                "totalLessons": 12,
+                "xp": 104,
+                "updatedAt": 129453
+              },
+              {
+                "userId": "u092",
+                "courseId": "api-design-production",
+                "completedLessons": 8,
+                "totalLessons": 12,
+                "xp": 80,
+                "updatedAt": 124924
+              },
+              {
+                "userId": "u093",
+                "courseId": "redis-patterns",
+                "completedLessons": 10,
+                "totalLessons": 12,
+                "xp": 101,
+                "updatedAt": 126899
+              },
+              {
+                "userId": "u094",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 121,
+                "updatedAt": 109084
+              },
+              {
+                "userId": "u094",
+                "courseId": "redis-patterns",
+                "completedLessons": 3,
+                "totalLessons": 12,
+                "xp": 30,
+                "updatedAt": 114108
+              },
+              {
+                "userId": "u095",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 123,
+                "updatedAt": 114204
+              },
+              {
+                "userId": "u095",
+                "courseId": "redis-patterns",
+                "completedLessons": 9,
+                "totalLessons": 12,
+                "xp": 93,
+                "updatedAt": 96962
+              },
+              {
+                "userId": "u096",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 124,
+                "updatedAt": 114398
+              },
+              {
+                "userId": "u097",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 124,
+                "updatedAt": 116468
+              },
+              {
+                "userId": "u097",
+                "courseId": "redis-patterns",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 124,
+                "updatedAt": 119957
+              },
+              {
+                "userId": "u097",
+                "courseId": "postgres-performance",
+                "completedLessons": 7,
+                "totalLessons": 12,
+                "xp": 73,
+                "updatedAt": 107735
+              },
+              {
+                "userId": "u097",
+                "courseId": "api-design-production",
+                "completedLessons": 9,
+                "totalLessons": 12,
+                "xp": 90,
+                "updatedAt": 97487
+              },
+              {
+                "userId": "u098",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 1,
+                "totalLessons": 12,
+                "xp": 11,
+                "updatedAt": 103634
+              },
+              {
+                "userId": "u098",
+                "courseId": "redis-patterns",
+                "completedLessons": 8,
+                "totalLessons": 12,
+                "xp": 84,
+                "updatedAt": 121208
+              },
+              {
+                "userId": "u099",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 9,
+                "totalLessons": 12,
+                "xp": 92,
+                "updatedAt": 102974
+              },
+              {
+                "userId": "u099",
+                "courseId": "redis-patterns",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 124,
+                "updatedAt": 111369
+              },
+              {
+                "userId": "u099",
+                "courseId": "api-design-production",
+                "completedLessons": 5,
+                "totalLessons": 12,
+                "xp": 53,
+                "updatedAt": 126278
+              },
+              {
+                "userId": "u100",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 121,
+                "updatedAt": 121534
+              },
+              {
+                "userId": "u100",
+                "courseId": "api-design-production",
+                "completedLessons": 7,
+                "totalLessons": 12,
+                "xp": 73,
+                "updatedAt": 101932
+              },
+              {
+                "userId": "u101",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 0,
+                "totalLessons": 12,
+                "xp": 0,
+                "updatedAt": 108078
+              },
+              {
+                "userId": "u101",
+                "courseId": "postgres-performance",
+                "completedLessons": 2,
+                "totalLessons": 12,
+                "xp": 24,
+                "updatedAt": 126071
+              },
+              {
+                "userId": "u101",
+                "courseId": "api-design-production",
+                "completedLessons": 7,
+                "totalLessons": 12,
+                "xp": 74,
+                "updatedAt": 129324
+              },
+              {
+                "userId": "u102",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 8,
+                "totalLessons": 12,
+                "xp": 80,
+                "updatedAt": 108877
+              },
+              {
+                "userId": "u102",
+                "courseId": "redis-patterns",
+                "completedLessons": 2,
+                "totalLessons": 12,
+                "xp": 23,
+                "updatedAt": 103750
+              },
+              {
+                "userId": "u102",
+                "courseId": "postgres-performance",
+                "completedLessons": 1,
+                "totalLessons": 12,
+                "xp": 13,
+                "updatedAt": 100565
+              },
+              {
+                "userId": "u102",
+                "courseId": "api-design-production",
+                "completedLessons": 4,
+                "totalLessons": 12,
+                "xp": 40,
+                "updatedAt": 112506
+              },
+              {
+                "userId": "u103",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 1,
+                "totalLessons": 12,
+                "xp": 12,
+                "updatedAt": 103560
+              },
+              {
+                "userId": "u103",
+                "courseId": "redis-patterns",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 120,
+                "updatedAt": 106672
+              },
+              {
+                "userId": "u103",
+                "courseId": "postgres-performance",
+                "completedLessons": 0,
+                "totalLessons": 12,
+                "xp": 4,
+                "updatedAt": 121146
+              },
+              {
+                "userId": "u103",
+                "courseId": "api-design-production",
+                "completedLessons": 11,
+                "totalLessons": 12,
+                "xp": 113,
+                "updatedAt": 129417
+              },
+              {
+                "userId": "u104",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 2,
+                "totalLessons": 12,
+                "xp": 24,
+                "updatedAt": 123804
+              },
+              {
+                "userId": "u104",
+                "courseId": "redis-patterns",
+                "completedLessons": 1,
+                "totalLessons": 12,
+                "xp": 10,
+                "updatedAt": 104278
+              },
+              {
+                "userId": "u104",
+                "courseId": "api-design-production",
+                "completedLessons": 5,
+                "totalLessons": 12,
+                "xp": 54,
+                "updatedAt": 103722
+              },
+              {
+                "userId": "u105",
+                "courseId": "redis-patterns",
+                "completedLessons": 3,
+                "totalLessons": 12,
+                "xp": 33,
+                "updatedAt": 105044
+              },
+              {
+                "userId": "u105",
+                "courseId": "postgres-performance",
+                "completedLessons": 2,
+                "totalLessons": 12,
+                "xp": 23,
+                "updatedAt": 96486
+              },
+              {
+                "userId": "u106",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 124,
+                "updatedAt": 117722
+              },
+              {
+                "userId": "u106",
+                "courseId": "redis-patterns",
+                "completedLessons": 2,
+                "totalLessons": 12,
+                "xp": 23,
+                "updatedAt": 96319
+              },
+              {
+                "userId": "u106",
+                "courseId": "postgres-performance",
+                "completedLessons": 1,
+                "totalLessons": 12,
+                "xp": 13,
+                "updatedAt": 94646
+              },
+              {
+                "userId": "u107",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 8,
+                "totalLessons": 12,
+                "xp": 80,
+                "updatedAt": 96753
+              },
+              {
+                "userId": "u107",
+                "courseId": "redis-patterns",
+                "completedLessons": 4,
+                "totalLessons": 12,
+                "xp": 42,
+                "updatedAt": 125517
+              },
+              {
+                "userId": "u107",
+                "courseId": "postgres-performance",
+                "completedLessons": 8,
+                "totalLessons": 12,
+                "xp": 82,
+                "updatedAt": 108763
+              },
+              {
+                "userId": "u107",
+                "courseId": "api-design-production",
+                "completedLessons": 9,
+                "totalLessons": 12,
+                "xp": 93,
+                "updatedAt": 110232
+              },
+              {
+                "userId": "u108",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 10,
+                "totalLessons": 12,
+                "xp": 102,
+                "updatedAt": 115200
+              },
+              {
+                "userId": "u108",
+                "courseId": "redis-patterns",
+                "completedLessons": 9,
+                "totalLessons": 12,
+                "xp": 94,
+                "updatedAt": 99120
+              },
+              {
+                "userId": "u108",
+                "courseId": "postgres-performance",
+                "completedLessons": 10,
+                "totalLessons": 12,
+                "xp": 102,
+                "updatedAt": 121217
+              },
+              {
+                "userId": "u108",
+                "courseId": "api-design-production",
+                "completedLessons": 0,
+                "totalLessons": 12,
+                "xp": 1,
+                "updatedAt": 128402
+              },
+              {
+                "userId": "u109",
+                "courseId": "postgres-performance",
+                "completedLessons": 2,
+                "totalLessons": 12,
+                "xp": 21,
+                "updatedAt": 122720
+              },
+              {
+                "userId": "u109",
+                "courseId": "api-design-production",
+                "completedLessons": 3,
+                "totalLessons": 12,
+                "xp": 30,
+                "updatedAt": 104723
+              },
+              {
+                "userId": "u110",
+                "courseId": "postgres-performance",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 124,
+                "updatedAt": 112632
+              },
+              {
+                "userId": "u110",
+                "courseId": "api-design-production",
+                "completedLessons": 10,
+                "totalLessons": 12,
+                "xp": 100,
+                "updatedAt": 122713
+              },
+              {
+                "userId": "u111",
+                "courseId": "redis-patterns",
+                "completedLessons": 9,
+                "totalLessons": 12,
+                "xp": 94,
+                "updatedAt": 110608
+              },
+              {
+                "userId": "u112",
+                "courseId": "postgres-performance",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 120,
+                "updatedAt": 126496
+              },
+              {
+                "userId": "u112",
+                "courseId": "api-design-production",
+                "completedLessons": 7,
+                "totalLessons": 12,
+                "xp": 71,
+                "updatedAt": 101142
+              },
+              {
+                "userId": "u114",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 0,
+                "totalLessons": 12,
+                "xp": 4,
+                "updatedAt": 110278
+              },
+              {
+                "userId": "u114",
+                "courseId": "redis-patterns",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 122,
+                "updatedAt": 110308
+              },
+              {
+                "userId": "u114",
+                "courseId": "postgres-performance",
+                "completedLessons": 9,
+                "totalLessons": 12,
+                "xp": 93,
+                "updatedAt": 99981
+              },
+              {
+                "userId": "u114",
+                "courseId": "api-design-production",
+                "completedLessons": 11,
+                "totalLessons": 12,
+                "xp": 111,
+                "updatedAt": 93880
+              },
+              {
+                "userId": "u115",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 8,
+                "totalLessons": 12,
+                "xp": 82,
+                "updatedAt": 108722
+              },
+              {
+                "userId": "u115",
+                "courseId": "redis-patterns",
+                "completedLessons": 10,
+                "totalLessons": 12,
+                "xp": 101,
+                "updatedAt": 100014
+              },
+              {
+                "userId": "u115",
+                "courseId": "postgres-performance",
+                "completedLessons": 10,
+                "totalLessons": 12,
+                "xp": 103,
+                "updatedAt": 105793
+              },
+              {
+                "userId": "u115",
+                "courseId": "api-design-production",
+                "completedLessons": 0,
+                "totalLessons": 12,
+                "xp": 1,
+                "updatedAt": 127441
+              },
+              {
+                "userId": "u116",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 11,
+                "totalLessons": 12,
+                "xp": 111,
+                "updatedAt": 104024
+              },
+              {
+                "userId": "u116",
+                "courseId": "redis-patterns",
+                "completedLessons": 8,
+                "totalLessons": 12,
+                "xp": 84,
+                "updatedAt": 114390
+              },
+              {
+                "userId": "u116",
+                "courseId": "postgres-performance",
+                "completedLessons": 4,
+                "totalLessons": 12,
+                "xp": 41,
+                "updatedAt": 98215
+              },
+              {
+                "userId": "u116",
+                "courseId": "api-design-production",
+                "completedLessons": 4,
+                "totalLessons": 12,
+                "xp": 41,
+                "updatedAt": 95701
+              },
+              {
+                "userId": "u117",
+                "courseId": "redis-patterns",
+                "completedLessons": 10,
+                "totalLessons": 12,
+                "xp": 100,
+                "updatedAt": 96347
+              },
+              {
+                "userId": "u117",
+                "courseId": "postgres-performance",
+                "completedLessons": 6,
+                "totalLessons": 12,
+                "xp": 61,
+                "updatedAt": 105984
+              },
+              {
+                "userId": "u117",
+                "courseId": "api-design-production",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 124,
+                "updatedAt": 102944
+              },
+              {
+                "userId": "u118",
+                "courseId": "redis-patterns",
+                "completedLessons": 0,
+                "totalLessons": 12,
+                "xp": 0,
+                "updatedAt": 95925
+              },
+              {
+                "userId": "u118",
+                "courseId": "postgres-performance",
+                "completedLessons": 1,
+                "totalLessons": 12,
+                "xp": 14,
+                "updatedAt": 125149
+              },
+              {
+                "userId": "u119",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 4,
+                "totalLessons": 12,
+                "xp": 42,
+                "updatedAt": 98252
+              },
+              {
+                "userId": "u120",
+                "courseId": "sql-data-modeling",
+                "completedLessons": 10,
+                "totalLessons": 12,
+                "xp": 100,
+                "updatedAt": 115867
+              },
+              {
+                "userId": "u120",
+                "courseId": "redis-patterns",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 122,
+                "updatedAt": 129515
+              },
+              {
+                "userId": "u120",
+                "courseId": "postgres-performance",
+                "completedLessons": 6,
+                "totalLessons": 12,
+                "xp": 60,
+                "updatedAt": 101605
+              },
+              {
+                "userId": "u120",
+                "courseId": "api-design-production",
+                "completedLessons": 12,
+                "totalLessons": 12,
+                "xp": 124,
+                "updatedAt": 125493
+              }
+            ],
+            "leaderboard": {
+              "u001": 196,
+              "u002": 132,
+              "u003": 188,
+              "u005": 331,
+              "u006": 171,
+              "u007": 293,
+              "u008": 40,
+              "u009": 113,
+              "u010": 127,
+              "u011": 54,
+              "u012": 102,
+              "u013": 147,
+              "u014": 172,
+              "u015": 108,
+              "u016": 210,
+              "u017": 306,
+              "u019": 153,
+              "u020": 249,
+              "u021": 93,
+              "u022": 226,
+              "u023": 51,
+              "u024": 94,
+              "u025": 197,
+              "u026": 244,
+              "u027": 221,
+              "u028": 112,
+              "u030": 276,
+              "u031": 53,
+              "u033": 382,
+              "u034": 152,
+              "u035": 153,
+              "u036": 123,
+              "u037": 328,
+              "u038": 96,
+              "u039": 70,
+              "u040": 390,
+              "u041": 88,
+              "u042": 55,
+              "u043": 133,
+              "u045": 57,
+              "u046": 193,
+              "u047": 168,
+              "u048": 149,
+              "u049": 218,
+              "u050": 165,
+              "u051": 76,
+              "u052": 125,
+              "u054": 282,
+              "u055": 206,
+              "u056": 74,
+              "u057": 193,
+              "u058": 104,
+              "u059": 43,
+              "u060": 118,
+              "u061": 108,
+              "u062": 233,
+              "u063": 248,
+              "u064": 131,
+              "u065": 232,
+              "u066": 204,
+              "u067": 213,
+              "u068": 174,
+              "u069": 178,
+              "u070": 244,
+              "u071": 65,
+              "u072": 155,
+              "u073": 319,
+              "u074": 226,
+              "u075": 176,
+              "u076": 214,
+              "u077": 205,
+              "u078": 120,
+              "u079": 71,
+              "u080": 201,
+              "u081": 327,
+              "u082": 122,
+              "u083": 243,
+              "u084": 156,
+              "u085": 135,
+              "u086": 66,
+              "u087": 73,
+              "u089": 172,
+              "u090": 124,
+              "u091": 213,
+              "u092": 237,
+              "u093": 101,
+              "u094": 114,
+              "u095": 216,
+              "u096": 124,
+              "u097": 411,
+              "u098": 84,
+              "u099": 269,
+              "u100": 121,
+              "u101": 24,
+              "u103": 245,
+              "u104": 88,
+              "u105": 23,
+              "u106": 160,
+              "u107": 297,
+              "u108": 197,
+              "u110": 314,
+              "u111": 124,
+              "u112": 191,
+              "u114": 237,
+              "u115": 279,
+              "u116": 277,
+              "u117": 224,
+              "u118": 14,
+              "u120": 346
+            },
+            "certificates": [
+              {
+                "userId": "u001",
+                "courseId": "api-design-production",
+                "issuedAt": 95544
+              },
+              {
+                "userId": "u003",
+                "courseId": "sql-data-modeling",
+                "issuedAt": 101264
+              },
+              {
+                "userId": "u005",
+                "courseId": "postgres-performance",
+                "issuedAt": 113411
+              },
+              {
+                "userId": "u009",
+                "courseId": "postgres-performance",
+                "issuedAt": 107633
+              },
+              {
+                "userId": "u016",
+                "courseId": "api-design-production",
+                "issuedAt": 103402
+              },
+              {
+                "userId": "u017",
+                "courseId": "postgres-performance",
+                "issuedAt": 104011
+              },
+              {
+                "userId": "u020",
+                "courseId": "redis-patterns",
+                "issuedAt": 103468
+              },
+              {
+                "userId": "u025",
+                "courseId": "api-design-production",
+                "issuedAt": 113139
+              },
+              {
+                "userId": "u026",
+                "courseId": "sql-data-modeling",
+                "issuedAt": 100212
+              },
+              {
+                "userId": "u026",
+                "courseId": "postgres-performance",
+                "issuedAt": 107310
+              },
+              {
+                "userId": "u028",
+                "courseId": "postgres-performance",
+                "issuedAt": 105156
+              },
+              {
+                "userId": "u029",
+                "courseId": "sql-data-modeling",
+                "issuedAt": 102404
+              },
+              {
+                "userId": "u030",
+                "courseId": "sql-data-modeling",
+                "issuedAt": 111583
+              },
+              {
+                "userId": "u030",
+                "courseId": "postgres-performance",
+                "issuedAt": 119294
+              },
+              {
+                "userId": "u031",
+                "courseId": "sql-data-modeling",
+                "issuedAt": 110442
+              },
+              {
+                "userId": "u033",
+                "courseId": "postgres-performance",
+                "issuedAt": 124854
+              },
+              {
+                "userId": "u035",
+                "courseId": "redis-patterns",
+                "issuedAt": 114085
+              },
+              {
+                "userId": "u037",
+                "courseId": "sql-data-modeling",
+                "issuedAt": 111022
+              },
+              {
+                "userId": "u037",
+                "courseId": "api-design-production",
+                "issuedAt": 97632
+              },
+              {
+                "userId": "u040",
+                "courseId": "sql-data-modeling",
+                "issuedAt": 115314
+              },
+              {
+                "userId": "u049",
+                "courseId": "api-design-production",
+                "issuedAt": 107654
+              },
+              {
+                "userId": "u051",
+                "courseId": "postgres-performance",
+                "issuedAt": 98106
+              },
+              {
+                "userId": "u052",
+                "courseId": "api-design-production",
+                "issuedAt": 107162
+              },
+              {
+                "userId": "u054",
+                "courseId": "sql-data-modeling",
+                "issuedAt": 123340
+              },
+              {
+                "userId": "u055",
+                "courseId": "redis-patterns",
+                "issuedAt": 101094
+              },
+              {
+                "userId": "u056",
+                "courseId": "redis-patterns",
+                "issuedAt": 114866
+              },
+              {
+                "userId": "u057",
+                "courseId": "sql-data-modeling",
+                "issuedAt": 119458
+              },
+              {
+                "userId": "u057",
+                "courseId": "api-design-production",
+                "issuedAt": 100360
+              },
+              {
+                "userId": "u062",
+                "courseId": "redis-patterns",
+                "issuedAt": 99555
+              },
+              {
+                "userId": "u063",
+                "courseId": "sql-data-modeling",
+                "issuedAt": 109378
+              },
+              {
+                "userId": "u063",
+                "courseId": "redis-patterns",
+                "issuedAt": 95372
+              },
+              {
+                "userId": "u064",
+                "courseId": "sql-data-modeling",
+                "issuedAt": 121004
+              },
+              {
+                "userId": "u064",
+                "courseId": "redis-patterns",
+                "issuedAt": 94568
+              },
+              {
+                "userId": "u065",
+                "courseId": "redis-patterns",
+                "issuedAt": 98349
+              },
+              {
+                "userId": "u066",
+                "courseId": "postgres-performance",
+                "issuedAt": 123830
+              },
+              {
+                "userId": "u067",
+                "courseId": "sql-data-modeling",
+                "issuedAt": 99309
+              },
+              {
+                "userId": "u068",
+                "courseId": "sql-data-modeling",
+                "issuedAt": 114525
+              },
+              {
+                "userId": "u070",
+                "courseId": "sql-data-modeling",
+                "issuedAt": 100713
+              },
+              {
+                "userId": "u070",
+                "courseId": "postgres-performance",
+                "issuedAt": 94170
+              },
+              {
+                "userId": "u071",
+                "courseId": "sql-data-modeling",
+                "issuedAt": 107054
+              },
+              {
+                "userId": "u072",
+                "courseId": "redis-patterns",
+                "issuedAt": 117167
+              },
+              {
+                "userId": "u074",
+                "courseId": "sql-data-modeling",
+                "issuedAt": 126186
+              },
+              {
+                "userId": "u074",
+                "courseId": "redis-patterns",
+                "issuedAt": 110792
+              },
+              {
+                "userId": "u075",
+                "courseId": "redis-patterns",
+                "issuedAt": 98170
+              },
+              {
+                "userId": "u076",
+                "courseId": "api-design-production",
+                "issuedAt": 108840
+              },
+              {
+                "userId": "u077",
+                "courseId": "redis-patterns",
+                "issuedAt": 107095
+              },
+              {
+                "userId": "u078",
+                "courseId": "sql-data-modeling",
+                "issuedAt": 118960
+              },
+              {
+                "userId": "u080",
+                "courseId": "sql-data-modeling",
+                "issuedAt": 109301
+              },
+              {
+                "userId": "u081",
+                "courseId": "api-design-production",
+                "issuedAt": 123257
+              },
+              {
+                "userId": "u082",
+                "courseId": "sql-data-modeling",
+                "issuedAt": 119830
+              },
+              {
+                "userId": "u084",
+                "courseId": "sql-data-modeling",
+                "issuedAt": 104080
+              },
+              {
+                "userId": "u086",
+                "courseId": "api-design-production",
+                "issuedAt": 114702
+              },
+              {
+                "userId": "u090",
+                "courseId": "api-design-production",
+                "issuedAt": 101247
+              },
+              {
+                "userId": "u091",
+                "courseId": "api-design-production",
+                "issuedAt": 117994
+              },
+              {
+                "userId": "u094",
+                "courseId": "sql-data-modeling",
+                "issuedAt": 106714
+              },
+              {
+                "userId": "u095",
+                "courseId": "sql-data-modeling",
+                "issuedAt": 113867
+              },
+              {
+                "userId": "u096",
+                "courseId": "sql-data-modeling",
+                "issuedAt": 113633
+              },
+              {
+                "userId": "u097",
+                "courseId": "sql-data-modeling",
+                "issuedAt": 116246
+              },
+              {
+                "userId": "u097",
+                "courseId": "redis-patterns",
+                "issuedAt": 117874
+              },
+              {
+                "userId": "u100",
+                "courseId": "sql-data-modeling",
+                "issuedAt": 118779
+              },
+              {
+                "userId": "u103",
+                "courseId": "redis-patterns",
+                "issuedAt": 104939
+              },
+              {
+                "userId": "u104",
+                "courseId": "sql-data-modeling",
+                "issuedAt": 121243
+              },
+              {
+                "userId": "u107",
+                "courseId": "api-design-production",
+                "issuedAt": 109083
+              },
+              {
+                "userId": "u110",
+                "courseId": "postgres-performance",
+                "issuedAt": 110660
+              },
+              {
+                "userId": "u112",
+                "courseId": "postgres-performance",
+                "issuedAt": 126040
+              },
+              {
+                "userId": "u114",
+                "courseId": "redis-patterns",
+                "issuedAt": 109651
+              },
+              {
+                "userId": "u114",
+                "courseId": "api-design-production",
+                "issuedAt": 93438
+              },
+              {
+                "userId": "u115",
+                "courseId": "redis-patterns",
+                "issuedAt": 99522
+              },
+              {
+                "userId": "u115",
+                "courseId": "postgres-performance",
+                "issuedAt": 105967
+              },
+              {
+                "userId": "u120",
+                "courseId": "redis-patterns",
+                "issuedAt": 99480
+              },
+              {
+                "userId": "u120",
+                "courseId": "api-design-production",
+                "issuedAt": 123101
+              }
+            ]
+          },
+          "expected": {
+            "mode": "apply",
+            "fixes": [
+              "certificate.issue u033 sql-data-modeling (missing)",
+              "certificate.issue u040 postgres-performance (missing)",
+              "certificate.issue u099 redis-patterns (missing)",
+              "certificate.issue u106 sql-data-modeling (missing)",
+              "certificate.issue u117 api-design-production (missing)",
+              "certificate.revoke u009 postgres-performance (extra)",
+              "certificate.revoke u028 postgres-performance (extra)",
+              "certificate.revoke u029 sql-data-modeling (extra)",
+              "certificate.revoke u030 postgres-performance (extra)",
+              "certificate.revoke u031 sql-data-modeling (extra)",
+              "certificate.revoke u051 postgres-performance (extra)",
+              "certificate.revoke u052 api-design-production (extra)",
+              "certificate.revoke u056 redis-patterns (extra)",
+              "certificate.revoke u057 sql-data-modeling (extra)",
+              "certificate.revoke u063 sql-data-modeling (extra)"
+            ],
+            "skippedByCap": [
+              "certificate.revoke u064 sql-data-modeling (extra)",
+              "certificate.revoke u065 redis-patterns (extra)",
+              "certificate.revoke u071 sql-data-modeling (extra)",
+              "certificate.revoke u072 redis-patterns (extra)",
+              "certificate.revoke u074 sql-data-modeling (extra)",
+              "certificate.revoke u075 redis-patterns (extra)",
+              "certificate.revoke u086 api-design-production (extra)",
+              "certificate.revoke u104 sql-data-modeling (extra)",
+              "certificate.revoke u107 api-design-production (extra)",
+              "certificate.revoke u114 api-design-production (extra)",
+              "certificate.revoke u115 postgres-performance (extra)",
+              "certificate.revoke u115 redis-patterns (extra)",
+              "leaderboard.upsert u004 xp=133 (missing)",
+              "leaderboard.upsert u029 xp=81 (missing)",
+              "leaderboard.upsert u044 xp=153 (missing)",
+              "leaderboard.upsert u053 xp=63 (missing)",
+              "leaderboard.upsert u088 xp=110 (missing)",
+              "leaderboard.upsert u102 xp=156 (missing)",
+              "leaderboard.upsert u119 xp=42 (missing)",
+              "leaderboard.upsert u110 xp=224 (wrong value, was 314)",
+              "leaderboard.upsert u107 xp=217 (wrong value, was 297)",
+              "leaderboard.upsert u066 xp=144 (wrong value, was 204)",
+              "leaderboard.upsert u020 xp=199 (wrong value, was 249)",
+              "leaderboard.upsert u034 xp=102 (wrong value, was 152)",
+              "leaderboard.upsert u021 xp=53 (wrong value, was 93)",
+              "leaderboard.upsert u111 xp=94 (wrong value, was 124)",
+              "leaderboard.upsert u039 xp=60 (wrong value, was 70)",
+              "leaderboard.upsert u089 xp=162 (wrong value, was 172)",
+              "leaderboard.upsert u005 xp=338 (wrong value, was 331)",
+              "leaderboard.upsert u016 xp=217 (wrong value, was 210)",
+              "leaderboard.upsert u051 xp=83 (wrong value, was 76)",
+              "leaderboard.upsert u056 xp=81 (wrong value, was 74)",
+              "leaderboard.upsert u069 xp=185 (wrong value, was 178)",
+              "leaderboard.upsert u094 xp=121 (wrong value, was 114)",
+              "leaderboard.upsert u115 xp=286 (wrong value, was 279)"
+            ],
+            "deferred": [
+              "certificate.revoke u049 api-design-production (extra)",
+              "leaderboard.upsert u073 xp=239 (wrong value, was 319)",
+              "leaderboard.upsert u040 xp=330 (wrong value, was 390)",
+              "leaderboard.upsert u014 xp=152 (wrong value, was 172)",
+              "leaderboard.upsert u033 xp=362 (wrong value, was 382)",
+              "leaderboard.upsert u015 xp=115 (wrong value, was 108)",
+              "leaderboard.upsert u030 xp=283 (wrong value, was 276)",
+              "leaderboard.upsert u060 xp=125 (wrong value, was 118)",
+              "leaderboard.upsert u086 xp=73 (wrong value, was 66)"
+            ],
+            "summary": "15 applied, 35 over the cap, 9 in flight",
+            "leaderboard": [
+              "u001 196",
+              "u002 132",
+              "u003 188",
+              "u005 331",
+              "u006 171",
+              "u007 293",
+              "u008 40",
+              "u009 113",
+              "u010 127",
+              "u011 54",
+              "u012 102",
+              "u013 147",
+              "u014 172",
+              "u015 108",
+              "u016 210",
+              "u017 306",
+              "u019 153",
+              "u020 249",
+              "u021 93",
+              "u022 226",
+              "u023 51",
+              "u024 94",
+              "u025 197",
+              "u026 244",
+              "u027 221",
+              "u028 112",
+              "u030 276",
+              "u031 53",
+              "u033 382",
+              "u034 152",
+              "u035 153",
+              "u036 123",
+              "u037 328",
+              "u038 96",
+              "u039 70",
+              "u040 390",
+              "u041 88",
+              "u042 55",
+              "u043 133",
+              "u045 57",
+              "u046 193",
+              "u047 168",
+              "u048 149",
+              "u049 218",
+              "u050 165",
+              "u051 76",
+              "u052 125",
+              "u054 282",
+              "u055 206",
+              "u056 74",
+              "u057 193",
+              "u058 104",
+              "u059 43",
+              "u060 118",
+              "u061 108",
+              "u062 233",
+              "u063 248",
+              "u064 131",
+              "u065 232",
+              "u066 204",
+              "u067 213",
+              "u068 174",
+              "u069 178",
+              "u070 244",
+              "u071 65",
+              "u072 155",
+              "u073 319",
+              "u074 226",
+              "u075 176",
+              "u076 214",
+              "u077 205",
+              "u078 120",
+              "u079 71",
+              "u080 201",
+              "u081 327",
+              "u082 122",
+              "u083 243",
+              "u084 156",
+              "u085 135",
+              "u086 66",
+              "u087 73",
+              "u089 172",
+              "u090 124",
+              "u091 213",
+              "u092 237",
+              "u093 101",
+              "u094 114",
+              "u095 216",
+              "u096 124",
+              "u097 411",
+              "u098 84",
+              "u099 269",
+              "u100 121",
+              "u101 24",
+              "u103 245",
+              "u104 88",
+              "u105 23",
+              "u106 160",
+              "u107 297",
+              "u108 197",
+              "u110 314",
+              "u111 124",
+              "u112 191",
+              "u114 237",
+              "u115 279",
+              "u116 277",
+              "u117 224",
+              "u118 14",
+              "u120 346"
+            ],
+            "certificates": [
+              "u001 api-design-production issuedAt=95544",
+              "u003 sql-data-modeling issuedAt=101264",
+              "u005 postgres-performance issuedAt=113411",
+              "u016 api-design-production issuedAt=103402",
+              "u017 postgres-performance issuedAt=104011",
+              "u020 redis-patterns issuedAt=103468",
+              "u025 api-design-production issuedAt=113139",
+              "u026 postgres-performance issuedAt=107310",
+              "u026 sql-data-modeling issuedAt=100212",
+              "u030 sql-data-modeling issuedAt=111583",
+              "u033 postgres-performance issuedAt=124854",
+              "u033 sql-data-modeling issuedAt=129600",
+              "u035 redis-patterns issuedAt=114085",
+              "u037 api-design-production issuedAt=97632",
+              "u037 sql-data-modeling issuedAt=111022",
+              "u040 postgres-performance issuedAt=129600",
+              "u040 sql-data-modeling issuedAt=115314",
+              "u049 api-design-production issuedAt=107654",
+              "u054 sql-data-modeling issuedAt=123340",
+              "u055 redis-patterns issuedAt=101094",
+              "u057 api-design-production issuedAt=100360",
+              "u062 redis-patterns issuedAt=99555",
+              "u063 redis-patterns issuedAt=95372",
+              "u064 redis-patterns issuedAt=94568",
+              "u064 sql-data-modeling issuedAt=121004",
+              "u065 redis-patterns issuedAt=98349",
+              "u066 postgres-performance issuedAt=123830",
+              "u067 sql-data-modeling issuedAt=99309",
+              "u068 sql-data-modeling issuedAt=114525",
+              "u070 postgres-performance issuedAt=94170",
+              "u070 sql-data-modeling issuedAt=100713",
+              "u071 sql-data-modeling issuedAt=107054",
+              "u072 redis-patterns issuedAt=117167",
+              "u074 redis-patterns issuedAt=110792",
+              "u074 sql-data-modeling issuedAt=126186",
+              "u075 redis-patterns issuedAt=98170",
+              "u076 api-design-production issuedAt=108840",
+              "u077 redis-patterns issuedAt=107095",
+              "u078 sql-data-modeling issuedAt=118960",
+              "u080 sql-data-modeling issuedAt=109301",
+              "u081 api-design-production issuedAt=123257",
+              "u082 sql-data-modeling issuedAt=119830",
+              "u084 sql-data-modeling issuedAt=104080",
+              "u086 api-design-production issuedAt=114702",
+              "u090 api-design-production issuedAt=101247",
+              "u091 api-design-production issuedAt=117994",
+              "u094 sql-data-modeling issuedAt=106714",
+              "u095 sql-data-modeling issuedAt=113867",
+              "u096 sql-data-modeling issuedAt=113633",
+              "u097 redis-patterns issuedAt=117874",
+              "u097 sql-data-modeling issuedAt=116246",
+              "u099 redis-patterns issuedAt=129600",
+              "u100 sql-data-modeling issuedAt=118779",
+              "u103 redis-patterns issuedAt=104939",
+              "u104 sql-data-modeling issuedAt=121243",
+              "u106 sql-data-modeling issuedAt=129600",
+              "u107 api-design-production issuedAt=109083",
+              "u110 postgres-performance issuedAt=110660",
+              "u112 postgres-performance issuedAt=126040",
+              "u114 api-design-production issuedAt=93438",
+              "u114 redis-patterns issuedAt=109651",
+              "u115 postgres-performance issuedAt=105967",
+              "u115 redis-patterns issuedAt=99522",
+              "u117 api-design-production issuedAt=129600",
+              "u120 api-design-production issuedAt=123101",
+              "u120 redis-patterns issuedAt=99480"
+            ]
+          },
+          "hidden": true,
+          "score": 2
+        }
+      ]
+    }
+  ]
+}

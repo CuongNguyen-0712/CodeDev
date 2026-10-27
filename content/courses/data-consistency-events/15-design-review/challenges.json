@@ -1,0 +1,46 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_dce_531",
+      "name": "design-review-enrollment-payment-certificate",
+      "type": "quiz",
+      "title": "Design review: enrollment, payment & certificate flow",
+      "description": "Three statements from the review of CodeDev's payment -> enrollment -> progress -> leaderboard -> certificate flow: the payment webhook's transaction, a saga that compensated with a refund, and a leaderboard consumer that deduplicated on the wrong id.",
+      "difficulty": "medium",
+      "outcomes": ["sagas", "dual-write"],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Payment webhook handler:\n\nawait db.tx(async (tx) => {\n  const updated = await tx.query(\n    \"UPDATE payment SET status = 'succeeded', succeeded_at = now() WHERE provider_payment_id = $1 AND status = 'pending'\",\n    [event.paymentId],\n  );\n  if (updated.rowCount === 0) return;   // already handled: the provider retried the webhook\n  await tx.query(\n    \"INSERT INTO outbox (id, event_type, aggregate_id, payload) VALUES ($1, 'PaymentSucceeded', $2, $3)\",\n    [ids.next(), event.paymentId, { paymentId: event.paymentId, userId, courseId }],\n  );\n});\n// the process is killed here (OOM), after COMMIT and before the HTTP 200 reaches the provider\n\nStatement: \"PaymentSucceeded will still be published, and the enrollment consumer must still be able to handle receiving it more than once.\"",
+          "explanation": "True. The payment update and the outbox row committed together, so the event exists durably and the outbox publisher will publish it after the crash. The provider will retry the webhook because it never got a 200, but the conditional UPDATE finds the row already succeeded and returns before inserting a second outbox row. The enrollment consumer still needs its inbox: the publisher itself publishes at least once, and a crash between publish and mark sends the same row again. The misconception is that the guard against webhook retries makes downstream delivery exactly once; it prevents a second event, not a second delivery of the same event.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Enrollment saga log for one purchase:\n\n23:58:10  payments    pay_844 succeeded (outbox: PaymentSucceeded)\n23:58:11  email       receipt sent to learner: \"Thanks for buying Legacy PHP Basics\"\n23:58:12  enrollment  step failed permanently: course c_legacy_php is archived\n23:58:12  saga        pay_844 -> COMPENSATING, command RefundRequested\n23:58:40  payments    pay_844 refunded (provider refund rf_311)\n23:58:40  saga        pay_844 -> COMPENSATED\n\nStatement: \"Because the saga compensated with a refund, the payment and the failed enrollment behaved like one rolled-back transaction: no other service could have acted on the payment as succeeded.\"",
+          "explanation": "False. A saga has no global transaction: each step commits locally and is visible at once. For 30 seconds the payment was succeeded, and the email service acted on it and sent a receipt the learner has already read. The refund is a new forward action, not an undo, and it can fail on its own. A review therefore asks what users see between the steps (here, perhaps send the receipt only after enrollment, or word it as \"processing\") and how a failed compensation is retried and alerted. The misconception is that compensation equals rollback; it ends the flow in an accepted state, it does not erase the intermediate one.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Leaderboard consumer, inside one transaction with the points-ledger insert:\n\nINSERT INTO inbox (consumer, event_id) VALUES ('leaderboard', $1) ON CONFLICT DO NOTHING\n-- $1 = msg.brokerMessageId\n\nLogs:\n10:02:03 outbox-pub   published ob_90017 ProgressRecorded (eventId ob_90017) as broker msg m-5521\n10:02:03 outbox-pub   killed before marking ob_90017 published\n10:02:04 leaderboard  inbox m-5521 new -> +50 points u_77 lesson 7\n10:02:09 outbox-pub   restart; published ob_90017 ProgressRecorded (eventId ob_90017) as broker msg m-5530\n10:02:10 leaderboard  inbox m-5530 new -> +50 points u_77 lesson 7\n\nStatement: \"Keying the inbox on the eventId carried in the message (ob_90017) instead of the broker message id would have stopped the second +50.\"",
+          "explanation": "True. The publisher crashed between publish and mark, so it published the same outbox row again, and the broker assigned the second copy a new message id. Keyed on m-5521 and m-5530 the inbox sees two different events and both pass. The eventId is written once by the producer into the outbox row and travels unchanged in every copy, so the second insert of ob_90017 would hit the conflict, the transaction would change nothing, and the ledger would hold one +50. The misconception is that any id on the message identifies the event; transport ids such as message ids and offsets identify one delivery, not the business event.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        }
+      ]
+    }
+  ]
+}

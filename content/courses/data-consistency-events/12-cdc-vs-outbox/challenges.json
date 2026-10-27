@@ -1,0 +1,36 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_dce_431",
+      "name": "cdc-or-outbox-quiz",
+      "type": "quiz",
+      "title": "Change data capture or outbox?",
+      "description": "Two statements from the CodeDev CDC spike: a consumer that reads raw row changes from the enrollments table, and the order in which changes to two tables reached a consumer.",
+      "difficulty": "medium",
+      "outcomes": ["sagas", "dual-write"],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "During the spike, the certificate service consumes the CDC topic of the enrollments table directly. A change event (simplified):\n\n{ \"op\": \"u\",\n  \"before\": { \"id\": \"e_9902\", \"status\": \"active\", \"completed_at\": null, \"internal_note\": null },\n  \"after\":  { \"id\": \"e_9902\", \"status\": \"completed\", \"completed_at\": \"2026-10-22T09:14:03Z\", \"internal_note\": null },\n  \"source\": { \"table\": \"enrollments\", \"lsn\": 81234560 } }\n\nConsumer code:\nif (msg.after?.status === \"completed\" && msg.before?.status !== \"completed\") issueCertificate(msg.after.id);\n\nThe enrollment team plans this migration for next week, with no change to any event contract they publish:\nALTER TABLE enrollments RENAME COLUMN status TO state;\n\nStatement: \"After this migration the certificate service stops issuing certificates, even though the enrollment team changed no event they own.\"",
+          "explanation": "True. With CDC on a business table, the table's columns are the message format. After the rename, after.status is undefined, the condition is never true, and no error is raised: certificates silently stop. The enrollment team treats the table as private and has no idea it became a public contract. A transactional outbox avoids this by publishing an explicit event (EnrollmentCompleted with its own fields and version) that the team maintains on purpose, and CDC on the outbox table keeps that benefit. The misconception is that CDC is free of coupling because the application code does not change; the coupling moves to the schema.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "One transaction, committed at 10:02:11.400:\n  INSERT INTO enrollments (id, user_id, course_id, status) VALUES ('e_7710', 'u_44', 'redis-patterns', 'active');\nA second transaction, committed at 10:02:11.950:\n  UPDATE payments SET status = 'refunded' WHERE id = 'pay_310';   -- the payment of e_7710\n\nThe CDC connector writes each table to its own topic, keyed by primary key: codedev.public.enrollments and codedev.public.payments. The refund saga consumer subscribes to both topics.\n\nConsumer log:\n10:02:12.031 payments    pay_310 status=refunded\n10:02:12.207 enrollments e_7710  insert status=active\n\nStatement: \"This log shows a bug in the connector: it read the WAL in commit order, so the consumer must receive the enrollments insert before the payments update.\"",
+          "explanation": "False. The connector does read changes in commit order, and each topic partition keeps that order. Across two topics (and across partitions) there is no order: the consumer polls both and can see the later change first, which is exactly what the log shows, with no bug anywhere. If one consumer needs the events of one purchase in order, publish them to one topic with one key (for example the enrollment id): an outbox lets you choose the topic and the key per aggregate, while table-level CDC routes by table and primary key. The misconception is that commit order in the database survives into every consumer.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        }
+      ]
+    }
+  ]
+}

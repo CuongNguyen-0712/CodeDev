@@ -1,0 +1,6252 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_dce_231",
+      "name": "non-idempotent-consumer-quiz",
+      "type": "quiz",
+      "title": "Which points were added twice?",
+      "description": "The wallet consumer an AI wrote, hit by a crash between commit and ack, and a proposed fix that deduplicates on offsets.",
+      "difficulty": "medium",
+      "outcomes": [
+        "idempotent-consumers"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Handler (from the AI), on a queue that redelivers unacked messages:\nawait pg.query(\"UPDATE wallets SET balance = balance + $2 WHERE user_id = $1\", [e.userId, e.amount]);\nawait msg.ack();\n\nwallets before: u-44 balance = 120\n11:30:02.101  wallet-1  handled p-7720 (u-44, +30), transaction committed\n11:30:02.102  kubelet   wallet-1 OOMKilled\n11:30:12.400  wallet-3  received p-7720 (redelivered)\n11:30:12.415  wallet-3  handled p-7720 (u-44, +30), transaction committed, acked\n\nStatement: \"u-44 now has a balance of 180, although event p-7720 awarded 30 points once.\"",
+          "explanation": "True. wallet-1 committed the UPDATE (120 + 30 = 150) and died before the ack, so the queue still considered p-7720 unprocessed and delivered it again. wallet-3 ran the same UPDATE on the committed balance: 150 + 30 = 180. The transaction made each delivery atomic, but nothing recorded that p-7720 had already been applied, and balance = balance + amount adds again on every delivery. The misconception is that a committed transaction plus an ack after it is enough; the window between commit and ack is exactly where duplicates come from.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Proposed fix (also from the AI): store the last processed offset per partition in the same transaction as the balance change, and skip any message whose offset is not greater.\n\nBEGIN;\nSELECT last_offset FROM consumer_offsets WHERE partition = 3;            -- 7709\nUPDATE wallets SET balance = balance + 50 WHERE user_id = 'u-18';\nUPDATE consumer_offsets SET last_offset = 7710 WHERE partition = 3;\nCOMMIT;\n\nThe outbox relay of the points service crashed between publish and mark, so event p-9001 was published twice: at offset 7702 and again at offset 7710.\n\nStatement: \"With this fix, the second copy of p-9001 at offset 7710 is skipped.\"",
+          "explanation": "False. An offset identifies a position in the log, not an event. The relay's second publish wrote p-9001 at a new, higher offset, so 7710 > 7709 and the handler applies the 50 points again. Storing offsets transactionally protects against the broker replaying the same positions (as after a rebalance), but not against a producer that publishes the same event twice, nor against a queue that redelivers a message after newer ones. Deduplicate on the event id the producer assigned, recorded in the same transaction as the balance change. The misconception is that a duplicate always has the same offset.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_dce_232",
+      "name": "spot-the-ai-mistake-points-twice",
+      "type": "fix_bug",
+      "title": "Spot the AI Mistake: a consumer that adds points twice",
+      "description": "An AI coding assistant was asked: \"write a consumer that adds the points from `points.awarded` events to the wallet balance\". It wrote `WalletConsumer`: it validates the payload, adds `amount` to the balance inside a transaction, and its tests, one delivery per event, pass. After a deploy restarted the consumers and the consumer group rebalanced, messages that had been processed but not acked were delivered again, and learners reported that their points had doubled; the leaderboard reads these balances.\n\nFix `WalletConsumer` so that every `points.awarded` event changes the balance exactly once, however many times and in whatever order it is delivered, across crashes and restarts:\n- `handle(msg)` returns \"applied\" the first time an event id changes a balance, \"duplicate\" (no change) for an event id that already changed it, and \"invalid\" (no change) when `msg.id` or `payload.userId` is not a non-empty string or `payload.amount` is not a positive integer;\n- two different events with the same user and amount are two awards: both are applied;\n- the tests may crash the process just before or just after the commit of the transaction that changes `wallets`, and a rebalance or a crash hands the partition to a new `WalletConsumer` on the same database (anything kept in the consumer object is lost); a message that was not acked comes again, possibly after newer ones.\n\nAccepted protocols: record the event id in `processed_events` (an inbox), or in `points_ledger` (a ledger keyed by event id from which the balance follows), in the same `db.tx` as the change to `wallets`. The runner prints only what `handle` returns and the final balances, so either protocol gives the same output. Never catch `Crash`.\n\nInput (JSON): a list of steps: `{ \"deliver\": { \"id\", \"userId\", \"amount\" }, \"crash\"?: \"beforeCommit\" | \"afterCommit\" }` or `{ \"rebalance\": true }`. Output: one line per delivery (`<id> <user> +<amount>: applied, acked` / `duplicate, acked` / `invalid, acked` / `crashed before commit, not acked` / `crashed after commit, not acked`), a line per rebalance, then `wallets: <user>=<balance> ...`. The public tests pass on the AI's code; the hidden tests deliver duplicates, reorder them and crash before the ack.",
+      "difficulty": "hard",
+      "outcomes": [
+        "idempotent-consumers"
+      ],
+      "points": 40,
+      "hints": [
+        "When the same event id arrives a second time, possibly at a new consumer after a rebalance, what in the database could tell the handler that its points are already in the balance?",
+        "Look at the transaction in handle: it changes wallets but writes nothing about msg.id. The schema already has processed_events and points_ledger. Which one would you write in that same transaction, what must happen when the id is already there, and what can you do with a message that has no id?",
+        "A similar consumer grants badges: badge.granted b-12 for u5. In one transaction it inserts b-12 into its processed table; if b-12 was already there it returns duplicate and changes nothing, otherwise it adds the badge. Deliveries b-12, b-13, a restart, then b-12 again give applied, applied, duplicate, and u5 has 2 badges. A crash before that transaction commits leaves no trace, so the next b-12 is applied."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "One delivery per event: the balances add up",
+          "input": [
+            {
+              "deliver": {
+                "id": "p1",
+                "userId": "u1",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p2",
+                "userId": "u2",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p3",
+                "userId": "u1",
+                "amount": 30
+              }
+            }
+          ],
+          "expected": "p1 u1 +50: applied, acked\np2 u2 +20: applied, acked\np3 u1 +30: applied, acked\nwallets: u1=80 u2=20",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Two awards with the same user and amount are two awards",
+          "input": [
+            {
+              "deliver": {
+                "id": "p1",
+                "userId": "u1",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p2",
+                "userId": "u1",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p3",
+                "userId": "u2",
+                "amount": 10
+              }
+            }
+          ],
+          "expected": "p1 u1 +50: applied, acked\np2 u1 +50: applied, acked\np3 u2 +10: applied, acked\nwallets: u1=100 u2=10",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Invalid payloads (zero, negative, fractional amount, no user) change nothing",
+          "input": [
+            {
+              "deliver": {
+                "id": "p1",
+                "userId": "u1",
+                "amount": 0
+              }
+            },
+            {
+              "deliver": {
+                "id": "p2",
+                "userId": "u1",
+                "amount": -5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p3",
+                "userId": "u1",
+                "amount": 2.5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p4",
+                "userId": "",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p5",
+                "userId": "u1",
+                "amount": 10
+              }
+            }
+          ],
+          "expected": "p1 u1 +0: invalid, acked\np2 u1 +-5: invalid, acked\np3 u1 +2.5: invalid, acked\np4 (no user) +10: invalid, acked\np5 u1 +10: applied, acked\nwallets: u1=10",
+          "hidden": false,
+          "score": 2
+        },
+        {
+          "name": "Rebalance: processed but unacked events come again and change nothing",
+          "input": [
+            {
+              "deliver": {
+                "id": "p1",
+                "userId": "u1",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p2",
+                "userId": "u2",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p3",
+                "userId": "u1",
+                "amount": 30
+              }
+            },
+            {
+              "deliver": {
+                "id": "p4",
+                "userId": "u3",
+                "amount": 100
+              }
+            },
+            {
+              "rebalance": true
+            },
+            {
+              "deliver": {
+                "id": "p3",
+                "userId": "u1",
+                "amount": 30
+              }
+            },
+            {
+              "deliver": {
+                "id": "p4",
+                "userId": "u3",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p5",
+                "userId": "u2",
+                "amount": 10
+              }
+            }
+          ],
+          "expected": "p1 u1 +50: applied, acked\np2 u2 +20: applied, acked\np3 u1 +30: applied, acked\np4 u3 +100: applied, acked\nrebalance: partition assigned to a new consumer\np3 u1 +30: duplicate, acked\np4 u3 +100: duplicate, acked\np5 u2 +10: applied, acked\nwallets: u1=80 u2=30 u3=100",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Crash after commit, before ack: the redelivery is a duplicate",
+          "input": [
+            {
+              "deliver": {
+                "id": "p1",
+                "userId": "u1",
+                "amount": 50
+              },
+              "crash": "afterCommit"
+            },
+            {
+              "deliver": {
+                "id": "p1",
+                "userId": "u1",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p2",
+                "userId": "u1",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p2",
+                "userId": "u1",
+                "amount": 20
+              }
+            }
+          ],
+          "expected": "p1 u1 +50: crashed after commit, not acked\np1 u1 +50: duplicate, acked\np2 u1 +20: applied, acked\np2 u1 +20: duplicate, acked\nwallets: u1=70",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Out of order: an event that crashed before commit returns after newer events",
+          "input": [
+            {
+              "deliver": {
+                "id": "p1",
+                "userId": "u1",
+                "amount": 50
+              },
+              "crash": "beforeCommit"
+            },
+            {
+              "deliver": {
+                "id": "p2",
+                "userId": "u1",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p3",
+                "userId": "u2",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p1",
+                "userId": "u1",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p2",
+                "userId": "u1",
+                "amount": 20
+              }
+            }
+          ],
+          "expected": "p1 u1 +50: crashed before commit, not acked\np2 u1 +20: applied, acked\np3 u2 +10: applied, acked\np1 u1 +50: applied, acked\np2 u1 +20: duplicate, acked\nwallets: u1=70 u2=10",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "A message without an event id cannot be deduplicated and is rejected",
+          "input": [
+            {
+              "deliver": {
+                "userId": "u1",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "",
+                "userId": "u1",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p1",
+                "userId": "u1",
+                "amount": 50
+              }
+            }
+          ],
+          "expected": "(no id) u1 +50: invalid, acked\n(no id) u1 +50: invalid, acked\np1 u1 +50: applied, acked\nwallets: u1=50",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Large stream: 700+ deliveries with rebalances, crashes, duplicates and reordering",
+          "input": [
+            {
+              "deliver": {
+                "id": "p1",
+                "userId": "u54",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p2",
+                "userId": "u17",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p3",
+                "userId": "u55",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p1",
+                "userId": "u54",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p4",
+                "userId": "u59",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p5",
+                "userId": "u60",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p6",
+                "userId": "u8",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p7",
+                "userId": "u34",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p8",
+                "userId": "u24",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p9",
+                "userId": "u50",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p10",
+                "userId": "u35",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p11",
+                "userId": "u39",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p12",
+                "userId": "u31",
+                "amount": 10
+              },
+              "crash": "beforeCommit"
+            },
+            {
+              "deliver": {
+                "id": "p13",
+                "userId": "u48",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p14",
+                "userId": "u12",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p15",
+                "userId": "u37",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p16",
+                "userId": "u43",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p12",
+                "userId": "u31",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p17",
+                "userId": "u17",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p18",
+                "userId": "u55",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p19",
+                "userId": "u47",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p20",
+                "userId": "u29",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p21",
+                "userId": "u41",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p9",
+                "userId": "u50",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p22",
+                "userId": "u36",
+                "amount": 10
+              },
+              "crash": "beforeCommit"
+            },
+            {
+              "deliver": {
+                "id": "p23",
+                "userId": "u37",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p24",
+                "userId": "u1",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p25",
+                "userId": "u13",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p26",
+                "userId": "u16",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p22",
+                "userId": "u36",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p27",
+                "userId": "u60",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p28",
+                "userId": "u51",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p17",
+                "userId": "u17",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p7",
+                "userId": "u34",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p29",
+                "userId": "u22",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p30",
+                "userId": "u13",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p31",
+                "userId": "u2",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p32",
+                "userId": "u51",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p33",
+                "userId": "u34",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p34",
+                "userId": "u49",
+                "amount": 50
+              },
+              "crash": "afterCommit"
+            },
+            {
+              "deliver": {
+                "id": "p35",
+                "userId": "u9",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p36",
+                "userId": "u26",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p37",
+                "userId": "u39",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p34",
+                "userId": "u49",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p38",
+                "userId": "u27",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p39",
+                "userId": "u57",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p13",
+                "userId": "u48",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p40",
+                "userId": "u42",
+                "amount": 5
+              },
+              "crash": "afterCommit"
+            },
+            {
+              "deliver": {
+                "id": "p41",
+                "userId": "u37",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p42",
+                "userId": "u46",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p40",
+                "userId": "u42",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p43",
+                "userId": "u6",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p44",
+                "userId": "u13",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p45",
+                "userId": "u55",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p46",
+                "userId": "u2",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p47",
+                "userId": "u29",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p22",
+                "userId": "u36",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p48",
+                "userId": "u24",
+                "amount": 10
+              }
+            },
+            {
+              "rebalance": true
+            },
+            {
+              "deliver": {
+                "id": "p49",
+                "userId": "u10",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p41",
+                "userId": "u37",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p50",
+                "userId": "u54",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p51",
+                "userId": "u36",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p34",
+                "userId": "u49",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p52",
+                "userId": "u43",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p39",
+                "userId": "u57",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p47",
+                "userId": "u29",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p53",
+                "userId": "u11",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p54",
+                "userId": "u19",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p55",
+                "userId": "u13",
+                "amount": 10
+              },
+              "crash": "afterCommit"
+            },
+            {
+              "deliver": {
+                "id": "p56",
+                "userId": "u50",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p57",
+                "userId": "u11",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p55",
+                "userId": "u13",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p34",
+                "userId": "u49",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p58",
+                "userId": "u15",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p59",
+                "userId": "u20",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p60",
+                "userId": "u59",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p61",
+                "userId": "u18",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p55",
+                "userId": "u13",
+                "amount": 10
+              }
+            },
+            {
+              "rebalance": true
+            },
+            {
+              "deliver": {
+                "id": "p62",
+                "userId": "u25",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p63",
+                "userId": "u30",
+                "amount": 5
+              },
+              "crash": "beforeCommit"
+            },
+            {
+              "deliver": {
+                "id": "p64",
+                "userId": "u3",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p65",
+                "userId": "u50",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p66",
+                "userId": "u42",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p63",
+                "userId": "u30",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p67",
+                "userId": "u19",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p68",
+                "userId": "u3",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p65",
+                "userId": "u50",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p69",
+                "userId": "u54",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p70",
+                "userId": "u48",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p71",
+                "userId": "u55",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p42",
+                "userId": "u46",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p72",
+                "userId": "u35",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p73",
+                "userId": "u59",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p74",
+                "userId": "u6",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p75",
+                "userId": "u60",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p76",
+                "userId": "u5",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p77",
+                "userId": "u2",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p78",
+                "userId": "u46",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p79",
+                "userId": "u53",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p80",
+                "userId": "u5",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p81",
+                "userId": "u47",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p82",
+                "userId": "u25",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p70",
+                "userId": "u48",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p83",
+                "userId": "u18",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p63",
+                "userId": "u30",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p84",
+                "userId": "u3",
+                "amount": 50
+              }
+            },
+            {
+              "rebalance": true
+            },
+            {
+              "deliver": {
+                "id": "p85",
+                "userId": "u56",
+                "amount": 5
+              }
+            },
+            {
+              "rebalance": true
+            },
+            {
+              "deliver": {
+                "id": "p86",
+                "userId": "u53",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p87",
+                "userId": "u4",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p88",
+                "userId": "u17",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p89",
+                "userId": "u49",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p90",
+                "userId": "u7",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p91",
+                "userId": "u59",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p92",
+                "userId": "u34",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p93",
+                "userId": "u16",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p94",
+                "userId": "u2",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p66",
+                "userId": "u42",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p95",
+                "userId": "u26",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p83",
+                "userId": "u18",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p96",
+                "userId": "u20",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p97",
+                "userId": "u14",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p93",
+                "userId": "u16",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p98",
+                "userId": "u20",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p99",
+                "userId": "u30",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p100",
+                "userId": "u51",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p101",
+                "userId": "u29",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p102",
+                "userId": "u53",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p103",
+                "userId": "u31",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p104",
+                "userId": "u54",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p105",
+                "userId": "u33",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p106",
+                "userId": "u53",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p107",
+                "userId": "u19",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p78",
+                "userId": "u46",
+                "amount": 10
+              }
+            },
+            {
+              "rebalance": true
+            },
+            {
+              "deliver": {
+                "id": "p108",
+                "userId": "u47",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p109",
+                "userId": "u19",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p110",
+                "userId": "u37",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p111",
+                "userId": "u41",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p107",
+                "userId": "u19",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p96",
+                "userId": "u20",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p112",
+                "userId": "u20",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p101",
+                "userId": "u29",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p113",
+                "userId": "u17",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p114",
+                "userId": "u59",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p115",
+                "userId": "u45",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p116",
+                "userId": "u36",
+                "amount": 50
+              }
+            },
+            {
+              "rebalance": true
+            },
+            {
+              "deliver": {
+                "id": "p117",
+                "userId": "u29",
+                "amount": 100
+              },
+              "crash": "beforeCommit"
+            },
+            {
+              "deliver": {
+                "id": "p118",
+                "userId": "u56",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p119",
+                "userId": "u52",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p117",
+                "userId": "u29",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p120",
+                "userId": "u40",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p121",
+                "userId": "u25",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p122",
+                "userId": "u54",
+                "amount": 50
+              },
+              "crash": "afterCommit"
+            },
+            {
+              "deliver": {
+                "id": "p123",
+                "userId": "u51",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p122",
+                "userId": "u54",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p124",
+                "userId": "u6",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p125",
+                "userId": "u20",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p126",
+                "userId": "u30",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p127",
+                "userId": "u34",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p99",
+                "userId": "u30",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p128",
+                "userId": "u43",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p129",
+                "userId": "u53",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p130",
+                "userId": "u18",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p131",
+                "userId": "u12",
+                "amount": 50
+              },
+              "crash": "afterCommit"
+            },
+            {
+              "deliver": {
+                "id": "p132",
+                "userId": "u39",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p131",
+                "userId": "u12",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p133",
+                "userId": "u16",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p110",
+                "userId": "u37",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p134",
+                "userId": "u14",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p135",
+                "userId": "u42",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p136",
+                "userId": "u25",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p129",
+                "userId": "u53",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p137",
+                "userId": "u41",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p138",
+                "userId": "u16",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p139",
+                "userId": "u42",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p140",
+                "userId": "u42",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p141",
+                "userId": "u48",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p142",
+                "userId": "u10",
+                "amount": 100
+              },
+              "crash": "beforeCommit"
+            },
+            {
+              "deliver": {
+                "id": "p143",
+                "userId": "u54",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p144",
+                "userId": "u19",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p142",
+                "userId": "u10",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p145",
+                "userId": "u44",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p146",
+                "userId": "u19",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p147",
+                "userId": "u38",
+                "amount": 20
+              }
+            },
+            {
+              "rebalance": true
+            },
+            {
+              "deliver": {
+                "id": "p148",
+                "userId": "u37",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p149",
+                "userId": "u3",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p150",
+                "userId": "u28",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p151",
+                "userId": "u33",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p142",
+                "userId": "u10",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p152",
+                "userId": "u7",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p153",
+                "userId": "u39",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p154",
+                "userId": "u23",
+                "amount": 10
+              },
+              "crash": "afterCommit"
+            },
+            {
+              "deliver": {
+                "id": "p155",
+                "userId": "u47",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p156",
+                "userId": "u55",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p157",
+                "userId": "u15",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p154",
+                "userId": "u23",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p158",
+                "userId": "u56",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p159",
+                "userId": "u12",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p160",
+                "userId": "u47",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p153",
+                "userId": "u39",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p161",
+                "userId": "u37",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p162",
+                "userId": "u3",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p163",
+                "userId": "u37",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p164",
+                "userId": "u39",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p148",
+                "userId": "u37",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p137",
+                "userId": "u41",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p135",
+                "userId": "u42",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p165",
+                "userId": "u38",
+                "amount": 20
+              },
+              "crash": "beforeCommit"
+            },
+            {
+              "deliver": {
+                "id": "p166",
+                "userId": "u29",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p167",
+                "userId": "u4",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p165",
+                "userId": "u38",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p168",
+                "userId": "u19",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p140",
+                "userId": "u42",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p169",
+                "userId": "u49",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p155",
+                "userId": "u47",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p149",
+                "userId": "u3",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p170",
+                "userId": "u41",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p171",
+                "userId": "u1",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p150",
+                "userId": "u28",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p157",
+                "userId": "u15",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p152",
+                "userId": "u7",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p172",
+                "userId": "u53",
+                "amount": 10
+              }
+            },
+            {
+              "rebalance": true
+            },
+            {
+              "deliver": {
+                "id": "p173",
+                "userId": "u47",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p174",
+                "userId": "u33",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p175",
+                "userId": "u18",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p176",
+                "userId": "u4",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p177",
+                "userId": "u17",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p178",
+                "userId": "u26",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p179",
+                "userId": "u39",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p180",
+                "userId": "u5",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p181",
+                "userId": "u46",
+                "amount": 50
+              },
+              "crash": "afterCommit"
+            },
+            {
+              "deliver": {
+                "id": "p182",
+                "userId": "u57",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p183",
+                "userId": "u54",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p184",
+                "userId": "u47",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p185",
+                "userId": "u34",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p181",
+                "userId": "u46",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p186",
+                "userId": "u32",
+                "amount": 10
+              },
+              "crash": "afterCommit"
+            },
+            {
+              "deliver": {
+                "id": "p187",
+                "userId": "u7",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p188",
+                "userId": "u30",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p186",
+                "userId": "u32",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p189",
+                "userId": "u25",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p177",
+                "userId": "u17",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p190",
+                "userId": "u29",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p191",
+                "userId": "u31",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p192",
+                "userId": "u15",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p193",
+                "userId": "u38",
+                "amount": 50
+              },
+              "crash": "afterCommit"
+            },
+            {
+              "deliver": {
+                "id": "p194",
+                "userId": "u8",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p195",
+                "userId": "u58",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p196",
+                "userId": "u2",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p193",
+                "userId": "u38",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p197",
+                "userId": "u28",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p198",
+                "userId": "u23",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p199",
+                "userId": "u57",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p200",
+                "userId": "u37",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p192",
+                "userId": "u15",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p201",
+                "userId": "u40",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p202",
+                "userId": "u22",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p203",
+                "userId": "u35",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p204",
+                "userId": "u47",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p205",
+                "userId": "u9",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p206",
+                "userId": "u58",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p203",
+                "userId": "u35",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p207",
+                "userId": "u41",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p201",
+                "userId": "u40",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p208",
+                "userId": "u23",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p209",
+                "userId": "u47",
+                "amount": 50
+              }
+            },
+            {
+              "rebalance": true
+            },
+            {
+              "deliver": {
+                "id": "p210",
+                "userId": "u46",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p211",
+                "userId": "u2",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p212",
+                "userId": "u25",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p213",
+                "userId": "u55",
+                "amount": 5
+              },
+              "crash": "beforeCommit"
+            },
+            {
+              "deliver": {
+                "id": "p214",
+                "userId": "u16",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p215",
+                "userId": "u23",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p213",
+                "userId": "u55",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p216",
+                "userId": "u24",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p217",
+                "userId": "u34",
+                "amount": 5
+              }
+            },
+            {
+              "rebalance": true
+            },
+            {
+              "deliver": {
+                "id": "p206",
+                "userId": "u58",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p218",
+                "userId": "u19",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p219",
+                "userId": "u6",
+                "amount": 100
+              },
+              "crash": "afterCommit"
+            },
+            {
+              "deliver": {
+                "id": "p220",
+                "userId": "u7",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p221",
+                "userId": "u46",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p222",
+                "userId": "u51",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p219",
+                "userId": "u6",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p223",
+                "userId": "u52",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p224",
+                "userId": "u59",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p199",
+                "userId": "u57",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p225",
+                "userId": "u45",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p209",
+                "userId": "u47",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p198",
+                "userId": "u23",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p226",
+                "userId": "u36",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p227",
+                "userId": "u14",
+                "amount": 10
+              }
+            },
+            {
+              "rebalance": true
+            },
+            {
+              "deliver": {
+                "id": "p223",
+                "userId": "u52",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p205",
+                "userId": "u9",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p228",
+                "userId": "u9",
+                "amount": 50
+              },
+              "crash": "afterCommit"
+            },
+            {
+              "deliver": {
+                "id": "p229",
+                "userId": "u44",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p230",
+                "userId": "u13",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p231",
+                "userId": "u42",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p232",
+                "userId": "u21",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p228",
+                "userId": "u9",
+                "amount": 50
+              }
+            },
+            {
+              "rebalance": true
+            },
+            {
+              "deliver": {
+                "id": "p233",
+                "userId": "u22",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p234",
+                "userId": "u34",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p235",
+                "userId": "u11",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p236",
+                "userId": "u28",
+                "amount": 10
+              },
+              "crash": "beforeCommit"
+            },
+            {
+              "deliver": {
+                "id": "p237",
+                "userId": "u23",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p236",
+                "userId": "u28",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p238",
+                "userId": "u40",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p238",
+                "userId": "u40",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p239",
+                "userId": "u59",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p240",
+                "userId": "u11",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p241",
+                "userId": "u46",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p228",
+                "userId": "u9",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p242",
+                "userId": "u34",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p239",
+                "userId": "u59",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p243",
+                "userId": "u2",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p244",
+                "userId": "u56",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p245",
+                "userId": "u32",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p246",
+                "userId": "u57",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p247",
+                "userId": "u5",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p224",
+                "userId": "u59",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p218",
+                "userId": "u19",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p248",
+                "userId": "u17",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p249",
+                "userId": "u5",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p225",
+                "userId": "u45",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p250",
+                "userId": "u25",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p251",
+                "userId": "u31",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p252",
+                "userId": "u43",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p253",
+                "userId": "u57",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p254",
+                "userId": "u51",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p239",
+                "userId": "u59",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p255",
+                "userId": "u14",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p256",
+                "userId": "u4",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p257",
+                "userId": "u13",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p258",
+                "userId": "u60",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p259",
+                "userId": "u9",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p260",
+                "userId": "u18",
+                "amount": 20
+              },
+              "crash": "afterCommit"
+            },
+            {
+              "deliver": {
+                "id": "p261",
+                "userId": "u37",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p262",
+                "userId": "u59",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p260",
+                "userId": "u18",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p259",
+                "userId": "u9",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p263",
+                "userId": "u4",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p264",
+                "userId": "u14",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p254",
+                "userId": "u51",
+                "amount": 100
+              }
+            },
+            {
+              "rebalance": true
+            },
+            {
+              "deliver": {
+                "id": "p265",
+                "userId": "u40",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p266",
+                "userId": "u13",
+                "amount": 5
+              },
+              "crash": "beforeCommit"
+            },
+            {
+              "deliver": {
+                "id": "p267",
+                "userId": "u37",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p266",
+                "userId": "u13",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p268",
+                "userId": "u49",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p269",
+                "userId": "u43",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p270",
+                "userId": "u48",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p271",
+                "userId": "u39",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p272",
+                "userId": "u41",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p273",
+                "userId": "u44",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p250",
+                "userId": "u25",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p259",
+                "userId": "u9",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p274",
+                "userId": "u9",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p275",
+                "userId": "u27",
+                "amount": 10
+              },
+              "crash": "beforeCommit"
+            },
+            {
+              "deliver": {
+                "id": "p276",
+                "userId": "u5",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p275",
+                "userId": "u27",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p277",
+                "userId": "u5",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p278",
+                "userId": "u17",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p279",
+                "userId": "u21",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p280",
+                "userId": "u9",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p281",
+                "userId": "u31",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p282",
+                "userId": "u7",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p283",
+                "userId": "u6",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p284",
+                "userId": "u4",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p285",
+                "userId": "u42",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p286",
+                "userId": "u7",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p287",
+                "userId": "u48",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p267",
+                "userId": "u37",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p288",
+                "userId": "u6",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p289",
+                "userId": "u44",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p290",
+                "userId": "u11",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p265",
+                "userId": "u40",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p291",
+                "userId": "u16",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p292",
+                "userId": "u13",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p293",
+                "userId": "u57",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p285",
+                "userId": "u42",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p269",
+                "userId": "u43",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p294",
+                "userId": "u53",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p295",
+                "userId": "u38",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p296",
+                "userId": "u37",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p297",
+                "userId": "u32",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p298",
+                "userId": "u4",
+                "amount": 10
+              }
+            },
+            {
+              "rebalance": true
+            },
+            {
+              "deliver": {
+                "id": "p299",
+                "userId": "u4",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p300",
+                "userId": "u27",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p301",
+                "userId": "u46",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p274",
+                "userId": "u9",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p302",
+                "userId": "u55",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p303",
+                "userId": "u20",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p283",
+                "userId": "u6",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p304",
+                "userId": "u42",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p278",
+                "userId": "u17",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p305",
+                "userId": "u58",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p306",
+                "userId": "u14",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p307",
+                "userId": "u57",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p285",
+                "userId": "u42",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p308",
+                "userId": "u41",
+                "amount": 20
+              }
+            },
+            {
+              "rebalance": true
+            },
+            {
+              "deliver": {
+                "id": "p309",
+                "userId": "u42",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p310",
+                "userId": "u44",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p307",
+                "userId": "u57",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p311",
+                "userId": "u45",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p312",
+                "userId": "u24",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p313",
+                "userId": "u22",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p314",
+                "userId": "u44",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p315",
+                "userId": "u8",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p316",
+                "userId": "u25",
+                "amount": 10
+              },
+              "crash": "afterCommit"
+            },
+            {
+              "deliver": {
+                "id": "p317",
+                "userId": "u1",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p318",
+                "userId": "u49",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p316",
+                "userId": "u25",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p319",
+                "userId": "u9",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p320",
+                "userId": "u6",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p321",
+                "userId": "u12",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p322",
+                "userId": "u29",
+                "amount": 10
+              },
+              "crash": "beforeCommit"
+            },
+            {
+              "deliver": {
+                "id": "p323",
+                "userId": "u33",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p324",
+                "userId": "u13",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p325",
+                "userId": "u20",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p326",
+                "userId": "u57",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p322",
+                "userId": "u29",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p327",
+                "userId": "u32",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p328",
+                "userId": "u48",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p329",
+                "userId": "u15",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p314",
+                "userId": "u44",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p330",
+                "userId": "u58",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p331",
+                "userId": "u57",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p332",
+                "userId": "u58",
+                "amount": 50
+              },
+              "crash": "afterCommit"
+            },
+            {
+              "deliver": {
+                "id": "p333",
+                "userId": "u54",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p332",
+                "userId": "u58",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p334",
+                "userId": "u3",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p335",
+                "userId": "u56",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p308",
+                "userId": "u41",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p336",
+                "userId": "u34",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p337",
+                "userId": "u5",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p338",
+                "userId": "u60",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p339",
+                "userId": "u13",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p340",
+                "userId": "u48",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p341",
+                "userId": "u24",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p342",
+                "userId": "u20",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p336",
+                "userId": "u34",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p343",
+                "userId": "u11",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p344",
+                "userId": "u40",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p345",
+                "userId": "u4",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p346",
+                "userId": "u51",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p347",
+                "userId": "u17",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p348",
+                "userId": "u38",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p349",
+                "userId": "u15",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p350",
+                "userId": "u20",
+                "amount": 10
+              }
+            },
+            {
+              "rebalance": true
+            },
+            {
+              "deliver": {
+                "id": "p351",
+                "userId": "u16",
+                "amount": 100
+              },
+              "crash": "beforeCommit"
+            },
+            {
+              "deliver": {
+                "id": "p352",
+                "userId": "u4",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p353",
+                "userId": "u51",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p354",
+                "userId": "u46",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p351",
+                "userId": "u16",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p355",
+                "userId": "u21",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p356",
+                "userId": "u60",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p357",
+                "userId": "u52",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p358",
+                "userId": "u57",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p359",
+                "userId": "u49",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p360",
+                "userId": "u47",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p351",
+                "userId": "u16",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p361",
+                "userId": "u33",
+                "amount": 50
+              },
+              "crash": "afterCommit"
+            },
+            {
+              "deliver": {
+                "id": "p362",
+                "userId": "u41",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p363",
+                "userId": "u32",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p364",
+                "userId": "u47",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p365",
+                "userId": "u39",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p361",
+                "userId": "u33",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p366",
+                "userId": "u11",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p367",
+                "userId": "u9",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p368",
+                "userId": "u29",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p369",
+                "userId": "u22",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p370",
+                "userId": "u52",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p371",
+                "userId": "u51",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p372",
+                "userId": "u4",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p373",
+                "userId": "u3",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p374",
+                "userId": "u50",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p375",
+                "userId": "u29",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p370",
+                "userId": "u52",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p376",
+                "userId": "u21",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p348",
+                "userId": "u38",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p366",
+                "userId": "u11",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p377",
+                "userId": "u53",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p378",
+                "userId": "u7",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p379",
+                "userId": "u32",
+                "amount": 5
+              },
+              "crash": "afterCommit"
+            },
+            {
+              "deliver": {
+                "id": "p380",
+                "userId": "u43",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p379",
+                "userId": "u32",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p381",
+                "userId": "u51",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p382",
+                "userId": "u46",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p383",
+                "userId": "u23",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p384",
+                "userId": "u49",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p385",
+                "userId": "u54",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p386",
+                "userId": "u57",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p387",
+                "userId": "u34",
+                "amount": 10
+              },
+              "crash": "beforeCommit"
+            },
+            {
+              "deliver": {
+                "id": "p388",
+                "userId": "u26",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p389",
+                "userId": "u6",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p390",
+                "userId": "u54",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p387",
+                "userId": "u34",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p391",
+                "userId": "u37",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p392",
+                "userId": "u45",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p393",
+                "userId": "u58",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p369",
+                "userId": "u22",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p394",
+                "userId": "u6",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p395",
+                "userId": "u31",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p396",
+                "userId": "u30",
+                "amount": 5
+              },
+              "crash": "beforeCommit"
+            },
+            {
+              "deliver": {
+                "id": "p397",
+                "userId": "u13",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p398",
+                "userId": "u18",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p399",
+                "userId": "u43",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p396",
+                "userId": "u30",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p400",
+                "userId": "u15",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p401",
+                "userId": "u13",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p402",
+                "userId": "u49",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p403",
+                "userId": "u37",
+                "amount": 5
+              },
+              "crash": "afterCommit"
+            },
+            {
+              "deliver": {
+                "id": "p404",
+                "userId": "u27",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p405",
+                "userId": "u38",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p406",
+                "userId": "u16",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p403",
+                "userId": "u37",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p407",
+                "userId": "u54",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p408",
+                "userId": "u53",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p409",
+                "userId": "u48",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p384",
+                "userId": "u49",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p410",
+                "userId": "u50",
+                "amount": 20
+              },
+              "crash": "afterCommit"
+            },
+            {
+              "deliver": {
+                "id": "p411",
+                "userId": "u25",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p410",
+                "userId": "u50",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p412",
+                "userId": "u9",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p413",
+                "userId": "u4",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p414",
+                "userId": "u8",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p415",
+                "userId": "u41",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p414",
+                "userId": "u8",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p394",
+                "userId": "u6",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p404",
+                "userId": "u27",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p416",
+                "userId": "u36",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p417",
+                "userId": "u9",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p418",
+                "userId": "u19",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p419",
+                "userId": "u55",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p396",
+                "userId": "u30",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p420",
+                "userId": "u5",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p421",
+                "userId": "u13",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p422",
+                "userId": "u10",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p423",
+                "userId": "u20",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p397",
+                "userId": "u13",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p405",
+                "userId": "u38",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p424",
+                "userId": "u45",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p425",
+                "userId": "u37",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p426",
+                "userId": "u59",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p427",
+                "userId": "u18",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p428",
+                "userId": "u16",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p429",
+                "userId": "u8",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p430",
+                "userId": "u36",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p431",
+                "userId": "u2",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p432",
+                "userId": "u38",
+                "amount": 50
+              },
+              "crash": "beforeCommit"
+            },
+            {
+              "deliver": {
+                "id": "p433",
+                "userId": "u31",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p432",
+                "userId": "u38",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p434",
+                "userId": "u56",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p435",
+                "userId": "u34",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p436",
+                "userId": "u29",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p437",
+                "userId": "u1",
+                "amount": 100
+              },
+              "crash": "beforeCommit"
+            },
+            {
+              "deliver": {
+                "id": "p438",
+                "userId": "u1",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p439",
+                "userId": "u45",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p437",
+                "userId": "u1",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p440",
+                "userId": "u20",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p441",
+                "userId": "u33",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p442",
+                "userId": "u21",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p443",
+                "userId": "u8",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p444",
+                "userId": "u50",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p445",
+                "userId": "u11",
+                "amount": 5
+              },
+              "crash": "afterCommit"
+            },
+            {
+              "deliver": {
+                "id": "p446",
+                "userId": "u6",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p447",
+                "userId": "u43",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p448",
+                "userId": "u16",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p449",
+                "userId": "u16",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p445",
+                "userId": "u11",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p424",
+                "userId": "u45",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p450",
+                "userId": "u15",
+                "amount": 10
+              },
+              "crash": "afterCommit"
+            },
+            {
+              "deliver": {
+                "id": "p451",
+                "userId": "u36",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p452",
+                "userId": "u3",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p453",
+                "userId": "u9",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p454",
+                "userId": "u40",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p450",
+                "userId": "u15",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p429",
+                "userId": "u8",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p455",
+                "userId": "u54",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p456",
+                "userId": "u33",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p457",
+                "userId": "u54",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p458",
+                "userId": "u42",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p459",
+                "userId": "u47",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p460",
+                "userId": "u43",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p461",
+                "userId": "u5",
+                "amount": 20
+              },
+              "crash": "beforeCommit"
+            },
+            {
+              "deliver": {
+                "id": "p462",
+                "userId": "u7",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p463",
+                "userId": "u20",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p461",
+                "userId": "u5",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p464",
+                "userId": "u12",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p465",
+                "userId": "u33",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p466",
+                "userId": "u51",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p467",
+                "userId": "u39",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p468",
+                "userId": "u49",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p469",
+                "userId": "u1",
+                "amount": 20
+              },
+              "crash": "beforeCommit"
+            },
+            {
+              "deliver": {
+                "id": "p470",
+                "userId": "u49",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p469",
+                "userId": "u1",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p458",
+                "userId": "u42",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p471",
+                "userId": "u49",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p472",
+                "userId": "u3",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p473",
+                "userId": "u40",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p474",
+                "userId": "u33",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p475",
+                "userId": "u9",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p446",
+                "userId": "u6",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p476",
+                "userId": "u6",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p477",
+                "userId": "u55",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p472",
+                "userId": "u3",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p478",
+                "userId": "u47",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p479",
+                "userId": "u38",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p480",
+                "userId": "u28",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p481",
+                "userId": "u58",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p482",
+                "userId": "u14",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p483",
+                "userId": "u50",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p484",
+                "userId": "u38",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p485",
+                "userId": "u50",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p486",
+                "userId": "u4",
+                "amount": 10
+              },
+              "crash": "beforeCommit"
+            },
+            {
+              "deliver": {
+                "id": "p487",
+                "userId": "u3",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p488",
+                "userId": "u27",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p489",
+                "userId": "u35",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p490",
+                "userId": "u6",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p486",
+                "userId": "u4",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p491",
+                "userId": "u43",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p492",
+                "userId": "u4",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p493",
+                "userId": "u42",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p494",
+                "userId": "u33",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p495",
+                "userId": "u58",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p496",
+                "userId": "u35",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p497",
+                "userId": "u36",
+                "amount": 5
+              },
+              "crash": "afterCommit"
+            },
+            {
+              "deliver": {
+                "id": "p498",
+                "userId": "u46",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p499",
+                "userId": "u40",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p497",
+                "userId": "u36",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p500",
+                "userId": "u58",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p501",
+                "userId": "u16",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p472",
+                "userId": "u3",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p502",
+                "userId": "u55",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p484",
+                "userId": "u38",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p503",
+                "userId": "u49",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p490",
+                "userId": "u6",
+                "amount": 10
+              }
+            },
+            {
+              "rebalance": true
+            },
+            {
+              "deliver": {
+                "id": "p504",
+                "userId": "u26",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p505",
+                "userId": "u43",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p506",
+                "userId": "u27",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p507",
+                "userId": "u28",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p508",
+                "userId": "u50",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p509",
+                "userId": "u39",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p510",
+                "userId": "u56",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p511",
+                "userId": "u57",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p512",
+                "userId": "u11",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p513",
+                "userId": "u26",
+                "amount": 10
+              },
+              "crash": "afterCommit"
+            },
+            {
+              "deliver": {
+                "id": "p514",
+                "userId": "u9",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p515",
+                "userId": "u41",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p516",
+                "userId": "u53",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p517",
+                "userId": "u14",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p513",
+                "userId": "u26",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p518",
+                "userId": "u23",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p519",
+                "userId": "u56",
+                "amount": 20
+              },
+              "crash": "afterCommit"
+            },
+            {
+              "deliver": {
+                "id": "p520",
+                "userId": "u35",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p521",
+                "userId": "u44",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p522",
+                "userId": "u45",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p519",
+                "userId": "u56",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p523",
+                "userId": "u54",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p495",
+                "userId": "u58",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p524",
+                "userId": "u55",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p525",
+                "userId": "u15",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p526",
+                "userId": "u24",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p527",
+                "userId": "u10",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p513",
+                "userId": "u26",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p528",
+                "userId": "u13",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p529",
+                "userId": "u49",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p530",
+                "userId": "u11",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p517",
+                "userId": "u14",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p531",
+                "userId": "u3",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p506",
+                "userId": "u27",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p524",
+                "userId": "u55",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p532",
+                "userId": "u51",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p533",
+                "userId": "u51",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p534",
+                "userId": "u15",
+                "amount": 5
+              },
+              "crash": "afterCommit"
+            },
+            {
+              "deliver": {
+                "id": "p535",
+                "userId": "u2",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p534",
+                "userId": "u15",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p536",
+                "userId": "u1",
+                "amount": 5
+              },
+              "crash": "beforeCommit"
+            },
+            {
+              "deliver": {
+                "id": "p537",
+                "userId": "u40",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p538",
+                "userId": "u38",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p539",
+                "userId": "u20",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p536",
+                "userId": "u1",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p540",
+                "userId": "u5",
+                "amount": 5
+              },
+              "crash": "afterCommit"
+            },
+            {
+              "deliver": {
+                "id": "p541",
+                "userId": "u42",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p542",
+                "userId": "u17",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p543",
+                "userId": "u10",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p540",
+                "userId": "u5",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p540",
+                "userId": "u5",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p544",
+                "userId": "u15",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p545",
+                "userId": "u50",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p540",
+                "userId": "u5",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p546",
+                "userId": "u1",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p547",
+                "userId": "u12",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p548",
+                "userId": "u44",
+                "amount": 10
+              },
+              "crash": "beforeCommit"
+            },
+            {
+              "deliver": {
+                "id": "p549",
+                "userId": "u14",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p548",
+                "userId": "u44",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p550",
+                "userId": "u16",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p551",
+                "userId": "u55",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p552",
+                "userId": "u44",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p553",
+                "userId": "u56",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p527",
+                "userId": "u10",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p554",
+                "userId": "u24",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p555",
+                "userId": "u21",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p556",
+                "userId": "u16",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p556",
+                "userId": "u16",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p557",
+                "userId": "u47",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p558",
+                "userId": "u14",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p559",
+                "userId": "u56",
+                "amount": 10
+              },
+              "crash": "beforeCommit"
+            },
+            {
+              "deliver": {
+                "id": "p560",
+                "userId": "u17",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p561",
+                "userId": "u3",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p562",
+                "userId": "u12",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p559",
+                "userId": "u56",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p563",
+                "userId": "u37",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p564",
+                "userId": "u51",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p565",
+                "userId": "u60",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p566",
+                "userId": "u22",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p561",
+                "userId": "u3",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p567",
+                "userId": "u16",
+                "amount": 10
+              },
+              "crash": "afterCommit"
+            },
+            {
+              "deliver": {
+                "id": "p568",
+                "userId": "u59",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p569",
+                "userId": "u21",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p567",
+                "userId": "u16",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p565",
+                "userId": "u60",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p570",
+                "userId": "u20",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p550",
+                "userId": "u16",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p571",
+                "userId": "u12",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p572",
+                "userId": "u49",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p573",
+                "userId": "u5",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p560",
+                "userId": "u17",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p574",
+                "userId": "u50",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p575",
+                "userId": "u28",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p576",
+                "userId": "u15",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p577",
+                "userId": "u36",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p578",
+                "userId": "u7",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p579",
+                "userId": "u6",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p580",
+                "userId": "u1",
+                "amount": 10
+              },
+              "crash": "beforeCommit"
+            },
+            {
+              "deliver": {
+                "id": "p581",
+                "userId": "u22",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p580",
+                "userId": "u1",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p582",
+                "userId": "u5",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p581",
+                "userId": "u22",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p583",
+                "userId": "u6",
+                "amount": 10
+              },
+              "crash": "beforeCommit"
+            },
+            {
+              "deliver": {
+                "id": "p584",
+                "userId": "u29",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p585",
+                "userId": "u5",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p586",
+                "userId": "u6",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p587",
+                "userId": "u30",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p583",
+                "userId": "u6",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p588",
+                "userId": "u4",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p589",
+                "userId": "u56",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p590",
+                "userId": "u8",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p591",
+                "userId": "u18",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p592",
+                "userId": "u29",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p593",
+                "userId": "u12",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p594",
+                "userId": "u31",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p595",
+                "userId": "u54",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p569",
+                "userId": "u21",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p596",
+                "userId": "u56",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p579",
+                "userId": "u6",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p597",
+                "userId": "u15",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p598",
+                "userId": "u7",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p599",
+                "userId": "u25",
+                "amount": 50
+              },
+              "crash": "afterCommit"
+            },
+            {
+              "deliver": {
+                "id": "p600",
+                "userId": "u48",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p601",
+                "userId": "u17",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p602",
+                "userId": "u19",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p603",
+                "userId": "u29",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p599",
+                "userId": "u25",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p604",
+                "userId": "u53",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p605",
+                "userId": "u56",
+                "amount": 10
+              }
+            },
+            {
+              "rebalance": true
+            },
+            {
+              "rebalance": true
+            },
+            {
+              "deliver": {
+                "id": "p606",
+                "userId": "u38",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p600",
+                "userId": "u48",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p607",
+                "userId": "u15",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p608",
+                "userId": "u56",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p609",
+                "userId": "u47",
+                "amount": 10
+              },
+              "crash": "afterCommit"
+            },
+            {
+              "deliver": {
+                "id": "p610",
+                "userId": "u36",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p611",
+                "userId": "u13",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p612",
+                "userId": "u26",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p609",
+                "userId": "u47",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p609",
+                "userId": "u47",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p613",
+                "userId": "u17",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p614",
+                "userId": "u8",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p615",
+                "userId": "u27",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p616",
+                "userId": "u13",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p617",
+                "userId": "u10",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p618",
+                "userId": "u16",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p619",
+                "userId": "u2",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p620",
+                "userId": "u14",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p599",
+                "userId": "u25",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p621",
+                "userId": "u33",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p622",
+                "userId": "u5",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p623",
+                "userId": "u35",
+                "amount": 50
+              },
+              "crash": "afterCommit"
+            },
+            {
+              "deliver": {
+                "id": "p624",
+                "userId": "u2",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p623",
+                "userId": "u35",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p625",
+                "userId": "u53",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p626",
+                "userId": "u2",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p627",
+                "userId": "u22",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p628",
+                "userId": "u57",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p617",
+                "userId": "u10",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p607",
+                "userId": "u15",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p629",
+                "userId": "u12",
+                "amount": 50
+              },
+              "crash": "beforeCommit"
+            },
+            {
+              "deliver": {
+                "id": "p630",
+                "userId": "u39",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p631",
+                "userId": "u59",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p632",
+                "userId": "u40",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p629",
+                "userId": "u12",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p633",
+                "userId": "u36",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p634",
+                "userId": "u29",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p626",
+                "userId": "u2",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p635",
+                "userId": "u20",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p636",
+                "userId": "u34",
+                "amount": 50
+              },
+              "crash": "afterCommit"
+            },
+            {
+              "deliver": {
+                "id": "p637",
+                "userId": "u12",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p638",
+                "userId": "u46",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p636",
+                "userId": "u34",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p639",
+                "userId": "u1",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p628",
+                "userId": "u57",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p640",
+                "userId": "u51",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p620",
+                "userId": "u14",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p641",
+                "userId": "u55",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p642",
+                "userId": "u25",
+                "amount": 20
+              }
+            },
+            {
+              "deliver": {
+                "id": "p643",
+                "userId": "u15",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p644",
+                "userId": "u21",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p645",
+                "userId": "u31",
+                "amount": 10
+              },
+              "crash": "beforeCommit"
+            },
+            {
+              "deliver": {
+                "id": "p646",
+                "userId": "u49",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p647",
+                "userId": "u60",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p645",
+                "userId": "u31",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p632",
+                "userId": "u40",
+                "amount": 10
+              }
+            },
+            {
+              "deliver": {
+                "id": "p644",
+                "userId": "u21",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p637",
+                "userId": "u12",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p648",
+                "userId": "u30",
+                "amount": 50
+              },
+              "crash": "afterCommit"
+            },
+            {
+              "deliver": {
+                "id": "p649",
+                "userId": "u41",
+                "amount": 100
+              }
+            },
+            {
+              "deliver": {
+                "id": "p648",
+                "userId": "u30",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p650",
+                "userId": "u26",
+                "amount": 5
+              }
+            },
+            {
+              "deliver": {
+                "id": "p651",
+                "userId": "u58",
+                "amount": 50
+              }
+            },
+            {
+              "deliver": {
+                "id": "p652",
+                "userId": "u33",
+                "amount": 5
+              }
+            }
+          ],
+          "expected": "p1 u54 +100: applied, acked\np2 u17 +10: applied, acked\np3 u55 +50: applied, acked\np1 u54 +100: duplicate, acked\np4 u59 +50: applied, acked\np5 u60 +20: applied, acked\np6 u8 +5: applied, acked\np7 u34 +20: applied, acked\np8 u24 +50: applied, acked\np9 u50 +50: applied, acked\np10 u35 +20: applied, acked\np11 u39 +10: applied, acked\np12 u31 +10: crashed before commit, not acked\np13 u48 +10: applied, acked\np14 u12 +50: applied, acked\np15 u37 +5: applied, acked\np16 u43 +10: applied, acked\np12 u31 +10: applied, acked\np17 u17 +5: applied, acked\np18 u55 +10: applied, acked\np19 u47 +50: applied, acked\np20 u29 +100: applied, acked\np21 u41 +50: applied, acked\np9 u50 +50: duplicate, acked\np22 u36 +10: crashed before commit, not acked\np23 u37 +10: applied, acked\np24 u1 +50: applied, acked\np25 u13 +20: applied, acked\np26 u16 +100: applied, acked\np22 u36 +10: applied, acked\np27 u60 +5: applied, acked\np28 u51 +50: applied, acked\np17 u17 +5: duplicate, acked\np7 u34 +20: duplicate, acked\np29 u22 +5: applied, acked\np30 u13 +5: applied, acked\np31 u2 +20: applied, acked\np32 u51 +10: applied, acked\np33 u34 +100: applied, acked\np34 u49 +50: crashed after commit, not acked\np35 u9 +10: applied, acked\np36 u26 +50: applied, acked\np37 u39 +20: applied, acked\np34 u49 +50: duplicate, acked\np38 u27 +10: applied, acked\np39 u57 +50: applied, acked\np13 u48 +10: duplicate, acked\np40 u42 +5: crashed after commit, not acked\np41 u37 +20: applied, acked\np42 u46 +50: applied, acked\np40 u42 +5: duplicate, acked\np43 u6 +10: applied, acked\np44 u13 +10: applied, acked\np45 u55 +100: applied, acked\np46 u2 +100: applied, acked\np47 u29 +10: applied, acked\np22 u36 +10: duplicate, acked\np48 u24 +10: applied, acked\nrebalance: partition assigned to a new consumer\np49 u10 +10: applied, acked\np41 u37 +20: duplicate, acked\np50 u54 +5: applied, acked\np51 u36 +50: applied, acked\np34 u49 +50: duplicate, acked\np52 u43 +100: applied, acked\np39 u57 +50: duplicate, acked\np47 u29 +10: duplicate, acked\np53 u11 +10: applied, acked\np54 u19 +10: applied, acked\np55 u13 +10: crashed after commit, not acked\np56 u50 +10: applied, acked\np57 u11 +100: applied, acked\np55 u13 +10: duplicate, acked\np34 u49 +50: duplicate, acked\np58 u15 +5: applied, acked\np59 u20 +50: applied, acked\np60 u59 +10: applied, acked\np61 u18 +50: applied, acked\np55 u13 +10: duplicate, acked\nrebalance: partition assigned to a new consumer\np62 u25 +20: applied, acked\np63 u30 +5: crashed before commit, not acked\np64 u3 +50: applied, acked\np65 u50 +100: applied, acked\np66 u42 +50: applied, acked\np63 u30 +5: applied, acked\np67 u19 +50: applied, acked\np68 u3 +20: applied, acked\np65 u50 +100: duplicate, acked\np69 u54 +50: applied, acked\np70 u48 +10: applied, acked\np71 u55 +50: applied, acked\np42 u46 +50: duplicate, acked\np72 u35 +20: applied, acked\np73 u59 +10: applied, acked\np74 u6 +10: applied, acked\np75 u60 +10: applied, acked\np76 u5 +50: applied, acked\np77 u2 +10: applied, acked\np78 u46 +10: applied, acked\np79 u53 +50: applied, acked\np80 u5 +50: applied, acked\np81 u47 +50: applied, acked\np82 u25 +50: applied, acked\np70 u48 +10: duplicate, acked\np83 u18 +100: applied, acked\np63 u30 +5: duplicate, acked\np84 u3 +50: applied, acked\nrebalance: partition assigned to a new consumer\np85 u56 +5: applied, acked\nrebalance: partition assigned to a new consumer\np86 u53 +20: applied, acked\np87 u4 +50: applied, acked\np88 u17 +50: applied, acked\np89 u49 +20: applied, acked\np90 u7 +50: applied, acked\np91 u59 +100: applied, acked\np92 u34 +5: applied, acked\np93 u16 +10: applied, acked\np94 u2 +10: applied, acked\np66 u42 +50: duplicate, acked\np95 u26 +100: applied, acked\np83 u18 +100: duplicate, acked\np96 u20 +50: applied, acked\np97 u14 +5: applied, acked\np93 u16 +10: duplicate, acked\np98 u20 +5: applied, acked\np99 u30 +10: applied, acked\np100 u51 +5: applied, acked\np101 u29 +100: applied, acked\np102 u53 +50: applied, acked\np103 u31 +50: applied, acked\np104 u54 +20: applied, acked\np105 u33 +10: applied, acked\np106 u53 +100: applied, acked\np107 u19 +50: applied, acked\np78 u46 +10: duplicate, acked\nrebalance: partition assigned to a new consumer\np108 u47 +50: applied, acked\np109 u19 +50: applied, acked\np110 u37 +10: applied, acked\np111 u41 +50: applied, acked\np107 u19 +50: duplicate, acked\np96 u20 +50: duplicate, acked\np112 u20 +10: applied, acked\np101 u29 +100: duplicate, acked\np113 u17 +10: applied, acked\np114 u59 +5: applied, acked\np115 u45 +10: applied, acked\np116 u36 +50: applied, acked\nrebalance: partition assigned to a new consumer\np117 u29 +100: crashed before commit, not acked\np118 u56 +10: applied, acked\np119 u52 +50: applied, acked\np117 u29 +100: applied, acked\np120 u40 +10: applied, acked\np121 u25 +50: applied, acked\np122 u54 +50: crashed after commit, not acked\np123 u51 +100: applied, acked\np122 u54 +50: duplicate, acked\np124 u6 +10: applied, acked\np125 u20 +50: applied, acked\np126 u30 +10: applied, acked\np127 u34 +10: applied, acked\np99 u30 +10: duplicate, acked\np128 u43 +5: applied, acked\np129 u53 +20: applied, acked\np130 u18 +100: applied, acked\np131 u12 +50: crashed after commit, not acked\np132 u39 +50: applied, acked\np131 u12 +50: duplicate, acked\np133 u16 +50: applied, acked\np110 u37 +10: duplicate, acked\np134 u14 +50: applied, acked\np135 u42 +5: applied, acked\np136 u25 +10: applied, acked\np129 u53 +20: duplicate, acked\np137 u41 +50: applied, acked\np138 u16 +10: applied, acked\np139 u42 +10: applied, acked\np140 u42 +10: applied, acked\np141 u48 +20: applied, acked\np142 u10 +100: crashed before commit, not acked\np143 u54 +50: applied, acked\np144 u19 +50: applied, acked\np142 u10 +100: applied, acked\np145 u44 +100: applied, acked\np146 u19 +50: applied, acked\np147 u38 +20: applied, acked\nrebalance: partition assigned to a new consumer\np148 u37 +50: applied, acked\np149 u3 +50: applied, acked\np150 u28 +100: applied, acked\np151 u33 +50: applied, acked\np142 u10 +100: duplicate, acked\np152 u7 +50: applied, acked\np153 u39 +10: applied, acked\np154 u23 +10: crashed after commit, not acked\np155 u47 +10: applied, acked\np156 u55 +10: applied, acked\np157 u15 +10: applied, acked\np154 u23 +10: duplicate, acked\np158 u56 +10: applied, acked\np159 u12 +50: applied, acked\np160 u47 +50: applied, acked\np153 u39 +10: duplicate, acked\np161 u37 +10: applied, acked\np162 u3 +100: applied, acked\np163 u37 +20: applied, acked\np164 u39 +5: applied, acked\np148 u37 +50: duplicate, acked\np137 u41 +50: duplicate, acked\np135 u42 +5: duplicate, acked\np165 u38 +20: crashed before commit, not acked\np166 u29 +10: applied, acked\np167 u4 +10: applied, acked\np165 u38 +20: applied, acked\np168 u19 +20: applied, acked\np140 u42 +10: duplicate, acked\np169 u49 +50: applied, acked\np155 u47 +10: duplicate, acked\np149 u3 +50: duplicate, acked\np170 u41 +20: applied, acked\np171 u1 +100: applied, acked\np150 u28 +100: duplicate, acked\np157 u15 +10: duplicate, acked\np152 u7 +50: duplicate, acked\np172 u53 +10: applied, acked\nrebalance: partition assigned to a new consumer\np173 u47 +10: applied, acked\np174 u33 +10: applied, acked\np175 u18 +100: applied, acked\np176 u4 +5: applied, acked\np177 u17 +20: applied, acked\np178 u26 +50: applied, acked\np179 u39 +100: applied, acked\np180 u5 +50: applied, acked\np181 u46 +50: crashed after commit, not acked\np182 u57 +10: applied, acked\np183 u54 +10: applied, acked\np184 u47 +50: applied, acked\np185 u34 +100: applied, acked\np181 u46 +50: duplicate, acked\np186 u32 +10: crashed after commit, not acked\np187 u7 +10: applied, acked\np188 u30 +10: applied, acked\np186 u32 +10: duplicate, acked\np189 u25 +10: applied, acked\np177 u17 +20: duplicate, acked\np190 u29 +5: applied, acked\np191 u31 +50: applied, acked\np192 u15 +50: applied, acked\np193 u38 +50: crashed after commit, not acked\np194 u8 +20: applied, acked\np195 u58 +10: applied, acked\np196 u2 +50: applied, acked\np193 u38 +50: duplicate, acked\np197 u28 +100: applied, acked\np198 u23 +50: applied, acked\np199 u57 +20: applied, acked\np200 u37 +100: applied, acked\np192 u15 +50: duplicate, acked\np201 u40 +10: applied, acked\np202 u22 +50: applied, acked\np203 u35 +20: applied, acked\np204 u47 +10: applied, acked\np205 u9 +5: applied, acked\np206 u58 +100: applied, acked\np203 u35 +20: duplicate, acked\np207 u41 +10: applied, acked\np201 u40 +10: duplicate, acked\np208 u23 +10: applied, acked\np209 u47 +50: applied, acked\nrebalance: partition assigned to a new consumer\np210 u46 +100: applied, acked\np211 u2 +20: applied, acked\np212 u25 +50: applied, acked\np213 u55 +5: crashed before commit, not acked\np214 u16 +100: applied, acked\np215 u23 +10: applied, acked\np213 u55 +5: applied, acked\np216 u24 +50: applied, acked\np217 u34 +5: applied, acked\nrebalance: partition assigned to a new consumer\np206 u58 +100: duplicate, acked\np218 u19 +20: applied, acked\np219 u6 +100: crashed after commit, not acked\np220 u7 +10: applied, acked\np221 u46 +100: applied, acked\np222 u51 +50: applied, acked\np219 u6 +100: duplicate, acked\np223 u52 +100: applied, acked\np224 u59 +10: applied, acked\np199 u57 +20: duplicate, acked\np225 u45 +10: applied, acked\np209 u47 +50: duplicate, acked\np198 u23 +50: duplicate, acked\np226 u36 +10: applied, acked\np227 u14 +10: applied, acked\nrebalance: partition assigned to a new consumer\np223 u52 +100: duplicate, acked\np205 u9 +5: duplicate, acked\np228 u9 +50: crashed after commit, not acked\np229 u44 +5: applied, acked\np230 u13 +5: applied, acked\np231 u42 +10: applied, acked\np232 u21 +5: applied, acked\np228 u9 +50: duplicate, acked\nrebalance: partition assigned to a new consumer\np233 u22 +10: applied, acked\np234 u34 +10: applied, acked\np235 u11 +20: applied, acked\np236 u28 +10: crashed before commit, not acked\np237 u23 +10: applied, acked\np236 u28 +10: applied, acked\np238 u40 +50: applied, acked\np238 u40 +50: duplicate, acked\np239 u59 +10: applied, acked\np240 u11 +10: applied, acked\np241 u46 +5: applied, acked\np228 u9 +50: duplicate, acked\np242 u34 +10: applied, acked\np239 u59 +10: duplicate, acked\np243 u2 +20: applied, acked\np244 u56 +20: applied, acked\np245 u32 +100: applied, acked\np246 u57 +20: applied, acked\np247 u5 +20: applied, acked\np224 u59 +10: duplicate, acked\np218 u19 +20: duplicate, acked\np248 u17 +5: applied, acked\np249 u5 +10: applied, acked\np225 u45 +10: duplicate, acked\np250 u25 +5: applied, acked\np251 u31 +10: applied, acked\np252 u43 +10: applied, acked\np253 u57 +20: applied, acked\np254 u51 +100: applied, acked\np239 u59 +10: duplicate, acked\np255 u14 +10: applied, acked\np256 u4 +100: applied, acked\np257 u13 +20: applied, acked\np258 u60 +100: applied, acked\np259 u9 +5: applied, acked\np260 u18 +20: crashed after commit, not acked\np261 u37 +5: applied, acked\np262 u59 +100: applied, acked\np260 u18 +20: duplicate, acked\np259 u9 +5: duplicate, acked\np263 u4 +50: applied, acked\np264 u14 +20: applied, acked\np254 u51 +100: duplicate, acked\nrebalance: partition assigned to a new consumer\np265 u40 +5: applied, acked\np266 u13 +5: crashed before commit, not acked\np267 u37 +10: applied, acked\np266 u13 +5: applied, acked\np268 u49 +100: applied, acked\np269 u43 +50: applied, acked\np270 u48 +20: applied, acked\np271 u39 +20: applied, acked\np272 u41 +50: applied, acked\np273 u44 +10: applied, acked\np250 u25 +5: duplicate, acked\np259 u9 +5: duplicate, acked\np274 u9 +100: applied, acked\np275 u27 +10: crashed before commit, not acked\np276 u5 +100: applied, acked\np275 u27 +10: applied, acked\np277 u5 +20: applied, acked\np278 u17 +20: applied, acked\np279 u21 +10: applied, acked\np280 u9 +20: applied, acked\np281 u31 +100: applied, acked\np282 u7 +50: applied, acked\np283 u6 +5: applied, acked\np284 u4 +50: applied, acked\np285 u42 +100: applied, acked\np286 u7 +100: applied, acked\np287 u48 +5: applied, acked\np267 u37 +10: duplicate, acked\np288 u6 +100: applied, acked\np289 u44 +50: applied, acked\np290 u11 +100: applied, acked\np265 u40 +5: duplicate, acked\np291 u16 +100: applied, acked\np292 u13 +10: applied, acked\np293 u57 +100: applied, acked\np285 u42 +100: duplicate, acked\np269 u43 +50: duplicate, acked\np294 u53 +5: applied, acked\np295 u38 +20: applied, acked\np296 u37 +10: applied, acked\np297 u32 +10: applied, acked\np298 u4 +10: applied, acked\nrebalance: partition assigned to a new consumer\np299 u4 +5: applied, acked\np300 u27 +5: applied, acked\np301 u46 +10: applied, acked\np274 u9 +100: duplicate, acked\np302 u55 +50: applied, acked\np303 u20 +10: applied, acked\np283 u6 +5: duplicate, acked\np304 u42 +50: applied, acked\np278 u17 +20: duplicate, acked\np305 u58 +10: applied, acked\np306 u14 +5: applied, acked\np307 u57 +50: applied, acked\np285 u42 +100: duplicate, acked\np308 u41 +20: applied, acked\nrebalance: partition assigned to a new consumer\np309 u42 +50: applied, acked\np310 u44 +100: applied, acked\np307 u57 +50: duplicate, acked\np311 u45 +100: applied, acked\np312 u24 +50: applied, acked\np313 u22 +10: applied, acked\np314 u44 +5: applied, acked\np315 u8 +50: applied, acked\np316 u25 +10: crashed after commit, not acked\np317 u1 +20: applied, acked\np318 u49 +50: applied, acked\np316 u25 +10: duplicate, acked\np319 u9 +100: applied, acked\np320 u6 +50: applied, acked\np321 u12 +5: applied, acked\np322 u29 +10: crashed before commit, not acked\np323 u33 +50: applied, acked\np324 u13 +50: applied, acked\np325 u20 +10: applied, acked\np326 u57 +20: applied, acked\np322 u29 +10: applied, acked\np327 u32 +5: applied, acked\np328 u48 +10: applied, acked\np329 u15 +10: applied, acked\np314 u44 +5: duplicate, acked\np330 u58 +10: applied, acked\np331 u57 +5: applied, acked\np332 u58 +50: crashed after commit, not acked\np333 u54 +10: applied, acked\np332 u58 +50: duplicate, acked\np334 u3 +50: applied, acked\np335 u56 +5: applied, acked\np308 u41 +20: duplicate, acked\np336 u34 +10: applied, acked\np337 u5 +5: applied, acked\np338 u60 +5: applied, acked\np339 u13 +10: applied, acked\np340 u48 +50: applied, acked\np341 u24 +5: applied, acked\np342 u20 +10: applied, acked\np336 u34 +10: duplicate, acked\np343 u11 +5: applied, acked\np344 u40 +50: applied, acked\np345 u4 +20: applied, acked\np346 u51 +50: applied, acked\np347 u17 +10: applied, acked\np348 u38 +5: applied, acked\np349 u15 +10: applied, acked\np350 u20 +10: applied, acked\nrebalance: partition assigned to a new consumer\np351 u16 +100: crashed before commit, not acked\np352 u4 +50: applied, acked\np353 u51 +50: applied, acked\np354 u46 +10: applied, acked\np351 u16 +100: applied, acked\np355 u21 +5: applied, acked\np356 u60 +100: applied, acked\np357 u52 +10: applied, acked\np358 u57 +20: applied, acked\np359 u49 +20: applied, acked\np360 u47 +10: applied, acked\np351 u16 +100: duplicate, acked\np361 u33 +50: crashed after commit, not acked\np362 u41 +20: applied, acked\np363 u32 +50: applied, acked\np364 u47 +5: applied, acked\np365 u39 +10: applied, acked\np361 u33 +50: duplicate, acked\np366 u11 +5: applied, acked\np367 u9 +20: applied, acked\np368 u29 +100: applied, acked\np369 u22 +10: applied, acked\np370 u52 +20: applied, acked\np371 u51 +50: applied, acked\np372 u4 +20: applied, acked\np373 u3 +100: applied, acked\np374 u50 +5: applied, acked\np375 u29 +100: applied, acked\np370 u52 +20: duplicate, acked\np376 u21 +10: applied, acked\np348 u38 +5: duplicate, acked\np366 u11 +5: duplicate, acked\np377 u53 +20: applied, acked\np378 u7 +50: applied, acked\np379 u32 +5: crashed after commit, not acked\np380 u43 +50: applied, acked\np379 u32 +5: duplicate, acked\np381 u51 +50: applied, acked\np382 u46 +10: applied, acked\np383 u23 +20: applied, acked\np384 u49 +100: applied, acked\np385 u54 +50: applied, acked\np386 u57 +5: applied, acked\np387 u34 +10: crashed before commit, not acked\np388 u26 +5: applied, acked\np389 u6 +100: applied, acked\np390 u54 +50: applied, acked\np387 u34 +10: applied, acked\np391 u37 +10: applied, acked\np392 u45 +100: applied, acked\np393 u58 +100: applied, acked\np369 u22 +10: duplicate, acked\np394 u6 +10: applied, acked\np395 u31 +10: applied, acked\np396 u30 +5: crashed before commit, not acked\np397 u13 +10: applied, acked\np398 u18 +10: applied, acked\np399 u43 +50: applied, acked\np396 u30 +5: applied, acked\np400 u15 +50: applied, acked\np401 u13 +5: applied, acked\np402 u49 +50: applied, acked\np403 u37 +5: crashed after commit, not acked\np404 u27 +20: applied, acked\np405 u38 +10: applied, acked\np406 u16 +50: applied, acked\np403 u37 +5: duplicate, acked\np407 u54 +10: applied, acked\np408 u53 +20: applied, acked\np409 u48 +10: applied, acked\np384 u49 +100: duplicate, acked\np410 u50 +20: crashed after commit, not acked\np411 u25 +100: applied, acked\np410 u50 +20: duplicate, acked\np412 u9 +50: applied, acked\np413 u4 +50: applied, acked\np414 u8 +5: applied, acked\np415 u41 +10: applied, acked\np414 u8 +5: duplicate, acked\np394 u6 +10: duplicate, acked\np404 u27 +20: duplicate, acked\np416 u36 +10: applied, acked\np417 u9 +5: applied, acked\np418 u19 +5: applied, acked\np419 u55 +50: applied, acked\np396 u30 +5: duplicate, acked\np420 u5 +50: applied, acked\np421 u13 +10: applied, acked\np422 u10 +50: applied, acked\np423 u20 +20: applied, acked\np397 u13 +10: duplicate, acked\np405 u38 +10: duplicate, acked\np424 u45 +50: applied, acked\np425 u37 +10: applied, acked\np426 u59 +20: applied, acked\np427 u18 +20: applied, acked\np428 u16 +50: applied, acked\np429 u8 +10: applied, acked\np430 u36 +50: applied, acked\np431 u2 +50: applied, acked\np432 u38 +50: crashed before commit, not acked\np433 u31 +100: applied, acked\np432 u38 +50: applied, acked\np434 u56 +50: applied, acked\np435 u34 +5: applied, acked\np436 u29 +10: applied, acked\np437 u1 +100: crashed before commit, not acked\np438 u1 +10: applied, acked\np439 u45 +100: applied, acked\np437 u1 +100: applied, acked\np440 u20 +5: applied, acked\np441 u33 +100: applied, acked\np442 u21 +20: applied, acked\np443 u8 +5: applied, acked\np444 u50 +20: applied, acked\np445 u11 +5: crashed after commit, not acked\np446 u6 +50: applied, acked\np447 u43 +50: applied, acked\np448 u16 +5: applied, acked\np449 u16 +20: applied, acked\np445 u11 +5: duplicate, acked\np424 u45 +50: duplicate, acked\np450 u15 +10: crashed after commit, not acked\np451 u36 +10: applied, acked\np452 u3 +50: applied, acked\np453 u9 +10: applied, acked\np454 u40 +5: applied, acked\np450 u15 +10: duplicate, acked\np429 u8 +10: duplicate, acked\np455 u54 +10: applied, acked\np456 u33 +20: applied, acked\np457 u54 +50: applied, acked\np458 u42 +100: applied, acked\np459 u47 +5: applied, acked\np460 u43 +5: applied, acked\np461 u5 +20: crashed before commit, not acked\np462 u7 +10: applied, acked\np463 u20 +50: applied, acked\np461 u5 +20: applied, acked\np464 u12 +5: applied, acked\np465 u33 +10: applied, acked\np466 u51 +10: applied, acked\np467 u39 +20: applied, acked\np468 u49 +5: applied, acked\np469 u1 +20: crashed before commit, not acked\np470 u49 +50: applied, acked\np469 u1 +20: applied, acked\np458 u42 +100: duplicate, acked\np471 u49 +10: applied, acked\np472 u3 +10: applied, acked\np473 u40 +10: applied, acked\np474 u33 +100: applied, acked\np475 u9 +10: applied, acked\np446 u6 +50: duplicate, acked\np476 u6 +100: applied, acked\np477 u55 +10: applied, acked\np472 u3 +10: duplicate, acked\np478 u47 +5: applied, acked\np479 u38 +50: applied, acked\np480 u28 +10: applied, acked\np481 u58 +10: applied, acked\np482 u14 +20: applied, acked\np483 u50 +10: applied, acked\np484 u38 +50: applied, acked\np485 u50 +20: applied, acked\np486 u4 +10: crashed before commit, not acked\np487 u3 +50: applied, acked\np488 u27 +100: applied, acked\np489 u35 +50: applied, acked\np490 u6 +10: applied, acked\np486 u4 +10: applied, acked\np491 u43 +20: applied, acked\np492 u4 +5: applied, acked\np493 u42 +10: applied, acked\np494 u33 +50: applied, acked\np495 u58 +10: applied, acked\np496 u35 +50: applied, acked\np497 u36 +5: crashed after commit, not acked\np498 u46 +20: applied, acked\np499 u40 +50: applied, acked\np497 u36 +5: duplicate, acked\np500 u58 +50: applied, acked\np501 u16 +20: applied, acked\np472 u3 +10: duplicate, acked\np502 u55 +10: applied, acked\np484 u38 +50: duplicate, acked\np503 u49 +50: applied, acked\np490 u6 +10: duplicate, acked\nrebalance: partition assigned to a new consumer\np504 u26 +20: applied, acked\np505 u43 +10: applied, acked\np506 u27 +5: applied, acked\np507 u28 +10: applied, acked\np508 u50 +10: applied, acked\np509 u39 +10: applied, acked\np510 u56 +5: applied, acked\np511 u57 +100: applied, acked\np512 u11 +50: applied, acked\np513 u26 +10: crashed after commit, not acked\np514 u9 +10: applied, acked\np515 u41 +20: applied, acked\np516 u53 +10: applied, acked\np517 u14 +50: applied, acked\np513 u26 +10: duplicate, acked\np518 u23 +50: applied, acked\np519 u56 +20: crashed after commit, not acked\np520 u35 +5: applied, acked\np521 u44 +10: applied, acked\np522 u45 +50: applied, acked\np519 u56 +20: duplicate, acked\np523 u54 +100: applied, acked\np495 u58 +10: duplicate, acked\np524 u55 +50: applied, acked\np525 u15 +50: applied, acked\np526 u24 +50: applied, acked\np527 u10 +10: applied, acked\np513 u26 +10: duplicate, acked\np528 u13 +10: applied, acked\np529 u49 +10: applied, acked\np530 u11 +50: applied, acked\np517 u14 +50: duplicate, acked\np531 u3 +100: applied, acked\np506 u27 +5: duplicate, acked\np524 u55 +50: duplicate, acked\np532 u51 +5: applied, acked\np533 u51 +10: applied, acked\np534 u15 +5: crashed after commit, not acked\np535 u2 +100: applied, acked\np534 u15 +5: duplicate, acked\np536 u1 +5: crashed before commit, not acked\np537 u40 +5: applied, acked\np538 u38 +100: applied, acked\np539 u20 +10: applied, acked\np536 u1 +5: applied, acked\np540 u5 +5: crashed after commit, not acked\np541 u42 +50: applied, acked\np542 u17 +100: applied, acked\np543 u10 +50: applied, acked\np540 u5 +5: duplicate, acked\np540 u5 +5: duplicate, acked\np544 u15 +5: applied, acked\np545 u50 +10: applied, acked\np540 u5 +5: duplicate, acked\np546 u1 +5: applied, acked\np547 u12 +50: applied, acked\np548 u44 +10: crashed before commit, not acked\np549 u14 +20: applied, acked\np548 u44 +10: applied, acked\np550 u16 +100: applied, acked\np551 u55 +20: applied, acked\np552 u44 +10: applied, acked\np553 u56 +5: applied, acked\np527 u10 +10: duplicate, acked\np554 u24 +50: applied, acked\np555 u21 +50: applied, acked\np556 u16 +10: applied, acked\np556 u16 +10: duplicate, acked\np557 u47 +50: applied, acked\np558 u14 +5: applied, acked\np559 u56 +10: crashed before commit, not acked\np560 u17 +5: applied, acked\np561 u3 +50: applied, acked\np562 u12 +50: applied, acked\np559 u56 +10: applied, acked\np563 u37 +5: applied, acked\np564 u51 +10: applied, acked\np565 u60 +5: applied, acked\np566 u22 +100: applied, acked\np561 u3 +50: duplicate, acked\np567 u16 +10: crashed after commit, not acked\np568 u59 +100: applied, acked\np569 u21 +50: applied, acked\np567 u16 +10: duplicate, acked\np565 u60 +5: duplicate, acked\np570 u20 +20: applied, acked\np550 u16 +100: duplicate, acked\np571 u12 +50: applied, acked\np572 u49 +50: applied, acked\np573 u5 +20: applied, acked\np560 u17 +5: duplicate, acked\np574 u50 +100: applied, acked\np575 u28 +50: applied, acked\np576 u15 +20: applied, acked\np577 u36 +50: applied, acked\np578 u7 +5: applied, acked\np579 u6 +5: applied, acked\np580 u1 +10: crashed before commit, not acked\np581 u22 +10: applied, acked\np580 u1 +10: applied, acked\np582 u5 +100: applied, acked\np581 u22 +10: duplicate, acked\np583 u6 +10: crashed before commit, not acked\np584 u29 +10: applied, acked\np585 u5 +5: applied, acked\np586 u6 +50: applied, acked\np587 u30 +10: applied, acked\np583 u6 +10: applied, acked\np588 u4 +20: applied, acked\np589 u56 +10: applied, acked\np590 u8 +5: applied, acked\np591 u18 +20: applied, acked\np592 u29 +50: applied, acked\np593 u12 +10: applied, acked\np594 u31 +10: applied, acked\np595 u54 +50: applied, acked\np569 u21 +50: duplicate, acked\np596 u56 +100: applied, acked\np579 u6 +5: duplicate, acked\np597 u15 +5: applied, acked\np598 u7 +5: applied, acked\np599 u25 +50: crashed after commit, not acked\np600 u48 +20: applied, acked\np601 u17 +10: applied, acked\np602 u19 +50: applied, acked\np603 u29 +20: applied, acked\np599 u25 +50: duplicate, acked\np604 u53 +20: applied, acked\np605 u56 +10: applied, acked\nrebalance: partition assigned to a new consumer\nrebalance: partition assigned to a new consumer\np606 u38 +50: applied, acked\np600 u48 +20: duplicate, acked\np607 u15 +10: applied, acked\np608 u56 +20: applied, acked\np609 u47 +10: crashed after commit, not acked\np610 u36 +5: applied, acked\np611 u13 +50: applied, acked\np612 u26 +50: applied, acked\np609 u47 +10: duplicate, acked\np609 u47 +10: duplicate, acked\np613 u17 +10: applied, acked\np614 u8 +5: applied, acked\np615 u27 +100: applied, acked\np616 u13 +10: applied, acked\np617 u10 +50: applied, acked\np618 u16 +50: applied, acked\np619 u2 +50: applied, acked\np620 u14 +20: applied, acked\np599 u25 +50: duplicate, acked\np621 u33 +10: applied, acked\np622 u5 +10: applied, acked\np623 u35 +50: crashed after commit, not acked\np624 u2 +10: applied, acked\np623 u35 +50: duplicate, acked\np625 u53 +100: applied, acked\np626 u2 +100: applied, acked\np627 u22 +10: applied, acked\np628 u57 +20: applied, acked\np617 u10 +50: duplicate, acked\np607 u15 +10: duplicate, acked\np629 u12 +50: crashed before commit, not acked\np630 u39 +5: applied, acked\np631 u59 +100: applied, acked\np632 u40 +10: applied, acked\np629 u12 +50: applied, acked\np633 u36 +10: applied, acked\np634 u29 +20: applied, acked\np626 u2 +100: duplicate, acked\np635 u20 +50: applied, acked\np636 u34 +50: crashed after commit, not acked\np637 u12 +5: applied, acked\np638 u46 +5: applied, acked\np636 u34 +50: duplicate, acked\np639 u1 +10: applied, acked\np628 u57 +20: duplicate, acked\np640 u51 +20: applied, acked\np620 u14 +20: duplicate, acked\np641 u55 +20: applied, acked\np642 u25 +20: applied, acked\np643 u15 +50: applied, acked\np644 u21 +5: applied, acked\np645 u31 +10: crashed before commit, not acked\np646 u49 +50: applied, acked\np647 u60 +50: applied, acked\np645 u31 +10: applied, acked\np632 u40 +10: duplicate, acked\np644 u21 +5: duplicate, acked\np637 u12 +5: duplicate, acked\np648 u30 +50: crashed after commit, not acked\np649 u41 +100: applied, acked\np648 u30 +50: duplicate, acked\np650 u26 +5: applied, acked\np651 u58 +50: applied, acked\np652 u33 +5: applied, acked\nwallets: u1=330 u10=270 u11=355 u12=375 u13=240 u14=215 u15=290 u16=785 u17=255 u18=420 u19=355 u2=540 u20=360 u21=155 u22=205 u23=160 u24=265 u25=375 u26=290 u27=250 u28=280 u29=645 u3=680 u30=100 u31=350 u32=180 u33=465 u34=335 u35=215 u36=260 u37=280 u38=425 u39=260 u4=455 u40=205 u41=400 u42=450 u43=360 u44=300 u45=420 u46=370 u47=415 u48=155 u49=665 u5=515 u50=355 u51=570 u52=180 u53=425 u54=615 u55=435 u56=280 u57=440 u58=400 u59=515 u6=620 u60=295 u7=340 u8=105 u9=395",
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,3373 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_dce_411",
+      "name": "saga-compensation-quiz",
+      "type": "quiz",
+      "title": "Sagas: compensating a failed step",
+      "description": "Two statements on the \"buy premium course\" saga at CodeDev: the order in which a failed purchase was undone, and a refund compensation that the orchestrator retried after a timeout.",
+      "difficulty": "medium",
+      "outcomes": [
+        "sagas"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Orchestrator log of one purchase. The entitlement service rejected the grant, and the compensations ran in the order the orchestrator's code listed them:\n\n10:14:02.110 saga=s_7f2 step=pay              ok      wallet u_381: 1200 -> 200\n10:14:02.164 saga=s_7f2 step=enroll           ok      enrollment e_9902 active\n10:14:02.231 saga=s_7f2 step=grant            failed  422 plan_not_found\n10:14:02.240 saga=s_7f2 compensate=refund           ok  wallet u_381: 200 -> 1200\n10:14:04.903 saga=s_7f2 compensate=cancelEnrollment ok  enrollment e_9902 cancelled\n\nprogress-service 10:14:03.518 lesson_started enrollment=e_9902 lesson=1\n\nStatement: \"Running refund before cancelEnrollment left about 2.6 seconds in which learner u_381 had an active enrollment in a premium course that was no longer paid for, and the progress service accepted a lesson in that window.\"",
+          "explanation": "True. Between 10:14:02.240 (points returned) and 10:14:04.903 (enrollment cancelled) the database held an active enrollment with a refunded payment, a state the forward flow can never produce, and the progress service used it at 10:14:03.518. Compensating in reverse order (cancelEnrollment, then refund) keeps every intermediate state equal to some prefix of the forward flow: first \"paid, not enrolled\", then \"nothing\". The misconception is that the order of compensations does not matter because the end state is the same: other services read the intermediate states too, because a saga has no isolation.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The refund compensation of the points wallet:\n\nasync function refund(sagaId: string) {\n  const p = await db.one(\"SELECT user_id, amount FROM payments WHERE saga_id = $1\", [sagaId]);\n  await db.none(\"UPDATE wallets SET balance = balance + $1 WHERE user_id = $2\", [p.amount, p.user_id]);\n  await db.none(\"UPDATE payments SET status = 'refunded' WHERE saga_id = $1\", [sagaId]);\n}\n\nOrchestrator log:\n11:02:40.004 saga=s_a11 compensate=refund attempt=1 error=TimeoutError after 5000 ms\n11:02:41.012 saga=s_a11 compensate=refund attempt=2 ok\n\nStatement: \"The retry is safe: attempt 1 ended with an error, so its UPDATE statements did not change the wallet, and attempt 2 credited the points exactly once.\"",
+          "explanation": "False. A timeout tells the orchestrator only that it stopped waiting; the database may have committed attempt 1 a moment later. This refund also never checks the payment status, and its two UPDATEs are not even in one transaction, so attempt 2 adds the points again whenever attempt 1 got as far as the wallet update. A compensation must be idempotent: in one transaction, update only a payment that is still 'captured' (UPDATE payments SET status = 'refunded' WHERE saga_id = $1 AND status = 'captured' RETURNING amount) and credit the wallet only when that returned a row. The misconception is that an error from a call means the call had no effect.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_dce_412",
+      "name": "saga-buy-premium-course",
+      "type": "mini_coding",
+      "title": "An orchestrated saga with compensation and resume",
+      "description": "Buying a premium course on CodeDev touches four services: pay (reserve points or charge the card), enroll, grant (the entitlement that unlocks the lessons) and receipt (the email). Write the seven actions and the orchestrator runSaga so that a failed step is undone by compensations in reverse order, every action can be retried, and a crash at any point resumes correctly from the saga record stored in the database. key = \"<userId>:<courseId>\". ACTIONS: each runs in one transaction on the copy t of the tables and must be idempotent (running it again after it committed changes nothing). pay: if payments already has the sagaId, do nothing; for method \"points\", balance = wallets[userId] (0 when missing): if balance < price throw BusinessError(\"insufficient points\"), else subtract the price; then set payments[sagaId] = { userId, method, amount: price, status: \"captured\" } (for \"card\" the card network is simulated by the scripted faults). enroll: an active enrollment for the key of the same saga: do nothing; active and of another saga: throw BusinessError(\"already enrolled\"); otherwise set { sagaId, status: \"active\" }. grant: set entitlements[key] = { sagaId, active: true }. receipt: if receipts has an entry for the sagaId do nothing, else push { sagaId, userId, amount: price }. refund: only when payments[sagaId] exists and is \"captured\": mark it \"refunded\" and, for points, add the amount back to wallets[userId]. cancelEnrollment: only when enrollments[key] belongs to this saga and is active: set \"cancelled\". revokeEntitlement: only when entitlements[key] belongs to this saga and is active: set active false. Compensations never throw: nothing to undo means do nothing. runSaga(ctx, order): load the record; if there is none, an order is valid when method is \"points\" or \"card\" and price is a positive integer: save { order, status: \"running\", done: [], undone: [], error: null }, or for an invalid order save status \"aborted\" with error \"invalid order\" and run nothing. Every action goes through ctx.perform(action, order), at most ctx.maxAttempts calls in a row: TransientError: call again; BusinessError: stop, the reason is its message; maxAttempts transient errors: the reason is \"gave up after <maxAttempts> attempts\"; let a Crash (and any other error) propagate. Status \"running\": run pay, enroll, grant in this order, skipping steps already in done; after each success push it to done and save; on a failure set status \"compensating\" and error \"<step>: <reason>\", save, then compensate. After grant, send the receipt: on success push \"receipt\" to done, status \"completed\", error null; on failure status \"receipt_pending\" and error \"receipt: <reason>\" - the purchase is NOT compensated; save. Compensate (status \"compensating\" or \"stuck\"): for the steps in done in reverse order run refund for pay, cancelEnrollment for enroll, revokeEntitlement for grant, skipping those already in undone; push each success to undone and save; when one still fails after maxAttempts calls set status \"stuck\" (keep the error), save and stop; when all succeeded set status \"aborted\" and save. Status \"receipt_pending\": retry the receipt as above. \"completed\" and \"aborted\": do nothing. The runner reads { maxAttempts, wallets, enrollments?, orders, faults?, crashes?, rerun? }. faults[sagaId][action] scripts the calls of perform in order: \"transient\" throws TransientError before anything is written, \"fail:<reason>\" throws BusinessError(reason) (for a compensation it counts as transient), \"ok\" or no entry runs your action in a transaction. crashes \"<sagaId>:<action>#<n>\": the process dies right after the n-th successful run of that action commits; the runner then calls runSaga again for that order with a fresh context (memory is lost, the database is kept). With rerun, after all orders the runner calls runSaga once more per order. It prints the call log, every saga record and the tables. Do not change the types, FakeDb, the errors, the context or the runner.",
+      "difficulty": "hard",
+      "outcomes": [
+        "sagas"
+      ],
+      "points": 40,
+      "hints": [
+        "After a crash, the only thing your next run knows is the saga record in the database. For every place where the process can die - after an action committed but before you saved, or between two compensations - ask: what does the record say, what will runSaga do with it, and what happens if it runs that same action a second time?",
+        "Three places decide most tests. In the forward loop, save status \"compensating\" with the error BEFORE the first compensation runs, or a resume goes forward again. In compensate, walk done backwards and skip what is already in undone. In the actions, check the current row first (payments.has, payment status \"captured\", enrollment owned by this saga and active, receipt already sent) so a second run is a no-op.",
+        "A similar flow with different steps: a ticket booking reserves a seat, then charges, then emails. If charge fails, the record { done: [reserve], status: \"compensating\" } is saved and releaseSeat runs. If the process dies right after releaseSeat committed, the next run reads the same record, runs releaseSeat again - it finds the seat already free and does nothing - pushes it to undone and ends \"aborted\". If the email fails three times, the booking stands with status \"email_pending\" and a later run sends only the email."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Points purchase completes after one transient enroll error",
+          "input": {
+            "maxAttempts": 3,
+            "wallets": {
+              "u1": 1500
+            },
+            "orders": [
+              {
+                "sagaId": "s1",
+                "userId": "u1",
+                "courseId": "postgres-performance",
+                "method": "points",
+                "price": 1000
+              }
+            ],
+            "faults": {
+              "s1": {
+                "enroll": [
+                  "transient"
+                ]
+              }
+            }
+          },
+          "expected": {
+            "log": [
+              "s1 pay #1: ok",
+              "s1 enroll #1: transient error",
+              "s1 enroll #2: ok",
+              "s1 grant #1: ok",
+              "s1 receipt #1: ok"
+            ],
+            "sagas": [
+              "s1 completed done=[pay,enroll,grant,receipt] undone=[] error=null"
+            ],
+            "wallets": {
+              "u1": 500
+            },
+            "payments": [
+              "s1 points 1000 captured"
+            ],
+            "enrollments": [
+              "u1:postgres-performance active (s1)"
+            ],
+            "entitlements": [
+              "u1:postgres-performance active (s1)"
+            ],
+            "receipts": [
+              "s1 u1 1000"
+            ]
+          },
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Grant fails: cancel the enrollment, then refund the points, and a card purchase completes",
+          "input": {
+            "maxAttempts": 3,
+            "wallets": {
+              "u2": 1200,
+              "u3": 0
+            },
+            "orders": [
+              {
+                "sagaId": "s2",
+                "userId": "u2",
+                "courseId": "redis-patterns",
+                "method": "points",
+                "price": 1000
+              },
+              {
+                "sagaId": "s3",
+                "userId": "u3",
+                "courseId": "redis-patterns",
+                "method": "card",
+                "price": 349000
+              }
+            ],
+            "faults": {
+              "s2": {
+                "grant": [
+                  "fail:entitlement service rejected the plan"
+                ]
+              }
+            }
+          },
+          "expected": {
+            "log": [
+              "s2 pay #1: ok",
+              "s2 enroll #1: ok",
+              "s2 grant #1: failed (entitlement service rejected the plan)",
+              "s2 cancelEnrollment #1: ok",
+              "s2 refund #1: ok",
+              "s3 pay #1: ok",
+              "s3 enroll #1: ok",
+              "s3 grant #1: ok",
+              "s3 receipt #1: ok"
+            ],
+            "sagas": [
+              "s2 aborted done=[pay,enroll] undone=[cancelEnrollment,refund] error=grant: entitlement service rejected the plan",
+              "s3 completed done=[pay,enroll,grant,receipt] undone=[] error=null"
+            ],
+            "wallets": {
+              "u2": 1200,
+              "u3": 0
+            },
+            "payments": [
+              "s2 points 1000 refunded",
+              "s3 card 349000 captured"
+            ],
+            "enrollments": [
+              "u2:redis-patterns cancelled (s2)",
+              "u3:redis-patterns active (s3)"
+            ],
+            "entitlements": [
+              "u3:redis-patterns active (s3)"
+            ],
+            "receipts": [
+              "s3 u3 349000"
+            ]
+          },
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Crashes after pay, grant and receipt commit: one charge, one grant, one email",
+          "input": {
+            "maxAttempts": 3,
+            "wallets": {
+              "u4": 2000
+            },
+            "orders": [
+              {
+                "sagaId": "s4",
+                "userId": "u4",
+                "courseId": "api-design-production",
+                "method": "points",
+                "price": 1000
+              }
+            ],
+            "crashes": [
+              "s4:pay#1",
+              "s4:grant#1",
+              "s4:receipt#1"
+            ]
+          },
+          "expected": {
+            "log": [
+              "s4 pay #1: ok",
+              "CRASH after s4 pay #1",
+              "restart s4",
+              "s4 pay #2: ok",
+              "s4 enroll #1: ok",
+              "s4 grant #1: ok",
+              "CRASH after s4 grant #1",
+              "restart s4",
+              "s4 grant #2: ok",
+              "s4 receipt #1: ok",
+              "CRASH after s4 receipt #1",
+              "restart s4",
+              "s4 receipt #2: ok"
+            ],
+            "sagas": [
+              "s4 completed done=[pay,enroll,grant,receipt] undone=[] error=null"
+            ],
+            "wallets": {
+              "u4": 1000
+            },
+            "payments": [
+              "s4 points 1000 captured"
+            ],
+            "enrollments": [
+              "u4:api-design-production active (s4)"
+            ],
+            "entitlements": [
+              "u4:api-design-production active (s4)"
+            ],
+            "receipts": [
+              "s4 u4 1000"
+            ]
+          },
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Crashes during compensation: resume keeps compensating, refunds once, never retries grant",
+          "input": {
+            "maxAttempts": 3,
+            "wallets": {
+              "u5": 1000
+            },
+            "orders": [
+              {
+                "sagaId": "s5",
+                "userId": "u5",
+                "courseId": "nestjs-modular-monolith",
+                "method": "points",
+                "price": 1000
+              }
+            ],
+            "faults": {
+              "s5": {
+                "grant": [
+                  "fail:plan not found"
+                ]
+              }
+            },
+            "crashes": [
+              "s5:cancelEnrollment#1",
+              "s5:refund#1"
+            ]
+          },
+          "expected": {
+            "log": [
+              "s5 pay #1: ok",
+              "s5 enroll #1: ok",
+              "s5 grant #1: failed (plan not found)",
+              "s5 cancelEnrollment #1: ok",
+              "CRASH after s5 cancelEnrollment #1",
+              "restart s5",
+              "s5 cancelEnrollment #2: ok",
+              "s5 refund #1: ok",
+              "CRASH after s5 refund #1",
+              "restart s5",
+              "s5 refund #2: ok"
+            ],
+            "sagas": [
+              "s5 aborted done=[pay,enroll] undone=[cancelEnrollment,refund] error=grant: plan not found"
+            ],
+            "wallets": {
+              "u5": 1000
+            },
+            "payments": [
+              "s5 points 1000 refunded"
+            ],
+            "enrollments": [
+              "u5:nestjs-modular-monolith cancelled (s5)"
+            ],
+            "entitlements": [],
+            "receipts": []
+          },
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Receipt keeps failing: purchase kept, rerun sends one email, a duplicate order is ignored",
+          "input": {
+            "maxAttempts": 3,
+            "wallets": {
+              "u6": 1000,
+              "u7": 500
+            },
+            "orders": [
+              {
+                "sagaId": "s6",
+                "userId": "u6",
+                "courseId": "redis-patterns",
+                "method": "points",
+                "price": 1000
+              },
+              {
+                "sagaId": "s7",
+                "userId": "u7",
+                "courseId": "redis-patterns",
+                "method": "points",
+                "price": 500
+              },
+              {
+                "sagaId": "s7",
+                "userId": "u7",
+                "courseId": "redis-patterns",
+                "method": "points",
+                "price": 500
+              }
+            ],
+            "faults": {
+              "s6": {
+                "receipt": [
+                  "transient",
+                  "transient",
+                  "transient"
+                ]
+              }
+            },
+            "rerun": true
+          },
+          "expected": {
+            "log": [
+              "s6 pay #1: ok",
+              "s6 enroll #1: ok",
+              "s6 grant #1: ok",
+              "s6 receipt #1: transient error",
+              "s6 receipt #2: transient error",
+              "s6 receipt #3: transient error",
+              "s7 pay #1: ok",
+              "s7 enroll #1: ok",
+              "s7 grant #1: ok",
+              "s7 receipt #1: ok",
+              "rerun s6",
+              "s6 receipt #4: ok",
+              "rerun s7",
+              "rerun s7"
+            ],
+            "sagas": [
+              "s6 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s7 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s7 completed done=[pay,enroll,grant,receipt] undone=[] error=null"
+            ],
+            "wallets": {
+              "u6": 0,
+              "u7": 0
+            },
+            "payments": [
+              "s6 points 1000 captured",
+              "s7 points 500 captured"
+            ],
+            "enrollments": [
+              "u6:redis-patterns active (s6)",
+              "u7:redis-patterns active (s7)"
+            ],
+            "entitlements": [
+              "u6:redis-patterns active (s6)",
+              "u7:redis-patterns active (s7)"
+            ],
+            "receipts": [
+              "s7 u7 500",
+              "s6 u6 1000"
+            ]
+          },
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Compensations retried on transient errors; stuck after max attempts; rerun finishes",
+          "input": {
+            "maxAttempts": 3,
+            "wallets": {
+              "u8": 3000,
+              "u9": 0
+            },
+            "orders": [
+              {
+                "sagaId": "s8",
+                "userId": "u8",
+                "courseId": "postgres-performance",
+                "method": "points",
+                "price": 1000
+              },
+              {
+                "sagaId": "s9",
+                "userId": "u9",
+                "courseId": "postgres-performance",
+                "method": "card",
+                "price": 349000
+              }
+            ],
+            "faults": {
+              "s8": {
+                "grant": [
+                  "transient",
+                  "transient",
+                  "transient"
+                ],
+                "revokeEntitlement": [
+                  "transient"
+                ],
+                "cancelEnrollment": [
+                  "transient",
+                  "transient"
+                ]
+              },
+              "s9": {
+                "enroll": [
+                  "fail:course is full"
+                ],
+                "refund": [
+                  "transient",
+                  "transient",
+                  "transient",
+                  "transient"
+                ]
+              }
+            },
+            "rerun": true
+          },
+          "expected": {
+            "log": [
+              "s8 pay #1: ok",
+              "s8 enroll #1: ok",
+              "s8 grant #1: transient error",
+              "s8 grant #2: transient error",
+              "s8 grant #3: transient error",
+              "s8 cancelEnrollment #1: transient error",
+              "s8 cancelEnrollment #2: transient error",
+              "s8 cancelEnrollment #3: ok",
+              "s8 refund #1: ok",
+              "s9 pay #1: ok",
+              "s9 enroll #1: failed (course is full)",
+              "s9 refund #1: transient error",
+              "s9 refund #2: transient error",
+              "s9 refund #3: transient error",
+              "rerun s8",
+              "rerun s9",
+              "s9 refund #4: transient error",
+              "s9 refund #5: ok"
+            ],
+            "sagas": [
+              "s8 aborted done=[pay,enroll] undone=[cancelEnrollment,refund] error=grant: gave up after 3 attempts",
+              "s9 aborted done=[pay] undone=[refund] error=enroll: course is full"
+            ],
+            "wallets": {
+              "u8": 3000,
+              "u9": 0
+            },
+            "payments": [
+              "s8 points 1000 refunded",
+              "s9 card 349000 refunded"
+            ],
+            "enrollments": [
+              "u8:postgres-performance cancelled (s8)"
+            ],
+            "entitlements": [],
+            "receipts": []
+          },
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Invalid input: insufficient points, already enrolled, zero price, unknown method",
+          "input": {
+            "maxAttempts": 2,
+            "wallets": {
+              "u10": 300,
+              "u11": 5000
+            },
+            "enrollments": {
+              "u11:redis-patterns": {
+                "sagaId": "s-old",
+                "status": "active"
+              }
+            },
+            "orders": [
+              {
+                "sagaId": "s10",
+                "userId": "u10",
+                "courseId": "redis-patterns",
+                "method": "points",
+                "price": 1000
+              },
+              {
+                "sagaId": "s11",
+                "userId": "u11",
+                "courseId": "redis-patterns",
+                "method": "points",
+                "price": 1000
+              },
+              {
+                "sagaId": "s12",
+                "userId": "u11",
+                "courseId": "postgres-performance",
+                "method": "points",
+                "price": 0
+              },
+              {
+                "sagaId": "s13",
+                "userId": "u11",
+                "courseId": "postgres-performance",
+                "method": "voucher",
+                "price": 1000
+              },
+              {
+                "sagaId": "s14",
+                "userId": "u11",
+                "courseId": "api-design-production",
+                "method": "card",
+                "price": 349000
+              }
+            ],
+            "faults": {
+              "s14": {
+                "pay": [
+                  "transient",
+                  "transient"
+                ]
+              }
+            }
+          },
+          "expected": {
+            "log": [
+              "s10 pay #1: failed (insufficient points)",
+              "s11 pay #1: ok",
+              "s11 enroll #1: failed (already enrolled)",
+              "s11 refund #1: ok",
+              "s14 pay #1: transient error",
+              "s14 pay #2: transient error"
+            ],
+            "sagas": [
+              "s10 aborted done=[] undone=[] error=pay: insufficient points",
+              "s11 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s12 aborted done=[] undone=[] error=invalid order",
+              "s13 aborted done=[] undone=[] error=invalid order",
+              "s14 aborted done=[] undone=[] error=pay: gave up after 2 attempts"
+            ],
+            "wallets": {
+              "u10": 300,
+              "u11": 5000
+            },
+            "payments": [
+              "s11 points 1000 refunded"
+            ],
+            "enrollments": [
+              "u11:redis-patterns active (s-old)"
+            ],
+            "entitlements": [],
+            "receipts": []
+          },
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Large input: 150 orders over 30 users with faults, crashes and a rerun",
+          "input": {
+            "maxAttempts": 3,
+            "wallets": {
+              "u1": 1500,
+              "u2": 3000,
+              "u3": 4500,
+              "u4": 6000,
+              "u5": 0,
+              "u6": 1500,
+              "u7": 3000,
+              "u8": 4500,
+              "u9": 6000,
+              "u10": 0,
+              "u11": 1500,
+              "u12": 3000,
+              "u13": 4500,
+              "u14": 6000,
+              "u15": 0,
+              "u16": 1500,
+              "u17": 3000,
+              "u18": 4500,
+              "u19": 6000,
+              "u20": 0,
+              "u21": 1500,
+              "u22": 3000,
+              "u23": 4500,
+              "u24": 6000,
+              "u25": 0,
+              "u26": 1500,
+              "u27": 3000,
+              "u28": 4500,
+              "u29": 6000,
+              "u30": 0
+            },
+            "orders": [
+              {
+                "sagaId": "s001",
+                "userId": "u8",
+                "courseId": "c2",
+                "method": "points",
+                "price": 600
+              },
+              {
+                "sagaId": "s002",
+                "userId": "u15",
+                "courseId": "c3",
+                "method": "points",
+                "price": 700
+              },
+              {
+                "sagaId": "s003",
+                "userId": "u22",
+                "courseId": "c4",
+                "method": "card",
+                "price": 800
+              },
+              {
+                "sagaId": "s004",
+                "userId": "u29",
+                "courseId": "c1",
+                "method": "points",
+                "price": 500
+              },
+              {
+                "sagaId": "s005",
+                "userId": "u6",
+                "courseId": "c2",
+                "method": "points",
+                "price": 600
+              },
+              {
+                "sagaId": "s006",
+                "userId": "u13",
+                "courseId": "c3",
+                "method": "card",
+                "price": 700
+              },
+              {
+                "sagaId": "s007",
+                "userId": "u20",
+                "courseId": "c4",
+                "method": "points",
+                "price": 800
+              },
+              {
+                "sagaId": "s008",
+                "userId": "u27",
+                "courseId": "c1",
+                "method": "points",
+                "price": 500
+              },
+              {
+                "sagaId": "s009",
+                "userId": "u4",
+                "courseId": "c2",
+                "method": "card",
+                "price": 600
+              },
+              {
+                "sagaId": "s010",
+                "userId": "u11",
+                "courseId": "c3",
+                "method": "points",
+                "price": 700
+              },
+              {
+                "sagaId": "s011",
+                "userId": "u18",
+                "courseId": "c4",
+                "method": "points",
+                "price": 800
+              },
+              {
+                "sagaId": "s012",
+                "userId": "u25",
+                "courseId": "c1",
+                "method": "card",
+                "price": 500
+              },
+              {
+                "sagaId": "s013",
+                "userId": "u2",
+                "courseId": "c2",
+                "method": "points",
+                "price": 600
+              },
+              {
+                "sagaId": "s014",
+                "userId": "u9",
+                "courseId": "c3",
+                "method": "points",
+                "price": 700
+              },
+              {
+                "sagaId": "s015",
+                "userId": "u16",
+                "courseId": "c4",
+                "method": "card",
+                "price": 800
+              },
+              {
+                "sagaId": "s016",
+                "userId": "u23",
+                "courseId": "c1",
+                "method": "points",
+                "price": 500
+              },
+              {
+                "sagaId": "s017",
+                "userId": "u30",
+                "courseId": "c2",
+                "method": "points",
+                "price": 600
+              },
+              {
+                "sagaId": "s018",
+                "userId": "u7",
+                "courseId": "c3",
+                "method": "card",
+                "price": 700
+              },
+              {
+                "sagaId": "s019",
+                "userId": "u14",
+                "courseId": "c4",
+                "method": "points",
+                "price": 800
+              },
+              {
+                "sagaId": "s020",
+                "userId": "u21",
+                "courseId": "c1",
+                "method": "points",
+                "price": 500
+              },
+              {
+                "sagaId": "s021",
+                "userId": "u28",
+                "courseId": "c2",
+                "method": "card",
+                "price": 600
+              },
+              {
+                "sagaId": "s022",
+                "userId": "u5",
+                "courseId": "c3",
+                "method": "points",
+                "price": 700
+              },
+              {
+                "sagaId": "s023",
+                "userId": "u12",
+                "courseId": "c4",
+                "method": "points",
+                "price": 800
+              },
+              {
+                "sagaId": "s024",
+                "userId": "u19",
+                "courseId": "c1",
+                "method": "card",
+                "price": 500
+              },
+              {
+                "sagaId": "s025",
+                "userId": "u26",
+                "courseId": "c2",
+                "method": "points",
+                "price": 600
+              },
+              {
+                "sagaId": "s026",
+                "userId": "u3",
+                "courseId": "c3",
+                "method": "points",
+                "price": 700
+              },
+              {
+                "sagaId": "s027",
+                "userId": "u10",
+                "courseId": "c4",
+                "method": "card",
+                "price": 800
+              },
+              {
+                "sagaId": "s028",
+                "userId": "u17",
+                "courseId": "c1",
+                "method": "points",
+                "price": 500
+              },
+              {
+                "sagaId": "s029",
+                "userId": "u24",
+                "courseId": "c2",
+                "method": "points",
+                "price": 600
+              },
+              {
+                "sagaId": "s030",
+                "userId": "u1",
+                "courseId": "c3",
+                "method": "card",
+                "price": 700
+              },
+              {
+                "sagaId": "s031",
+                "userId": "u8",
+                "courseId": "c4",
+                "method": "points",
+                "price": 800
+              },
+              {
+                "sagaId": "s032",
+                "userId": "u15",
+                "courseId": "c1",
+                "method": "points",
+                "price": 500
+              },
+              {
+                "sagaId": "s033",
+                "userId": "u22",
+                "courseId": "c2",
+                "method": "card",
+                "price": 600
+              },
+              {
+                "sagaId": "s034",
+                "userId": "u29",
+                "courseId": "c3",
+                "method": "points",
+                "price": 700
+              },
+              {
+                "sagaId": "s035",
+                "userId": "u6",
+                "courseId": "c4",
+                "method": "points",
+                "price": 800
+              },
+              {
+                "sagaId": "s036",
+                "userId": "u13",
+                "courseId": "c1",
+                "method": "card",
+                "price": 500
+              },
+              {
+                "sagaId": "s037",
+                "userId": "u20",
+                "courseId": "c2",
+                "method": "points",
+                "price": 600
+              },
+              {
+                "sagaId": "s038",
+                "userId": "u27",
+                "courseId": "c3",
+                "method": "points",
+                "price": 700
+              },
+              {
+                "sagaId": "s039",
+                "userId": "u4",
+                "courseId": "c4",
+                "method": "card",
+                "price": 800
+              },
+              {
+                "sagaId": "s040",
+                "userId": "u11",
+                "courseId": "c1",
+                "method": "points",
+                "price": 500
+              },
+              {
+                "sagaId": "s041",
+                "userId": "u18",
+                "courseId": "c2",
+                "method": "points",
+                "price": 600
+              },
+              {
+                "sagaId": "s042",
+                "userId": "u25",
+                "courseId": "c3",
+                "method": "card",
+                "price": 700
+              },
+              {
+                "sagaId": "s043",
+                "userId": "u2",
+                "courseId": "c4",
+                "method": "points",
+                "price": 800
+              },
+              {
+                "sagaId": "s044",
+                "userId": "u9",
+                "courseId": "c1",
+                "method": "points",
+                "price": 500
+              },
+              {
+                "sagaId": "s045",
+                "userId": "u16",
+                "courseId": "c2",
+                "method": "card",
+                "price": 600
+              },
+              {
+                "sagaId": "s046",
+                "userId": "u23",
+                "courseId": "c3",
+                "method": "points",
+                "price": 700
+              },
+              {
+                "sagaId": "s047",
+                "userId": "u30",
+                "courseId": "c4",
+                "method": "points",
+                "price": 800
+              },
+              {
+                "sagaId": "s048",
+                "userId": "u7",
+                "courseId": "c1",
+                "method": "card",
+                "price": 500
+              },
+              {
+                "sagaId": "s049",
+                "userId": "u14",
+                "courseId": "c2",
+                "method": "points",
+                "price": 600
+              },
+              {
+                "sagaId": "s050",
+                "userId": "u21",
+                "courseId": "c3",
+                "method": "points",
+                "price": 700
+              },
+              {
+                "sagaId": "s051",
+                "userId": "u28",
+                "courseId": "c4",
+                "method": "card",
+                "price": 800
+              },
+              {
+                "sagaId": "s052",
+                "userId": "u5",
+                "courseId": "c1",
+                "method": "points",
+                "price": 500
+              },
+              {
+                "sagaId": "s053",
+                "userId": "u12",
+                "courseId": "c2",
+                "method": "points",
+                "price": 600
+              },
+              {
+                "sagaId": "s054",
+                "userId": "u19",
+                "courseId": "c3",
+                "method": "card",
+                "price": 700
+              },
+              {
+                "sagaId": "s055",
+                "userId": "u26",
+                "courseId": "c4",
+                "method": "points",
+                "price": 800
+              },
+              {
+                "sagaId": "s056",
+                "userId": "u3",
+                "courseId": "c1",
+                "method": "points",
+                "price": 500
+              },
+              {
+                "sagaId": "s057",
+                "userId": "u10",
+                "courseId": "c2",
+                "method": "card",
+                "price": 600
+              },
+              {
+                "sagaId": "s058",
+                "userId": "u17",
+                "courseId": "c3",
+                "method": "points",
+                "price": 700
+              },
+              {
+                "sagaId": "s059",
+                "userId": "u24",
+                "courseId": "c4",
+                "method": "points",
+                "price": 800
+              },
+              {
+                "sagaId": "s060",
+                "userId": "u1",
+                "courseId": "c1",
+                "method": "card",
+                "price": 500
+              },
+              {
+                "sagaId": "s061",
+                "userId": "u8",
+                "courseId": "c2",
+                "method": "points",
+                "price": 600
+              },
+              {
+                "sagaId": "s062",
+                "userId": "u15",
+                "courseId": "c3",
+                "method": "points",
+                "price": 700
+              },
+              {
+                "sagaId": "s063",
+                "userId": "u22",
+                "courseId": "c4",
+                "method": "card",
+                "price": 800
+              },
+              {
+                "sagaId": "s064",
+                "userId": "u29",
+                "courseId": "c1",
+                "method": "points",
+                "price": 500
+              },
+              {
+                "sagaId": "s065",
+                "userId": "u6",
+                "courseId": "c2",
+                "method": "points",
+                "price": 600
+              },
+              {
+                "sagaId": "s066",
+                "userId": "u13",
+                "courseId": "c3",
+                "method": "card",
+                "price": 700
+              },
+              {
+                "sagaId": "s067",
+                "userId": "u20",
+                "courseId": "c4",
+                "method": "points",
+                "price": 800
+              },
+              {
+                "sagaId": "s068",
+                "userId": "u27",
+                "courseId": "c1",
+                "method": "points",
+                "price": 500
+              },
+              {
+                "sagaId": "s069",
+                "userId": "u4",
+                "courseId": "c2",
+                "method": "card",
+                "price": 600
+              },
+              {
+                "sagaId": "s070",
+                "userId": "u11",
+                "courseId": "c3",
+                "method": "points",
+                "price": 700
+              },
+              {
+                "sagaId": "s071",
+                "userId": "u18",
+                "courseId": "c4",
+                "method": "points",
+                "price": 800
+              },
+              {
+                "sagaId": "s072",
+                "userId": "u25",
+                "courseId": "c1",
+                "method": "card",
+                "price": 500
+              },
+              {
+                "sagaId": "s073",
+                "userId": "u2",
+                "courseId": "c2",
+                "method": "points",
+                "price": 600
+              },
+              {
+                "sagaId": "s074",
+                "userId": "u9",
+                "courseId": "c3",
+                "method": "points",
+                "price": 700
+              },
+              {
+                "sagaId": "s075",
+                "userId": "u16",
+                "courseId": "c4",
+                "method": "card",
+                "price": 800
+              },
+              {
+                "sagaId": "s076",
+                "userId": "u23",
+                "courseId": "c1",
+                "method": "points",
+                "price": 500
+              },
+              {
+                "sagaId": "s077",
+                "userId": "u30",
+                "courseId": "c2",
+                "method": "points",
+                "price": 600
+              },
+              {
+                "sagaId": "s078",
+                "userId": "u7",
+                "courseId": "c3",
+                "method": "card",
+                "price": 700
+              },
+              {
+                "sagaId": "s079",
+                "userId": "u14",
+                "courseId": "c4",
+                "method": "points",
+                "price": 800
+              },
+              {
+                "sagaId": "s080",
+                "userId": "u21",
+                "courseId": "c1",
+                "method": "points",
+                "price": 500
+              },
+              {
+                "sagaId": "s081",
+                "userId": "u28",
+                "courseId": "c2",
+                "method": "card",
+                "price": 600
+              },
+              {
+                "sagaId": "s082",
+                "userId": "u5",
+                "courseId": "c3",
+                "method": "points",
+                "price": 700
+              },
+              {
+                "sagaId": "s083",
+                "userId": "u12",
+                "courseId": "c4",
+                "method": "points",
+                "price": 800
+              },
+              {
+                "sagaId": "s084",
+                "userId": "u19",
+                "courseId": "c1",
+                "method": "card",
+                "price": 500
+              },
+              {
+                "sagaId": "s085",
+                "userId": "u26",
+                "courseId": "c2",
+                "method": "points",
+                "price": 600
+              },
+              {
+                "sagaId": "s086",
+                "userId": "u3",
+                "courseId": "c3",
+                "method": "points",
+                "price": 700
+              },
+              {
+                "sagaId": "s087",
+                "userId": "u10",
+                "courseId": "c4",
+                "method": "card",
+                "price": 800
+              },
+              {
+                "sagaId": "s088",
+                "userId": "u17",
+                "courseId": "c1",
+                "method": "points",
+                "price": 500
+              },
+              {
+                "sagaId": "s089",
+                "userId": "u24",
+                "courseId": "c2",
+                "method": "points",
+                "price": 600
+              },
+              {
+                "sagaId": "s090",
+                "userId": "u1",
+                "courseId": "c3",
+                "method": "card",
+                "price": 700
+              },
+              {
+                "sagaId": "s091",
+                "userId": "u8",
+                "courseId": "c4",
+                "method": "points",
+                "price": 800
+              },
+              {
+                "sagaId": "s092",
+                "userId": "u15",
+                "courseId": "c1",
+                "method": "points",
+                "price": 500
+              },
+              {
+                "sagaId": "s093",
+                "userId": "u22",
+                "courseId": "c2",
+                "method": "card",
+                "price": 600
+              },
+              {
+                "sagaId": "s094",
+                "userId": "u29",
+                "courseId": "c3",
+                "method": "points",
+                "price": 700
+              },
+              {
+                "sagaId": "s095",
+                "userId": "u6",
+                "courseId": "c4",
+                "method": "points",
+                "price": 800
+              },
+              {
+                "sagaId": "s096",
+                "userId": "u13",
+                "courseId": "c1",
+                "method": "card",
+                "price": 500
+              },
+              {
+                "sagaId": "s097",
+                "userId": "u20",
+                "courseId": "c2",
+                "method": "points",
+                "price": 600
+              },
+              {
+                "sagaId": "s098",
+                "userId": "u27",
+                "courseId": "c3",
+                "method": "points",
+                "price": 700
+              },
+              {
+                "sagaId": "s099",
+                "userId": "u4",
+                "courseId": "c4",
+                "method": "card",
+                "price": 800
+              },
+              {
+                "sagaId": "s100",
+                "userId": "u11",
+                "courseId": "c1",
+                "method": "points",
+                "price": 500
+              },
+              {
+                "sagaId": "s101",
+                "userId": "u18",
+                "courseId": "c2",
+                "method": "points",
+                "price": 600
+              },
+              {
+                "sagaId": "s102",
+                "userId": "u25",
+                "courseId": "c3",
+                "method": "card",
+                "price": 700
+              },
+              {
+                "sagaId": "s103",
+                "userId": "u2",
+                "courseId": "c4",
+                "method": "points",
+                "price": 800
+              },
+              {
+                "sagaId": "s104",
+                "userId": "u9",
+                "courseId": "c1",
+                "method": "points",
+                "price": 500
+              },
+              {
+                "sagaId": "s105",
+                "userId": "u16",
+                "courseId": "c2",
+                "method": "card",
+                "price": 600
+              },
+              {
+                "sagaId": "s106",
+                "userId": "u23",
+                "courseId": "c3",
+                "method": "points",
+                "price": 700
+              },
+              {
+                "sagaId": "s107",
+                "userId": "u30",
+                "courseId": "c4",
+                "method": "points",
+                "price": 800
+              },
+              {
+                "sagaId": "s108",
+                "userId": "u7",
+                "courseId": "c1",
+                "method": "card",
+                "price": 500
+              },
+              {
+                "sagaId": "s109",
+                "userId": "u14",
+                "courseId": "c2",
+                "method": "points",
+                "price": 600
+              },
+              {
+                "sagaId": "s110",
+                "userId": "u21",
+                "courseId": "c3",
+                "method": "points",
+                "price": 700
+              },
+              {
+                "sagaId": "s111",
+                "userId": "u28",
+                "courseId": "c4",
+                "method": "card",
+                "price": 800
+              },
+              {
+                "sagaId": "s112",
+                "userId": "u5",
+                "courseId": "c1",
+                "method": "points",
+                "price": 500
+              },
+              {
+                "sagaId": "s113",
+                "userId": "u12",
+                "courseId": "c2",
+                "method": "points",
+                "price": 600
+              },
+              {
+                "sagaId": "s114",
+                "userId": "u19",
+                "courseId": "c3",
+                "method": "card",
+                "price": 700
+              },
+              {
+                "sagaId": "s115",
+                "userId": "u26",
+                "courseId": "c4",
+                "method": "points",
+                "price": 800
+              },
+              {
+                "sagaId": "s116",
+                "userId": "u3",
+                "courseId": "c1",
+                "method": "points",
+                "price": 500
+              },
+              {
+                "sagaId": "s117",
+                "userId": "u10",
+                "courseId": "c2",
+                "method": "card",
+                "price": 600
+              },
+              {
+                "sagaId": "s118",
+                "userId": "u17",
+                "courseId": "c3",
+                "method": "points",
+                "price": 700
+              },
+              {
+                "sagaId": "s119",
+                "userId": "u24",
+                "courseId": "c4",
+                "method": "points",
+                "price": 800
+              },
+              {
+                "sagaId": "s120",
+                "userId": "u1",
+                "courseId": "c1",
+                "method": "card",
+                "price": 500
+              },
+              {
+                "sagaId": "s121",
+                "userId": "u8",
+                "courseId": "c2",
+                "method": "points",
+                "price": 600
+              },
+              {
+                "sagaId": "s122",
+                "userId": "u15",
+                "courseId": "c3",
+                "method": "points",
+                "price": 700
+              },
+              {
+                "sagaId": "s123",
+                "userId": "u22",
+                "courseId": "c4",
+                "method": "card",
+                "price": 800
+              },
+              {
+                "sagaId": "s124",
+                "userId": "u29",
+                "courseId": "c1",
+                "method": "points",
+                "price": 500
+              },
+              {
+                "sagaId": "s125",
+                "userId": "u6",
+                "courseId": "c2",
+                "method": "points",
+                "price": 600
+              },
+              {
+                "sagaId": "s126",
+                "userId": "u13",
+                "courseId": "c3",
+                "method": "card",
+                "price": 700
+              },
+              {
+                "sagaId": "s127",
+                "userId": "u20",
+                "courseId": "c4",
+                "method": "points",
+                "price": 800
+              },
+              {
+                "sagaId": "s128",
+                "userId": "u27",
+                "courseId": "c1",
+                "method": "points",
+                "price": 500
+              },
+              {
+                "sagaId": "s129",
+                "userId": "u4",
+                "courseId": "c2",
+                "method": "card",
+                "price": 600
+              },
+              {
+                "sagaId": "s130",
+                "userId": "u11",
+                "courseId": "c3",
+                "method": "points",
+                "price": 700
+              },
+              {
+                "sagaId": "s131",
+                "userId": "u18",
+                "courseId": "c4",
+                "method": "points",
+                "price": 800
+              },
+              {
+                "sagaId": "s132",
+                "userId": "u25",
+                "courseId": "c1",
+                "method": "card",
+                "price": 500
+              },
+              {
+                "sagaId": "s133",
+                "userId": "u2",
+                "courseId": "c2",
+                "method": "points",
+                "price": 600
+              },
+              {
+                "sagaId": "s134",
+                "userId": "u9",
+                "courseId": "c3",
+                "method": "points",
+                "price": 700
+              },
+              {
+                "sagaId": "s135",
+                "userId": "u16",
+                "courseId": "c4",
+                "method": "card",
+                "price": 800
+              },
+              {
+                "sagaId": "s136",
+                "userId": "u23",
+                "courseId": "c1",
+                "method": "points",
+                "price": 500
+              },
+              {
+                "sagaId": "s137",
+                "userId": "u30",
+                "courseId": "c2",
+                "method": "points",
+                "price": 600
+              },
+              {
+                "sagaId": "s138",
+                "userId": "u7",
+                "courseId": "c3",
+                "method": "card",
+                "price": 700
+              },
+              {
+                "sagaId": "s139",
+                "userId": "u14",
+                "courseId": "c4",
+                "method": "points",
+                "price": 800
+              },
+              {
+                "sagaId": "s140",
+                "userId": "u21",
+                "courseId": "c1",
+                "method": "points",
+                "price": 500
+              },
+              {
+                "sagaId": "s141",
+                "userId": "u28",
+                "courseId": "c2",
+                "method": "card",
+                "price": 600
+              },
+              {
+                "sagaId": "s142",
+                "userId": "u5",
+                "courseId": "c3",
+                "method": "points",
+                "price": 700
+              },
+              {
+                "sagaId": "s143",
+                "userId": "u12",
+                "courseId": "c4",
+                "method": "points",
+                "price": 800
+              },
+              {
+                "sagaId": "s144",
+                "userId": "u19",
+                "courseId": "c1",
+                "method": "card",
+                "price": 500
+              },
+              {
+                "sagaId": "s145",
+                "userId": "u26",
+                "courseId": "c2",
+                "method": "points",
+                "price": 600
+              },
+              {
+                "sagaId": "s146",
+                "userId": "u3",
+                "courseId": "c3",
+                "method": "points",
+                "price": 700
+              },
+              {
+                "sagaId": "s147",
+                "userId": "u10",
+                "courseId": "c4",
+                "method": "card",
+                "price": 800
+              },
+              {
+                "sagaId": "s148",
+                "userId": "u17",
+                "courseId": "c1",
+                "method": "points",
+                "price": 500
+              },
+              {
+                "sagaId": "s149",
+                "userId": "u24",
+                "courseId": "c2",
+                "method": "points",
+                "price": 600
+              },
+              {
+                "sagaId": "s150",
+                "userId": "u1",
+                "courseId": "c3",
+                "method": "card",
+                "price": 700
+              }
+            ],
+            "faults": {
+              "s005": {
+                "enroll": [
+                  "transient",
+                  "transient"
+                ]
+              },
+              "s007": {
+                "grant": [
+                  "fail:entitlement service rejected the plan"
+                ],
+                "refund": [
+                  "transient"
+                ]
+              },
+              "s010": {
+                "enroll": [
+                  "transient",
+                  "transient"
+                ]
+              },
+              "s011": {
+                "pay": [
+                  "fail:card declined"
+                ]
+              },
+              "s013": {
+                "receipt": [
+                  "transient",
+                  "transient",
+                  "transient"
+                ]
+              },
+              "s014": {
+                "grant": [
+                  "fail:entitlement service rejected the plan"
+                ],
+                "refund": [
+                  "transient"
+                ]
+              },
+              "s015": {
+                "enroll": [
+                  "transient",
+                  "transient"
+                ]
+              },
+              "s020": {
+                "enroll": [
+                  "transient",
+                  "transient"
+                ]
+              },
+              "s021": {
+                "grant": [
+                  "fail:entitlement service rejected the plan"
+                ],
+                "refund": [
+                  "transient"
+                ]
+              },
+              "s022": {
+                "pay": [
+                  "fail:card declined"
+                ]
+              },
+              "s025": {
+                "enroll": [
+                  "transient",
+                  "transient"
+                ]
+              },
+              "s026": {
+                "receipt": [
+                  "transient",
+                  "transient",
+                  "transient"
+                ]
+              },
+              "s028": {
+                "grant": [
+                  "fail:entitlement service rejected the plan"
+                ],
+                "refund": [
+                  "transient"
+                ]
+              },
+              "s030": {
+                "enroll": [
+                  "transient",
+                  "transient"
+                ]
+              },
+              "s033": {
+                "pay": [
+                  "fail:card declined"
+                ]
+              },
+              "s035": {
+                "grant": [
+                  "fail:entitlement service rejected the plan"
+                ],
+                "refund": [
+                  "transient"
+                ]
+              },
+              "s039": {
+                "receipt": [
+                  "transient",
+                  "transient",
+                  "transient"
+                ]
+              },
+              "s040": {
+                "enroll": [
+                  "transient",
+                  "transient"
+                ]
+              },
+              "s042": {
+                "grant": [
+                  "fail:entitlement service rejected the plan"
+                ],
+                "refund": [
+                  "transient"
+                ]
+              },
+              "s044": {
+                "pay": [
+                  "fail:card declined"
+                ]
+              },
+              "s045": {
+                "enroll": [
+                  "transient",
+                  "transient"
+                ]
+              },
+              "s049": {
+                "grant": [
+                  "fail:entitlement service rejected the plan"
+                ],
+                "refund": [
+                  "transient"
+                ]
+              },
+              "s050": {
+                "enroll": [
+                  "transient",
+                  "transient"
+                ]
+              },
+              "s052": {
+                "receipt": [
+                  "transient",
+                  "transient",
+                  "transient"
+                ]
+              },
+              "s055": {
+                "pay": [
+                  "fail:card declined"
+                ]
+              },
+              "s056": {
+                "grant": [
+                  "fail:entitlement service rejected the plan"
+                ],
+                "refund": [
+                  "transient"
+                ]
+              },
+              "s060": {
+                "enroll": [
+                  "transient",
+                  "transient"
+                ]
+              },
+              "s063": {
+                "grant": [
+                  "fail:entitlement service rejected the plan"
+                ],
+                "refund": [
+                  "transient"
+                ]
+              },
+              "s065": {
+                "receipt": [
+                  "transient",
+                  "transient",
+                  "transient"
+                ]
+              },
+              "s066": {
+                "pay": [
+                  "fail:card declined"
+                ]
+              },
+              "s070": {
+                "grant": [
+                  "fail:entitlement service rejected the plan"
+                ],
+                "refund": [
+                  "transient"
+                ]
+              },
+              "s075": {
+                "enroll": [
+                  "transient",
+                  "transient"
+                ]
+              },
+              "s077": {
+                "pay": [
+                  "fail:card declined"
+                ]
+              },
+              "s078": {
+                "receipt": [
+                  "transient",
+                  "transient",
+                  "transient"
+                ]
+              },
+              "s080": {
+                "enroll": [
+                  "transient",
+                  "transient"
+                ]
+              },
+              "s084": {
+                "grant": [
+                  "fail:entitlement service rejected the plan"
+                ],
+                "refund": [
+                  "transient"
+                ]
+              },
+              "s085": {
+                "enroll": [
+                  "transient",
+                  "transient"
+                ]
+              },
+              "s088": {
+                "pay": [
+                  "fail:card declined"
+                ]
+              },
+              "s090": {
+                "enroll": [
+                  "transient",
+                  "transient"
+                ]
+              },
+              "s091": {
+                "receipt": [
+                  "transient",
+                  "transient",
+                  "transient"
+                ]
+              },
+              "s095": {
+                "enroll": [
+                  "transient",
+                  "transient"
+                ]
+              },
+              "s098": {
+                "grant": [
+                  "fail:entitlement service rejected the plan"
+                ],
+                "refund": [
+                  "transient"
+                ]
+              },
+              "s099": {
+                "pay": [
+                  "fail:card declined"
+                ]
+              },
+              "s100": {
+                "enroll": [
+                  "transient",
+                  "transient"
+                ]
+              },
+              "s104": {
+                "receipt": [
+                  "transient",
+                  "transient",
+                  "transient"
+                ]
+              },
+              "s105": {
+                "grant": [
+                  "fail:entitlement service rejected the plan"
+                ],
+                "refund": [
+                  "transient"
+                ]
+              },
+              "s110": {
+                "pay": [
+                  "fail:card declined"
+                ]
+              },
+              "s112": {
+                "grant": [
+                  "fail:entitlement service rejected the plan"
+                ],
+                "refund": [
+                  "transient"
+                ]
+              },
+              "s115": {
+                "enroll": [
+                  "transient",
+                  "transient"
+                ]
+              },
+              "s117": {
+                "receipt": [
+                  "transient",
+                  "transient",
+                  "transient"
+                ]
+              },
+              "s119": {
+                "grant": [
+                  "fail:entitlement service rejected the plan"
+                ],
+                "refund": [
+                  "transient"
+                ]
+              },
+              "s120": {
+                "enroll": [
+                  "transient",
+                  "transient"
+                ]
+              },
+              "s121": {
+                "pay": [
+                  "fail:card declined"
+                ]
+              },
+              "s125": {
+                "enroll": [
+                  "transient",
+                  "transient"
+                ]
+              },
+              "s126": {
+                "grant": [
+                  "fail:entitlement service rejected the plan"
+                ],
+                "refund": [
+                  "transient"
+                ]
+              },
+              "s130": {
+                "receipt": [
+                  "transient",
+                  "transient",
+                  "transient"
+                ]
+              },
+              "s132": {
+                "pay": [
+                  "fail:card declined"
+                ]
+              },
+              "s133": {
+                "grant": [
+                  "fail:entitlement service rejected the plan"
+                ],
+                "refund": [
+                  "transient"
+                ]
+              },
+              "s135": {
+                "enroll": [
+                  "transient",
+                  "transient"
+                ]
+              },
+              "s140": {
+                "grant": [
+                  "fail:entitlement service rejected the plan"
+                ],
+                "refund": [
+                  "transient"
+                ]
+              },
+              "s143": {
+                "receipt": [
+                  "transient",
+                  "transient",
+                  "transient"
+                ]
+              },
+              "s145": {
+                "enroll": [
+                  "transient",
+                  "transient"
+                ]
+              },
+              "s147": {
+                "grant": [
+                  "fail:entitlement service rejected the plan"
+                ],
+                "refund": [
+                  "transient"
+                ]
+              },
+              "s150": {
+                "enroll": [
+                  "transient",
+                  "transient"
+                ]
+              }
+            },
+            "crashes": [
+              "s006:receipt#1",
+              "s009:pay#1",
+              "s012:receipt#1",
+              "s014:cancelEnrollment#1",
+              "s018:pay#1",
+              "s018:receipt#1",
+              "s024:receipt#1",
+              "s027:pay#1",
+              "s028:cancelEnrollment#1",
+              "s030:receipt#1",
+              "s036:pay#1",
+              "s036:receipt#1",
+              "s042:cancelEnrollment#1",
+              "s042:receipt#1",
+              "s045:pay#1",
+              "s048:receipt#1",
+              "s054:pay#1",
+              "s054:receipt#1",
+              "s056:cancelEnrollment#1",
+              "s060:receipt#1",
+              "s063:pay#1",
+              "s066:receipt#1",
+              "s070:cancelEnrollment#1",
+              "s072:pay#1",
+              "s072:receipt#1",
+              "s078:receipt#1",
+              "s081:pay#1",
+              "s084:cancelEnrollment#1",
+              "s084:receipt#1",
+              "s090:pay#1",
+              "s090:receipt#1",
+              "s096:receipt#1",
+              "s098:cancelEnrollment#1",
+              "s099:pay#1",
+              "s102:receipt#1",
+              "s108:pay#1",
+              "s108:receipt#1",
+              "s112:cancelEnrollment#1",
+              "s114:receipt#1",
+              "s117:pay#1",
+              "s120:receipt#1",
+              "s126:pay#1",
+              "s126:cancelEnrollment#1",
+              "s126:receipt#1",
+              "s132:receipt#1",
+              "s135:pay#1",
+              "s138:receipt#1",
+              "s140:cancelEnrollment#1",
+              "s144:pay#1",
+              "s144:receipt#1",
+              "s150:receipt#1"
+            ],
+            "rerun": true
+          },
+          "expected": {
+            "log": [
+              "s001 pay #1: ok",
+              "s001 enroll #1: ok",
+              "s001 grant #1: ok",
+              "s001 receipt #1: ok",
+              "s002 pay #1: failed (insufficient points)",
+              "s003 pay #1: ok",
+              "s003 enroll #1: ok",
+              "s003 grant #1: ok",
+              "s003 receipt #1: ok",
+              "s004 pay #1: ok",
+              "s004 enroll #1: ok",
+              "s004 grant #1: ok",
+              "s004 receipt #1: ok",
+              "s005 pay #1: ok",
+              "s005 enroll #1: transient error",
+              "s005 enroll #2: transient error",
+              "s005 enroll #3: ok",
+              "s005 grant #1: ok",
+              "s005 receipt #1: ok",
+              "s006 pay #1: ok",
+              "s006 enroll #1: ok",
+              "s006 grant #1: ok",
+              "s006 receipt #1: ok",
+              "CRASH after s006 receipt #1",
+              "restart s006",
+              "s006 receipt #2: ok",
+              "s007 pay #1: failed (insufficient points)",
+              "s008 pay #1: ok",
+              "s008 enroll #1: ok",
+              "s008 grant #1: ok",
+              "s008 receipt #1: ok",
+              "s009 pay #1: ok",
+              "CRASH after s009 pay #1",
+              "restart s009",
+              "s009 pay #2: ok",
+              "s009 enroll #1: ok",
+              "s009 grant #1: ok",
+              "s009 receipt #1: ok",
+              "s010 pay #1: ok",
+              "s010 enroll #1: transient error",
+              "s010 enroll #2: transient error",
+              "s010 enroll #3: ok",
+              "s010 grant #1: ok",
+              "s010 receipt #1: ok",
+              "s011 pay #1: failed (card declined)",
+              "s012 pay #1: ok",
+              "s012 enroll #1: ok",
+              "s012 grant #1: ok",
+              "s012 receipt #1: ok",
+              "CRASH after s012 receipt #1",
+              "restart s012",
+              "s012 receipt #2: ok",
+              "s013 pay #1: ok",
+              "s013 enroll #1: ok",
+              "s013 grant #1: ok",
+              "s013 receipt #1: transient error",
+              "s013 receipt #2: transient error",
+              "s013 receipt #3: transient error",
+              "s014 pay #1: ok",
+              "s014 enroll #1: ok",
+              "s014 grant #1: failed (entitlement service rejected the plan)",
+              "s014 cancelEnrollment #1: ok",
+              "CRASH after s014 cancelEnrollment #1",
+              "restart s014",
+              "s014 cancelEnrollment #2: ok",
+              "s014 refund #1: transient error",
+              "s014 refund #2: ok",
+              "s015 pay #1: ok",
+              "s015 enroll #1: transient error",
+              "s015 enroll #2: transient error",
+              "s015 enroll #3: ok",
+              "s015 grant #1: ok",
+              "s015 receipt #1: ok",
+              "s016 pay #1: ok",
+              "s016 enroll #1: ok",
+              "s016 grant #1: ok",
+              "s016 receipt #1: ok",
+              "s017 pay #1: failed (insufficient points)",
+              "s018 pay #1: ok",
+              "CRASH after s018 pay #1",
+              "restart s018",
+              "s018 pay #2: ok",
+              "s018 enroll #1: ok",
+              "s018 grant #1: ok",
+              "s018 receipt #1: ok",
+              "CRASH after s018 receipt #1",
+              "restart s018",
+              "s018 receipt #2: ok",
+              "s019 pay #1: ok",
+              "s019 enroll #1: ok",
+              "s019 grant #1: ok",
+              "s019 receipt #1: ok",
+              "s020 pay #1: ok",
+              "s020 enroll #1: transient error",
+              "s020 enroll #2: transient error",
+              "s020 enroll #3: ok",
+              "s020 grant #1: ok",
+              "s020 receipt #1: ok",
+              "s021 pay #1: ok",
+              "s021 enroll #1: ok",
+              "s021 grant #1: failed (entitlement service rejected the plan)",
+              "s021 cancelEnrollment #1: ok",
+              "s021 refund #1: transient error",
+              "s021 refund #2: ok",
+              "s022 pay #1: failed (card declined)",
+              "s023 pay #1: ok",
+              "s023 enroll #1: ok",
+              "s023 grant #1: ok",
+              "s023 receipt #1: ok",
+              "s024 pay #1: ok",
+              "s024 enroll #1: ok",
+              "s024 grant #1: ok",
+              "s024 receipt #1: ok",
+              "CRASH after s024 receipt #1",
+              "restart s024",
+              "s024 receipt #2: ok",
+              "s025 pay #1: ok",
+              "s025 enroll #1: transient error",
+              "s025 enroll #2: transient error",
+              "s025 enroll #3: ok",
+              "s025 grant #1: ok",
+              "s025 receipt #1: ok",
+              "s026 pay #1: ok",
+              "s026 enroll #1: ok",
+              "s026 grant #1: ok",
+              "s026 receipt #1: transient error",
+              "s026 receipt #2: transient error",
+              "s026 receipt #3: transient error",
+              "s027 pay #1: ok",
+              "CRASH after s027 pay #1",
+              "restart s027",
+              "s027 pay #2: ok",
+              "s027 enroll #1: ok",
+              "s027 grant #1: ok",
+              "s027 receipt #1: ok",
+              "s028 pay #1: ok",
+              "s028 enroll #1: ok",
+              "s028 grant #1: failed (entitlement service rejected the plan)",
+              "s028 cancelEnrollment #1: ok",
+              "CRASH after s028 cancelEnrollment #1",
+              "restart s028",
+              "s028 cancelEnrollment #2: ok",
+              "s028 refund #1: transient error",
+              "s028 refund #2: ok",
+              "s029 pay #1: ok",
+              "s029 enroll #1: ok",
+              "s029 grant #1: ok",
+              "s029 receipt #1: ok",
+              "s030 pay #1: ok",
+              "s030 enroll #1: transient error",
+              "s030 enroll #2: transient error",
+              "s030 enroll #3: ok",
+              "s030 grant #1: ok",
+              "s030 receipt #1: ok",
+              "CRASH after s030 receipt #1",
+              "restart s030",
+              "s030 receipt #2: ok",
+              "s031 pay #1: ok",
+              "s031 enroll #1: ok",
+              "s031 grant #1: ok",
+              "s031 receipt #1: ok",
+              "s032 pay #1: failed (insufficient points)",
+              "s033 pay #1: failed (card declined)",
+              "s034 pay #1: ok",
+              "s034 enroll #1: ok",
+              "s034 grant #1: ok",
+              "s034 receipt #1: ok",
+              "s035 pay #1: ok",
+              "s035 enroll #1: ok",
+              "s035 grant #1: failed (entitlement service rejected the plan)",
+              "s035 cancelEnrollment #1: ok",
+              "s035 refund #1: transient error",
+              "s035 refund #2: ok",
+              "s036 pay #1: ok",
+              "CRASH after s036 pay #1",
+              "restart s036",
+              "s036 pay #2: ok",
+              "s036 enroll #1: ok",
+              "s036 grant #1: ok",
+              "s036 receipt #1: ok",
+              "CRASH after s036 receipt #1",
+              "restart s036",
+              "s036 receipt #2: ok",
+              "s037 pay #1: failed (insufficient points)",
+              "s038 pay #1: ok",
+              "s038 enroll #1: ok",
+              "s038 grant #1: ok",
+              "s038 receipt #1: ok",
+              "s039 pay #1: ok",
+              "s039 enroll #1: ok",
+              "s039 grant #1: ok",
+              "s039 receipt #1: transient error",
+              "s039 receipt #2: transient error",
+              "s039 receipt #3: transient error",
+              "s040 pay #1: ok",
+              "s040 enroll #1: transient error",
+              "s040 enroll #2: transient error",
+              "s040 enroll #3: ok",
+              "s040 grant #1: ok",
+              "s040 receipt #1: ok",
+              "s041 pay #1: ok",
+              "s041 enroll #1: ok",
+              "s041 grant #1: ok",
+              "s041 receipt #1: ok",
+              "s042 pay #1: ok",
+              "s042 enroll #1: ok",
+              "s042 grant #1: failed (entitlement service rejected the plan)",
+              "s042 cancelEnrollment #1: ok",
+              "CRASH after s042 cancelEnrollment #1",
+              "restart s042",
+              "s042 cancelEnrollment #2: ok",
+              "s042 refund #1: transient error",
+              "s042 refund #2: ok",
+              "s043 pay #1: ok",
+              "s043 enroll #1: ok",
+              "s043 grant #1: ok",
+              "s043 receipt #1: ok",
+              "s044 pay #1: failed (card declined)",
+              "s045 pay #1: ok",
+              "CRASH after s045 pay #1",
+              "restart s045",
+              "s045 pay #2: ok",
+              "s045 enroll #1: transient error",
+              "s045 enroll #2: transient error",
+              "s045 enroll #3: ok",
+              "s045 grant #1: ok",
+              "s045 receipt #1: ok",
+              "s046 pay #1: ok",
+              "s046 enroll #1: ok",
+              "s046 grant #1: ok",
+              "s046 receipt #1: ok",
+              "s047 pay #1: failed (insufficient points)",
+              "s048 pay #1: ok",
+              "s048 enroll #1: ok",
+              "s048 grant #1: ok",
+              "s048 receipt #1: ok",
+              "CRASH after s048 receipt #1",
+              "restart s048",
+              "s048 receipt #2: ok",
+              "s049 pay #1: ok",
+              "s049 enroll #1: ok",
+              "s049 grant #1: failed (entitlement service rejected the plan)",
+              "s049 cancelEnrollment #1: ok",
+              "s049 refund #1: transient error",
+              "s049 refund #2: ok",
+              "s050 pay #1: ok",
+              "s050 enroll #1: transient error",
+              "s050 enroll #2: transient error",
+              "s050 enroll #3: ok",
+              "s050 grant #1: ok",
+              "s050 receipt #1: ok",
+              "s051 pay #1: ok",
+              "s051 enroll #1: ok",
+              "s051 grant #1: ok",
+              "s051 receipt #1: ok",
+              "s052 pay #1: failed (insufficient points)",
+              "s053 pay #1: ok",
+              "s053 enroll #1: ok",
+              "s053 grant #1: ok",
+              "s053 receipt #1: ok",
+              "s054 pay #1: ok",
+              "CRASH after s054 pay #1",
+              "restart s054",
+              "s054 pay #2: ok",
+              "s054 enroll #1: ok",
+              "s054 grant #1: ok",
+              "s054 receipt #1: ok",
+              "CRASH after s054 receipt #1",
+              "restart s054",
+              "s054 receipt #2: ok",
+              "s055 pay #1: failed (card declined)",
+              "s056 pay #1: ok",
+              "s056 enroll #1: ok",
+              "s056 grant #1: failed (entitlement service rejected the plan)",
+              "s056 cancelEnrollment #1: ok",
+              "CRASH after s056 cancelEnrollment #1",
+              "restart s056",
+              "s056 cancelEnrollment #2: ok",
+              "s056 refund #1: transient error",
+              "s056 refund #2: ok",
+              "s057 pay #1: ok",
+              "s057 enroll #1: ok",
+              "s057 grant #1: ok",
+              "s057 receipt #1: ok",
+              "s058 pay #1: ok",
+              "s058 enroll #1: ok",
+              "s058 grant #1: ok",
+              "s058 receipt #1: ok",
+              "s059 pay #1: ok",
+              "s059 enroll #1: ok",
+              "s059 grant #1: ok",
+              "s059 receipt #1: ok",
+              "s060 pay #1: ok",
+              "s060 enroll #1: transient error",
+              "s060 enroll #2: transient error",
+              "s060 enroll #3: ok",
+              "s060 grant #1: ok",
+              "s060 receipt #1: ok",
+              "CRASH after s060 receipt #1",
+              "restart s060",
+              "s060 receipt #2: ok",
+              "s061 pay #1: ok",
+              "s061 enroll #1: failed (already enrolled)",
+              "s061 refund #1: ok",
+              "s062 pay #1: failed (insufficient points)",
+              "s063 pay #1: ok",
+              "CRASH after s063 pay #1",
+              "restart s063",
+              "s063 pay #2: ok",
+              "s063 enroll #1: failed (already enrolled)",
+              "s063 refund #1: transient error",
+              "s063 refund #2: ok",
+              "s064 pay #1: ok",
+              "s064 enroll #1: failed (already enrolled)",
+              "s064 refund #1: ok",
+              "s065 pay #1: ok",
+              "s065 enroll #1: failed (already enrolled)",
+              "s065 refund #1: ok",
+              "s066 pay #1: failed (card declined)",
+              "s067 pay #1: failed (insufficient points)",
+              "s068 pay #1: ok",
+              "s068 enroll #1: failed (already enrolled)",
+              "s068 refund #1: ok",
+              "s069 pay #1: ok",
+              "s069 enroll #1: failed (already enrolled)",
+              "s069 refund #1: ok",
+              "s070 pay #1: failed (insufficient points)",
+              "s071 pay #1: ok",
+              "s071 enroll #1: ok",
+              "s071 grant #1: ok",
+              "s071 receipt #1: ok",
+              "s072 pay #1: ok",
+              "CRASH after s072 pay #1",
+              "restart s072",
+              "s072 pay #2: ok",
+              "s072 enroll #1: failed (already enrolled)",
+              "s072 refund #1: ok",
+              "s073 pay #1: ok",
+              "s073 enroll #1: failed (already enrolled)",
+              "s073 refund #1: ok",
+              "s074 pay #1: ok",
+              "s074 enroll #1: ok",
+              "s074 grant #1: ok",
+              "s074 receipt #1: ok",
+              "s075 pay #1: ok",
+              "s075 enroll #1: transient error",
+              "s075 enroll #2: transient error",
+              "s075 enroll #3: failed (already enrolled)",
+              "s075 refund #1: ok",
+              "s076 pay #1: ok",
+              "s076 enroll #1: failed (already enrolled)",
+              "s076 refund #1: ok",
+              "s077 pay #1: failed (card declined)",
+              "s078 pay #1: ok",
+              "s078 enroll #1: failed (already enrolled)",
+              "s078 refund #1: ok",
+              "s079 pay #1: ok",
+              "s079 enroll #1: failed (already enrolled)",
+              "s079 refund #1: ok",
+              "s080 pay #1: failed (insufficient points)",
+              "s081 pay #1: ok",
+              "CRASH after s081 pay #1",
+              "restart s081",
+              "s081 pay #2: ok",
+              "s081 enroll #1: ok",
+              "s081 grant #1: ok",
+              "s081 receipt #1: ok",
+              "s082 pay #1: failed (insufficient points)",
+              "s083 pay #1: ok",
+              "s083 enroll #1: failed (already enrolled)",
+              "s083 refund #1: ok",
+              "s084 pay #1: ok",
+              "s084 enroll #1: failed (already enrolled)",
+              "s084 refund #1: transient error",
+              "s084 refund #2: ok",
+              "s085 pay #1: ok",
+              "s085 enroll #1: transient error",
+              "s085 enroll #2: transient error",
+              "s085 enroll #3: failed (already enrolled)",
+              "s085 refund #1: ok",
+              "s086 pay #1: ok",
+              "s086 enroll #1: failed (already enrolled)",
+              "s086 refund #1: ok",
+              "s087 pay #1: ok",
+              "s087 enroll #1: failed (already enrolled)",
+              "s087 refund #1: ok",
+              "s088 pay #1: failed (card declined)",
+              "s089 pay #1: ok",
+              "s089 enroll #1: failed (already enrolled)",
+              "s089 refund #1: ok",
+              "s090 pay #1: ok",
+              "CRASH after s090 pay #1",
+              "restart s090",
+              "s090 pay #2: ok",
+              "s090 enroll #1: transient error",
+              "s090 enroll #2: transient error",
+              "s090 enroll #3: failed (already enrolled)",
+              "s090 refund #1: ok",
+              "s091 pay #1: ok",
+              "s091 enroll #1: failed (already enrolled)",
+              "s091 refund #1: ok",
+              "s092 pay #1: failed (insufficient points)",
+              "s093 pay #1: ok",
+              "s093 enroll #1: ok",
+              "s093 grant #1: ok",
+              "s093 receipt #1: ok",
+              "s094 pay #1: ok",
+              "s094 enroll #1: failed (already enrolled)",
+              "s094 refund #1: ok",
+              "s095 pay #1: ok",
+              "s095 enroll #1: transient error",
+              "s095 enroll #2: transient error",
+              "s095 enroll #3: ok",
+              "s095 grant #1: ok",
+              "s095 receipt #1: ok",
+              "s096 pay #1: ok",
+              "s096 enroll #1: failed (already enrolled)",
+              "s096 refund #1: ok",
+              "s097 pay #1: failed (insufficient points)",
+              "s098 pay #1: ok",
+              "s098 enroll #1: failed (already enrolled)",
+              "s098 refund #1: transient error",
+              "s098 refund #2: ok",
+              "s099 pay #1: failed (card declined)",
+              "s100 pay #1: failed (insufficient points)",
+              "s101 pay #1: ok",
+              "s101 enroll #1: failed (already enrolled)",
+              "s101 refund #1: ok",
+              "s102 pay #1: ok",
+              "s102 enroll #1: ok",
+              "s102 grant #1: ok",
+              "s102 receipt #1: ok",
+              "CRASH after s102 receipt #1",
+              "restart s102",
+              "s102 receipt #2: ok",
+              "s103 pay #1: ok",
+              "s103 enroll #1: failed (already enrolled)",
+              "s103 refund #1: ok",
+              "s104 pay #1: ok",
+              "s104 enroll #1: ok",
+              "s104 grant #1: ok",
+              "s104 receipt #1: transient error",
+              "s104 receipt #2: transient error",
+              "s104 receipt #3: transient error",
+              "s105 pay #1: ok",
+              "s105 enroll #1: failed (already enrolled)",
+              "s105 refund #1: transient error",
+              "s105 refund #2: ok",
+              "s106 pay #1: ok",
+              "s106 enroll #1: failed (already enrolled)",
+              "s106 refund #1: ok",
+              "s107 pay #1: failed (insufficient points)",
+              "s108 pay #1: ok",
+              "CRASH after s108 pay #1",
+              "restart s108",
+              "s108 pay #2: ok",
+              "s108 enroll #1: failed (already enrolled)",
+              "s108 refund #1: ok",
+              "s109 pay #1: ok",
+              "s109 enroll #1: ok",
+              "s109 grant #1: ok",
+              "s109 receipt #1: ok",
+              "s110 pay #1: failed (card declined)",
+              "s111 pay #1: ok",
+              "s111 enroll #1: failed (already enrolled)",
+              "s111 refund #1: ok",
+              "s112 pay #1: failed (insufficient points)",
+              "s113 pay #1: ok",
+              "s113 enroll #1: failed (already enrolled)",
+              "s113 refund #1: ok",
+              "s114 pay #1: ok",
+              "s114 enroll #1: failed (already enrolled)",
+              "s114 refund #1: ok",
+              "s115 pay #1: ok",
+              "s115 enroll #1: transient error",
+              "s115 enroll #2: transient error",
+              "s115 enroll #3: ok",
+              "s115 grant #1: ok",
+              "s115 receipt #1: ok",
+              "s116 pay #1: ok",
+              "s116 enroll #1: ok",
+              "s116 grant #1: ok",
+              "s116 receipt #1: ok",
+              "s117 pay #1: ok",
+              "CRASH after s117 pay #1",
+              "restart s117",
+              "s117 pay #2: ok",
+              "s117 enroll #1: failed (already enrolled)",
+              "s117 refund #1: ok",
+              "s118 pay #1: ok",
+              "s118 enroll #1: failed (already enrolled)",
+              "s118 refund #1: ok",
+              "s119 pay #1: ok",
+              "s119 enroll #1: failed (already enrolled)",
+              "s119 refund #1: transient error",
+              "s119 refund #2: ok",
+              "s120 pay #1: ok",
+              "s120 enroll #1: transient error",
+              "s120 enroll #2: transient error",
+              "s120 enroll #3: failed (already enrolled)",
+              "s120 refund #1: ok",
+              "s121 pay #1: failed (card declined)",
+              "s122 pay #1: failed (insufficient points)",
+              "s123 pay #1: ok",
+              "s123 enroll #1: failed (already enrolled)",
+              "s123 refund #1: ok",
+              "s124 pay #1: ok",
+              "s124 enroll #1: failed (already enrolled)",
+              "s124 refund #1: ok",
+              "s125 pay #1: failed (insufficient points)",
+              "s126 pay #1: ok",
+              "CRASH after s126 pay #1",
+              "restart s126",
+              "s126 pay #2: ok",
+              "s126 enroll #1: failed (already enrolled)",
+              "s126 refund #1: transient error",
+              "s126 refund #2: ok",
+              "s127 pay #1: failed (insufficient points)",
+              "s128 pay #1: ok",
+              "s128 enroll #1: failed (already enrolled)",
+              "s128 refund #1: ok",
+              "s129 pay #1: ok",
+              "s129 enroll #1: failed (already enrolled)",
+              "s129 refund #1: ok",
+              "s130 pay #1: failed (insufficient points)",
+              "s131 pay #1: ok",
+              "s131 enroll #1: failed (already enrolled)",
+              "s131 refund #1: ok",
+              "s132 pay #1: failed (card declined)",
+              "s133 pay #1: ok",
+              "s133 enroll #1: failed (already enrolled)",
+              "s133 refund #1: transient error",
+              "s133 refund #2: ok",
+              "s134 pay #1: ok",
+              "s134 enroll #1: failed (already enrolled)",
+              "s134 refund #1: ok",
+              "s135 pay #1: ok",
+              "CRASH after s135 pay #1",
+              "restart s135",
+              "s135 pay #2: ok",
+              "s135 enroll #1: transient error",
+              "s135 enroll #2: transient error",
+              "s135 enroll #3: failed (already enrolled)",
+              "s135 refund #1: ok",
+              "s136 pay #1: ok",
+              "s136 enroll #1: failed (already enrolled)",
+              "s136 refund #1: ok",
+              "s137 pay #1: failed (insufficient points)",
+              "s138 pay #1: ok",
+              "s138 enroll #1: failed (already enrolled)",
+              "s138 refund #1: ok",
+              "s139 pay #1: ok",
+              "s139 enroll #1: failed (already enrolled)",
+              "s139 refund #1: ok",
+              "s140 pay #1: failed (insufficient points)",
+              "s141 pay #1: ok",
+              "s141 enroll #1: failed (already enrolled)",
+              "s141 refund #1: ok",
+              "s142 pay #1: failed (insufficient points)",
+              "s143 pay #1: ok",
+              "s143 enroll #1: failed (already enrolled)",
+              "s143 refund #1: ok",
+              "s144 pay #1: ok",
+              "CRASH after s144 pay #1",
+              "restart s144",
+              "s144 pay #2: ok",
+              "s144 enroll #1: failed (already enrolled)",
+              "s144 refund #1: ok",
+              "s145 pay #1: failed (insufficient points)",
+              "s146 pay #1: ok",
+              "s146 enroll #1: failed (already enrolled)",
+              "s146 refund #1: ok",
+              "s147 pay #1: ok",
+              "s147 enroll #1: failed (already enrolled)",
+              "s147 refund #1: transient error",
+              "s147 refund #2: ok",
+              "s148 pay #1: ok",
+              "s148 enroll #1: ok",
+              "s148 grant #1: ok",
+              "s148 receipt #1: ok",
+              "s149 pay #1: ok",
+              "s149 enroll #1: failed (already enrolled)",
+              "s149 refund #1: ok",
+              "s150 pay #1: ok",
+              "s150 enroll #1: transient error",
+              "s150 enroll #2: transient error",
+              "s150 enroll #3: failed (already enrolled)",
+              "s150 refund #1: ok",
+              "rerun s001",
+              "rerun s002",
+              "rerun s003",
+              "rerun s004",
+              "rerun s005",
+              "rerun s006",
+              "rerun s007",
+              "rerun s008",
+              "rerun s009",
+              "rerun s010",
+              "rerun s011",
+              "rerun s012",
+              "rerun s013",
+              "s013 receipt #4: ok",
+              "rerun s014",
+              "rerun s015",
+              "rerun s016",
+              "rerun s017",
+              "rerun s018",
+              "rerun s019",
+              "rerun s020",
+              "rerun s021",
+              "rerun s022",
+              "rerun s023",
+              "rerun s024",
+              "rerun s025",
+              "rerun s026",
+              "s026 receipt #4: ok",
+              "rerun s027",
+              "rerun s028",
+              "rerun s029",
+              "rerun s030",
+              "rerun s031",
+              "rerun s032",
+              "rerun s033",
+              "rerun s034",
+              "rerun s035",
+              "rerun s036",
+              "rerun s037",
+              "rerun s038",
+              "rerun s039",
+              "s039 receipt #4: ok",
+              "rerun s040",
+              "rerun s041",
+              "rerun s042",
+              "rerun s043",
+              "rerun s044",
+              "rerun s045",
+              "rerun s046",
+              "rerun s047",
+              "rerun s048",
+              "rerun s049",
+              "rerun s050",
+              "rerun s051",
+              "rerun s052",
+              "rerun s053",
+              "rerun s054",
+              "rerun s055",
+              "rerun s056",
+              "rerun s057",
+              "rerun s058",
+              "rerun s059",
+              "rerun s060",
+              "rerun s061",
+              "rerun s062",
+              "rerun s063",
+              "rerun s064",
+              "rerun s065",
+              "rerun s066",
+              "rerun s067",
+              "rerun s068",
+              "rerun s069",
+              "rerun s070",
+              "rerun s071",
+              "rerun s072",
+              "rerun s073",
+              "rerun s074",
+              "rerun s075",
+              "rerun s076",
+              "rerun s077",
+              "rerun s078",
+              "rerun s079",
+              "rerun s080",
+              "rerun s081",
+              "rerun s082",
+              "rerun s083",
+              "rerun s084",
+              "rerun s085",
+              "rerun s086",
+              "rerun s087",
+              "rerun s088",
+              "rerun s089",
+              "rerun s090",
+              "rerun s091",
+              "rerun s092",
+              "rerun s093",
+              "rerun s094",
+              "rerun s095",
+              "rerun s096",
+              "rerun s097",
+              "rerun s098",
+              "rerun s099",
+              "rerun s100",
+              "rerun s101",
+              "rerun s102",
+              "rerun s103",
+              "rerun s104",
+              "s104 receipt #4: ok",
+              "rerun s105",
+              "rerun s106",
+              "rerun s107",
+              "rerun s108",
+              "rerun s109",
+              "rerun s110",
+              "rerun s111",
+              "rerun s112",
+              "rerun s113",
+              "rerun s114",
+              "rerun s115",
+              "rerun s116",
+              "rerun s117",
+              "rerun s118",
+              "rerun s119",
+              "rerun s120",
+              "rerun s121",
+              "rerun s122",
+              "rerun s123",
+              "rerun s124",
+              "rerun s125",
+              "rerun s126",
+              "rerun s127",
+              "rerun s128",
+              "rerun s129",
+              "rerun s130",
+              "rerun s131",
+              "rerun s132",
+              "rerun s133",
+              "rerun s134",
+              "rerun s135",
+              "rerun s136",
+              "rerun s137",
+              "rerun s138",
+              "rerun s139",
+              "rerun s140",
+              "rerun s141",
+              "rerun s142",
+              "rerun s143",
+              "rerun s144",
+              "rerun s145",
+              "rerun s146",
+              "rerun s147",
+              "rerun s148",
+              "rerun s149",
+              "rerun s150"
+            ],
+            "sagas": [
+              "s001 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s002 aborted done=[] undone=[] error=pay: insufficient points",
+              "s003 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s004 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s005 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s006 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s007 aborted done=[] undone=[] error=pay: insufficient points",
+              "s008 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s009 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s010 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s011 aborted done=[] undone=[] error=pay: card declined",
+              "s012 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s013 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s014 aborted done=[pay,enroll] undone=[cancelEnrollment,refund] error=grant: entitlement service rejected the plan",
+              "s015 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s016 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s017 aborted done=[] undone=[] error=pay: insufficient points",
+              "s018 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s019 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s020 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s021 aborted done=[pay,enroll] undone=[cancelEnrollment,refund] error=grant: entitlement service rejected the plan",
+              "s022 aborted done=[] undone=[] error=pay: card declined",
+              "s023 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s024 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s025 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s026 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s027 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s028 aborted done=[pay,enroll] undone=[cancelEnrollment,refund] error=grant: entitlement service rejected the plan",
+              "s029 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s030 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s031 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s032 aborted done=[] undone=[] error=pay: insufficient points",
+              "s033 aborted done=[] undone=[] error=pay: card declined",
+              "s034 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s035 aborted done=[pay,enroll] undone=[cancelEnrollment,refund] error=grant: entitlement service rejected the plan",
+              "s036 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s037 aborted done=[] undone=[] error=pay: insufficient points",
+              "s038 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s039 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s040 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s041 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s042 aborted done=[pay,enroll] undone=[cancelEnrollment,refund] error=grant: entitlement service rejected the plan",
+              "s043 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s044 aborted done=[] undone=[] error=pay: card declined",
+              "s045 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s046 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s047 aborted done=[] undone=[] error=pay: insufficient points",
+              "s048 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s049 aborted done=[pay,enroll] undone=[cancelEnrollment,refund] error=grant: entitlement service rejected the plan",
+              "s050 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s051 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s052 aborted done=[] undone=[] error=pay: insufficient points",
+              "s053 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s054 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s055 aborted done=[] undone=[] error=pay: card declined",
+              "s056 aborted done=[pay,enroll] undone=[cancelEnrollment,refund] error=grant: entitlement service rejected the plan",
+              "s057 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s058 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s059 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s060 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s061 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s062 aborted done=[] undone=[] error=pay: insufficient points",
+              "s063 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s064 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s065 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s066 aborted done=[] undone=[] error=pay: card declined",
+              "s067 aborted done=[] undone=[] error=pay: insufficient points",
+              "s068 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s069 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s070 aborted done=[] undone=[] error=pay: insufficient points",
+              "s071 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s072 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s073 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s074 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s075 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s076 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s077 aborted done=[] undone=[] error=pay: card declined",
+              "s078 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s079 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s080 aborted done=[] undone=[] error=pay: insufficient points",
+              "s081 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s082 aborted done=[] undone=[] error=pay: insufficient points",
+              "s083 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s084 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s085 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s086 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s087 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s088 aborted done=[] undone=[] error=pay: card declined",
+              "s089 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s090 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s091 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s092 aborted done=[] undone=[] error=pay: insufficient points",
+              "s093 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s094 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s095 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s096 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s097 aborted done=[] undone=[] error=pay: insufficient points",
+              "s098 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s099 aborted done=[] undone=[] error=pay: card declined",
+              "s100 aborted done=[] undone=[] error=pay: insufficient points",
+              "s101 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s102 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s103 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s104 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s105 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s106 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s107 aborted done=[] undone=[] error=pay: insufficient points",
+              "s108 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s109 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s110 aborted done=[] undone=[] error=pay: card declined",
+              "s111 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s112 aborted done=[] undone=[] error=pay: insufficient points",
+              "s113 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s114 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s115 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s116 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s117 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s118 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s119 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s120 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s121 aborted done=[] undone=[] error=pay: card declined",
+              "s122 aborted done=[] undone=[] error=pay: insufficient points",
+              "s123 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s124 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s125 aborted done=[] undone=[] error=pay: insufficient points",
+              "s126 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s127 aborted done=[] undone=[] error=pay: insufficient points",
+              "s128 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s129 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s130 aborted done=[] undone=[] error=pay: insufficient points",
+              "s131 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s132 aborted done=[] undone=[] error=pay: card declined",
+              "s133 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s134 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s135 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s136 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s137 aborted done=[] undone=[] error=pay: insufficient points",
+              "s138 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s139 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s140 aborted done=[] undone=[] error=pay: insufficient points",
+              "s141 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s142 aborted done=[] undone=[] error=pay: insufficient points",
+              "s143 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s144 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s145 aborted done=[] undone=[] error=pay: insufficient points",
+              "s146 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s147 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s148 completed done=[pay,enroll,grant,receipt] undone=[] error=null",
+              "s149 aborted done=[pay] undone=[refund] error=enroll: already enrolled",
+              "s150 aborted done=[pay] undone=[refund] error=enroll: already enrolled"
+            ],
+            "wallets": {
+              "u1": 1500,
+              "u10": 0,
+              "u11": 300,
+              "u12": 1600,
+              "u13": 4500,
+              "u14": 4600,
+              "u15": 0,
+              "u16": 1500,
+              "u17": 1800,
+              "u18": 3100,
+              "u19": 6000,
+              "u2": 1600,
+              "u20": 0,
+              "u21": 300,
+              "u22": 3000,
+              "u23": 3300,
+              "u24": 4600,
+              "u25": 0,
+              "u26": 100,
+              "u27": 1800,
+              "u28": 4500,
+              "u29": 4800,
+              "u3": 3300,
+              "u30": 0,
+              "u4": 6000,
+              "u5": 0,
+              "u6": 100,
+              "u7": 3000,
+              "u8": 3100,
+              "u9": 4800
+            },
+            "payments": [
+              "s001 points 600 captured",
+              "s003 card 800 captured",
+              "s004 points 500 captured",
+              "s005 points 600 captured",
+              "s006 card 700 captured",
+              "s008 points 500 captured",
+              "s009 card 600 captured",
+              "s010 points 700 captured",
+              "s012 card 500 captured",
+              "s013 points 600 captured",
+              "s014 points 700 refunded",
+              "s015 card 800 captured",
+              "s016 points 500 captured",
+              "s018 card 700 captured",
+              "s019 points 800 captured",
+              "s020 points 500 captured",
+              "s021 card 600 refunded",
+              "s023 points 800 captured",
+              "s024 card 500 captured",
+              "s025 points 600 captured",
+              "s026 points 700 captured",
+              "s027 card 800 captured",
+              "s028 points 500 refunded",
+              "s029 points 600 captured",
+              "s030 card 700 captured",
+              "s031 points 800 captured",
+              "s034 points 700 captured",
+              "s035 points 800 refunded",
+              "s036 card 500 captured",
+              "s038 points 700 captured",
+              "s039 card 800 captured",
+              "s040 points 500 captured",
+              "s041 points 600 captured",
+              "s042 card 700 refunded",
+              "s043 points 800 captured",
+              "s045 card 600 captured",
+              "s046 points 700 captured",
+              "s048 card 500 captured",
+              "s049 points 600 refunded",
+              "s050 points 700 captured",
+              "s051 card 800 captured",
+              "s053 points 600 captured",
+              "s054 card 700 captured",
+              "s056 points 500 refunded",
+              "s057 card 600 captured",
+              "s058 points 700 captured",
+              "s059 points 800 captured",
+              "s060 card 500 captured",
+              "s061 points 600 refunded",
+              "s063 card 800 refunded",
+              "s064 points 500 refunded",
+              "s065 points 600 refunded",
+              "s068 points 500 refunded",
+              "s069 card 600 refunded",
+              "s071 points 800 captured",
+              "s072 card 500 refunded",
+              "s073 points 600 refunded",
+              "s074 points 700 captured",
+              "s075 card 800 refunded",
+              "s076 points 500 refunded",
+              "s078 card 700 refunded",
+              "s079 points 800 refunded",
+              "s081 card 600 captured",
+              "s083 points 800 refunded",
+              "s084 card 500 refunded",
+              "s085 points 600 refunded",
+              "s086 points 700 refunded",
+              "s087 card 800 refunded",
+              "s089 points 600 refunded",
+              "s090 card 700 refunded",
+              "s091 points 800 refunded",
+              "s093 card 600 captured",
+              "s094 points 700 refunded",
+              "s095 points 800 captured",
+              "s096 card 500 refunded",
+              "s098 points 700 refunded",
+              "s101 points 600 refunded",
+              "s102 card 700 captured",
+              "s103 points 800 refunded",
+              "s104 points 500 captured",
+              "s105 card 600 refunded",
+              "s106 points 700 refunded",
+              "s108 card 500 refunded",
+              "s109 points 600 captured",
+              "s111 card 800 refunded",
+              "s113 points 600 refunded",
+              "s114 card 700 refunded",
+              "s115 points 800 captured",
+              "s116 points 500 captured",
+              "s117 card 600 refunded",
+              "s118 points 700 refunded",
+              "s119 points 800 refunded",
+              "s120 card 500 refunded",
+              "s123 card 800 refunded",
+              "s124 points 500 refunded",
+              "s126 card 700 refunded",
+              "s128 points 500 refunded",
+              "s129 card 600 refunded",
+              "s131 points 800 refunded",
+              "s133 points 600 refunded",
+              "s134 points 700 refunded",
+              "s135 card 800 refunded",
+              "s136 points 500 refunded",
+              "s138 card 700 refunded",
+              "s139 points 800 refunded",
+              "s141 card 600 refunded",
+              "s143 points 800 refunded",
+              "s144 card 500 refunded",
+              "s146 points 700 refunded",
+              "s147 card 800 refunded",
+              "s148 points 500 captured",
+              "s149 points 600 refunded",
+              "s150 card 700 refunded"
+            ],
+            "enrollments": [
+              "u10:c2 active (s057)",
+              "u10:c4 active (s027)",
+              "u11:c1 active (s040)",
+              "u11:c3 active (s010)",
+              "u12:c2 active (s053)",
+              "u12:c4 active (s023)",
+              "u13:c1 active (s036)",
+              "u13:c3 active (s006)",
+              "u14:c2 active (s109)",
+              "u14:c4 active (s019)",
+              "u16:c2 active (s045)",
+              "u16:c4 active (s015)",
+              "u17:c1 active (s148)",
+              "u17:c3 active (s058)",
+              "u18:c2 active (s041)",
+              "u18:c4 active (s071)",
+              "u19:c1 active (s024)",
+              "u19:c3 active (s054)",
+              "u1:c1 active (s060)",
+              "u1:c3 active (s030)",
+              "u21:c1 active (s020)",
+              "u21:c3 active (s050)",
+              "u22:c2 active (s093)",
+              "u22:c4 active (s003)",
+              "u23:c1 active (s016)",
+              "u23:c3 active (s046)",
+              "u24:c2 active (s029)",
+              "u24:c4 active (s059)",
+              "u25:c1 active (s012)",
+              "u25:c3 active (s102)",
+              "u26:c2 active (s025)",
+              "u26:c4 active (s115)",
+              "u27:c1 active (s008)",
+              "u27:c3 active (s038)",
+              "u28:c2 active (s081)",
+              "u28:c4 active (s051)",
+              "u29:c1 active (s004)",
+              "u29:c3 active (s034)",
+              "u2:c2 active (s013)",
+              "u2:c4 active (s043)",
+              "u3:c1 active (s116)",
+              "u3:c3 active (s026)",
+              "u4:c2 active (s009)",
+              "u4:c4 active (s039)",
+              "u6:c2 active (s005)",
+              "u6:c4 active (s095)",
+              "u7:c1 active (s048)",
+              "u7:c3 active (s018)",
+              "u8:c2 active (s001)",
+              "u8:c4 active (s031)",
+              "u9:c1 active (s104)",
+              "u9:c3 active (s074)"
+            ],
+            "entitlements": [
+              "u10:c2 active (s057)",
+              "u10:c4 active (s027)",
+              "u11:c1 active (s040)",
+              "u11:c3 active (s010)",
+              "u12:c2 active (s053)",
+              "u12:c4 active (s023)",
+              "u13:c1 active (s036)",
+              "u13:c3 active (s006)",
+              "u14:c2 active (s109)",
+              "u14:c4 active (s019)",
+              "u16:c2 active (s045)",
+              "u16:c4 active (s015)",
+              "u17:c1 active (s148)",
+              "u17:c3 active (s058)",
+              "u18:c2 active (s041)",
+              "u18:c4 active (s071)",
+              "u19:c1 active (s024)",
+              "u19:c3 active (s054)",
+              "u1:c1 active (s060)",
+              "u1:c3 active (s030)",
+              "u21:c1 active (s020)",
+              "u21:c3 active (s050)",
+              "u22:c2 active (s093)",
+              "u22:c4 active (s003)",
+              "u23:c1 active (s016)",
+              "u23:c3 active (s046)",
+              "u24:c2 active (s029)",
+              "u24:c4 active (s059)",
+              "u25:c1 active (s012)",
+              "u25:c3 active (s102)",
+              "u26:c2 active (s025)",
+              "u26:c4 active (s115)",
+              "u27:c1 active (s008)",
+              "u27:c3 active (s038)",
+              "u28:c2 active (s081)",
+              "u28:c4 active (s051)",
+              "u29:c1 active (s004)",
+              "u29:c3 active (s034)",
+              "u2:c2 active (s013)",
+              "u2:c4 active (s043)",
+              "u3:c1 active (s116)",
+              "u3:c3 active (s026)",
+              "u4:c2 active (s009)",
+              "u4:c4 active (s039)",
+              "u6:c2 active (s005)",
+              "u6:c4 active (s095)",
+              "u7:c1 active (s048)",
+              "u7:c3 active (s018)",
+              "u8:c2 active (s001)",
+              "u8:c4 active (s031)",
+              "u9:c1 active (s104)",
+              "u9:c3 active (s074)"
+            ],
+            "receipts": [
+              "s001 u8 600",
+              "s003 u22 800",
+              "s004 u29 500",
+              "s005 u6 600",
+              "s006 u13 700",
+              "s008 u27 500",
+              "s009 u4 600",
+              "s010 u11 700",
+              "s012 u25 500",
+              "s015 u16 800",
+              "s016 u23 500",
+              "s018 u7 700",
+              "s019 u14 800",
+              "s020 u21 500",
+              "s023 u12 800",
+              "s024 u19 500",
+              "s025 u26 600",
+              "s027 u10 800",
+              "s029 u24 600",
+              "s030 u1 700",
+              "s031 u8 800",
+              "s034 u29 700",
+              "s036 u13 500",
+              "s038 u27 700",
+              "s040 u11 500",
+              "s041 u18 600",
+              "s043 u2 800",
+              "s045 u16 600",
+              "s046 u23 700",
+              "s048 u7 500",
+              "s050 u21 700",
+              "s051 u28 800",
+              "s053 u12 600",
+              "s054 u19 700",
+              "s057 u10 600",
+              "s058 u17 700",
+              "s059 u24 800",
+              "s060 u1 500",
+              "s071 u18 800",
+              "s074 u9 700",
+              "s081 u28 600",
+              "s093 u22 600",
+              "s095 u6 800",
+              "s102 u25 700",
+              "s109 u14 600",
+              "s115 u26 800",
+              "s116 u3 500",
+              "s148 u17 500",
+              "s013 u2 600",
+              "s026 u3 700",
+              "s039 u4 800",
+              "s104 u9 500"
+            ]
+          },
+          "hidden": true,
+          "score": 2
+        }
+      ]
+    }
+  ]
+}

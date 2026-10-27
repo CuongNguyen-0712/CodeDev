@@ -1,0 +1,2779 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_dce_211",
+      "name": "outbox-publisher-quiz",
+      "type": "quiz",
+      "title": "What does the relay publish after a crash or a broker error?",
+      "description": "Two pieces of evidence from the enrollments outbox relay: a relay killed between publish and mark, and a claim query that delays a failed row.",
+      "difficulty": "medium",
+      "outcomes": [
+        "delivery-ordering"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Relay loop (per claimed row): publish to the broker, then UPDATE outbox SET status = 'sent' WHERE id = $1 AND lease_owner = $2. Leases last 30 s.\n\n10:02:03.120  relay-a  published outbox #881 (enrollment e-7, enrollment.created)\n10:02:03.125  kubelet  relay-a container OOMKilled\n10:02:03.200  outbox   #881 status=pending lease_owner=relay-a lease_until=10:02:33\n10:02:33.410  relay-b  claimed #881 #882\n10:02:33.452  relay-b  published outbox #881 (enrollment e-7, enrollment.created)\n\nStatement: \"Publishing #881 a second time is the expected behaviour of this relay, so the consumers of enrollment.created must treat the second copy as a duplicate.\"",
+          "explanation": "True. Publishing and marking the row are writes to two different systems, so a crash can always fall between them. This relay chose the safe side: it publishes first and marks after, and a row whose mark never committed is published again once its lease expires. That is at-least-once delivery: no event is lost, and an event can arrive twice with the same outbox id. The consumers deduplicate on that id (next lesson). The misconception is that a careful relay can avoid duplicates entirely; marking first would only trade the duplicate for a lost event when the crash or a broker error comes after the mark.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Claim query of the relay:\n\nSELECT id, aggregate_id, type, payload FROM outbox\nWHERE status = 'pending' AND next_attempt_at <= now()\nORDER BY id\nLIMIT 100\nFOR UPDATE SKIP LOCKED;\n\nOn a broker error the relay runs UPDATE outbox SET attempts = attempts + 1, next_attempt_at = now() + interval '30 seconds' WHERE id = $1.\n\nAt 09:00:00 the publish of #120 (enrollment e-7, enrollment.created) fails. #121 (enrollment e-7, progress.updated) is pending with next_attempt_at = 09:00:00.\n\nStatement: \"Because the claim query orders by id, the progress.updated event of e-7 cannot reach the broker before its enrollment.created event.\"",
+          "explanation": "False. ORDER BY id only orders the rows that pass the WHERE clause. For the next 30 seconds #120 fails next_attempt_at <= now(), so it is not in the result at all, while #121 is; the relay claims and publishes #121 first, and the certificate service sees progress for an enrollment it does not know. To keep order per aggregate, an unsent earlier row of the same aggregate (delayed, failed or leased by another relay) must block the later rows of that aggregate, while other aggregates keep flowing. The misconception is that sorting a query result gives an order guarantee across retries.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_dce_212",
+      "name": "outbox-publisher-relay",
+      "type": "mini_coding",
+      "title": "An outbox relay with leases, backoff and per-aggregate order",
+      "description": "The CodeDev enrollments service writes every event into an outbox table in the same transaction as the enrollment. Relay processes (\"A\", \"B\", ...) copy the rows to the broker. Write `claimBatch` and `publishClaimed` so that the relay publishes at least once, never publishes two rows of the same claim twice, keeps the order of events per aggregate, backs off on broker errors and survives a crash between publish and mark.\n\nRow fields: `id`, `aggregate`, `type`, `status` (\"pending\" | \"sent\" | \"failed\"), `attempts`, `nextAttemptAt`, `leaseOwner` (string or null), `leaseUntil`, `sentAt`. Times are milliseconds on a fake clock (`now`).\n\n`claimBatch(db, owner, now, cfg)` runs in one `db.tx`. Walk every row whose status is not \"sent\", in id order. Skip the row if its aggregate is already blocked in this walk. Block its aggregate (and skip the row) if the row is \"failed\", or `nextAttemptAt > now`, or another owner holds a live lease (`leaseOwner !== owner` and `leaseUntil > now`; a lease with `leaseUntil <= now` has expired). Otherwise claim it while fewer than `cfg.batchSize` rows are claimed (`leaseOwner = owner`, `leaseUntil = now + cfg.leaseMs`); stop the walk when the batch is full. Return the claimed ids in ascending order. If `cfg.batchSize` or `cfg.leaseMs` is not a positive integer, throw `new Error(\"invalid config\")` and claim nothing.\n\n`publishClaimed(db, broker, owner, now, cfg)` reads the rows with status \"pending\", `leaseOwner === owner` and `leaseUntil > now`, in id order. For each row whose aggregate is not blocked in this call: `broker.publish(TOPIC, { id, key: aggregate, payload: { type } })`. On success, in its own `db.tx`, set status \"sent\", `sentAt = now`, `leaseOwner = null`, `leaseUntil = 0`. On a `BrokerError`, in a `db.tx`, add 1 to `attempts`; when `attempts` reaches `cfg.maxAttempts` set status \"failed\", otherwise `nextAttemptAt = now + cfg.backoffMs * 2 ** (attempts - 1)`; release the lease (`leaseOwner = null`, `leaseUntil = 0`) and block the aggregate for the rest of the call. Finally, in one `db.tx`, release the lease of every row still \"pending\" with `leaseOwner === owner`.\n\nNever catch `Crash`: the runner scripts a crash right after the Nth successful publish of a step; the database then refuses every later write of that process, and the next step is a fresh process.\n\nInput (JSON): `{ \"config\": { batchSize, leaseMs, backoffMs, maxAttempts }, \"outbox\": [{ \"aggregate\", \"type\" }], \"steps\": [...] }`. Rows get ids 1, 2, 3, ... and start pending. Steps: `{ \"tick\": \"A\" }` (claimBatch then publishClaimed), `{ \"claim\": \"A\" }`, `{ \"publish\": \"A\" }`, `\"crashAfter\": N` on a tick or publish step, `{ \"advance\": ms }`, `{ \"brokerFails\": N }` (the next N publish calls fail), `{ \"insert\": [{ \"aggregate\", \"type\" }] }`.\n\nOutput (printed by the runner): one line per claim, publish, broker error, crash and insert, then `outbox: <sent> sent, <pending> pending, <failed> failed` and one line for each row that is not sent.",
+      "difficulty": "hard",
+      "outcomes": [
+        "delivery-ordering"
+      ],
+      "points": 40,
+      "hints": [
+        "Relay A holds a live lease on event #2 of enrollment enr-2. What may relay B do with event #3 of the same enrollment, and why may it still take the events of enr-3?",
+        "Check three places: the conditions that make a row block its aggregate in claimBatch (failed, nextAttemptAt in the future, another owner's live lease), the order of broker.publish and the transaction that marks the row sent, and which rows publishClaimed reads (only the leases you still hold at `now`).",
+        "A similar walk on other rows: #1 x, #2 y, #3 x, with #1 delayed until t=1000 and batchSize 5. At t=0 the walk blocks x at #1, claims #2 and skips #3 because x is blocked, so claimBatch returns [2]. At t=1000 it claims #1 and #3, in that order. If publishing #1 then fails, #3 stays unpublished in that call."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "One relay publishes batch by batch in id order and marks each row sent",
+          "input": {
+            "config": {
+              "batchSize": 3,
+              "leaseMs": 30000,
+              "backoffMs": 1000,
+              "maxAttempts": 3
+            },
+            "outbox": [
+              {
+                "aggregate": "enr-1",
+                "type": "enrolled"
+              },
+              {
+                "aggregate": "enr-2",
+                "type": "enrolled"
+              },
+              {
+                "aggregate": "enr-1",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-3",
+                "type": "enrolled"
+              },
+              {
+                "aggregate": "enr-2",
+                "type": "progress"
+              }
+            ],
+            "steps": [
+              {
+                "tick": "A"
+              },
+              {
+                "advance": 100
+              },
+              {
+                "tick": "A"
+              },
+              {
+                "advance": 100
+              },
+              {
+                "tick": "A"
+              }
+            ]
+          },
+          "expected": "t=0 A claimed #1 #2 #3\nt=0 A published #1 enr-1 enrolled\nt=0 A published #2 enr-2 enrolled\nt=0 A published #3 enr-1 progress\nt=100 A claimed #4 #5\nt=100 A published #4 enr-3 enrolled\nt=100 A published #5 enr-2 progress\nt=200 A claimed nothing\noutbox: 5 sent, 0 pending, 0 failed",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "A broker error backs off one aggregate while the other aggregates keep flowing",
+          "input": {
+            "config": {
+              "batchSize": 10,
+              "leaseMs": 30000,
+              "backoffMs": 1000,
+              "maxAttempts": 3
+            },
+            "outbox": [
+              {
+                "aggregate": "enr-1",
+                "type": "enrolled"
+              },
+              {
+                "aggregate": "enr-2",
+                "type": "enrolled"
+              },
+              {
+                "aggregate": "enr-1",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-3",
+                "type": "enrolled"
+              }
+            ],
+            "steps": [
+              {
+                "brokerFails": 1
+              },
+              {
+                "tick": "A"
+              },
+              {
+                "advance": 500
+              },
+              {
+                "tick": "A"
+              },
+              {
+                "advance": 500
+              },
+              {
+                "tick": "A"
+              }
+            ]
+          },
+          "expected": "t=0 A claimed #1 #2 #3 #4\nt=0 A broker error on #1\nt=0 A published #2 enr-2 enrolled\nt=0 A published #4 enr-3 enrolled\nt=500 A claimed nothing\nt=1000 A claimed #1 #3\nt=1000 A published #1 enr-1 enrolled\nt=1000 A published #3 enr-1 progress\noutbox: 4 sent, 0 pending, 0 failed",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Crash between publish and mark: the event is published again once the lease expires",
+          "input": {
+            "config": {
+              "batchSize": 10,
+              "leaseMs": 30000,
+              "backoffMs": 1000,
+              "maxAttempts": 3
+            },
+            "outbox": [
+              {
+                "aggregate": "enr-1",
+                "type": "enrolled"
+              },
+              {
+                "aggregate": "enr-2",
+                "type": "enrolled"
+              },
+              {
+                "aggregate": "enr-2",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-3",
+                "type": "enrolled"
+              }
+            ],
+            "steps": [
+              {
+                "tick": "A",
+                "crashAfter": 2
+              },
+              {
+                "advance": 5000
+              },
+              {
+                "tick": "B"
+              },
+              {
+                "advance": 25000
+              },
+              {
+                "tick": "B"
+              }
+            ]
+          },
+          "expected": "t=0 A claimed #1 #2 #3 #4\nt=0 A published #1 enr-1 enrolled\nt=0 A published #2 enr-2 enrolled\nt=0 A crashed\nt=5000 B claimed nothing\nt=30000 B claimed #2 #3 #4\nt=30000 B published #2 enr-2 enrolled\nt=30000 B published #3 enr-2 progress\nt=30000 B published #4 enr-3 enrolled\noutbox: 4 sent, 0 pending, 0 failed",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Two relays claim before either publishes: no row twice, each aggregate stays in order",
+          "input": {
+            "config": {
+              "batchSize": 2,
+              "leaseMs": 30000,
+              "backoffMs": 1000,
+              "maxAttempts": 3
+            },
+            "outbox": [
+              {
+                "aggregate": "enr-1",
+                "type": "enrolled"
+              },
+              {
+                "aggregate": "enr-2",
+                "type": "enrolled"
+              },
+              {
+                "aggregate": "enr-1",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-3",
+                "type": "enrolled"
+              },
+              {
+                "aggregate": "enr-2",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-4",
+                "type": "enrolled"
+              }
+            ],
+            "steps": [
+              {
+                "claim": "A"
+              },
+              {
+                "claim": "B"
+              },
+              {
+                "publish": "B"
+              },
+              {
+                "publish": "A"
+              },
+              {
+                "advance": 100
+              },
+              {
+                "tick": "B"
+              }
+            ]
+          },
+          "expected": "t=0 A claimed #1 #2\nt=0 B claimed #4 #6\nt=0 B published #4 enr-3 enrolled\nt=0 B published #6 enr-4 enrolled\nt=0 A published #1 enr-1 enrolled\nt=0 A published #2 enr-2 enrolled\nt=100 B claimed #3 #5\nt=100 B published #3 enr-1 progress\nt=100 B published #5 enr-2 progress\noutbox: 6 sent, 0 pending, 0 failed",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Expired lease: the old owner publishes nothing, the new owner publishes the rows",
+          "input": {
+            "config": {
+              "batchSize": 3,
+              "leaseMs": 30000,
+              "backoffMs": 1000,
+              "maxAttempts": 3
+            },
+            "outbox": [
+              {
+                "aggregate": "enr-1",
+                "type": "enrolled"
+              },
+              {
+                "aggregate": "enr-2",
+                "type": "enrolled"
+              },
+              {
+                "aggregate": "enr-1",
+                "type": "progress"
+              }
+            ],
+            "steps": [
+              {
+                "claim": "A"
+              },
+              {
+                "advance": 30000
+              },
+              {
+                "claim": "B"
+              },
+              {
+                "publish": "A"
+              },
+              {
+                "publish": "B"
+              },
+              {
+                "insert": [
+                  {
+                    "aggregate": "enr-2",
+                    "type": "completed"
+                  }
+                ]
+              },
+              {
+                "claim": "A"
+              },
+              {
+                "advance": 30000
+              },
+              {
+                "publish": "A"
+              },
+              {
+                "tick": "B"
+              }
+            ]
+          },
+          "expected": "t=0 A claimed #1 #2 #3\nt=30000 B claimed #1 #2 #3\nt=30000 B published #1 enr-1 enrolled\nt=30000 B published #2 enr-2 enrolled\nt=30000 B published #3 enr-1 progress\nt=30000 app inserted #4\nt=30000 A claimed #4\nt=60000 B claimed #4\nt=60000 B published #4 enr-2 completed\noutbox: 4 sent, 0 pending, 0 failed",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Backoff of 1 s then 2 s, then the event is parked as failed and blocks only its aggregate",
+          "input": {
+            "config": {
+              "batchSize": 3,
+              "leaseMs": 30000,
+              "backoffMs": 1000,
+              "maxAttempts": 3
+            },
+            "outbox": [
+              {
+                "aggregate": "enr-1",
+                "type": "enrolled"
+              },
+              {
+                "aggregate": "enr-1",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-2",
+                "type": "enrolled"
+              }
+            ],
+            "steps": [
+              {
+                "brokerFails": 1
+              },
+              {
+                "tick": "A"
+              },
+              {
+                "advance": 1000
+              },
+              {
+                "brokerFails": 1
+              },
+              {
+                "tick": "A"
+              },
+              {
+                "advance": 1000
+              },
+              {
+                "tick": "A"
+              },
+              {
+                "advance": 1000
+              },
+              {
+                "brokerFails": 1
+              },
+              {
+                "insert": [
+                  {
+                    "aggregate": "enr-2",
+                    "type": "progress"
+                  }
+                ]
+              },
+              {
+                "tick": "A"
+              },
+              {
+                "advance": 10000
+              },
+              {
+                "tick": "B"
+              }
+            ]
+          },
+          "expected": "t=0 A claimed #1 #2 #3\nt=0 A broker error on #1\nt=0 A published #3 enr-2 enrolled\nt=1000 A claimed #1 #2\nt=1000 A broker error on #1\nt=2000 A claimed nothing\nt=3000 app inserted #4\nt=3000 A claimed #1 #2 #4\nt=3000 A broker error on #1\nt=3000 A published #4 enr-2 progress\nt=13000 B claimed nothing\noutbox: 2 sent, 1 pending, 1 failed\n#1 enr-1 enrolled failed attempts=3\n#2 enr-1 progress pending attempts=0",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Invalid config (batchSize 0): error, nothing claimed or published",
+          "input": {
+            "config": {
+              "batchSize": 0,
+              "leaseMs": 30000,
+              "backoffMs": 1000,
+              "maxAttempts": 3
+            },
+            "outbox": [
+              {
+                "aggregate": "enr-1",
+                "type": "enrolled"
+              },
+              {
+                "aggregate": "enr-2",
+                "type": "enrolled"
+              }
+            ],
+            "steps": [
+              {
+                "tick": "A"
+              }
+            ]
+          },
+          "expected": "t=0 A error: invalid config\noutbox: 0 sent, 2 pending, 0 failed\n#1 enr-1 enrolled pending attempts=0\n#2 enr-2 enrolled pending attempts=0",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Large outbox: 483 events, two relays, broker outages and crashes",
+          "input": {
+            "config": {
+              "batchSize": 40,
+              "leaseMs": 30000,
+              "backoffMs": 500,
+              "maxAttempts": 4
+            },
+            "outbox": [
+              {
+                "aggregate": "enr-15",
+                "type": "enrolled"
+              },
+              {
+                "aggregate": "enr-10",
+                "type": "enrolled"
+              },
+              {
+                "aggregate": "enr-5",
+                "type": "enrolled"
+              },
+              {
+                "aggregate": "enr-7",
+                "type": "enrolled"
+              },
+              {
+                "aggregate": "enr-8",
+                "type": "enrolled"
+              },
+              {
+                "aggregate": "enr-13",
+                "type": "enrolled"
+              },
+              {
+                "aggregate": "enr-21",
+                "type": "enrolled"
+              },
+              {
+                "aggregate": "enr-6",
+                "type": "enrolled"
+              },
+              {
+                "aggregate": "enr-10",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-15",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-12",
+                "type": "enrolled"
+              },
+              {
+                "aggregate": "enr-21",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-3",
+                "type": "enrolled"
+              },
+              {
+                "aggregate": "enr-22",
+                "type": "enrolled"
+              },
+              {
+                "aggregate": "enr-22",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-23",
+                "type": "enrolled"
+              },
+              {
+                "aggregate": "enr-6",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-20",
+                "type": "enrolled"
+              },
+              {
+                "aggregate": "enr-1",
+                "type": "enrolled"
+              },
+              {
+                "aggregate": "enr-3",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-12",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-24",
+                "type": "enrolled"
+              },
+              {
+                "aggregate": "enr-6",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-10",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-18",
+                "type": "enrolled"
+              },
+              {
+                "aggregate": "enr-7",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-17",
+                "type": "enrolled"
+              },
+              {
+                "aggregate": "enr-4",
+                "type": "enrolled"
+              },
+              {
+                "aggregate": "enr-11",
+                "type": "enrolled"
+              },
+              {
+                "aggregate": "enr-1",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-20",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-9",
+                "type": "enrolled"
+              },
+              {
+                "aggregate": "enr-3",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-11",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-20",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-22",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-13",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-2",
+                "type": "enrolled"
+              },
+              {
+                "aggregate": "enr-15",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-21",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-15",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-17",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-4",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-5",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-6",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-24",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-3",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-4",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-20",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-17",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-2",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-6",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-14",
+                "type": "enrolled"
+              },
+              {
+                "aggregate": "enr-11",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-13",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-7",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-8",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-8",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-4",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-15",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-7",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-9",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-10",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-11",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-5",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-12",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-12",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-15",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-11",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-12",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-20",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-18",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-1",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-11",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-3",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-18",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-2",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-7",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-6",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-2",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-20",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-8",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-7",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-3",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-11",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-5",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-2",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-18",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-1",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-22",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-5",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-16",
+                "type": "enrolled"
+              },
+              {
+                "aggregate": "enr-9",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-1",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-11",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-19",
+                "type": "enrolled"
+              },
+              {
+                "aggregate": "enr-18",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-22",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-14",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-12",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-1",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-12",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-22",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-19",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-6",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-24",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-22",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-6",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-7",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-10",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-2",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-9",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-3",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-9",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-15",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-4",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-5",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-11",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-15",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-22",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-18",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-19",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-1",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-6",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-12",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-13",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-4",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-10",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-17",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-6",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-8",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-22",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-13",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-8",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-20",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-12",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-21",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-10",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-8",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-14",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-14",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-11",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-16",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-15",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-5",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-14",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-7",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-6",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-16",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-11",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-1",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-24",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-11",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-13",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-4",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-16",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-4",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-7",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-5",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-21",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-22",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-8",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-12",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-23",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-17",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-13",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-5",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-13",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-6",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-13",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-1",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-12",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-13",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-4",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-24",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-23",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-5",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-22",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-4",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-11",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-23",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-22",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-1",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-2",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-1",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-7",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-13",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-4",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-6",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-9",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-7",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-12",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-23",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-1",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-23",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-2",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-7",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-3",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-3",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-9",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-9",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-11",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-5",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-13",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-5",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-19",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-24",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-21",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-21",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-3",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-5",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-16",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-2",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-20",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-22",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-18",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-8",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-10",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-14",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-6",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-10",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-20",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-22",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-4",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-18",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-5",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-9",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-13",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-22",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-11",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-3",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-18",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-17",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-15",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-5",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-15",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-5",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-15",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-8",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-21",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-18",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-24",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-4",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-8",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-7",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-17",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-1",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-20",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-19",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-1",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-6",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-7",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-13",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-6",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-10",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-18",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-19",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-3",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-18",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-21",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-18",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-17",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-11",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-14",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-3",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-22",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-24",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-18",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-1",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-18",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-20",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-15",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-19",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-24",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-14",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-1",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-10",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-16",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-12",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-23",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-4",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-9",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-1",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-3",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-13",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-15",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-4",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-19",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-23",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-6",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-5",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-14",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-6",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-3",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-9",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-2",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-3",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-24",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-22",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-9",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-4",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-12",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-5",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-2",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-9",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-5",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-23",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-10",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-15",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-2",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-20",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-6",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-22",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-11",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-6",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-12",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-1",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-5",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-6",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-3",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-23",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-18",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-18",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-15",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-17",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-16",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-4",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-13",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-12",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-15",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-7",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-20",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-22",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-1",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-18",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-13",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-11",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-24",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-14",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-4",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-12",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-6",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-18",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-14",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-6",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-4",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-5",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-17",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-11",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-18",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-18",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-5",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-19",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-24",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-22",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-16",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-1",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-5",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-8",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-3",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-11",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-9",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-21",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-8",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-12",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-2",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-16",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-4",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-12",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-21",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-2",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-1",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-16",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-20",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-22",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-12",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-2",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-10",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-22",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-8",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-24",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-21",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-2",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-7",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-2",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-18",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-12",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-9",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-7",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-2",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-2",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-9",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-23",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-3",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-7",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-16",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-9",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-14",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-12",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-14",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-1",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-23",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-10",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-22",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-2",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-7",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-20",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-23",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-8",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-16",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-12",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-1",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-16",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-9",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-4",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-8",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-14",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-7",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-1",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-12",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-24",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-4",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-4",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-16",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-9",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-17",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-1",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-8",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-4",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-7",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-22",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-13",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-6",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-6",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-20",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-16",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-9",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-12",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-16",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-15",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-15",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-12",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-19",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-19",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-9",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-3",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-24",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-1",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-7",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-8",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-12",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-18",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-17",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-19",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-14",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-2",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-14",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-12",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-8",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-24",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-24",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-18",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-19",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-5",
+                "type": "completed"
+              },
+              {
+                "aggregate": "enr-5",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-7",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-21",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-18",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-18",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-24",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-15",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-15",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-17",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-10",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-17",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-10",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-21",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-19",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-8",
+                "type": "progress"
+              },
+              {
+                "aggregate": "enr-19",
+                "type": "progress"
+              }
+            ],
+            "steps": [
+              {
+                "advance": 400
+              },
+              {
+                "tick": "A"
+              },
+              {
+                "advance": 400
+              },
+              {
+                "tick": "B"
+              },
+              {
+                "advance": 400
+              },
+              {
+                "tick": "A"
+              },
+              {
+                "advance": 400
+              },
+              {
+                "brokerFails": 1
+              },
+              {
+                "tick": "B"
+              },
+              {
+                "advance": 400
+              },
+              {
+                "claim": "A"
+              },
+              {
+                "claim": "B"
+              },
+              {
+                "publish": "B"
+              },
+              {
+                "publish": "A"
+              },
+              {
+                "advance": 400
+              },
+              {
+                "tick": "B",
+                "crashAfter": 3
+              },
+              {
+                "advance": 400
+              },
+              {
+                "tick": "A"
+              },
+              {
+                "advance": 400
+              },
+              {
+                "tick": "B"
+              },
+              {
+                "advance": 400
+              },
+              {
+                "tick": "A"
+              },
+              {
+                "advance": 400
+              },
+              {
+                "tick": "B"
+              },
+              {
+                "advance": 400
+              },
+              {
+                "brokerFails": 2
+              },
+              {
+                "tick": "A"
+              },
+              {
+                "advance": 400
+              },
+              {
+                "tick": "B"
+              },
+              {
+                "advance": 400
+              },
+              {
+                "brokerFails": 9
+              },
+              {
+                "tick": "A"
+              },
+              {
+                "advance": 400
+              },
+              {
+                "claim": "A"
+              },
+              {
+                "claim": "B"
+              },
+              {
+                "publish": "B"
+              },
+              {
+                "publish": "A"
+              },
+              {
+                "advance": 400
+              },
+              {
+                "tick": "A"
+              },
+              {
+                "advance": 400
+              },
+              {
+                "tick": "B"
+              },
+              {
+                "advance": 400
+              },
+              {
+                "tick": "A",
+                "crashAfter": 14
+              },
+              {
+                "advance": 400
+              },
+              {
+                "brokerFails": 3
+              },
+              {
+                "tick": "B"
+              },
+              {
+                "advance": 400
+              },
+              {
+                "tick": "A"
+              },
+              {
+                "advance": 400
+              },
+              {
+                "tick": "B"
+              },
+              {
+                "advance": 400
+              },
+              {
+                "tick": "A"
+              },
+              {
+                "insert": [
+                  {
+                    "aggregate": "enr-3",
+                    "type": "progress"
+                  },
+                  {
+                    "aggregate": "enr-25",
+                    "type": "enrolled"
+                  },
+                  {
+                    "aggregate": "enr-3",
+                    "type": "completed"
+                  }
+                ]
+              },
+              {
+                "advance": 400
+              },
+              {
+                "tick": "B"
+              },
+              {
+                "advance": 400
+              },
+              {
+                "claim": "A"
+              },
+              {
+                "claim": "B"
+              },
+              {
+                "publish": "B"
+              },
+              {
+                "publish": "A"
+              },
+              {
+                "advance": 400
+              },
+              {
+                "tick": "B"
+              },
+              {
+                "advance": 400
+              },
+              {
+                "brokerFails": 1
+              },
+              {
+                "tick": "A"
+              },
+              {
+                "advance": 400
+              },
+              {
+                "tick": "B"
+              },
+              {
+                "advance": 400
+              },
+              {
+                "tick": "A"
+              },
+              {
+                "advance": 400
+              },
+              {
+                "tick": "B",
+                "crashAfter": 9
+              },
+              {
+                "advance": 400
+              },
+              {
+                "tick": "A"
+              },
+              {
+                "advance": 400
+              },
+              {
+                "tick": "B"
+              },
+              {
+                "advance": 400
+              },
+              {
+                "tick": "A"
+              },
+              {
+                "advance": 400
+              },
+              {
+                "brokerFails": 2
+              },
+              {
+                "claim": "A"
+              },
+              {
+                "claim": "B"
+              },
+              {
+                "publish": "B"
+              },
+              {
+                "publish": "A"
+              },
+              {
+                "advance": 400
+              },
+              {
+                "tick": "A"
+              },
+              {
+                "advance": 400
+              },
+              {
+                "tick": "B"
+              },
+              {
+                "advance": 400
+              },
+              {
+                "tick": "A"
+              },
+              {
+                "advance": 400
+              },
+              {
+                "tick": "B"
+              },
+              {
+                "advance": 400
+              },
+              {
+                "tick": "A"
+              },
+              {
+                "advance": 400
+              },
+              {
+                "tick": "B"
+              },
+              {
+                "advance": 400
+              },
+              {
+                "brokerFails": 1
+              },
+              {
+                "tick": "A",
+                "crashAfter": 18
+              },
+              {
+                "advance": 400
+              },
+              {
+                "tick": "B"
+              },
+              {
+                "advance": 400
+              },
+              {
+                "claim": "A"
+              },
+              {
+                "claim": "B"
+              },
+              {
+                "publish": "B"
+              },
+              {
+                "publish": "A"
+              },
+              {
+                "advance": 400
+              },
+              {
+                "tick": "B"
+              },
+              {
+                "advance": 400
+              },
+              {
+                "tick": "A"
+              },
+              {
+                "advance": 400
+              },
+              {
+                "tick": "B"
+              },
+              {
+                "advance": 400
+              },
+              {
+                "tick": "A"
+              },
+              {
+                "advance": 400
+              },
+              {
+                "brokerFails": 1
+              },
+              {
+                "tick": "B"
+              },
+              {
+                "advance": 30000
+              },
+              {
+                "tick": "A"
+              },
+              {
+                "tick": "B"
+              },
+              {
+                "tick": "A"
+              },
+              {
+                "tick": "B"
+              }
+            ]
+          },
+          "expected": "t=400 A claimed #1 #2 #3 #4 #5 #6 #7 #8 #9 #10 #11 #12 #13 #14 #15 #16 #17 #18 #19 #20 #21 #22 #23 #24 #25 #26 #27 #28 #29 #30 #31 #32 #33 #34 #35 #36 #37 #38 #39 #40\nt=400 A published #1 enr-15 enrolled\nt=400 A published #2 enr-10 enrolled\nt=400 A published #3 enr-5 enrolled\nt=400 A published #4 enr-7 enrolled\nt=400 A published #5 enr-8 enrolled\nt=400 A published #6 enr-13 enrolled\nt=400 A published #7 enr-21 enrolled\nt=400 A published #8 enr-6 enrolled\nt=400 A published #9 enr-10 progress\nt=400 A published #10 enr-15 progress\nt=400 A published #11 enr-12 enrolled\nt=400 A published #12 enr-21 progress\nt=400 A published #13 enr-3 enrolled\nt=400 A published #14 enr-22 enrolled\nt=400 A published #15 enr-22 progress\nt=400 A published #16 enr-23 enrolled\nt=400 A published #17 enr-6 progress\nt=400 A published #18 enr-20 enrolled\nt=400 A published #19 enr-1 enrolled\nt=400 A published #20 enr-3 progress\nt=400 A published #21 enr-12 progress\nt=400 A published #22 enr-24 enrolled\nt=400 A published #23 enr-6 progress\nt=400 A published #24 enr-10 progress\nt=400 A published #25 enr-18 enrolled\nt=400 A published #26 enr-7 progress\nt=400 A published #27 enr-17 enrolled\nt=400 A published #28 enr-4 enrolled\nt=400 A published #29 enr-11 enrolled\nt=400 A published #30 enr-1 progress\nt=400 A published #31 enr-20 progress\nt=400 A published #32 enr-9 enrolled\nt=400 A published #33 enr-3 progress\nt=400 A published #34 enr-11 progress\nt=400 A published #35 enr-20 progress\nt=400 A published #36 enr-22 progress\nt=400 A published #37 enr-13 progress\nt=400 A published #38 enr-2 enrolled\nt=400 A published #39 enr-15 progress\nt=400 A published #40 enr-21 progress\nt=800 B claimed #41 #42 #43 #44 #45 #46 #47 #48 #49 #50 #51 #52 #53 #54 #55 #56 #57 #58 #59 #60 #61 #62 #63 #64 #65 #66 #67 #68 #69 #70 #71 #72 #73 #74 #75 #76 #77 #78 #79 #80\nt=800 B published #41 enr-15 completed\nt=800 B published #42 enr-17 progress\nt=800 B published #43 enr-4 progress\nt=800 B published #44 enr-5 progress\nt=800 B published #45 enr-6 progress\nt=800 B published #46 enr-24 progress\nt=800 B published #47 enr-3 progress\nt=800 B published #48 enr-4 completed\nt=800 B published #49 enr-20 completed\nt=800 B published #50 enr-17 progress\nt=800 B published #51 enr-2 progress\nt=800 B published #52 enr-6 progress\nt=800 B published #53 enr-14 enrolled\nt=800 B published #54 enr-11 completed\nt=800 B published #55 enr-13 progress\nt=800 B published #56 enr-7 progress\nt=800 B published #57 enr-8 progress\nt=800 B published #58 enr-8 progress\nt=800 B published #59 enr-4 progress\nt=800 B published #60 enr-15 progress\nt=800 B published #61 enr-7 completed\nt=800 B published #62 enr-9 progress\nt=800 B published #63 enr-10 progress\nt=800 B published #64 enr-11 progress\nt=800 B published #65 enr-5 progress\nt=800 B published #66 enr-12 progress\nt=800 B published #67 enr-12 progress\nt=800 B published #68 enr-15 progress\nt=800 B published #69 enr-11 progress\nt=800 B published #70 enr-12 progress\nt=800 B published #71 enr-20 progress\nt=800 B published #72 enr-18 progress\nt=800 B published #73 enr-1 progress\nt=800 B published #74 enr-11 progress\nt=800 B published #75 enr-3 progress\nt=800 B published #76 enr-18 progress\nt=800 B published #77 enr-2 progress\nt=800 B published #78 enr-7 completed\nt=800 B published #79 enr-6 progress\nt=800 B published #80 enr-2 progress\nt=1200 A claimed #81 #82 #83 #84 #85 #86 #87 #88 #89 #90 #91 #92 #93 #94 #95 #96 #97 #98 #99 #100 #101 #102 #103 #104 #105 #106 #107 #108 #109 #110 #111 #112 #113 #114 #115 #116 #117 #118 #119 #120\nt=1200 A published #81 enr-20 progress\nt=1200 A published #82 enr-8 progress\nt=1200 A published #83 enr-7 progress\nt=1200 A published #84 enr-3 progress\nt=1200 A published #85 enr-11 progress\nt=1200 A published #86 enr-5 progress\nt=1200 A published #87 enr-2 progress\nt=1200 A published #88 enr-18 progress\nt=1200 A published #89 enr-1 progress\nt=1200 A published #90 enr-22 progress\nt=1200 A published #91 enr-5 progress\nt=1200 A published #92 enr-16 enrolled\nt=1200 A published #93 enr-9 progress\nt=1200 A published #94 enr-1 progress\nt=1200 A published #95 enr-11 progress\nt=1200 A published #96 enr-19 enrolled\nt=1200 A published #97 enr-18 progress\nt=1200 A published #98 enr-22 progress\nt=1200 A published #99 enr-14 progress\nt=1200 A published #100 enr-12 progress\nt=1200 A published #101 enr-1 progress\nt=1200 A published #102 enr-12 progress\nt=1200 A published #103 enr-22 progress\nt=1200 A published #104 enr-19 progress\nt=1200 A published #105 enr-6 progress\nt=1200 A published #106 enr-24 progress\nt=1200 A published #107 enr-22 progress\nt=1200 A published #108 enr-6 progress\nt=1200 A published #109 enr-7 progress\nt=1200 A published #110 enr-10 progress\nt=1200 A published #111 enr-2 progress\nt=1200 A published #112 enr-9 completed\nt=1200 A published #113 enr-3 progress\nt=1200 A published #114 enr-9 progress\nt=1200 A published #115 enr-15 progress\nt=1200 A published #116 enr-4 progress\nt=1200 A published #117 enr-5 progress\nt=1200 A published #118 enr-11 progress\nt=1200 A published #119 enr-15 completed\nt=1200 A published #120 enr-22 completed\nt=1600 B claimed #121 #122 #123 #124 #125 #126 #127 #128 #129 #130 #131 #132 #133 #134 #135 #136 #137 #138 #139 #140 #141 #142 #143 #144 #145 #146 #147 #148 #149 #150 #151 #152 #153 #154 #155 #156 #157 #158 #159 #160\nt=1600 B broker error on #121\nt=1600 B published #122 enr-19 progress\nt=1600 B published #123 enr-1 progress\nt=1600 B published #124 enr-6 progress\nt=1600 B published #125 enr-12 progress\nt=1600 B published #126 enr-13 progress\nt=1600 B published #127 enr-4 progress\nt=1600 B published #128 enr-10 progress\nt=1600 B published #129 enr-17 progress\nt=1600 B published #130 enr-6 progress\nt=1600 B published #131 enr-8 progress\nt=1600 B published #132 enr-22 progress\nt=1600 B published #133 enr-13 progress\nt=1600 B published #134 enr-8 progress\nt=1600 B published #135 enr-20 progress\nt=1600 B published #136 enr-12 progress\nt=1600 B published #137 enr-21 progress\nt=1600 B published #138 enr-10 progress\nt=1600 B published #139 enr-8 progress\nt=1600 B published #140 enr-14 progress\nt=1600 B published #141 enr-14 completed\nt=1600 B published #142 enr-11 progress\nt=1600 B published #143 enr-16 progress\nt=1600 B published #144 enr-15 progress\nt=1600 B published #145 enr-5 progress\nt=1600 B published #146 enr-14 completed\nt=1600 B published #147 enr-7 progress\nt=1600 B published #148 enr-6 progress\nt=1600 B published #149 enr-16 progress\nt=1600 B published #150 enr-11 progress\nt=1600 B published #151 enr-1 completed\nt=1600 B published #152 enr-24 progress\nt=1600 B published #153 enr-11 progress\nt=1600 B published #154 enr-13 progress\nt=1600 B published #155 enr-4 progress\nt=1600 B published #156 enr-16 progress\nt=1600 B published #157 enr-4 progress\nt=1600 B published #158 enr-7 progress\nt=1600 B published #159 enr-5 progress\nt=1600 B published #160 enr-21 completed\nt=2000 A claimed #161 #162 #163 #164 #165 #166 #167 #168 #169 #170 #171 #172 #173 #174 #175 #176 #177 #178 #179 #180 #181 #182 #183 #184 #185 #186 #187 #188 #189 #190 #191 #192 #193 #194 #195 #196 #197 #198 #199 #200\nt=2000 B claimed #206 #208 #209 #212 #214 #218 #219 #221 #222 #234 #236 #238 #240 #248 #249 #255 #257 #260 #264 #271 #272 #273 #275 #277 #278 #286 #288 #292 #308 #309 #311 #324 #326 #330 #332 #339 #344 #353 #356 #363\nt=2000 B published #206 enr-19 progress\nt=2000 B published #208 enr-21 progress\nt=2000 B published #209 enr-21 progress\nt=2000 B published #212 enr-16 progress\nt=2000 B published #214 enr-20 progress\nt=2000 B published #218 enr-10 progress\nt=2000 B published #219 enr-14 progress\nt=2000 B published #221 enr-10 completed\nt=2000 B published #222 enr-20 progress\nt=2000 B published #234 enr-15 progress\nt=2000 B published #236 enr-15 progress\nt=2000 B published #238 enr-15 progress\nt=2000 B published #240 enr-21 progress\nt=2000 B published #248 enr-20 progress\nt=2000 B published #249 enr-19 progress\nt=2000 B published #255 enr-10 progress\nt=2000 B published #257 enr-19 progress\nt=2000 B published #260 enr-21 progress\nt=2000 B published #264 enr-14 progress\nt=2000 B published #271 enr-20 progress\nt=2000 B published #272 enr-15 progress\nt=2000 B published #273 enr-19 progress\nt=2000 B published #275 enr-14 progress\nt=2000 B published #277 enr-10 completed\nt=2000 B published #278 enr-16 progress\nt=2000 B published #286 enr-15 progress\nt=2000 B published #288 enr-19 progress\nt=2000 B published #292 enr-14 progress\nt=2000 B published #308 enr-10 progress\nt=2000 B published #309 enr-15 progress\nt=2000 B published #311 enr-20 completed\nt=2000 B published #324 enr-15 progress\nt=2000 B published #326 enr-16 progress\nt=2000 B published #330 enr-15 completed\nt=2000 B published #332 enr-20 progress\nt=2000 B published #339 enr-14 progress\nt=2000 B published #344 enr-14 completed\nt=2000 B published #353 enr-19 progress\nt=2000 B published #356 enr-16 progress\nt=2000 B published #363 enr-21 progress\nt=2000 A published #161 enr-22 progress\nt=2000 A published #162 enr-8 progress\nt=2000 A published #163 enr-12 progress\nt=2000 A published #164 enr-23 progress\nt=2000 A published #165 enr-17 progress\nt=2000 A published #166 enr-13 progress\nt=2000 A published #167 enr-5 progress\nt=2000 A published #168 enr-13 progress\nt=2000 A published #169 enr-6 progress\nt=2000 A published #170 enr-13 progress\nt=2000 A published #171 enr-1 progress\nt=2000 A published #172 enr-12 progress\nt=2000 A published #173 enr-13 progress\nt=2000 A published #174 enr-4 progress\nt=2000 A published #175 enr-24 progress\nt=2000 A published #176 enr-23 progress\nt=2000 A published #177 enr-5 completed\nt=2000 A published #178 enr-22 progress\nt=2000 A published #179 enr-4 progress\nt=2000 A published #180 enr-11 progress\nt=2000 A published #181 enr-23 progress\nt=2000 A published #182 enr-22 progress\nt=2000 A published #183 enr-1 progress\nt=2000 A published #184 enr-2 progress\nt=2000 A published #185 enr-1 progress\nt=2000 A published #186 enr-7 progress\nt=2000 A published #187 enr-13 progress\nt=2000 A published #188 enr-4 progress\nt=2000 A published #189 enr-6 progress\nt=2000 A published #190 enr-9 progress\nt=2000 A published #191 enr-7 progress\nt=2000 A published #192 enr-12 progress\nt=2000 A published #193 enr-23 progress\nt=2000 A published #194 enr-1 completed\nt=2000 A published #195 enr-23 completed\nt=2000 A published #196 enr-2 progress\nt=2000 A published #197 enr-7 progress\nt=2000 A published #198 enr-3 progress\nt=2000 A published #199 enr-3 progress\nt=2000 A published #200 enr-9 progress\nt=2400 B claimed #121 #201 #202 #203 #204 #205 #207 #210 #211 #213 #215 #216 #217 #220 #223 #224 #225 #226 #227 #228 #229 #230 #231 #232 #233 #235 #237 #239 #241 #242 #243 #244 #245 #246 #247 #250 #251 #252 #253 #254\nt=2400 B published #121 enr-18 progress\nt=2400 B published #201 enr-9 completed\nt=2400 B published #202 enr-11 progress\nt=2400 B crashed\nt=2800 A claimed #279 #280 #289 #302 #307 #316 #321 #329 #341 #365 #367 #369 #370 #373 #374 #376 #378 #382 #387 #393 #396 #398 #399 #400 #402 #403 #407 #408 #410 #411 #413 #417 #420 #424 #435 #436 #438 #439 #440 #441\nt=2800 A published #279 enr-12 progress\nt=2800 A published #280 enr-23 progress\nt=2800 A published #289 enr-23 progress\nt=2800 A published #302 enr-12 progress\nt=2800 A published #307 enr-23 progress\nt=2800 A published #316 enr-12 completed\nt=2800 A published #321 enr-23 progress\nt=2800 A published #329 enr-12 completed\nt=2800 A published #341 enr-12 completed\nt=2800 A published #365 enr-12 progress\nt=2800 A published #367 enr-16 progress\nt=2800 A published #369 enr-12 progress\nt=2800 A published #370 enr-21 progress\nt=2800 A published #373 enr-16 completed\nt=2800 A published #374 enr-20 progress\nt=2800 A published #376 enr-12 completed\nt=2800 A published #378 enr-10 progress\nt=2800 A published #382 enr-21 progress\nt=2800 A published #387 enr-12 progress\nt=2800 A published #393 enr-23 progress\nt=2800 A published #396 enr-16 progress\nt=2800 A published #398 enr-14 completed\nt=2800 A published #399 enr-12 progress\nt=2800 A published #400 enr-14 progress\nt=2800 A published #402 enr-23 progress\nt=2800 A published #403 enr-10 completed\nt=2800 A published #407 enr-20 completed\nt=2800 A published #408 enr-23 progress\nt=2800 A published #410 enr-16 progress\nt=2800 A published #411 enr-12 progress\nt=2800 A published #413 enr-16 progress\nt=2800 A published #417 enr-14 progress\nt=2800 A published #420 enr-12 progress\nt=2800 A published #424 enr-16 progress\nt=2800 A published #435 enr-20 progress\nt=2800 A published #436 enr-16 progress\nt=2800 A published #438 enr-12 progress\nt=2800 A published #439 enr-16 progress\nt=2800 A published #440 enr-15 progress\nt=2800 A published #441 enr-15 progress\nt=3200 B claimed #202 #203 #204 #205 #207 #210 #211 #213 #215 #216 #217 #220 #223 #224 #225 #226 #227 #228 #229 #230 #231 #232 #233 #235 #237 #239 #241 #242 #243 #244 #245 #246 #247 #250 #251 #252 #253 #254 #256 #258\nt=3200 B published #202 enr-11 progress\nt=3200 B published #203 enr-5 progress\nt=3200 B published #204 enr-13 progress\nt=3200 B published #205 enr-5 progress\nt=3200 B published #207 enr-24 progress\nt=3200 B published #210 enr-3 progress\nt=3200 B published #211 enr-5 progress\nt=3200 B published #213 enr-2 completed\nt=3200 B published #215 enr-22 progress\nt=3200 B published #216 enr-18 progress\nt=3200 B published #217 enr-8 progress\nt=3200 B published #220 enr-6 progress\nt=3200 B published #223 enr-22 progress\nt=3200 B published #224 enr-4 progress\nt=3200 B published #225 enr-18 progress\nt=3200 B published #226 enr-5 progress\nt=3200 B published #227 enr-9 progress\nt=3200 B published #228 enr-13 progress\nt=3200 B published #229 enr-22 progress\nt=3200 B published #230 enr-11 progress\nt=3200 B published #231 enr-3 completed\nt=3200 B published #232 enr-18 progress\nt=3200 B published #233 enr-17 progress\nt=3200 B published #235 enr-5 progress\nt=3200 B published #237 enr-5 completed\nt=3200 B published #239 enr-8 progress\nt=3200 B published #241 enr-18 progress\nt=3200 B published #242 enr-24 progress\nt=3200 B published #243 enr-4 progress\nt=3200 B published #244 enr-8 progress\nt=3200 B published #245 enr-7 progress\nt=3200 B published #246 enr-17 progress\nt=3200 B published #247 enr-1 progress\nt=3200 B published #250 enr-1 progress\nt=3200 B published #251 enr-6 progress\nt=3200 B published #252 enr-7 progress\nt=3200 B published #253 enr-13 progress\nt=3200 B published #254 enr-6 progress\nt=3200 B published #256 enr-18 progress\nt=3200 B published #258 enr-3 completed\nt=3600 A claimed #259 #261 #262 #263 #265 #266 #267 #268 #269 #270 #274 #276 #281 #282 #283 #284 #285 #287 #290 #291 #293 #294 #295 #296 #297 #298 #299 #300 #301 #303 #304 #305 #306 #310 #312 #313 #314 #315 #317 #318\nt=3600 A published #259 enr-18 progress\nt=3600 A published #261 enr-18 progress\nt=3600 A published #262 enr-17 progress\nt=3600 A published #263 enr-11 progress\nt=3600 A published #265 enr-3 progress\nt=3600 A published #266 enr-22 progress\nt=3600 A published #267 enr-24 completed\nt=3600 A published #268 enr-18 progress\nt=3600 A published #269 enr-1 progress\nt=3600 A published #270 enr-18 progress\nt=3600 A published #274 enr-24 progress\nt=3600 A published #276 enr-1 progress\nt=3600 A published #281 enr-4 progress\nt=3600 A published #282 enr-9 progress\nt=3600 A published #283 enr-1 progress\nt=3600 A published #284 enr-3 progress\nt=3600 A published #285 enr-13 progress\nt=3600 A published #287 enr-4 progress\nt=3600 A published #290 enr-6 progress\nt=3600 A published #291 enr-5 completed\nt=3600 A published #293 enr-6 completed\nt=3600 A published #294 enr-3 progress\nt=3600 A published #295 enr-9 progress\nt=3600 A published #296 enr-2 progress\nt=3600 A published #297 enr-3 completed\nt=3600 A published #298 enr-24 progress\nt=3600 A published #299 enr-22 progress\nt=3600 A published #300 enr-9 progress\nt=3600 A published #301 enr-4 progress\nt=3600 A published #303 enr-5 progress\nt=3600 A published #304 enr-2 completed\nt=3600 A published #305 enr-9 progress\nt=3600 A published #306 enr-5 progress\nt=3600 A published #310 enr-2 progress\nt=3600 A published #312 enr-6 progress\nt=3600 A published #313 enr-22 progress\nt=3600 A published #314 enr-11 progress\nt=3600 A published #315 enr-6 progress\nt=3600 A published #317 enr-1 progress\nt=3600 A published #318 enr-5 progress\nt=4000 B claimed #319 #320 #322 #323 #325 #327 #328 #331 #333 #334 #335 #336 #337 #338 #340 #342 #343 #345 #346 #347 #348 #349 #350 #351 #352 #354 #355 #357 #358 #359 #360 #361 #362 #364 #366 #368 #371 #372 #375 #377\nt=4000 B published #319 enr-6 progress\nt=4000 B published #320 enr-3 progress\nt=4000 B published #322 enr-18 progress\nt=4000 B published #323 enr-18 progress\nt=4000 B published #325 enr-17 progress\nt=4000 B published #327 enr-4 progress\nt=4000 B published #328 enr-13 progress\nt=4000 B published #331 enr-7 progress\nt=4000 B published #333 enr-22 progress\nt=4000 B published #334 enr-1 progress\nt=4000 B published #335 enr-18 progress\nt=4000 B published #336 enr-13 progress\nt=4000 B published #337 enr-11 progress\nt=4000 B published #338 enr-24 progress\nt=4000 B published #340 enr-4 progress\nt=4000 B published #342 enr-6 progress\nt=4000 B published #343 enr-18 progress\nt=4000 B published #345 enr-6 progress\nt=4000 B published #346 enr-4 completed\nt=4000 B published #347 enr-5 completed\nt=4000 B published #348 enr-17 progress\nt=4000 B published #349 enr-11 progress\nt=4000 B published #350 enr-18 progress\nt=4000 B published #351 enr-18 progress\nt=4000 B published #352 enr-5 completed\nt=4000 B published #354 enr-24 progress\nt=4000 B published #355 enr-22 progress\nt=4000 B published #357 enr-1 progress\nt=4000 B published #358 enr-5 completed\nt=4000 B published #359 enr-8 progress\nt=4000 B published #360 enr-3 completed\nt=4000 B published #361 enr-11 progress\nt=4000 B published #362 enr-9 progress\nt=4000 B published #364 enr-8 progress\nt=4000 B published #366 enr-2 progress\nt=4000 B published #368 enr-4 progress\nt=4000 B published #371 enr-2 progress\nt=4000 B published #372 enr-1 progress\nt=4000 B published #375 enr-22 progress\nt=4000 B published #377 enr-2 progress\nt=4400 A claimed #379 #380 #381 #383 #384 #385 #386 #388 #389 #390 #391 #392 #394 #395 #397 #401 #404 #405 #406 #409 #412 #414 #415 #416 #418 #419 #421 #422 #423 #425 #426 #427 #428 #429 #430 #431 #432 #433 #434 #437\nt=4400 A broker error on #379\nt=4400 A broker error on #380\nt=4400 A published #381 enr-24 progress\nt=4400 A published #383 enr-2 progress\nt=4400 A published #384 enr-7 progress\nt=4400 A published #385 enr-2 progress\nt=4400 A published #386 enr-18 progress\nt=4400 A published #388 enr-9 progress\nt=4400 A published #389 enr-7 progress\nt=4400 A published #390 enr-2 progress\nt=4400 A published #391 enr-2 progress\nt=4400 A published #392 enr-9 progress\nt=4400 A published #394 enr-3 completed\nt=4400 A published #395 enr-7 progress\nt=4400 A published #397 enr-9 progress\nt=4400 A published #401 enr-1 progress\nt=4400 A published #405 enr-2 progress\nt=4400 A published #406 enr-7 progress\nt=4400 A published #412 enr-1 progress\nt=4400 A published #414 enr-9 progress\nt=4400 A published #415 enr-4 completed\nt=4400 A published #418 enr-7 completed\nt=4400 A published #419 enr-1 completed\nt=4400 A published #421 enr-24 progress\nt=4400 A published #422 enr-4 progress\nt=4400 A published #423 enr-4 progress\nt=4400 A published #425 enr-9 progress\nt=4400 A published #426 enr-17 progress\nt=4400 A published #427 enr-1 progress\nt=4400 A published #429 enr-4 completed\nt=4400 A published #430 enr-7 progress\nt=4400 A published #432 enr-13 progress\nt=4400 A published #433 enr-6 progress\nt=4400 A published #434 enr-6 progress\nt=4400 A published #437 enr-9 progress\nt=4800 B claimed #442 #443 #444 #445 #446 #447 #448 #449 #451 #452 #453 #454 #455 #456 #457 #458 #460 #461 #462 #463 #464 #465 #466 #467 #468 #469 #470 #471 #472 #473 #474 #475 #476 #477 #478 #480\nt=4800 B published #442 enr-12 completed\nt=4800 B published #443 enr-19 progress\nt=4800 B published #444 enr-19 progress\nt=4800 B published #445 enr-9 progress\nt=4800 B published #446 enr-3 progress\nt=4800 B published #447 enr-24 progress\nt=4800 B published #448 enr-1 progress\nt=4800 B published #449 enr-7 progress\nt=4800 B published #451 enr-12 progress\nt=4800 B published #452 enr-18 progress\nt=4800 B published #453 enr-17 completed\nt=4800 B published #454 enr-19 progress\nt=4800 B published #455 enr-14 completed\nt=4800 B published #456 enr-2 progress\nt=4800 B published #457 enr-14 progress\nt=4800 B published #458 enr-12 progress\nt=4800 B published #460 enr-24 progress\nt=4800 B published #461 enr-24 progress\nt=4800 B published #462 enr-18 progress\nt=4800 B published #463 enr-19 progress\nt=4800 B published #464 enr-5 completed\nt=4800 B published #465 enr-5 progress\nt=4800 B published #466 enr-7 progress\nt=4800 B published #467 enr-21 progress\nt=4800 B published #468 enr-18 progress\nt=4800 B published #469 enr-18 progress\nt=4800 B published #470 enr-24 progress\nt=4800 B published #471 enr-15 progress\nt=4800 B published #472 enr-15 progress\nt=4800 B published #473 enr-17 progress\nt=4800 B published #474 enr-10 progress\nt=4800 B published #475 enr-17 progress\nt=4800 B published #476 enr-10 progress\nt=4800 B published #477 enr-21 progress\nt=4800 B published #478 enr-19 progress\nt=4800 B published #480 enr-19 progress\nt=5200 A claimed #379 #380 #404 #409 #416 #428 #431 #450 #459 #479\nt=5200 A broker error on #379\nt=5200 A broker error on #380\nt=5600 A claimed nothing\nt=5600 B claimed nothing\nt=6000 A claimed nothing\nt=6400 B claimed #379 #380 #404 #409 #416 #428 #431 #450 #459 #479\nt=6400 B broker error on #379\nt=6400 B broker error on #380\nt=6800 A claimed nothing\nt=7200 B claimed nothing\nt=7600 A claimed nothing\nt=8000 B claimed nothing\nt=8400 A claimed #379 #380 #404 #409 #416 #428 #431 #450 #459 #479\nt=8400 A broker error on #379\nt=8400 A broker error on #380\nt=8400 app inserted #481 #482 #483\nt=8800 B claimed #481 #482 #483\nt=8800 B broker error on #481\nt=8800 B broker error on #482\nt=9200 A claimed nothing\nt=9200 B claimed nothing\nt=9600 B claimed #481 #482 #483\nt=9600 B broker error on #481\nt=9600 B broker error on #482\nt=10000 A claimed nothing\nt=10400 B claimed nothing\nt=10800 A claimed #481 #482 #483\nt=10800 A broker error on #481\nt=10800 A broker error on #482\nt=11200 B claimed nothing\nt=11600 A claimed nothing\nt=12000 B claimed nothing\nt=12400 A claimed nothing\nt=12800 A claimed #481 #482 #483\nt=12800 B claimed nothing\nt=12800 A broker error on #481\nt=12800 A broker error on #482\nt=13200 A claimed nothing\nt=13600 B claimed nothing\nt=14000 A claimed nothing\nt=14400 B claimed nothing\nt=14800 A claimed nothing\nt=15200 B claimed nothing\nt=15600 A claimed nothing\nt=16000 B claimed nothing\nt=16400 A claimed nothing\nt=16400 B claimed nothing\nt=16800 B claimed nothing\nt=17200 A claimed nothing\nt=17600 B claimed nothing\nt=18000 A claimed nothing\nt=18400 B claimed nothing\nt=48400 A claimed nothing\nt=48400 B claimed nothing\nt=48400 A claimed nothing\nt=48400 B claimed nothing\noutbox: 470 sent, 9 pending, 4 failed\n#379 enr-22 progress failed attempts=4\n#380 enr-8 progress failed attempts=4\n#404 enr-22 progress pending attempts=0\n#409 enr-8 progress pending attempts=0\n#416 enr-8 progress pending attempts=0\n#428 enr-8 progress pending attempts=0\n#431 enr-22 progress pending attempts=0\n#450 enr-8 progress pending attempts=0\n#459 enr-8 progress pending attempts=0\n#479 enr-8 progress pending attempts=0\n#481 enr-3 progress failed attempts=4\n#482 enr-25 enrolled failed attempts=4\n#483 enr-3 completed pending attempts=0",
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,66 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_dce_331",
+      "name": "eventual-consistency-quiz",
+      "type": "quiz",
+      "title": "Lag, read-your-writes and the data that must not lag",
+      "description": "Three pieces of evidence from CodeDev: a consumer-lag dashboard, a double-click on Enroll, and a time-based fix for a stale profile.",
+      "difficulty": "medium",
+      "outcomes": [
+        "eventual-consistency"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The certificates dashboard at 14:05:\n\nkafka consumer lag   group=certificates  topic=enrollment-events   total lag = 0\noutbox_pending       SELECT count(*) FROM outbox WHERE published_at IS NULL  ->  1 840\noutbox_oldest_age    now() - min(created_at) WHERE published_at IS NULL     ->  00:06:12\ncertificates DLQ     messages in the last hour                              ->  3\n\nStatement: \"Since the certificate consumer's lag is 0, every learner who completed a course before 14:05 can already see their certificate.\"",
+          "explanation": "False. Consumer lag only measures the distance between the newest message in the topic and the consumer's position. The 1 840 enrollment events still waiting in the outbox (the oldest for over 6 minutes) have not reached the topic yet, so the consumer cannot lag behind them; and the 3 messages in the dead-letter queue were consumed but never turned into certificates. Staleness has to be measured end to end - from the source fact (enrollments.completed_at) to the visible result (certificates.issued_at) - plus each hop's own lag. The misconception is that a lag of 0 on one hop means the whole pipeline has converged.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "EnrollmentsService.enroll() before charging the card:\n\nconst existing = await this.search.findEnrollment(learnerId, courseId);  // course-search index, fed by enrollment events, lag 1-5 s\nif (existing) throw new ConflictException(\"ALREADY_ENROLLED\");\nawait this.payments.charge(learnerId, price);\nawait this.db.query(\"INSERT INTO enrollments (learner_id, course_id) VALUES ($1, $2)\", [learnerId, courseId]);\n\nAPI log:\n09:14:02.120 POST /enrollments u_17 course=postgres-performance\n09:14:02.410 POST /enrollments u_17 course=postgres-performance\n09:14:03.900 payments: charged u_17 349000 (pay_7741)\n09:14:04.050 payments: charged u_17 349000 (pay_7742)\n\nStatement: \"Making the search index update faster would make this rarer but not impossible; the check has to be decided by the enrollments table itself, for example with UNIQUE (learner_id, course_id) and inserting a pending enrollment before the charge.\"",
+          "explanation": "True. Any read model fed by events lags by some amount, so a second request inside that window always sees \"not enrolled\"; here the two requests are 290 ms apart and the index lags seconds. Uniqueness of an enrollment is an invariant that money depends on, so it must be enforced where the write happens: a UNIQUE constraint makes the second INSERT fail, and inserting a pending enrollment first (then charging, then marking it active) means the second request is turned away before a second charge. Read models are fine for showing data, not for deciding invariants. The misconception is that a fast enough read model is as good as a strongly consistent check.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Learners complained that after renaming themselves the profile page still showed the old name. The fix: after PATCH /me commits on the PostgreSQL primary, the API sets a cookie rw_until = now + 5 s; while it is valid, that learner's reads go to the primary, otherwise to a read replica.\n\nReplica lag over the last 7 days (now() - pg_last_xact_replay_timestamp() on the replica, sampled every 10 s):\np50 0.08 s   p99 1.2 s   max 9.4 s (14:00 on Monday, during a VACUUM of a large table)\n\nStatement: \"With this cookie, a learner who renames themselves will see the new name on the next page load.\"",
+          "explanation": "False. A fixed time window is a guess about replica lag, and the lag reached 9.4 s on Monday: a read sent to the replica 6 s after the write could still return the old name. Read-your-writes needs a comparison, not a timer: return the commit position of the write (for example pg_current_wal_lsn() read right after the commit, kept in the session) and route a read to a replica only if its pg_last_wal_replay_lsn() has reached that position - otherwise read from the primary. The timer is fine as a cheap heuristic only if a stale read after it is acceptable. The misconception is that a window longer than the usual lag guarantees anything about the worst case.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

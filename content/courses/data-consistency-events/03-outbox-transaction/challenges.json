@@ -1,0 +1,2371 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_dce_131",
+      "name": "outbox-same-transaction",
+      "type": "quiz",
+      "title": "Outbox in the same transaction",
+      "description": "Two pieces of code from CodeDev services that write outbox rows. Decide whether each statement about what PostgreSQL commits, and in which order the relay reads it, is true.",
+      "difficulty": "medium",
+      "outcomes": [
+        "dual-write"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "async award(userId: string, amount: number, reason: string) {\n  await this.dataSource.transaction(async (manager) => {\n    const wallet = await manager.findOneOrFail(Wallet, { where: { userId }, lock: { mode: \"pessimistic_write\" } });\n    wallet.points += amount;\n    await this.outbox.save({ aggregateType: \"wallet\", aggregateId: userId,\n      eventType: \"points.awarded\", payload: { userId, amount, reason, balance: wallet.points } });\n    if (wallet.points > MAX_POINTS) throw new BadRequestException(\"balance cap reached\");\n    await manager.save(wallet);\n  });\n}\n// this.outbox is injected with @InjectRepository(OutboxEvent): it is bound to the DataSource, not to manager.\n\nStatement: \"When the balance cap check throws, the wallet change is rolled back but the points.awarded outbox row stays committed, and the relay will publish it.\"",
+          "explanation": "True. Only queries that go through manager run on the connection that executed BEGIN. The injected repository takes its own pooled connection and runs the INSERT as a single-statement transaction that commits immediately. When the callback throws, TypeORM rolls back the manager's transaction (the wallet), but the outbox row was committed before, on another backend, so the relay publishes a ghost award. The fix is manager.getRepository(OutboxEvent) or manager.save(OutboxEvent, ...), and validating before writing. The misconception is that everything written inside the transaction callback belongs to the transaction.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "CREATE TABLE outbox (\n  id         uuid PRIMARY KEY,\n  event_type text NOT NULL,\n  payload    jsonb NOT NULL,\n  created_at timestamptz NOT NULL DEFAULT now(),\n  status     text NOT NULL DEFAULT 'pending'\n);\n\n-- completeLesson, one transaction:\nBEGIN;\nINSERT INTO lesson_progress (user_id, lesson_id) VALUES ('u_77', 'l_12');\nINSERT INTO outbox (id, event_type, payload) VALUES (gen_random_uuid(), 'lesson.completed', '{...}');\nINSERT INTO outbox (id, event_type, payload) VALUES (gen_random_uuid(), 'course.completed', '{...}');\nCOMMIT;\n\n-- relay:\nSELECT id, event_type FROM outbox WHERE status = 'pending' ORDER BY created_at LIMIT 100;\n\nStatement: \"The relay reads lesson.completed before course.completed, because the first row was inserted earlier and got an earlier created_at.\"",
+          "explanation": "False. now() (and CURRENT_TIMESTAMP) returns the start time of the current transaction, so both rows get exactly the same created_at, and ORDER BY created_at leaves their order to the plan: a consumer may receive course.completed before lesson.completed. clock_timestamp() would differ per row, but timestamps are still a weak ordering key; a bigserial seq column records the insert order within the transaction and is what the relay should order by. The misconception is that a timestamp default records the moment each row was inserted.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_dce_132",
+      "name": "outbox-same-transaction-commands",
+      "type": "mini_coding",
+      "title": "Outbox in the same transaction",
+      "description": "CodeDev's enrollment and wallet services publish through a transactional outbox: a command writes its business change and the events describing it in one db.tx(); a relay (not part of this task) publishes the pending outbox rows later. Implement the two commands so that each one is either fully committed with all its events, or leaves nothing at all.\n\nplaceEnrollment(deps, { userId, courseId })\n- Reject, checked in this order: \"unknown user\" (no wallet for userId), \"unknown course\", \"already enrolled\", \"course full\" (enrolled has reached seats).\n- Write an enrollments row { id: ids.next(\"enr\"), userId, courseId, createdAt: clock.now() } and add 1 to courses[courseId].enrolled.\n- Events: enrollment.created (aggregate \"enrollment\" / enrollment id, payload { enrollmentId, userId, courseId }); then, only if this enrollment took the last seat, course.full (aggregate \"course\" / courseId, payload { courseId, seats }).\n\nawardPoints(deps, { userId, amount, reason })\n- Reject, checked in this order: \"unknown user\", \"invalid amount\" (amount is not an integer from 1 to 10000; it can arrive as any JSON value), \"missing reason\" (reason is not a non-empty string).\n- Add amount to wallets[userId].points.\n- Events: points.awarded (aggregate \"wallet\" / userId, payload { userId, amount, reason, balance } where balance is the new points), then one level.reached (aggregate \"wallet\" / userId, payload { userId, level }) for every level crossed, lowest first, where level = Math.floor(points / 1000).\n\nEach event is an outbox row { id: ids.next(\"evt\"), aggregateType, aggregateId, eventType, payload, createdAt: clock.now(), status: \"pending\" } with the payload keys in the order listed. Take ids only after validation passed: the enrollment id first, then one event id per event in event order (a sequence: ids taken by a transaction that does not commit are not reused). A rejection throws new Rejected(\"<reason>\") and writes nothing.\n\nInput (stdin, JSON): { courses: [{ id, title, seats }], wallets: [{ userId, points }], commands }. A command is { op: \"place\", userId, courseId, crash? } or { op: \"award\", userId, amount, reason, crash? }. crash is \"beforeCommit\" or \"afterCommit\": the test runner kills the process at that point of the command's first transaction and restarts it before the next command.\nOutput: one line per command (\"ok\", \"rejected (<reason>)\" or \"no response (process crashed <point>)\"), then the database: courses as \"<id> <enrolled>/<seats>\", enrollments, wallets and every outbox row \"<id> <aggregateType>/<aggregateId> <eventType> <payload JSON> <createdAt> <status>\" in insertion order.\nConstraints: up to 300 commands, 10 courses, 100 wallets. Use db.tx(); do not change FakeDb, Ids, Clock or the test runner.",
+      "difficulty": "medium",
+      "outcomes": [
+        "dual-write"
+      ],
+      "points": 30,
+      "hints": [
+        "If the process dies right after the first COMMIT of a command, what must already be in the database for the relay to publish the command's events later? And if a rule rejects the command after something was written, what must the transaction do?",
+        "Look at FakeDb.tx: it commits the copy only when your callback returns normally. Put every check, every business write and every outbox row of one command in a single callback, check first, and throw Rejected (never return) when a rule fails. For levels, compare Math.floor of the points before and after the award.",
+        "A similar command on different data: completeLesson in one tx checks the lesson exists and the learner is enrolled (throwing on failure), inserts the progress row, then adds lesson.completed and, if no lesson of the course is left, course.completed, in that order, each with ids.next(\"evt\"). A badge counter that goes from 2 to 7 with a badge every 3 crosses 3 and 6: two events, 3 first."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Enroll and award: business rows and outbox rows are written together",
+          "input": {
+            "courses": [
+              {
+                "id": "c1",
+                "title": "Data Consistency & Event-Driven Patterns",
+                "seats": 3
+              },
+              {
+                "id": "c2",
+                "title": "Redis Patterns",
+                "seats": 2
+              }
+            ],
+            "wallets": [
+              {
+                "userId": "u1",
+                "points": 0
+              },
+              {
+                "userId": "u2",
+                "points": 950
+              },
+              {
+                "userId": "u3",
+                "points": 900
+              }
+            ],
+            "commands": [
+              {
+                "op": "place",
+                "userId": "u1",
+                "courseId": "c1"
+              },
+              {
+                "op": "award",
+                "userId": "u1",
+                "amount": 300,
+                "reason": "lesson completed"
+              }
+            ]
+          },
+          "expected": "place u1/c1: ok\naward u1 300: ok\n--- database\ncourses: c1 1/3, c2 0/2\nenrollments: enr_1 u1/c1 2026-10-27T09:00:01.000Z\nwallets: u1 300, u2 950, u3 900\noutbox: 2 row(s)\nevt_1 enrollment/enr_1 enrollment.created {\"enrollmentId\":\"enr_1\",\"userId\":\"u1\",\"courseId\":\"c1\"} 2026-10-27T09:00:01.000Z pending\nevt_2 wallet/u1 points.awarded {\"userId\":\"u1\",\"amount\":300,\"reason\":\"lesson completed\",\"balance\":300} 2026-10-27T09:00:02.000Z pending",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "The last seat emits enrollment.created then course.full; the next learner is rejected",
+          "input": {
+            "courses": [
+              {
+                "id": "c1",
+                "title": "Data Consistency & Event-Driven Patterns",
+                "seats": 3
+              },
+              {
+                "id": "c2",
+                "title": "Redis Patterns",
+                "seats": 2
+              }
+            ],
+            "wallets": [
+              {
+                "userId": "u1",
+                "points": 0
+              },
+              {
+                "userId": "u2",
+                "points": 950
+              },
+              {
+                "userId": "u3",
+                "points": 900
+              }
+            ],
+            "commands": [
+              {
+                "op": "place",
+                "userId": "u1",
+                "courseId": "c2"
+              },
+              {
+                "op": "place",
+                "userId": "u2",
+                "courseId": "c2"
+              },
+              {
+                "op": "place",
+                "userId": "u3",
+                "courseId": "c2"
+              }
+            ]
+          },
+          "expected": "place u1/c2: ok\nplace u2/c2: ok\nplace u3/c2: rejected (course full)\n--- database\ncourses: c1 0/3, c2 2/2\nenrollments: enr_1 u1/c2 2026-10-27T09:00:01.000Z, enr_2 u2/c2 2026-10-27T09:00:02.000Z\nwallets: u1 0, u2 950, u3 900\noutbox: 3 row(s)\nevt_1 enrollment/enr_1 enrollment.created {\"enrollmentId\":\"enr_1\",\"userId\":\"u1\",\"courseId\":\"c2\"} 2026-10-27T09:00:01.000Z pending\nevt_2 enrollment/enr_2 enrollment.created {\"enrollmentId\":\"enr_2\",\"userId\":\"u2\",\"courseId\":\"c2\"} 2026-10-27T09:00:02.000Z pending\nevt_3 course/c2 course.full {\"courseId\":\"c2\",\"seats\":2} 2026-10-27T09:00:02.000Z pending",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Crash before COMMIT writes nothing; crash after COMMIT keeps the row and its events",
+          "input": {
+            "courses": [
+              {
+                "id": "c1",
+                "title": "Data Consistency & Event-Driven Patterns",
+                "seats": 3
+              },
+              {
+                "id": "c2",
+                "title": "Redis Patterns",
+                "seats": 2
+              }
+            ],
+            "wallets": [
+              {
+                "userId": "u1",
+                "points": 0
+              },
+              {
+                "userId": "u2",
+                "points": 950
+              },
+              {
+                "userId": "u3",
+                "points": 900
+              }
+            ],
+            "commands": [
+              {
+                "op": "place",
+                "userId": "u1",
+                "courseId": "c1",
+                "crash": "beforeCommit"
+              },
+              {
+                "op": "place",
+                "userId": "u1",
+                "courseId": "c1"
+              },
+              {
+                "op": "award",
+                "userId": "u2",
+                "amount": 100,
+                "reason": "quiz passed",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "award",
+                "userId": "u3",
+                "amount": 40,
+                "reason": "streak",
+                "crash": "beforeCommit"
+              },
+              {
+                "op": "place",
+                "userId": "u2",
+                "courseId": "c2",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "place",
+                "userId": "u3",
+                "courseId": "c2",
+                "crash": "afterCommit"
+              }
+            ]
+          },
+          "expected": "place u1/c1: no response (process crashed beforeCommit)\nplace u1/c1: ok\naward u2 100: no response (process crashed afterCommit)\naward u3 40: no response (process crashed beforeCommit)\nplace u2/c2: no response (process crashed afterCommit)\nplace u3/c2: no response (process crashed afterCommit)\n--- database\ncourses: c1 1/3, c2 2/2\nenrollments: enr_2 u1/c1 2026-10-27T09:00:02.000Z, enr_3 u2/c2 2026-10-27T09:00:05.000Z, enr_4 u3/c2 2026-10-27T09:00:06.000Z\nwallets: u1 0, u2 1050, u3 900\noutbox: 6 row(s)\nevt_2 enrollment/enr_2 enrollment.created {\"enrollmentId\":\"enr_2\",\"userId\":\"u1\",\"courseId\":\"c1\"} 2026-10-27T09:00:02.000Z pending\nevt_3 wallet/u2 points.awarded {\"userId\":\"u2\",\"amount\":100,\"reason\":\"quiz passed\",\"balance\":1050} 2026-10-27T09:00:03.000Z pending\nevt_4 wallet/u2 level.reached {\"userId\":\"u2\",\"level\":1} 2026-10-27T09:00:03.000Z pending\nevt_6 enrollment/enr_3 enrollment.created {\"enrollmentId\":\"enr_3\",\"userId\":\"u2\",\"courseId\":\"c2\"} 2026-10-27T09:00:05.000Z pending\nevt_7 enrollment/enr_4 enrollment.created {\"enrollmentId\":\"enr_4\",\"userId\":\"u3\",\"courseId\":\"c2\"} 2026-10-27T09:00:06.000Z pending\nevt_8 course/c2 course.full {\"courseId\":\"c2\",\"seats\":2} 2026-10-27T09:00:06.000Z pending",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Awards that reach or cross levels emit one level.reached per level, lowest first",
+          "input": {
+            "courses": [
+              {
+                "id": "c1",
+                "title": "Data Consistency & Event-Driven Patterns",
+                "seats": 3
+              },
+              {
+                "id": "c2",
+                "title": "Redis Patterns",
+                "seats": 2
+              }
+            ],
+            "wallets": [
+              {
+                "userId": "u1",
+                "points": 0
+              },
+              {
+                "userId": "u2",
+                "points": 950
+              },
+              {
+                "userId": "u3",
+                "points": 900
+              }
+            ],
+            "commands": [
+              {
+                "op": "award",
+                "userId": "u2",
+                "amount": 50,
+                "reason": "lesson completed"
+              },
+              {
+                "op": "award",
+                "userId": "u3",
+                "amount": 2500,
+                "reason": "course completed"
+              },
+              {
+                "op": "award",
+                "userId": "u1",
+                "amount": 999,
+                "reason": "lesson completed"
+              },
+              {
+                "op": "award",
+                "userId": "u1",
+                "amount": 1,
+                "reason": "lesson completed"
+              }
+            ]
+          },
+          "expected": "award u2 50: ok\naward u3 2500: ok\naward u1 999: ok\naward u1 1: ok\n--- database\ncourses: c1 0/3, c2 0/2\nenrollments: none\nwallets: u1 1000, u2 1000, u3 3400\noutbox: 9 row(s)\nevt_1 wallet/u2 points.awarded {\"userId\":\"u2\",\"amount\":50,\"reason\":\"lesson completed\",\"balance\":1000} 2026-10-27T09:00:01.000Z pending\nevt_2 wallet/u2 level.reached {\"userId\":\"u2\",\"level\":1} 2026-10-27T09:00:01.000Z pending\nevt_3 wallet/u3 points.awarded {\"userId\":\"u3\",\"amount\":2500,\"reason\":\"course completed\",\"balance\":3400} 2026-10-27T09:00:02.000Z pending\nevt_4 wallet/u3 level.reached {\"userId\":\"u3\",\"level\":1} 2026-10-27T09:00:02.000Z pending\nevt_5 wallet/u3 level.reached {\"userId\":\"u3\",\"level\":2} 2026-10-27T09:00:02.000Z pending\nevt_6 wallet/u3 level.reached {\"userId\":\"u3\",\"level\":3} 2026-10-27T09:00:02.000Z pending\nevt_7 wallet/u1 points.awarded {\"userId\":\"u1\",\"amount\":999,\"reason\":\"lesson completed\",\"balance\":999} 2026-10-27T09:00:03.000Z pending\nevt_8 wallet/u1 points.awarded {\"userId\":\"u1\",\"amount\":1,\"reason\":\"lesson completed\",\"balance\":1000} 2026-10-27T09:00:04.000Z pending\nevt_9 wallet/u1 level.reached {\"userId\":\"u1\",\"level\":1} 2026-10-27T09:00:04.000Z pending",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Invalid commands are rejected in order and write nothing",
+          "input": {
+            "courses": [
+              {
+                "id": "c1",
+                "title": "Data Consistency & Event-Driven Patterns",
+                "seats": 3
+              },
+              {
+                "id": "c2",
+                "title": "Redis Patterns",
+                "seats": 2
+              }
+            ],
+            "wallets": [
+              {
+                "userId": "u1",
+                "points": 0
+              },
+              {
+                "userId": "u2",
+                "points": 950
+              },
+              {
+                "userId": "u3",
+                "points": 900
+              }
+            ],
+            "commands": [
+              {
+                "op": "place",
+                "userId": "u9",
+                "courseId": "c1"
+              },
+              {
+                "op": "place",
+                "userId": "u9",
+                "courseId": "c9"
+              },
+              {
+                "op": "place",
+                "userId": "u1",
+                "courseId": "c9"
+              },
+              {
+                "op": "place",
+                "userId": "u1",
+                "courseId": "c1"
+              },
+              {
+                "op": "place",
+                "userId": "u1",
+                "courseId": "c1"
+              },
+              {
+                "op": "award",
+                "userId": "u9",
+                "amount": 0,
+                "reason": "lesson completed"
+              },
+              {
+                "op": "award",
+                "userId": "u1",
+                "amount": 0,
+                "reason": "lesson completed"
+              },
+              {
+                "op": "award",
+                "userId": "u1",
+                "amount": 2.5,
+                "reason": "lesson completed"
+              },
+              {
+                "op": "award",
+                "userId": "u1",
+                "amount": 10001,
+                "reason": "lesson completed"
+              },
+              {
+                "op": "award",
+                "userId": "u1",
+                "amount": "100",
+                "reason": "lesson completed"
+              },
+              {
+                "op": "award",
+                "userId": "u1",
+                "amount": 10,
+                "reason": ""
+              },
+              {
+                "op": "award",
+                "userId": "u1",
+                "amount": 10000,
+                "reason": "migration"
+              }
+            ]
+          },
+          "expected": "place u9/c1: rejected (unknown user)\nplace u9/c9: rejected (unknown user)\nplace u1/c9: rejected (unknown course)\nplace u1/c1: ok\nplace u1/c1: rejected (already enrolled)\naward u9 0: rejected (unknown user)\naward u1 0: rejected (invalid amount)\naward u1 2.5: rejected (invalid amount)\naward u1 10001: rejected (invalid amount)\naward u1 \"100\": rejected (invalid amount)\naward u1 10: rejected (missing reason)\naward u1 10000: ok\n--- database\ncourses: c1 1/3, c2 0/2\nenrollments: enr_1 u1/c1 2026-10-27T09:00:04.000Z\nwallets: u1 10000, u2 950, u3 900\noutbox: 12 row(s)\nevt_1 enrollment/enr_1 enrollment.created {\"enrollmentId\":\"enr_1\",\"userId\":\"u1\",\"courseId\":\"c1\"} 2026-10-27T09:00:04.000Z pending\nevt_2 wallet/u1 points.awarded {\"userId\":\"u1\",\"amount\":10000,\"reason\":\"migration\",\"balance\":10000} 2026-10-27T09:00:12.000Z pending\nevt_3 wallet/u1 level.reached {\"userId\":\"u1\",\"level\":1} 2026-10-27T09:00:12.000Z pending\nevt_4 wallet/u1 level.reached {\"userId\":\"u1\",\"level\":2} 2026-10-27T09:00:12.000Z pending\nevt_5 wallet/u1 level.reached {\"userId\":\"u1\",\"level\":3} 2026-10-27T09:00:12.000Z pending\nevt_6 wallet/u1 level.reached {\"userId\":\"u1\",\"level\":4} 2026-10-27T09:00:12.000Z pending\nevt_7 wallet/u1 level.reached {\"userId\":\"u1\",\"level\":5} 2026-10-27T09:00:12.000Z pending\nevt_8 wallet/u1 level.reached {\"userId\":\"u1\",\"level\":6} 2026-10-27T09:00:12.000Z pending\nevt_9 wallet/u1 level.reached {\"userId\":\"u1\",\"level\":7} 2026-10-27T09:00:12.000Z pending\nevt_10 wallet/u1 level.reached {\"userId\":\"u1\",\"level\":8} 2026-10-27T09:00:12.000Z pending\nevt_11 wallet/u1 level.reached {\"userId\":\"u1\",\"level\":9} 2026-10-27T09:00:12.000Z pending\nevt_12 wallet/u1 level.reached {\"userId\":\"u1\",\"level\":10} 2026-10-27T09:00:12.000Z pending",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Large: 300 commands over 8 courses and 60 wallets with crashes",
+          "input": {
+            "courses": [
+              {
+                "id": "c1",
+                "title": "Course 1",
+                "seats": 20
+              },
+              {
+                "id": "c2",
+                "title": "Course 2",
+                "seats": 25
+              },
+              {
+                "id": "c3",
+                "title": "Course 3",
+                "seats": 30
+              },
+              {
+                "id": "c4",
+                "title": "Course 4",
+                "seats": 35
+              },
+              {
+                "id": "c5",
+                "title": "Course 5",
+                "seats": 40
+              },
+              {
+                "id": "c6",
+                "title": "Course 6",
+                "seats": 45
+              },
+              {
+                "id": "c7",
+                "title": "Course 7",
+                "seats": 50
+              },
+              {
+                "id": "c8",
+                "title": "Course 8",
+                "seats": 55
+              }
+            ],
+            "wallets": [
+              {
+                "userId": "u1",
+                "points": 0
+              },
+              {
+                "userId": "u2",
+                "points": 137
+              },
+              {
+                "userId": "u3",
+                "points": 274
+              },
+              {
+                "userId": "u4",
+                "points": 411
+              },
+              {
+                "userId": "u5",
+                "points": 548
+              },
+              {
+                "userId": "u6",
+                "points": 685
+              },
+              {
+                "userId": "u7",
+                "points": 822
+              },
+              {
+                "userId": "u8",
+                "points": 959
+              },
+              {
+                "userId": "u9",
+                "points": 96
+              },
+              {
+                "userId": "u10",
+                "points": 233
+              },
+              {
+                "userId": "u11",
+                "points": 370
+              },
+              {
+                "userId": "u12",
+                "points": 507
+              },
+              {
+                "userId": "u13",
+                "points": 644
+              },
+              {
+                "userId": "u14",
+                "points": 781
+              },
+              {
+                "userId": "u15",
+                "points": 918
+              },
+              {
+                "userId": "u16",
+                "points": 55
+              },
+              {
+                "userId": "u17",
+                "points": 192
+              },
+              {
+                "userId": "u18",
+                "points": 329
+              },
+              {
+                "userId": "u19",
+                "points": 466
+              },
+              {
+                "userId": "u20",
+                "points": 603
+              },
+              {
+                "userId": "u21",
+                "points": 740
+              },
+              {
+                "userId": "u22",
+                "points": 877
+              },
+              {
+                "userId": "u23",
+                "points": 14
+              },
+              {
+                "userId": "u24",
+                "points": 151
+              },
+              {
+                "userId": "u25",
+                "points": 288
+              },
+              {
+                "userId": "u26",
+                "points": 425
+              },
+              {
+                "userId": "u27",
+                "points": 562
+              },
+              {
+                "userId": "u28",
+                "points": 699
+              },
+              {
+                "userId": "u29",
+                "points": 836
+              },
+              {
+                "userId": "u30",
+                "points": 973
+              },
+              {
+                "userId": "u31",
+                "points": 110
+              },
+              {
+                "userId": "u32",
+                "points": 247
+              },
+              {
+                "userId": "u33",
+                "points": 384
+              },
+              {
+                "userId": "u34",
+                "points": 521
+              },
+              {
+                "userId": "u35",
+                "points": 658
+              },
+              {
+                "userId": "u36",
+                "points": 795
+              },
+              {
+                "userId": "u37",
+                "points": 932
+              },
+              {
+                "userId": "u38",
+                "points": 69
+              },
+              {
+                "userId": "u39",
+                "points": 206
+              },
+              {
+                "userId": "u40",
+                "points": 343
+              },
+              {
+                "userId": "u41",
+                "points": 480
+              },
+              {
+                "userId": "u42",
+                "points": 617
+              },
+              {
+                "userId": "u43",
+                "points": 754
+              },
+              {
+                "userId": "u44",
+                "points": 891
+              },
+              {
+                "userId": "u45",
+                "points": 28
+              },
+              {
+                "userId": "u46",
+                "points": 165
+              },
+              {
+                "userId": "u47",
+                "points": 302
+              },
+              {
+                "userId": "u48",
+                "points": 439
+              },
+              {
+                "userId": "u49",
+                "points": 576
+              },
+              {
+                "userId": "u50",
+                "points": 713
+              },
+              {
+                "userId": "u51",
+                "points": 850
+              },
+              {
+                "userId": "u52",
+                "points": 987
+              },
+              {
+                "userId": "u53",
+                "points": 124
+              },
+              {
+                "userId": "u54",
+                "points": 261
+              },
+              {
+                "userId": "u55",
+                "points": 398
+              },
+              {
+                "userId": "u56",
+                "points": 535
+              },
+              {
+                "userId": "u57",
+                "points": 672
+              },
+              {
+                "userId": "u58",
+                "points": 809
+              },
+              {
+                "userId": "u59",
+                "points": 946
+              },
+              {
+                "userId": "u60",
+                "points": 83
+              }
+            ],
+            "commands": [
+              {
+                "op": "place",
+                "userId": "u19",
+                "courseId": "c9"
+              },
+              {
+                "op": "award",
+                "userId": "u33",
+                "amount": 135,
+                "reason": "lesson 1"
+              },
+              {
+                "op": "place",
+                "userId": "u13",
+                "courseId": "c9"
+              },
+              {
+                "op": "place",
+                "userId": "u24",
+                "courseId": "c1",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "award",
+                "userId": "u58",
+                "amount": 115,
+                "reason": "lesson 4"
+              },
+              {
+                "op": "place",
+                "userId": "u31",
+                "courseId": "c9"
+              },
+              {
+                "op": "place",
+                "userId": "u50",
+                "courseId": "c1",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "award",
+                "userId": "u46",
+                "amount": 1505,
+                "reason": "lesson 7"
+              },
+              {
+                "op": "place",
+                "userId": "u3",
+                "courseId": "c2"
+              },
+              {
+                "op": "place",
+                "userId": "u24",
+                "courseId": "c8"
+              },
+              {
+                "op": "award",
+                "userId": "u55",
+                "amount": 832,
+                "reason": "lesson 10"
+              },
+              {
+                "op": "place",
+                "userId": "u26",
+                "courseId": "c8"
+              },
+              {
+                "op": "award",
+                "userId": "u22",
+                "amount": 720,
+                "reason": "lesson 12"
+              },
+              {
+                "op": "place",
+                "userId": "u15",
+                "courseId": "c6"
+              },
+              {
+                "op": "place",
+                "userId": "u29",
+                "courseId": "c5"
+              },
+              {
+                "op": "place",
+                "userId": "u48",
+                "courseId": "c2",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "award",
+                "userId": "u38",
+                "amount": 448,
+                "reason": "lesson 16"
+              },
+              {
+                "op": "award",
+                "userId": "u25",
+                "amount": 417,
+                "reason": "lesson 17"
+              },
+              {
+                "op": "place",
+                "userId": "u39",
+                "courseId": "c3"
+              },
+              {
+                "op": "place",
+                "userId": "u48",
+                "courseId": "c4"
+              },
+              {
+                "op": "place",
+                "userId": "u16",
+                "courseId": "c8"
+              },
+              {
+                "op": "place",
+                "userId": "u37",
+                "courseId": "c8"
+              },
+              {
+                "op": "place",
+                "userId": "u28",
+                "courseId": "c8"
+              },
+              {
+                "op": "place",
+                "userId": "u14",
+                "courseId": "c7"
+              },
+              {
+                "op": "place",
+                "userId": "u1",
+                "courseId": "c1"
+              },
+              {
+                "op": "award",
+                "userId": "u18",
+                "amount": 1618,
+                "reason": "lesson 25"
+              },
+              {
+                "op": "place",
+                "userId": "u61",
+                "courseId": "c3"
+              },
+              {
+                "op": "award",
+                "userId": "u25",
+                "amount": 1700,
+                "reason": "lesson 27"
+              },
+              {
+                "op": "award",
+                "userId": "u32",
+                "amount": 1052,
+                "reason": "lesson 28"
+              },
+              {
+                "op": "place",
+                "userId": "u29",
+                "courseId": "c7"
+              },
+              {
+                "op": "place",
+                "userId": "u55",
+                "courseId": "c3"
+              },
+              {
+                "op": "place",
+                "userId": "u4",
+                "courseId": "c6"
+              },
+              {
+                "op": "award",
+                "userId": "u15",
+                "amount": 335,
+                "reason": "lesson 32"
+              },
+              {
+                "op": "award",
+                "userId": "u40",
+                "amount": 442,
+                "reason": "lesson 33"
+              },
+              {
+                "op": "award",
+                "userId": "u8",
+                "amount": 562,
+                "reason": "lesson 34"
+              },
+              {
+                "op": "award",
+                "userId": "u7",
+                "amount": 497,
+                "reason": "lesson 35"
+              },
+              {
+                "op": "award",
+                "userId": "u30",
+                "amount": 810,
+                "reason": "lesson 36"
+              },
+              {
+                "op": "award",
+                "userId": "u5",
+                "amount": 293,
+                "reason": "lesson 37"
+              },
+              {
+                "op": "award",
+                "userId": "u48",
+                "amount": 12.5,
+                "reason": "lesson 38"
+              },
+              {
+                "op": "place",
+                "userId": "u30",
+                "courseId": "c8"
+              },
+              {
+                "op": "award",
+                "userId": "u10",
+                "amount": 176,
+                "reason": "lesson 40"
+              },
+              {
+                "op": "award",
+                "userId": "u4",
+                "amount": 1041,
+                "reason": "lesson 41"
+              },
+              {
+                "op": "award",
+                "userId": "u26",
+                "amount": 330,
+                "reason": "lesson 42",
+                "crash": "beforeCommit"
+              },
+              {
+                "op": "award",
+                "userId": "u10",
+                "amount": 561,
+                "reason": "lesson 43"
+              },
+              {
+                "op": "award",
+                "userId": "u8",
+                "amount": 1783,
+                "reason": "lesson 44"
+              },
+              {
+                "op": "place",
+                "userId": "u17",
+                "courseId": "c7"
+              },
+              {
+                "op": "place",
+                "userId": "u43",
+                "courseId": "c1"
+              },
+              {
+                "op": "place",
+                "userId": "u8",
+                "courseId": "c1",
+                "crash": "beforeCommit"
+              },
+              {
+                "op": "place",
+                "userId": "u20",
+                "courseId": "c2"
+              },
+              {
+                "op": "place",
+                "userId": "u29",
+                "courseId": "c9"
+              },
+              {
+                "op": "place",
+                "userId": "u38",
+                "courseId": "c3"
+              },
+              {
+                "op": "place",
+                "userId": "u47",
+                "courseId": "c1"
+              },
+              {
+                "op": "place",
+                "userId": "u47",
+                "courseId": "c2"
+              },
+              {
+                "op": "place",
+                "userId": "u14",
+                "courseId": "c6"
+              },
+              {
+                "op": "place",
+                "userId": "u54",
+                "courseId": "c8"
+              },
+              {
+                "op": "award",
+                "userId": "u9",
+                "amount": 953,
+                "reason": "lesson 55"
+              },
+              {
+                "op": "award",
+                "userId": "u62",
+                "amount": 1584,
+                "reason": "lesson 56"
+              },
+              {
+                "op": "place",
+                "userId": "u57",
+                "courseId": "c8"
+              },
+              {
+                "op": "award",
+                "userId": "u58",
+                "amount": 68,
+                "reason": "lesson 58"
+              },
+              {
+                "op": "award",
+                "userId": "u6",
+                "amount": 0,
+                "reason": "lesson 59"
+              },
+              {
+                "op": "award",
+                "userId": "u1",
+                "amount": 80,
+                "reason": "lesson 60"
+              },
+              {
+                "op": "place",
+                "userId": "u7",
+                "courseId": "c1"
+              },
+              {
+                "op": "place",
+                "userId": "u14",
+                "courseId": "c8"
+              },
+              {
+                "op": "place",
+                "userId": "u58",
+                "courseId": "c8"
+              },
+              {
+                "op": "place",
+                "userId": "u32",
+                "courseId": "c6"
+              },
+              {
+                "op": "place",
+                "userId": "u6",
+                "courseId": "c1"
+              },
+              {
+                "op": "place",
+                "userId": "u20",
+                "courseId": "c5"
+              },
+              {
+                "op": "award",
+                "userId": "u33",
+                "amount": 1678,
+                "reason": "lesson 67"
+              },
+              {
+                "op": "award",
+                "userId": "u35",
+                "amount": 20000,
+                "reason": "lesson 68"
+              },
+              {
+                "op": "award",
+                "userId": "u30",
+                "amount": 37,
+                "reason": "lesson 69"
+              },
+              {
+                "op": "award",
+                "userId": "u47",
+                "amount": 1424,
+                "reason": "lesson 70"
+              },
+              {
+                "op": "place",
+                "userId": "u3",
+                "courseId": "c7"
+              },
+              {
+                "op": "award",
+                "userId": "u28",
+                "amount": 525,
+                "reason": "lesson 72"
+              },
+              {
+                "op": "award",
+                "userId": "u55",
+                "amount": 20000,
+                "reason": "lesson 73",
+                "crash": "beforeCommit"
+              },
+              {
+                "op": "award",
+                "userId": "u21",
+                "amount": 206,
+                "reason": "lesson 74"
+              },
+              {
+                "op": "award",
+                "userId": "u7",
+                "amount": 917,
+                "reason": "lesson 75"
+              },
+              {
+                "op": "award",
+                "userId": "u16",
+                "amount": 1737,
+                "reason": ""
+              },
+              {
+                "op": "award",
+                "userId": "u43",
+                "amount": 1154,
+                "reason": "lesson 77"
+              },
+              {
+                "op": "place",
+                "userId": "u50",
+                "courseId": "c1"
+              },
+              {
+                "op": "award",
+                "userId": "u62",
+                "amount": 1183,
+                "reason": ""
+              },
+              {
+                "op": "place",
+                "userId": "u42",
+                "courseId": "c9"
+              },
+              {
+                "op": "award",
+                "userId": "u13",
+                "amount": 315,
+                "reason": "lesson 81"
+              },
+              {
+                "op": "place",
+                "userId": "u3",
+                "courseId": "c4"
+              },
+              {
+                "op": "place",
+                "userId": "u51",
+                "courseId": "c6"
+              },
+              {
+                "op": "place",
+                "userId": "u35",
+                "courseId": "c5"
+              },
+              {
+                "op": "award",
+                "userId": "u10",
+                "amount": 257,
+                "reason": "lesson 85"
+              },
+              {
+                "op": "place",
+                "userId": "u53",
+                "courseId": "c8"
+              },
+              {
+                "op": "place",
+                "userId": "u59",
+                "courseId": "c9"
+              },
+              {
+                "op": "place",
+                "userId": "u29",
+                "courseId": "c6"
+              },
+              {
+                "op": "place",
+                "userId": "u6",
+                "courseId": "c2",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "award",
+                "userId": "u41",
+                "amount": 12.5,
+                "reason": "lesson 90"
+              },
+              {
+                "op": "place",
+                "userId": "u29",
+                "courseId": "c2"
+              },
+              {
+                "op": "award",
+                "userId": "u5",
+                "amount": 1186,
+                "reason": "lesson 92"
+              },
+              {
+                "op": "place",
+                "userId": "u9",
+                "courseId": "c1"
+              },
+              {
+                "op": "place",
+                "userId": "u1",
+                "courseId": "c6"
+              },
+              {
+                "op": "place",
+                "userId": "u29",
+                "courseId": "c9"
+              },
+              {
+                "op": "place",
+                "userId": "u21",
+                "courseId": "c9"
+              },
+              {
+                "op": "place",
+                "userId": "u1",
+                "courseId": "c8"
+              },
+              {
+                "op": "award",
+                "userId": "u13",
+                "amount": 865,
+                "reason": "lesson 98"
+              },
+              {
+                "op": "award",
+                "userId": "u38",
+                "amount": 1212,
+                "reason": "lesson 99"
+              },
+              {
+                "op": "place",
+                "userId": "u50",
+                "courseId": "c4"
+              },
+              {
+                "op": "place",
+                "userId": "u58",
+                "courseId": "c2"
+              },
+              {
+                "op": "award",
+                "userId": "u36",
+                "amount": 1210,
+                "reason": "lesson 102"
+              },
+              {
+                "op": "award",
+                "userId": "u38",
+                "amount": 849,
+                "reason": "lesson 103"
+              },
+              {
+                "op": "place",
+                "userId": "u57",
+                "courseId": "c3"
+              },
+              {
+                "op": "award",
+                "userId": "u18",
+                "amount": 1067,
+                "reason": "lesson 105"
+              },
+              {
+                "op": "place",
+                "userId": "u49",
+                "courseId": "c8"
+              },
+              {
+                "op": "place",
+                "userId": "u26",
+                "courseId": "c3"
+              },
+              {
+                "op": "award",
+                "userId": "u23",
+                "amount": 544,
+                "reason": "lesson 108"
+              },
+              {
+                "op": "place",
+                "userId": "u25",
+                "courseId": "c3",
+                "crash": "beforeCommit"
+              },
+              {
+                "op": "award",
+                "userId": "u10",
+                "amount": 285,
+                "reason": "lesson 110",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "award",
+                "userId": "u11",
+                "amount": 1652,
+                "reason": ""
+              },
+              {
+                "op": "award",
+                "userId": "u23",
+                "amount": 1189,
+                "reason": "lesson 112"
+              },
+              {
+                "op": "place",
+                "userId": "u46",
+                "courseId": "c1"
+              },
+              {
+                "op": "place",
+                "userId": "u24",
+                "courseId": "c9",
+                "crash": "beforeCommit"
+              },
+              {
+                "op": "award",
+                "userId": "u57",
+                "amount": 1191,
+                "reason": "lesson 115"
+              },
+              {
+                "op": "award",
+                "userId": "u21",
+                "amount": 1002,
+                "reason": "lesson 116"
+              },
+              {
+                "op": "place",
+                "userId": "u33",
+                "courseId": "c3"
+              },
+              {
+                "op": "place",
+                "userId": "u62",
+                "courseId": "c4"
+              },
+              {
+                "op": "award",
+                "userId": "u2",
+                "amount": 1318,
+                "reason": "lesson 119"
+              },
+              {
+                "op": "award",
+                "userId": "u5",
+                "amount": 226,
+                "reason": "lesson 120"
+              },
+              {
+                "op": "place",
+                "userId": "u10",
+                "courseId": "c8"
+              },
+              {
+                "op": "place",
+                "userId": "u19",
+                "courseId": "c2"
+              },
+              {
+                "op": "award",
+                "userId": "u45",
+                "amount": 603,
+                "reason": "lesson 123",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "place",
+                "userId": "u3",
+                "courseId": "c6"
+              },
+              {
+                "op": "award",
+                "userId": "u1",
+                "amount": 274,
+                "reason": "lesson 125"
+              },
+              {
+                "op": "place",
+                "userId": "u31",
+                "courseId": "c2"
+              },
+              {
+                "op": "award",
+                "userId": "u23",
+                "amount": 1200,
+                "reason": "lesson 127"
+              },
+              {
+                "op": "award",
+                "userId": "u20",
+                "amount": 290,
+                "reason": "lesson 128"
+              },
+              {
+                "op": "award",
+                "userId": "u35",
+                "amount": 0,
+                "reason": "lesson 129"
+              },
+              {
+                "op": "place",
+                "userId": "u42",
+                "courseId": "c7"
+              },
+              {
+                "op": "place",
+                "userId": "u51",
+                "courseId": "c5"
+              },
+              {
+                "op": "award",
+                "userId": "u58",
+                "amount": 1686,
+                "reason": "lesson 132"
+              },
+              {
+                "op": "place",
+                "userId": "u39",
+                "courseId": "c1"
+              },
+              {
+                "op": "place",
+                "userId": "u3",
+                "courseId": "c7"
+              },
+              {
+                "op": "award",
+                "userId": "u20",
+                "amount": 1453,
+                "reason": "lesson 135"
+              },
+              {
+                "op": "award",
+                "userId": "u24",
+                "amount": 2,
+                "reason": "lesson 136"
+              },
+              {
+                "op": "place",
+                "userId": "u26",
+                "courseId": "c5"
+              },
+              {
+                "op": "place",
+                "userId": "u8",
+                "courseId": "c3"
+              },
+              {
+                "op": "place",
+                "userId": "u24",
+                "courseId": "c1"
+              },
+              {
+                "op": "place",
+                "userId": "u8",
+                "courseId": "c4"
+              },
+              {
+                "op": "award",
+                "userId": "u26",
+                "amount": 446,
+                "reason": "lesson 141"
+              },
+              {
+                "op": "award",
+                "userId": "u60",
+                "amount": 982,
+                "reason": "lesson 142"
+              },
+              {
+                "op": "award",
+                "userId": "u53",
+                "amount": 61,
+                "reason": "lesson 143"
+              },
+              {
+                "op": "place",
+                "userId": "u5",
+                "courseId": "c5"
+              },
+              {
+                "op": "award",
+                "userId": "u49",
+                "amount": 907,
+                "reason": "lesson 145"
+              },
+              {
+                "op": "place",
+                "userId": "u38",
+                "courseId": "c2"
+              },
+              {
+                "op": "award",
+                "userId": "u10",
+                "amount": 1441,
+                "reason": "lesson 147",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "place",
+                "userId": "u33",
+                "courseId": "c1"
+              },
+              {
+                "op": "place",
+                "userId": "u17",
+                "courseId": "c2"
+              },
+              {
+                "op": "award",
+                "userId": "u24",
+                "amount": 734,
+                "reason": "lesson 150"
+              },
+              {
+                "op": "place",
+                "userId": "u1",
+                "courseId": "c2",
+                "crash": "beforeCommit"
+              },
+              {
+                "op": "place",
+                "userId": "u33",
+                "courseId": "c7"
+              },
+              {
+                "op": "award",
+                "userId": "u25",
+                "amount": 265,
+                "reason": "lesson 153"
+              },
+              {
+                "op": "award",
+                "userId": "u16",
+                "amount": 960,
+                "reason": "lesson 154"
+              },
+              {
+                "op": "award",
+                "userId": "u40",
+                "amount": 917,
+                "reason": "lesson 155"
+              },
+              {
+                "op": "award",
+                "userId": "u9",
+                "amount": 0,
+                "reason": "lesson 156"
+              },
+              {
+                "op": "place",
+                "userId": "u54",
+                "courseId": "c7"
+              },
+              {
+                "op": "place",
+                "userId": "u30",
+                "courseId": "c1"
+              },
+              {
+                "op": "award",
+                "userId": "u27",
+                "amount": 1626,
+                "reason": "lesson 159",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "award",
+                "userId": "u58",
+                "amount": 373,
+                "reason": "lesson 160"
+              },
+              {
+                "op": "award",
+                "userId": "u8",
+                "amount": 1022,
+                "reason": "lesson 161"
+              },
+              {
+                "op": "place",
+                "userId": "u46",
+                "courseId": "c4"
+              },
+              {
+                "op": "place",
+                "userId": "u41",
+                "courseId": "c9"
+              },
+              {
+                "op": "place",
+                "userId": "u9",
+                "courseId": "c6"
+              },
+              {
+                "op": "award",
+                "userId": "u12",
+                "amount": 197,
+                "reason": "lesson 165"
+              },
+              {
+                "op": "place",
+                "userId": "u44",
+                "courseId": "c4"
+              },
+              {
+                "op": "place",
+                "userId": "u56",
+                "courseId": "c3"
+              },
+              {
+                "op": "place",
+                "userId": "u7",
+                "courseId": "c7",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "award",
+                "userId": "u24",
+                "amount": 881,
+                "reason": "lesson 169"
+              },
+              {
+                "op": "place",
+                "userId": "u10",
+                "courseId": "c1"
+              },
+              {
+                "op": "award",
+                "userId": "u3",
+                "amount": 369,
+                "reason": "lesson 171"
+              },
+              {
+                "op": "award",
+                "userId": "u22",
+                "amount": 1133,
+                "reason": "lesson 172"
+              },
+              {
+                "op": "award",
+                "userId": "u26",
+                "amount": 369,
+                "reason": "lesson 173",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "award",
+                "userId": "u59",
+                "amount": 1537,
+                "reason": "lesson 174"
+              },
+              {
+                "op": "place",
+                "userId": "u10",
+                "courseId": "c7"
+              },
+              {
+                "op": "award",
+                "userId": "u2",
+                "amount": 1100,
+                "reason": "lesson 176"
+              },
+              {
+                "op": "award",
+                "userId": "u48",
+                "amount": 1266,
+                "reason": "lesson 177"
+              },
+              {
+                "op": "place",
+                "userId": "u5",
+                "courseId": "c7"
+              },
+              {
+                "op": "place",
+                "userId": "u24",
+                "courseId": "c9"
+              },
+              {
+                "op": "award",
+                "userId": "u12",
+                "amount": 1244,
+                "reason": "lesson 180"
+              },
+              {
+                "op": "place",
+                "userId": "u27",
+                "courseId": "c2"
+              },
+              {
+                "op": "award",
+                "userId": "u49",
+                "amount": 12.5,
+                "reason": "lesson 182",
+                "crash": "beforeCommit"
+              },
+              {
+                "op": "place",
+                "userId": "u1",
+                "courseId": "c2"
+              },
+              {
+                "op": "place",
+                "userId": "u49",
+                "courseId": "c9",
+                "crash": "beforeCommit"
+              },
+              {
+                "op": "place",
+                "userId": "u46",
+                "courseId": "c5"
+              },
+              {
+                "op": "place",
+                "userId": "u36",
+                "courseId": "c4"
+              },
+              {
+                "op": "place",
+                "userId": "u56",
+                "courseId": "c9"
+              },
+              {
+                "op": "award",
+                "userId": "u60",
+                "amount": 1308,
+                "reason": "lesson 188"
+              },
+              {
+                "op": "award",
+                "userId": "u39",
+                "amount": 1119,
+                "reason": "lesson 189"
+              },
+              {
+                "op": "award",
+                "userId": "u45",
+                "amount": 723,
+                "reason": "lesson 190"
+              },
+              {
+                "op": "place",
+                "userId": "u4",
+                "courseId": "c7"
+              },
+              {
+                "op": "award",
+                "userId": "u8",
+                "amount": 961,
+                "reason": "lesson 192"
+              },
+              {
+                "op": "award",
+                "userId": "u57",
+                "amount": 830,
+                "reason": "lesson 193"
+              },
+              {
+                "op": "place",
+                "userId": "u32",
+                "courseId": "c7"
+              },
+              {
+                "op": "award",
+                "userId": "u15",
+                "amount": 955,
+                "reason": "lesson 195"
+              },
+              {
+                "op": "award",
+                "userId": "u29",
+                "amount": 508,
+                "reason": ""
+              },
+              {
+                "op": "award",
+                "userId": "u16",
+                "amount": 1539,
+                "reason": "lesson 197"
+              },
+              {
+                "op": "place",
+                "userId": "u26",
+                "courseId": "c5"
+              },
+              {
+                "op": "place",
+                "userId": "u14",
+                "courseId": "c8"
+              },
+              {
+                "op": "place",
+                "userId": "u11",
+                "courseId": "c5"
+              },
+              {
+                "op": "place",
+                "userId": "u62",
+                "courseId": "c9"
+              },
+              {
+                "op": "place",
+                "userId": "u25",
+                "courseId": "c3"
+              },
+              {
+                "op": "place",
+                "userId": "u54",
+                "courseId": "c6"
+              },
+              {
+                "op": "award",
+                "userId": "u31",
+                "amount": 1261,
+                "reason": "lesson 204",
+                "crash": "beforeCommit"
+              },
+              {
+                "op": "place",
+                "userId": "u9",
+                "courseId": "c8"
+              },
+              {
+                "op": "award",
+                "userId": "u7",
+                "amount": 715,
+                "reason": "lesson 206"
+              },
+              {
+                "op": "place",
+                "userId": "u55",
+                "courseId": "c6"
+              },
+              {
+                "op": "place",
+                "userId": "u10",
+                "courseId": "c5"
+              },
+              {
+                "op": "place",
+                "userId": "u18",
+                "courseId": "c4"
+              },
+              {
+                "op": "award",
+                "userId": "u40",
+                "amount": 230,
+                "reason": "lesson 210"
+              },
+              {
+                "op": "place",
+                "userId": "u11",
+                "courseId": "c4"
+              },
+              {
+                "op": "place",
+                "userId": "u5",
+                "courseId": "c1"
+              },
+              {
+                "op": "place",
+                "userId": "u55",
+                "courseId": "c8"
+              },
+              {
+                "op": "place",
+                "userId": "u23",
+                "courseId": "c2",
+                "crash": "beforeCommit"
+              },
+              {
+                "op": "award",
+                "userId": "u46",
+                "amount": 261,
+                "reason": "lesson 215"
+              },
+              {
+                "op": "award",
+                "userId": "u33",
+                "amount": 608,
+                "reason": ""
+              },
+              {
+                "op": "award",
+                "userId": "u44",
+                "amount": 261,
+                "reason": "lesson 217"
+              },
+              {
+                "op": "award",
+                "userId": "u48",
+                "amount": 1406,
+                "reason": "lesson 218"
+              },
+              {
+                "op": "award",
+                "userId": "u58",
+                "amount": 1667,
+                "reason": "lesson 219"
+              },
+              {
+                "op": "place",
+                "userId": "u54",
+                "courseId": "c4"
+              },
+              {
+                "op": "award",
+                "userId": "u33",
+                "amount": 1586,
+                "reason": "lesson 221",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "place",
+                "userId": "u19",
+                "courseId": "c4"
+              },
+              {
+                "op": "award",
+                "userId": "u36",
+                "amount": 470,
+                "reason": "lesson 223"
+              },
+              {
+                "op": "award",
+                "userId": "u24",
+                "amount": 1155,
+                "reason": "lesson 224"
+              },
+              {
+                "op": "award",
+                "userId": "u4",
+                "amount": 1775,
+                "reason": "lesson 225"
+              },
+              {
+                "op": "award",
+                "userId": "u4",
+                "amount": 63,
+                "reason": "lesson 226"
+              },
+              {
+                "op": "place",
+                "userId": "u61",
+                "courseId": "c8"
+              },
+              {
+                "op": "place",
+                "userId": "u14",
+                "courseId": "c8"
+              },
+              {
+                "op": "place",
+                "userId": "u9",
+                "courseId": "c7"
+              },
+              {
+                "op": "place",
+                "userId": "u32",
+                "courseId": "c5"
+              },
+              {
+                "op": "place",
+                "userId": "u14",
+                "courseId": "c5"
+              },
+              {
+                "op": "award",
+                "userId": "u6",
+                "amount": 1703,
+                "reason": "lesson 232"
+              },
+              {
+                "op": "place",
+                "userId": "u22",
+                "courseId": "c5",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "place",
+                "userId": "u34",
+                "courseId": "c1"
+              },
+              {
+                "op": "award",
+                "userId": "u61",
+                "amount": 50,
+                "reason": "lesson 235"
+              },
+              {
+                "op": "place",
+                "userId": "u33",
+                "courseId": "c4"
+              },
+              {
+                "op": "place",
+                "userId": "u43",
+                "courseId": "c5"
+              },
+              {
+                "op": "award",
+                "userId": "u26",
+                "amount": 678,
+                "reason": "lesson 238"
+              },
+              {
+                "op": "place",
+                "userId": "u47",
+                "courseId": "c4"
+              },
+              {
+                "op": "award",
+                "userId": "u12",
+                "amount": 1600,
+                "reason": "lesson 240"
+              },
+              {
+                "op": "place",
+                "userId": "u16",
+                "courseId": "c1"
+              },
+              {
+                "op": "place",
+                "userId": "u47",
+                "courseId": "c1"
+              },
+              {
+                "op": "award",
+                "userId": "u29",
+                "amount": 770,
+                "reason": "lesson 243"
+              },
+              {
+                "op": "place",
+                "userId": "u54",
+                "courseId": "c2"
+              },
+              {
+                "op": "place",
+                "userId": "u49",
+                "courseId": "c5",
+                "crash": "beforeCommit"
+              },
+              {
+                "op": "award",
+                "userId": "u51",
+                "amount": 625,
+                "reason": "lesson 246"
+              },
+              {
+                "op": "place",
+                "userId": "u51",
+                "courseId": "c2"
+              },
+              {
+                "op": "award",
+                "userId": "u33",
+                "amount": 381,
+                "reason": "lesson 248"
+              },
+              {
+                "op": "place",
+                "userId": "u20",
+                "courseId": "c7"
+              },
+              {
+                "op": "place",
+                "userId": "u45",
+                "courseId": "c2"
+              },
+              {
+                "op": "place",
+                "userId": "u20",
+                "courseId": "c4"
+              },
+              {
+                "op": "place",
+                "userId": "u60",
+                "courseId": "c5"
+              },
+              {
+                "op": "award",
+                "userId": "u28",
+                "amount": 383,
+                "reason": "lesson 253"
+              },
+              {
+                "op": "place",
+                "userId": "u5",
+                "courseId": "c5"
+              },
+              {
+                "op": "place",
+                "userId": "u10",
+                "courseId": "c1"
+              },
+              {
+                "op": "award",
+                "userId": "u50",
+                "amount": 421,
+                "reason": "lesson 256"
+              },
+              {
+                "op": "place",
+                "userId": "u34",
+                "courseId": "c5"
+              },
+              {
+                "op": "award",
+                "userId": "u18",
+                "amount": 515,
+                "reason": "lesson 258"
+              },
+              {
+                "op": "place",
+                "userId": "u17",
+                "courseId": "c7"
+              },
+              {
+                "op": "award",
+                "userId": "u46",
+                "amount": 0,
+                "reason": "lesson 260"
+              },
+              {
+                "op": "place",
+                "userId": "u53",
+                "courseId": "c4"
+              },
+              {
+                "op": "award",
+                "userId": "u8",
+                "amount": 1376,
+                "reason": "lesson 262"
+              },
+              {
+                "op": "place",
+                "userId": "u62",
+                "courseId": "c5"
+              },
+              {
+                "op": "award",
+                "userId": "u47",
+                "amount": 20000,
+                "reason": "lesson 264"
+              },
+              {
+                "op": "place",
+                "userId": "u50",
+                "courseId": "c3"
+              },
+              {
+                "op": "award",
+                "userId": "u35",
+                "amount": 389,
+                "reason": "lesson 266",
+                "crash": "beforeCommit"
+              },
+              {
+                "op": "place",
+                "userId": "u27",
+                "courseId": "c9"
+              },
+              {
+                "op": "award",
+                "userId": "u32",
+                "amount": 437,
+                "reason": "lesson 268",
+                "crash": "beforeCommit"
+              },
+              {
+                "op": "award",
+                "userId": "u27",
+                "amount": 1431,
+                "reason": "lesson 269"
+              },
+              {
+                "op": "place",
+                "userId": "u42",
+                "courseId": "c7",
+                "crash": "beforeCommit"
+              },
+              {
+                "op": "award",
+                "userId": "u15",
+                "amount": 1800,
+                "reason": ""
+              },
+              {
+                "op": "place",
+                "userId": "u51",
+                "courseId": "c3"
+              },
+              {
+                "op": "place",
+                "userId": "u45",
+                "courseId": "c3"
+              },
+              {
+                "op": "award",
+                "userId": "u38",
+                "amount": 89,
+                "reason": "lesson 274"
+              },
+              {
+                "op": "place",
+                "userId": "u39",
+                "courseId": "c1"
+              },
+              {
+                "op": "place",
+                "userId": "u51",
+                "courseId": "c5"
+              },
+              {
+                "op": "award",
+                "userId": "u58",
+                "amount": 1575,
+                "reason": "lesson 277"
+              },
+              {
+                "op": "place",
+                "userId": "u39",
+                "courseId": "c3"
+              },
+              {
+                "op": "award",
+                "userId": "u61",
+                "amount": 681,
+                "reason": ""
+              },
+              {
+                "op": "place",
+                "userId": "u1",
+                "courseId": "c9"
+              },
+              {
+                "op": "award",
+                "userId": "u32",
+                "amount": 510,
+                "reason": "lesson 281"
+              },
+              {
+                "op": "award",
+                "userId": "u11",
+                "amount": 799,
+                "reason": "lesson 282"
+              },
+              {
+                "op": "award",
+                "userId": "u12",
+                "amount": 0,
+                "reason": "lesson 283"
+              },
+              {
+                "op": "place",
+                "userId": "u3",
+                "courseId": "c3"
+              },
+              {
+                "op": "award",
+                "userId": "u41",
+                "amount": 679,
+                "reason": "lesson 285"
+              },
+              {
+                "op": "award",
+                "userId": "u13",
+                "amount": 991,
+                "reason": "lesson 286"
+              },
+              {
+                "op": "place",
+                "userId": "u58",
+                "courseId": "c8",
+                "crash": "beforeCommit"
+              },
+              {
+                "op": "award",
+                "userId": "u44",
+                "amount": 1359,
+                "reason": "lesson 288"
+              },
+              {
+                "op": "place",
+                "userId": "u11",
+                "courseId": "c7"
+              },
+              {
+                "op": "place",
+                "userId": "u24",
+                "courseId": "c6"
+              },
+              {
+                "op": "award",
+                "userId": "u32",
+                "amount": 20000,
+                "reason": "lesson 291"
+              },
+              {
+                "op": "award",
+                "userId": "u9",
+                "amount": 541,
+                "reason": "lesson 292"
+              },
+              {
+                "op": "award",
+                "userId": "u39",
+                "amount": 0,
+                "reason": "lesson 293"
+              },
+              {
+                "op": "place",
+                "userId": "u33",
+                "courseId": "c4"
+              },
+              {
+                "op": "place",
+                "userId": "u47",
+                "courseId": "c3"
+              },
+              {
+                "op": "place",
+                "userId": "u43",
+                "courseId": "c4"
+              },
+              {
+                "op": "award",
+                "userId": "u5",
+                "amount": 1002,
+                "reason": "lesson 297"
+              },
+              {
+                "op": "award",
+                "userId": "u9",
+                "amount": 1391,
+                "reason": "lesson 298"
+              },
+              {
+                "op": "place",
+                "userId": "u11",
+                "courseId": "c9"
+              }
+            ]
+          },
+          "expected": "place u19/c9: rejected (unknown course)\naward u33 135: ok\nplace u13/c9: rejected (unknown course)\nplace u24/c1: no response (process crashed afterCommit)\naward u58 115: ok\nplace u31/c9: rejected (unknown course)\nplace u50/c1: no response (process crashed afterCommit)\naward u46 1505: ok\nplace u3/c2: ok\nplace u24/c8: ok\naward u55 832: ok\nplace u26/c8: ok\naward u22 720: ok\nplace u15/c6: ok\nplace u29/c5: ok\nplace u48/c2: no response (process crashed afterCommit)\naward u38 448: ok\naward u25 417: ok\nplace u39/c3: ok\nplace u48/c4: ok\nplace u16/c8: ok\nplace u37/c8: ok\nplace u28/c8: ok\nplace u14/c7: ok\nplace u1/c1: ok\naward u18 1618: ok\nplace u61/c3: rejected (unknown user)\naward u25 1700: ok\naward u32 1052: ok\nplace u29/c7: ok\nplace u55/c3: ok\nplace u4/c6: ok\naward u15 335: ok\naward u40 442: ok\naward u8 562: ok\naward u7 497: ok\naward u30 810: ok\naward u5 293: ok\naward u48 12.5: rejected (invalid amount)\nplace u30/c8: ok\naward u10 176: ok\naward u4 1041: ok\naward u26 330: no response (process crashed beforeCommit)\naward u10 561: ok\naward u8 1783: ok\nplace u17/c7: ok\nplace u43/c1: ok\nplace u8/c1: no response (process crashed beforeCommit)\nplace u20/c2: ok\nplace u29/c9: rejected (unknown course)\nplace u38/c3: ok\nplace u47/c1: ok\nplace u47/c2: ok\nplace u14/c6: ok\nplace u54/c8: ok\naward u9 953: ok\naward u62 1584: rejected (unknown user)\nplace u57/c8: ok\naward u58 68: ok\naward u6 0: rejected (invalid amount)\naward u1 80: ok\nplace u7/c1: ok\nplace u14/c8: ok\nplace u58/c8: ok\nplace u32/c6: ok\nplace u6/c1: ok\nplace u20/c5: ok\naward u33 1678: ok\naward u35 20000: rejected (invalid amount)\naward u30 37: ok\naward u47 1424: ok\nplace u3/c7: ok\naward u28 525: ok\naward u55 20000: rejected (invalid amount)\naward u21 206: ok\naward u7 917: ok\naward u16 1737: rejected (missing reason)\naward u43 1154: ok\nplace u50/c1: rejected (already enrolled)\naward u62 1183: rejected (unknown user)\nplace u42/c9: rejected (unknown course)\naward u13 315: ok\nplace u3/c4: ok\nplace u51/c6: ok\nplace u35/c5: ok\naward u10 257: ok\nplace u53/c8: ok\nplace u59/c9: rejected (unknown course)\nplace u29/c6: ok\nplace u6/c2: no response (process crashed afterCommit)\naward u41 12.5: rejected (invalid amount)\nplace u29/c2: ok\naward u5 1186: ok\nplace u9/c1: ok\nplace u1/c6: ok\nplace u29/c9: rejected (unknown course)\nplace u21/c9: rejected (unknown course)\nplace u1/c8: ok\naward u13 865: ok\naward u38 1212: ok\nplace u50/c4: ok\nplace u58/c2: ok\naward u36 1210: ok\naward u38 849: ok\nplace u57/c3: ok\naward u18 1067: ok\nplace u49/c8: ok\nplace u26/c3: ok\naward u23 544: ok\nplace u25/c3: no response (process crashed beforeCommit)\naward u10 285: no response (process crashed afterCommit)\naward u11 1652: rejected (missing reason)\naward u23 1189: ok\nplace u46/c1: ok\nplace u24/c9: rejected (unknown course)\naward u57 1191: ok\naward u21 1002: ok\nplace u33/c3: ok\nplace u62/c4: rejected (unknown user)\naward u2 1318: ok\naward u5 226: ok\nplace u10/c8: ok\nplace u19/c2: ok\naward u45 603: no response (process crashed afterCommit)\nplace u3/c6: ok\naward u1 274: ok\nplace u31/c2: ok\naward u23 1200: ok\naward u20 290: ok\naward u35 0: rejected (invalid amount)\nplace u42/c7: ok\nplace u51/c5: ok\naward u58 1686: ok\nplace u39/c1: ok\nplace u3/c7: rejected (already enrolled)\naward u20 1453: ok\naward u24 2: ok\nplace u26/c5: ok\nplace u8/c3: ok\nplace u24/c1: rejected (already enrolled)\nplace u8/c4: ok\naward u26 446: ok\naward u60 982: ok\naward u53 61: ok\nplace u5/c5: ok\naward u49 907: ok\nplace u38/c2: ok\naward u10 1441: no response (process crashed afterCommit)\nplace u33/c1: ok\nplace u17/c2: ok\naward u24 734: ok\nplace u1/c2: no response (process crashed beforeCommit)\nplace u33/c7: ok\naward u25 265: ok\naward u16 960: ok\naward u40 917: ok\naward u9 0: rejected (invalid amount)\nplace u54/c7: ok\nplace u30/c1: ok\naward u27 1626: no response (process crashed afterCommit)\naward u58 373: ok\naward u8 1022: ok\nplace u46/c4: ok\nplace u41/c9: rejected (unknown course)\nplace u9/c6: ok\naward u12 197: ok\nplace u44/c4: ok\nplace u56/c3: ok\nplace u7/c7: no response (process crashed afterCommit)\naward u24 881: ok\nplace u10/c1: ok\naward u3 369: ok\naward u22 1133: ok\naward u26 369: no response (process crashed afterCommit)\naward u59 1537: ok\nplace u10/c7: ok\naward u2 1100: ok\naward u48 1266: ok\nplace u5/c7: ok\nplace u24/c9: rejected (unknown course)\naward u12 1244: ok\nplace u27/c2: ok\naward u49 12.5: rejected (invalid amount)\nplace u1/c2: ok\nplace u49/c9: rejected (unknown course)\nplace u46/c5: ok\nplace u36/c4: ok\nplace u56/c9: rejected (unknown course)\naward u60 1308: ok\naward u39 1119: ok\naward u45 723: ok\nplace u4/c7: ok\naward u8 961: ok\naward u57 830: ok\nplace u32/c7: ok\naward u15 955: ok\naward u29 508: rejected (missing reason)\naward u16 1539: ok\nplace u26/c5: rejected (already enrolled)\nplace u14/c8: rejected (already enrolled)\nplace u11/c5: ok\nplace u62/c9: rejected (unknown user)\nplace u25/c3: ok\nplace u54/c6: ok\naward u31 1261: no response (process crashed beforeCommit)\nplace u9/c8: ok\naward u7 715: ok\nplace u55/c6: ok\nplace u10/c5: ok\nplace u18/c4: ok\naward u40 230: ok\nplace u11/c4: ok\nplace u5/c1: ok\nplace u55/c8: ok\nplace u23/c2: no response (process crashed beforeCommit)\naward u46 261: ok\naward u33 608: rejected (missing reason)\naward u44 261: ok\naward u48 1406: ok\naward u58 1667: ok\nplace u54/c4: ok\naward u33 1586: no response (process crashed afterCommit)\nplace u19/c4: ok\naward u36 470: ok\naward u24 1155: ok\naward u4 1775: ok\naward u4 63: ok\nplace u61/c8: rejected (unknown user)\nplace u14/c8: rejected (already enrolled)\nplace u9/c7: ok\nplace u32/c5: ok\nplace u14/c5: ok\naward u6 1703: ok\nplace u22/c5: no response (process crashed afterCommit)\nplace u34/c1: ok\naward u61 50: rejected (unknown user)\nplace u33/c4: ok\nplace u43/c5: ok\naward u26 678: ok\nplace u47/c4: ok\naward u12 1600: ok\nplace u16/c1: ok\nplace u47/c1: rejected (already enrolled)\naward u29 770: ok\nplace u54/c2: ok\nplace u49/c5: no response (process crashed beforeCommit)\naward u51 625: ok\nplace u51/c2: ok\naward u33 381: ok\nplace u20/c7: ok\nplace u45/c2: ok\nplace u20/c4: ok\nplace u60/c5: ok\naward u28 383: ok\nplace u5/c5: rejected (already enrolled)\nplace u10/c1: rejected (already enrolled)\naward u50 421: ok\nplace u34/c5: ok\naward u18 515: ok\nplace u17/c7: rejected (already enrolled)\naward u46 0: rejected (invalid amount)\nplace u53/c4: ok\naward u8 1376: ok\nplace u62/c5: rejected (unknown user)\naward u47 20000: rejected (invalid amount)\nplace u50/c3: ok\naward u35 389: no response (process crashed beforeCommit)\nplace u27/c9: rejected (unknown course)\naward u32 437: no response (process crashed beforeCommit)\naward u27 1431: ok\nplace u42/c7: rejected (already enrolled)\naward u15 1800: rejected (missing reason)\nplace u51/c3: ok\nplace u45/c3: ok\naward u38 89: ok\nplace u39/c1: rejected (already enrolled)\nplace u51/c5: rejected (already enrolled)\naward u58 1575: ok\nplace u39/c3: rejected (already enrolled)\naward u61 681: rejected (unknown user)\nplace u1/c9: rejected (unknown course)\naward u32 510: ok\naward u11 799: ok\naward u12 0: rejected (invalid amount)\nplace u3/c3: ok\naward u41 679: ok\naward u13 991: ok\nplace u58/c8: rejected (already enrolled)\naward u44 1359: ok\nplace u11/c7: ok\nplace u24/c6: ok\naward u32 20000: rejected (invalid amount)\naward u9 541: ok\naward u39 0: rejected (invalid amount)\nplace u33/c4: rejected (already enrolled)\nplace u47/c3: ok\nplace u43/c4: ok\naward u5 1002: ok\naward u9 1391: ok\nplace u11/c9: rejected (unknown course)\n--- database\ncourses: c1 16/20, c2 16/25, c3 14/30, c4 16/35, c5 15/40, c6 12/45, c7 15/50, c8 16/55\nenrollments: enr_1 u24/c1 2026-10-27T09:00:04.000Z, enr_2 u50/c1 2026-10-27T09:00:07.000Z, enr_3 u3/c2 2026-10-27T09:00:09.000Z, enr_4 u24/c8 2026-10-27T09:00:10.000Z, enr_5 u26/c8 2026-10-27T09:00:12.000Z, enr_6 u15/c6 2026-10-27T09:00:14.000Z, enr_7 u29/c5 2026-10-27T09:00:15.000Z, enr_8 u48/c2 2026-10-27T09:00:16.000Z, enr_9 u39/c3 2026-10-27T09:00:19.000Z, enr_10 u48/c4 2026-10-27T09:00:20.000Z, enr_11 u16/c8 2026-10-27T09:00:21.000Z, enr_12 u37/c8 2026-10-27T09:00:22.000Z, enr_13 u28/c8 2026-10-27T09:00:23.000Z, enr_14 u14/c7 2026-10-27T09:00:24.000Z, enr_15 u1/c1 2026-10-27T09:00:25.000Z, enr_16 u29/c7 2026-10-27T09:00:30.000Z, enr_17 u55/c3 2026-10-27T09:00:31.000Z, enr_18 u4/c6 2026-10-27T09:00:32.000Z, enr_19 u30/c8 2026-10-27T09:00:40.000Z, enr_20 u17/c7 2026-10-27T09:00:46.000Z, enr_21 u43/c1 2026-10-27T09:00:47.000Z, enr_23 u20/c2 2026-10-27T09:00:49.000Z, enr_24 u38/c3 2026-10-27T09:00:51.000Z, enr_25 u47/c1 2026-10-27T09:00:52.000Z, enr_26 u47/c2 2026-10-27T09:00:53.000Z, enr_27 u14/c6 2026-10-27T09:00:54.000Z, enr_28 u54/c8 2026-10-27T09:00:55.000Z, enr_29 u57/c8 2026-10-27T09:00:58.000Z, enr_30 u7/c1 2026-10-27T09:01:02.000Z, enr_31 u14/c8 2026-10-27T09:01:03.000Z, enr_32 u58/c8 2026-10-27T09:01:04.000Z, enr_33 u32/c6 2026-10-27T09:01:05.000Z, enr_34 u6/c1 2026-10-27T09:01:06.000Z, enr_35 u20/c5 2026-10-27T09:01:07.000Z, enr_36 u3/c7 2026-10-27T09:01:12.000Z, enr_37 u3/c4 2026-10-27T09:01:23.000Z, enr_38 u51/c6 2026-10-27T09:01:24.000Z, enr_39 u35/c5 2026-10-27T09:01:25.000Z, enr_40 u53/c8 2026-10-27T09:01:27.000Z, enr_41 u29/c6 2026-10-27T09:01:29.000Z, enr_42 u6/c2 2026-10-27T09:01:30.000Z, enr_43 u29/c2 2026-10-27T09:01:32.000Z, enr_44 u9/c1 2026-10-27T09:01:34.000Z, enr_45 u1/c6 2026-10-27T09:01:35.000Z, enr_46 u1/c8 2026-10-27T09:01:38.000Z, enr_47 u50/c4 2026-10-27T09:01:41.000Z, enr_48 u58/c2 2026-10-27T09:01:42.000Z, enr_49 u57/c3 2026-10-27T09:01:45.000Z, enr_50 u49/c8 2026-10-27T09:01:47.000Z, enr_51 u26/c3 2026-10-27T09:01:48.000Z, enr_53 u46/c1 2026-10-27T09:01:54.000Z, enr_54 u33/c3 2026-10-27T09:01:58.000Z, enr_55 u10/c8 2026-10-27T09:02:02.000Z, enr_56 u19/c2 2026-10-27T09:02:03.000Z, enr_57 u3/c6 2026-10-27T09:02:05.000Z, enr_58 u31/c2 2026-10-27T09:02:07.000Z, enr_59 u42/c7 2026-10-27T09:02:11.000Z, enr_60 u51/c5 2026-10-27T09:02:12.000Z, enr_61 u39/c1 2026-10-27T09:02:14.000Z, enr_62 u26/c5 2026-10-27T09:02:18.000Z, enr_63 u8/c3 2026-10-27T09:02:19.000Z, enr_64 u8/c4 2026-10-27T09:02:21.000Z, enr_65 u5/c5 2026-10-27T09:02:25.000Z, enr_66 u38/c2 2026-10-27T09:02:27.000Z, enr_67 u33/c1 2026-10-27T09:02:29.000Z, enr_68 u17/c2 2026-10-27T09:02:30.000Z, enr_70 u33/c7 2026-10-27T09:02:33.000Z, enr_71 u54/c7 2026-10-27T09:02:38.000Z, enr_72 u30/c1 2026-10-27T09:02:39.000Z, enr_73 u46/c4 2026-10-27T09:02:43.000Z, enr_74 u9/c6 2026-10-27T09:02:45.000Z, enr_75 u44/c4 2026-10-27T09:02:47.000Z, enr_76 u56/c3 2026-10-27T09:02:48.000Z, enr_77 u7/c7 2026-10-27T09:02:49.000Z, enr_78 u10/c1 2026-10-27T09:02:51.000Z, enr_79 u10/c7 2026-10-27T09:02:56.000Z, enr_80 u5/c7 2026-10-27T09:02:59.000Z, enr_81 u27/c2 2026-10-27T09:03:02.000Z, enr_82 u1/c2 2026-10-27T09:03:04.000Z, enr_83 u46/c5 2026-10-27T09:03:06.000Z, enr_84 u36/c4 2026-10-27T09:03:07.000Z, enr_85 u4/c7 2026-10-27T09:03:12.000Z, enr_86 u32/c7 2026-10-27T09:03:15.000Z, enr_87 u11/c5 2026-10-27T09:03:21.000Z, enr_88 u25/c3 2026-10-27T09:03:23.000Z, enr_89 u54/c6 2026-10-27T09:03:24.000Z, enr_90 u9/c8 2026-10-27T09:03:26.000Z, enr_91 u55/c6 2026-10-27T09:03:28.000Z, enr_92 u10/c5 2026-10-27T09:03:29.000Z, enr_93 u18/c4 2026-10-27T09:03:30.000Z, enr_94 u11/c4 2026-10-27T09:03:32.000Z, enr_95 u5/c1 2026-10-27T09:03:33.000Z, enr_96 u55/c8 2026-10-27T09:03:34.000Z, enr_98 u54/c4 2026-10-27T09:03:41.000Z, enr_99 u19/c4 2026-10-27T09:03:43.000Z, enr_100 u9/c7 2026-10-27T09:03:50.000Z, enr_101 u32/c5 2026-10-27T09:03:51.000Z, enr_102 u14/c5 2026-10-27T09:03:52.000Z, enr_103 u22/c5 2026-10-27T09:03:54.000Z, enr_104 u34/c1 2026-10-27T09:03:55.000Z, enr_105 u33/c4 2026-10-27T09:03:57.000Z, enr_106 u43/c5 2026-10-27T09:03:58.000Z, enr_107 u47/c4 2026-10-27T09:04:00.000Z, enr_108 u16/c1 2026-10-27T09:04:02.000Z, enr_109 u54/c2 2026-10-27T09:04:05.000Z, enr_111 u51/c2 2026-10-27T09:04:08.000Z, enr_112 u20/c7 2026-10-27T09:04:10.000Z, enr_113 u45/c2 2026-10-27T09:04:11.000Z, enr_114 u20/c4 2026-10-27T09:04:12.000Z, enr_115 u60/c5 2026-10-27T09:04:13.000Z, enr_116 u34/c5 2026-10-27T09:04:18.000Z, enr_117 u53/c4 2026-10-27T09:04:22.000Z, enr_118 u50/c3 2026-10-27T09:04:26.000Z, enr_119 u51/c3 2026-10-27T09:04:33.000Z, enr_120 u45/c3 2026-10-27T09:04:34.000Z, enr_121 u3/c3 2026-10-27T09:04:45.000Z, enr_122 u11/c7 2026-10-27T09:04:50.000Z, enr_123 u24/c6 2026-10-27T09:04:51.000Z, enr_124 u47/c3 2026-10-27T09:04:56.000Z, enr_125 u43/c4 2026-10-27T09:04:57.000Z\nwallets: u1 354, u2 2555, u3 643, u4 3290, u5 3255, u6 2388, u7 2951, u8 6663, u9 2981, u10 2953, u11 1169, u12 3548, u13 2815, u14 781, u15 2208, u16 2554, u17 192, u18 3529, u19 466, u20 2346, u21 1948, u22 2730, u23 2947, u24 2923, u25 2670, u26 1918, u27 3619, u28 1607, u29 1606, u30 1820, u31 110, u32 1809, u33 4164, u34 521, u35 658, u36 2475, u37 932, u38 2667, u39 1325, u40 1932, u41 1159, u42 617, u43 1908, u44 2511, u45 1354, u46 1931, u47 1726, u48 3111, u49 1483, u50 1134, u51 1475, u52 987, u53 185, u54 261, u55 1230, u56 535, u57 2693, u58 6293, u59 2483, u60 2373\noutbox: 322 row(s)\nevt_1 wallet/u33 points.awarded {\"userId\":\"u33\",\"amount\":135,\"reason\":\"lesson 1\",\"balance\":519} 2026-10-27T09:00:02.000Z pending\nevt_2 enrollment/enr_1 enrollment.created {\"enrollmentId\":\"enr_1\",\"userId\":\"u24\",\"courseId\":\"c1\"} 2026-10-27T09:00:04.000Z pending\nevt_3 wallet/u58 points.awarded {\"userId\":\"u58\",\"amount\":115,\"reason\":\"lesson 4\",\"balance\":924} 2026-10-27T09:00:05.000Z pending\nevt_4 enrollment/enr_2 enrollment.created {\"enrollmentId\":\"enr_2\",\"userId\":\"u50\",\"courseId\":\"c1\"} 2026-10-27T09:00:07.000Z pending\nevt_5 wallet/u46 points.awarded {\"userId\":\"u46\",\"amount\":1505,\"reason\":\"lesson 7\",\"balance\":1670} 2026-10-27T09:00:08.000Z pending\nevt_6 wallet/u46 level.reached {\"userId\":\"u46\",\"level\":1} 2026-10-27T09:00:08.000Z pending\nevt_7 enrollment/enr_3 enrollment.created {\"enrollmentId\":\"enr_3\",\"userId\":\"u3\",\"courseId\":\"c2\"} 2026-10-27T09:00:09.000Z pending\nevt_8 enrollment/enr_4 enrollment.created {\"enrollmentId\":\"enr_4\",\"userId\":\"u24\",\"courseId\":\"c8\"} 2026-10-27T09:00:10.000Z pending\nevt_9 wallet/u55 points.awarded {\"userId\":\"u55\",\"amount\":832,\"reason\":\"lesson 10\",\"balance\":1230} 2026-10-27T09:00:11.000Z pending\nevt_10 wallet/u55 level.reached {\"userId\":\"u55\",\"level\":1} 2026-10-27T09:00:11.000Z pending\nevt_11 enrollment/enr_5 enrollment.created {\"enrollmentId\":\"enr_5\",\"userId\":\"u26\",\"courseId\":\"c8\"} 2026-10-27T09:00:12.000Z pending\nevt_12 wallet/u22 points.awarded {\"userId\":\"u22\",\"amount\":720,\"reason\":\"lesson 12\",\"balance\":1597} 2026-10-27T09:00:13.000Z pending\nevt_13 wallet/u22 level.reached {\"userId\":\"u22\",\"level\":1} 2026-10-27T09:00:13.000Z pending\nevt_14 enrollment/enr_6 enrollment.created {\"enrollmentId\":\"enr_6\",\"userId\":\"u15\",\"courseId\":\"c6\"} 2026-10-27T09:00:14.000Z pending\nevt_15 enrollment/enr_7 enrollment.created {\"enrollmentId\":\"enr_7\",\"userId\":\"u29\",\"courseId\":\"c5\"} 2026-10-27T09:00:15.000Z pending\nevt_16 enrollment/enr_8 enrollment.created {\"enrollmentId\":\"enr_8\",\"userId\":\"u48\",\"courseId\":\"c2\"} 2026-10-27T09:00:16.000Z pending\nevt_17 wallet/u38 points.awarded {\"userId\":\"u38\",\"amount\":448,\"reason\":\"lesson 16\",\"balance\":517} 2026-10-27T09:00:17.000Z pending\nevt_18 wallet/u25 points.awarded {\"userId\":\"u25\",\"amount\":417,\"reason\":\"lesson 17\",\"balance\":705} 2026-10-27T09:00:18.000Z pending\nevt_19 enrollment/enr_9 enrollment.created {\"enrollmentId\":\"enr_9\",\"userId\":\"u39\",\"courseId\":\"c3\"} 2026-10-27T09:00:19.000Z pending\nevt_20 enrollment/enr_10 enrollment.created {\"enrollmentId\":\"enr_10\",\"userId\":\"u48\",\"courseId\":\"c4\"} 2026-10-27T09:00:20.000Z pending\nevt_21 enrollment/enr_11 enrollment.created {\"enrollmentId\":\"enr_11\",\"userId\":\"u16\",\"courseId\":\"c8\"} 2026-10-27T09:00:21.000Z pending\nevt_22 enrollment/enr_12 enrollment.created {\"enrollmentId\":\"enr_12\",\"userId\":\"u37\",\"courseId\":\"c8\"} 2026-10-27T09:00:22.000Z pending\nevt_23 enrollment/enr_13 enrollment.created {\"enrollmentId\":\"enr_13\",\"userId\":\"u28\",\"courseId\":\"c8\"} 2026-10-27T09:00:23.000Z pending\nevt_24 enrollment/enr_14 enrollment.created {\"enrollmentId\":\"enr_14\",\"userId\":\"u14\",\"courseId\":\"c7\"} 2026-10-27T09:00:24.000Z pending\nevt_25 enrollment/enr_15 enrollment.created {\"enrollmentId\":\"enr_15\",\"userId\":\"u1\",\"courseId\":\"c1\"} 2026-10-27T09:00:25.000Z pending\nevt_26 wallet/u18 points.awarded {\"userId\":\"u18\",\"amount\":1618,\"reason\":\"lesson 25\",\"balance\":1947} 2026-10-27T09:00:26.000Z pending\nevt_27 wallet/u18 level.reached {\"userId\":\"u18\",\"level\":1} 2026-10-27T09:00:26.000Z pending\nevt_28 wallet/u25 points.awarded {\"userId\":\"u25\",\"amount\":1700,\"reason\":\"lesson 27\",\"balance\":2405} 2026-10-27T09:00:28.000Z pending\nevt_29 wallet/u25 level.reached {\"userId\":\"u25\",\"level\":1} 2026-10-27T09:00:28.000Z pending\nevt_30 wallet/u25 level.reached {\"userId\":\"u25\",\"level\":2} 2026-10-27T09:00:28.000Z pending\nevt_31 wallet/u32 points.awarded {\"userId\":\"u32\",\"amount\":1052,\"reason\":\"lesson 28\",\"balance\":1299} 2026-10-27T09:00:29.000Z pending\nevt_32 wallet/u32 level.reached {\"userId\":\"u32\",\"level\":1} 2026-10-27T09:00:29.000Z pending\nevt_33 enrollment/enr_16 enrollment.created {\"enrollmentId\":\"enr_16\",\"userId\":\"u29\",\"courseId\":\"c7\"} 2026-10-27T09:00:30.000Z pending\nevt_34 enrollment/enr_17 enrollment.created {\"enrollmentId\":\"enr_17\",\"userId\":\"u55\",\"courseId\":\"c3\"} 2026-10-27T09:00:31.000Z pending\nevt_35 enrollment/enr_18 enrollment.created {\"enrollmentId\":\"enr_18\",\"userId\":\"u4\",\"courseId\":\"c6\"} 2026-10-27T09:00:32.000Z pending\nevt_36 wallet/u15 points.awarded {\"userId\":\"u15\",\"amount\":335,\"reason\":\"lesson 32\",\"balance\":1253} 2026-10-27T09:00:33.000Z pending\nevt_37 wallet/u15 level.reached {\"userId\":\"u15\",\"level\":1} 2026-10-27T09:00:33.000Z pending\nevt_38 wallet/u40 points.awarded {\"userId\":\"u40\",\"amount\":442,\"reason\":\"lesson 33\",\"balance\":785} 2026-10-27T09:00:34.000Z pending\nevt_39 wallet/u8 points.awarded {\"userId\":\"u8\",\"amount\":562,\"reason\":\"lesson 34\",\"balance\":1521} 2026-10-27T09:00:35.000Z pending\nevt_40 wallet/u8 level.reached {\"userId\":\"u8\",\"level\":1} 2026-10-27T09:00:35.000Z pending\nevt_41 wallet/u7 points.awarded {\"userId\":\"u7\",\"amount\":497,\"reason\":\"lesson 35\",\"balance\":1319} 2026-10-27T09:00:36.000Z pending\nevt_42 wallet/u7 level.reached {\"userId\":\"u7\",\"level\":1} 2026-10-27T09:00:36.000Z pending\nevt_43 wallet/u30 points.awarded {\"userId\":\"u30\",\"amount\":810,\"reason\":\"lesson 36\",\"balance\":1783} 2026-10-27T09:00:37.000Z pending\nevt_44 wallet/u30 level.reached {\"userId\":\"u30\",\"level\":1} 2026-10-27T09:00:37.000Z pending\nevt_45 wallet/u5 points.awarded {\"userId\":\"u5\",\"amount\":293,\"reason\":\"lesson 37\",\"balance\":841} 2026-10-27T09:00:38.000Z pending\nevt_46 enrollment/enr_19 enrollment.created {\"enrollmentId\":\"enr_19\",\"userId\":\"u30\",\"courseId\":\"c8\"} 2026-10-27T09:00:40.000Z pending\nevt_47 wallet/u10 points.awarded {\"userId\":\"u10\",\"amount\":176,\"reason\":\"lesson 40\",\"balance\":409} 2026-10-27T09:00:41.000Z pending\nevt_48 wallet/u4 points.awarded {\"userId\":\"u4\",\"amount\":1041,\"reason\":\"lesson 41\",\"balance\":1452} 2026-10-27T09:00:42.000Z pending\nevt_49 wallet/u4 level.reached {\"userId\":\"u4\",\"level\":1} 2026-10-27T09:00:42.000Z pending\nevt_51 wallet/u10 points.awarded {\"userId\":\"u10\",\"amount\":561,\"reason\":\"lesson 43\",\"balance\":970} 2026-10-27T09:00:44.000Z pending\nevt_52 wallet/u8 points.awarded {\"userId\":\"u8\",\"amount\":1783,\"reason\":\"lesson 44\",\"balance\":3304} 2026-10-27T09:00:45.000Z pending\nevt_53 wallet/u8 level.reached {\"userId\":\"u8\",\"level\":2} 2026-10-27T09:00:45.000Z pending\nevt_54 wallet/u8 level.reached {\"userId\":\"u8\",\"level\":3} 2026-10-27T09:00:45.000Z pending\nevt_55 enrollment/enr_20 enrollment.created {\"enrollmentId\":\"enr_20\",\"userId\":\"u17\",\"courseId\":\"c7\"} 2026-10-27T09:00:46.000Z pending\nevt_56 enrollment/enr_21 enrollment.created {\"enrollmentId\":\"enr_21\",\"userId\":\"u43\",\"courseId\":\"c1\"} 2026-10-27T09:00:47.000Z pending\nevt_58 enrollment/enr_23 enrollment.created {\"enrollmentId\":\"enr_23\",\"userId\":\"u20\",\"courseId\":\"c2\"} 2026-10-27T09:00:49.000Z pending\nevt_59 enrollment/enr_24 enrollment.created {\"enrollmentId\":\"enr_24\",\"userId\":\"u38\",\"courseId\":\"c3\"} 2026-10-27T09:00:51.000Z pending\nevt_60 enrollment/enr_25 enrollment.created {\"enrollmentId\":\"enr_25\",\"userId\":\"u47\",\"courseId\":\"c1\"} 2026-10-27T09:00:52.000Z pending\nevt_61 enrollment/enr_26 enrollment.created {\"enrollmentId\":\"enr_26\",\"userId\":\"u47\",\"courseId\":\"c2\"} 2026-10-27T09:00:53.000Z pending\nevt_62 enrollment/enr_27 enrollment.created {\"enrollmentId\":\"enr_27\",\"userId\":\"u14\",\"courseId\":\"c6\"} 2026-10-27T09:00:54.000Z pending\nevt_63 enrollment/enr_28 enrollment.created {\"enrollmentId\":\"enr_28\",\"userId\":\"u54\",\"courseId\":\"c8\"} 2026-10-27T09:00:55.000Z pending\nevt_64 wallet/u9 points.awarded {\"userId\":\"u9\",\"amount\":953,\"reason\":\"lesson 55\",\"balance\":1049} 2026-10-27T09:00:56.000Z pending\nevt_65 wallet/u9 level.reached {\"userId\":\"u9\",\"level\":1} 2026-10-27T09:00:56.000Z pending\nevt_66 enrollment/enr_29 enrollment.created {\"enrollmentId\":\"enr_29\",\"userId\":\"u57\",\"courseId\":\"c8\"} 2026-10-27T09:00:58.000Z pending\nevt_67 wallet/u58 points.awarded {\"userId\":\"u58\",\"amount\":68,\"reason\":\"lesson 58\",\"balance\":992} 2026-10-27T09:00:59.000Z pending\nevt_68 wallet/u1 points.awarded {\"userId\":\"u1\",\"amount\":80,\"reason\":\"lesson 60\",\"balance\":80} 2026-10-27T09:01:01.000Z pending\nevt_69 enrollment/enr_30 enrollment.created {\"enrollmentId\":\"enr_30\",\"userId\":\"u7\",\"courseId\":\"c1\"} 2026-10-27T09:01:02.000Z pending\nevt_70 enrollment/enr_31 enrollment.created {\"enrollmentId\":\"enr_31\",\"userId\":\"u14\",\"courseId\":\"c8\"} 2026-10-27T09:01:03.000Z pending\nevt_71 enrollment/enr_32 enrollment.created {\"enrollmentId\":\"enr_32\",\"userId\":\"u58\",\"courseId\":\"c8\"} 2026-10-27T09:01:04.000Z pending\nevt_72 enrollment/enr_33 enrollment.created {\"enrollmentId\":\"enr_33\",\"userId\":\"u32\",\"courseId\":\"c6\"} 2026-10-27T09:01:05.000Z pending\nevt_73 enrollment/enr_34 enrollment.created {\"enrollmentId\":\"enr_34\",\"userId\":\"u6\",\"courseId\":\"c1\"} 2026-10-27T09:01:06.000Z pending\nevt_74 enrollment/enr_35 enrollment.created {\"enrollmentId\":\"enr_35\",\"userId\":\"u20\",\"courseId\":\"c5\"} 2026-10-27T09:01:07.000Z pending\nevt_75 wallet/u33 points.awarded {\"userId\":\"u33\",\"amount\":1678,\"reason\":\"lesson 67\",\"balance\":2197} 2026-10-27T09:01:08.000Z pending\nevt_76 wallet/u33 level.reached {\"userId\":\"u33\",\"level\":1} 2026-10-27T09:01:08.000Z pending\nevt_77 wallet/u33 level.reached {\"userId\":\"u33\",\"level\":2} 2026-10-27T09:01:08.000Z pending\nevt_78 wallet/u30 points.awarded {\"userId\":\"u30\",\"amount\":37,\"reason\":\"lesson 69\",\"balance\":1820} 2026-10-27T09:01:10.000Z pending\nevt_79 wallet/u47 points.awarded {\"userId\":\"u47\",\"amount\":1424,\"reason\":\"lesson 70\",\"balance\":1726} 2026-10-27T09:01:11.000Z pending\nevt_80 wallet/u47 level.reached {\"userId\":\"u47\",\"level\":1} 2026-10-27T09:01:11.000Z pending\nevt_81 enrollment/enr_36 enrollment.created {\"enrollmentId\":\"enr_36\",\"userId\":\"u3\",\"courseId\":\"c7\"} 2026-10-27T09:01:12.000Z pending\nevt_82 wallet/u28 points.awarded {\"userId\":\"u28\",\"amount\":525,\"reason\":\"lesson 72\",\"balance\":1224} 2026-10-27T09:01:13.000Z pending\nevt_83 wallet/u28 level.reached {\"userId\":\"u28\",\"level\":1} 2026-10-27T09:01:13.000Z pending\nevt_84 wallet/u21 points.awarded {\"userId\":\"u21\",\"amount\":206,\"reason\":\"lesson 74\",\"balance\":946} 2026-10-27T09:01:15.000Z pending\nevt_85 wallet/u7 points.awarded {\"userId\":\"u7\",\"amount\":917,\"reason\":\"lesson 75\",\"balance\":2236} 2026-10-27T09:01:16.000Z pending\nevt_86 wallet/u7 level.reached {\"userId\":\"u7\",\"level\":2} 2026-10-27T09:01:16.000Z pending\nevt_87 wallet/u43 points.awarded {\"userId\":\"u43\",\"amount\":1154,\"reason\":\"lesson 77\",\"balance\":1908} 2026-10-27T09:01:18.000Z pending\nevt_88 wallet/u43 level.reached {\"userId\":\"u43\",\"level\":1} 2026-10-27T09:01:18.000Z pending\nevt_89 wallet/u13 points.awarded {\"userId\":\"u13\",\"amount\":315,\"reason\":\"lesson 81\",\"balance\":959} 2026-10-27T09:01:22.000Z pending\nevt_90 enrollment/enr_37 enrollment.created {\"enrollmentId\":\"enr_37\",\"userId\":\"u3\",\"courseId\":\"c4\"} 2026-10-27T09:01:23.000Z pending\nevt_91 enrollment/enr_38 enrollment.created {\"enrollmentId\":\"enr_38\",\"userId\":\"u51\",\"courseId\":\"c6\"} 2026-10-27T09:01:24.000Z pending\nevt_92 enrollment/enr_39 enrollment.created {\"enrollmentId\":\"enr_39\",\"userId\":\"u35\",\"courseId\":\"c5\"} 2026-10-27T09:01:25.000Z pending\nevt_93 wallet/u10 points.awarded {\"userId\":\"u10\",\"amount\":257,\"reason\":\"lesson 85\",\"balance\":1227} 2026-10-27T09:01:26.000Z pending\nevt_94 wallet/u10 level.reached {\"userId\":\"u10\",\"level\":1} 2026-10-27T09:01:26.000Z pending\nevt_95 enrollment/enr_40 enrollment.created {\"enrollmentId\":\"enr_40\",\"userId\":\"u53\",\"courseId\":\"c8\"} 2026-10-27T09:01:27.000Z pending\nevt_96 enrollment/enr_41 enrollment.created {\"enrollmentId\":\"enr_41\",\"userId\":\"u29\",\"courseId\":\"c6\"} 2026-10-27T09:01:29.000Z pending\nevt_97 enrollment/enr_42 enrollment.created {\"enrollmentId\":\"enr_42\",\"userId\":\"u6\",\"courseId\":\"c2\"} 2026-10-27T09:01:30.000Z pending\nevt_98 enrollment/enr_43 enrollment.created {\"enrollmentId\":\"enr_43\",\"userId\":\"u29\",\"courseId\":\"c2\"} 2026-10-27T09:01:32.000Z pending\nevt_99 wallet/u5 points.awarded {\"userId\":\"u5\",\"amount\":1186,\"reason\":\"lesson 92\",\"balance\":2027} 2026-10-27T09:01:33.000Z pending\nevt_100 wallet/u5 level.reached {\"userId\":\"u5\",\"level\":1} 2026-10-27T09:01:33.000Z pending\nevt_101 wallet/u5 level.reached {\"userId\":\"u5\",\"level\":2} 2026-10-27T09:01:33.000Z pending\nevt_102 enrollment/enr_44 enrollment.created {\"enrollmentId\":\"enr_44\",\"userId\":\"u9\",\"courseId\":\"c1\"} 2026-10-27T09:01:34.000Z pending\nevt_103 enrollment/enr_45 enrollment.created {\"enrollmentId\":\"enr_45\",\"userId\":\"u1\",\"courseId\":\"c6\"} 2026-10-27T09:01:35.000Z pending\nevt_104 enrollment/enr_46 enrollment.created {\"enrollmentId\":\"enr_46\",\"userId\":\"u1\",\"courseId\":\"c8\"} 2026-10-27T09:01:38.000Z pending\nevt_105 wallet/u13 points.awarded {\"userId\":\"u13\",\"amount\":865,\"reason\":\"lesson 98\",\"balance\":1824} 2026-10-27T09:01:39.000Z pending\nevt_106 wallet/u13 level.reached {\"userId\":\"u13\",\"level\":1} 2026-10-27T09:01:39.000Z pending\nevt_107 wallet/u38 points.awarded {\"userId\":\"u38\",\"amount\":1212,\"reason\":\"lesson 99\",\"balance\":1729} 2026-10-27T09:01:40.000Z pending\nevt_108 wallet/u38 level.reached {\"userId\":\"u38\",\"level\":1} 2026-10-27T09:01:40.000Z pending\nevt_109 enrollment/enr_47 enrollment.created {\"enrollmentId\":\"enr_47\",\"userId\":\"u50\",\"courseId\":\"c4\"} 2026-10-27T09:01:41.000Z pending\nevt_110 enrollment/enr_48 enrollment.created {\"enrollmentId\":\"enr_48\",\"userId\":\"u58\",\"courseId\":\"c2\"} 2026-10-27T09:01:42.000Z pending\nevt_111 wallet/u36 points.awarded {\"userId\":\"u36\",\"amount\":1210,\"reason\":\"lesson 102\",\"balance\":2005} 2026-10-27T09:01:43.000Z pending\nevt_112 wallet/u36 level.reached {\"userId\":\"u36\",\"level\":1} 2026-10-27T09:01:43.000Z pending\nevt_113 wallet/u36 level.reached {\"userId\":\"u36\",\"level\":2} 2026-10-27T09:01:43.000Z pending\nevt_114 wallet/u38 points.awarded {\"userId\":\"u38\",\"amount\":849,\"reason\":\"lesson 103\",\"balance\":2578} 2026-10-27T09:01:44.000Z pending\nevt_115 wallet/u38 level.reached {\"userId\":\"u38\",\"level\":2} 2026-10-27T09:01:44.000Z pending\nevt_116 enrollment/enr_49 enrollment.created {\"enrollmentId\":\"enr_49\",\"userId\":\"u57\",\"courseId\":\"c3\"} 2026-10-27T09:01:45.000Z pending\nevt_117 wallet/u18 points.awarded {\"userId\":\"u18\",\"amount\":1067,\"reason\":\"lesson 105\",\"balance\":3014} 2026-10-27T09:01:46.000Z pending\nevt_118 wallet/u18 level.reached {\"userId\":\"u18\",\"level\":2} 2026-10-27T09:01:46.000Z pending\nevt_119 wallet/u18 level.reached {\"userId\":\"u18\",\"level\":3} 2026-10-27T09:01:46.000Z pending\nevt_120 enrollment/enr_50 enrollment.created {\"enrollmentId\":\"enr_50\",\"userId\":\"u49\",\"courseId\":\"c8\"} 2026-10-27T09:01:47.000Z pending\nevt_121 enrollment/enr_51 enrollment.created {\"enrollmentId\":\"enr_51\",\"userId\":\"u26\",\"courseId\":\"c3\"} 2026-10-27T09:01:48.000Z pending\nevt_122 wallet/u23 points.awarded {\"userId\":\"u23\",\"amount\":544,\"reason\":\"lesson 108\",\"balance\":558} 2026-10-27T09:01:49.000Z pending\nevt_124 wallet/u10 points.awarded {\"userId\":\"u10\",\"amount\":285,\"reason\":\"lesson 110\",\"balance\":1512} 2026-10-27T09:01:51.000Z pending\nevt_125 wallet/u23 points.awarded {\"userId\":\"u23\",\"amount\":1189,\"reason\":\"lesson 112\",\"balance\":1747} 2026-10-27T09:01:53.000Z pending\nevt_126 wallet/u23 level.reached {\"userId\":\"u23\",\"level\":1} 2026-10-27T09:01:53.000Z pending\nevt_127 enrollment/enr_53 enrollment.created {\"enrollmentId\":\"enr_53\",\"userId\":\"u46\",\"courseId\":\"c1\"} 2026-10-27T09:01:54.000Z pending\nevt_128 wallet/u57 points.awarded {\"userId\":\"u57\",\"amount\":1191,\"reason\":\"lesson 115\",\"balance\":1863} 2026-10-27T09:01:56.000Z pending\nevt_129 wallet/u57 level.reached {\"userId\":\"u57\",\"level\":1} 2026-10-27T09:01:56.000Z pending\nevt_130 wallet/u21 points.awarded {\"userId\":\"u21\",\"amount\":1002,\"reason\":\"lesson 116\",\"balance\":1948} 2026-10-27T09:01:57.000Z pending\nevt_131 wallet/u21 level.reached {\"userId\":\"u21\",\"level\":1} 2026-10-27T09:01:57.000Z pending\nevt_132 enrollment/enr_54 enrollment.created {\"enrollmentId\":\"enr_54\",\"userId\":\"u33\",\"courseId\":\"c3\"} 2026-10-27T09:01:58.000Z pending\nevt_133 wallet/u2 points.awarded {\"userId\":\"u2\",\"amount\":1318,\"reason\":\"lesson 119\",\"balance\":1455} 2026-10-27T09:02:00.000Z pending\nevt_134 wallet/u2 level.reached {\"userId\":\"u2\",\"level\":1} 2026-10-27T09:02:00.000Z pending\nevt_135 wallet/u5 points.awarded {\"userId\":\"u5\",\"amount\":226,\"reason\":\"lesson 120\",\"balance\":2253} 2026-10-27T09:02:01.000Z pending\nevt_136 enrollment/enr_55 enrollment.created {\"enrollmentId\":\"enr_55\",\"userId\":\"u10\",\"courseId\":\"c8\"} 2026-10-27T09:02:02.000Z pending\nevt_137 enrollment/enr_56 enrollment.created {\"enrollmentId\":\"enr_56\",\"userId\":\"u19\",\"courseId\":\"c2\"} 2026-10-27T09:02:03.000Z pending\nevt_138 wallet/u45 points.awarded {\"userId\":\"u45\",\"amount\":603,\"reason\":\"lesson 123\",\"balance\":631} 2026-10-27T09:02:04.000Z pending\nevt_139 enrollment/enr_57 enrollment.created {\"enrollmentId\":\"enr_57\",\"userId\":\"u3\",\"courseId\":\"c6\"} 2026-10-27T09:02:05.000Z pending\nevt_140 wallet/u1 points.awarded {\"userId\":\"u1\",\"amount\":274,\"reason\":\"lesson 125\",\"balance\":354} 2026-10-27T09:02:06.000Z pending\nevt_141 enrollment/enr_58 enrollment.created {\"enrollmentId\":\"enr_58\",\"userId\":\"u31\",\"courseId\":\"c2\"} 2026-10-27T09:02:07.000Z pending\nevt_142 wallet/u23 points.awarded {\"userId\":\"u23\",\"amount\":1200,\"reason\":\"lesson 127\",\"balance\":2947} 2026-10-27T09:02:08.000Z pending\nevt_143 wallet/u23 level.reached {\"userId\":\"u23\",\"level\":2} 2026-10-27T09:02:08.000Z pending\nevt_144 wallet/u20 points.awarded {\"userId\":\"u20\",\"amount\":290,\"reason\":\"lesson 128\",\"balance\":893} 2026-10-27T09:02:09.000Z pending\nevt_145 enrollment/enr_59 enrollment.created {\"enrollmentId\":\"enr_59\",\"userId\":\"u42\",\"courseId\":\"c7\"} 2026-10-27T09:02:11.000Z pending\nevt_146 enrollment/enr_60 enrollment.created {\"enrollmentId\":\"enr_60\",\"userId\":\"u51\",\"courseId\":\"c5\"} 2026-10-27T09:02:12.000Z pending\nevt_147 wallet/u58 points.awarded {\"userId\":\"u58\",\"amount\":1686,\"reason\":\"lesson 132\",\"balance\":2678} 2026-10-27T09:02:13.000Z pending\nevt_148 wallet/u58 level.reached {\"userId\":\"u58\",\"level\":1} 2026-10-27T09:02:13.000Z pending\nevt_149 wallet/u58 level.reached {\"userId\":\"u58\",\"level\":2} 2026-10-27T09:02:13.000Z pending\nevt_150 enrollment/enr_61 enrollment.created {\"enrollmentId\":\"enr_61\",\"userId\":\"u39\",\"courseId\":\"c1\"} 2026-10-27T09:02:14.000Z pending\nevt_151 wallet/u20 points.awarded {\"userId\":\"u20\",\"amount\":1453,\"reason\":\"lesson 135\",\"balance\":2346} 2026-10-27T09:02:16.000Z pending\nevt_152 wallet/u20 level.reached {\"userId\":\"u20\",\"level\":1} 2026-10-27T09:02:16.000Z pending\nevt_153 wallet/u20 level.reached {\"userId\":\"u20\",\"level\":2} 2026-10-27T09:02:16.000Z pending\nevt_154 wallet/u24 points.awarded {\"userId\":\"u24\",\"amount\":2,\"reason\":\"lesson 136\",\"balance\":153} 2026-10-27T09:02:17.000Z pending\nevt_155 enrollment/enr_62 enrollment.created {\"enrollmentId\":\"enr_62\",\"userId\":\"u26\",\"courseId\":\"c5\"} 2026-10-27T09:02:18.000Z pending\nevt_156 enrollment/enr_63 enrollment.created {\"enrollmentId\":\"enr_63\",\"userId\":\"u8\",\"courseId\":\"c3\"} 2026-10-27T09:02:19.000Z pending\nevt_157 enrollment/enr_64 enrollment.created {\"enrollmentId\":\"enr_64\",\"userId\":\"u8\",\"courseId\":\"c4\"} 2026-10-27T09:02:21.000Z pending\nevt_158 wallet/u26 points.awarded {\"userId\":\"u26\",\"amount\":446,\"reason\":\"lesson 141\",\"balance\":871} 2026-10-27T09:02:22.000Z pending\nevt_159 wallet/u60 points.awarded {\"userId\":\"u60\",\"amount\":982,\"reason\":\"lesson 142\",\"balance\":1065} 2026-10-27T09:02:23.000Z pending\nevt_160 wallet/u60 level.reached {\"userId\":\"u60\",\"level\":1} 2026-10-27T09:02:23.000Z pending\nevt_161 wallet/u53 points.awarded {\"userId\":\"u53\",\"amount\":61,\"reason\":\"lesson 143\",\"balance\":185} 2026-10-27T09:02:24.000Z pending\nevt_162 enrollment/enr_65 enrollment.created {\"enrollmentId\":\"enr_65\",\"userId\":\"u5\",\"courseId\":\"c5\"} 2026-10-27T09:02:25.000Z pending\nevt_163 wallet/u49 points.awarded {\"userId\":\"u49\",\"amount\":907,\"reason\":\"lesson 145\",\"balance\":1483} 2026-10-27T09:02:26.000Z pending\nevt_164 wallet/u49 level.reached {\"userId\":\"u49\",\"level\":1} 2026-10-27T09:02:26.000Z pending\nevt_165 enrollment/enr_66 enrollment.created {\"enrollmentId\":\"enr_66\",\"userId\":\"u38\",\"courseId\":\"c2\"} 2026-10-27T09:02:27.000Z pending\nevt_166 wallet/u10 points.awarded {\"userId\":\"u10\",\"amount\":1441,\"reason\":\"lesson 147\",\"balance\":2953} 2026-10-27T09:02:28.000Z pending\nevt_167 wallet/u10 level.reached {\"userId\":\"u10\",\"level\":2} 2026-10-27T09:02:28.000Z pending\nevt_168 enrollment/enr_67 enrollment.created {\"enrollmentId\":\"enr_67\",\"userId\":\"u33\",\"courseId\":\"c1\"} 2026-10-27T09:02:29.000Z pending\nevt_169 enrollment/enr_68 enrollment.created {\"enrollmentId\":\"enr_68\",\"userId\":\"u17\",\"courseId\":\"c2\"} 2026-10-27T09:02:30.000Z pending\nevt_170 wallet/u24 points.awarded {\"userId\":\"u24\",\"amount\":734,\"reason\":\"lesson 150\",\"balance\":887} 2026-10-27T09:02:31.000Z pending\nevt_172 enrollment/enr_70 enrollment.created {\"enrollmentId\":\"enr_70\",\"userId\":\"u33\",\"courseId\":\"c7\"} 2026-10-27T09:02:33.000Z pending\nevt_173 wallet/u25 points.awarded {\"userId\":\"u25\",\"amount\":265,\"reason\":\"lesson 153\",\"balance\":2670} 2026-10-27T09:02:34.000Z pending\nevt_174 wallet/u16 points.awarded {\"userId\":\"u16\",\"amount\":960,\"reason\":\"lesson 154\",\"balance\":1015} 2026-10-27T09:02:35.000Z pending\nevt_175 wallet/u16 level.reached {\"userId\":\"u16\",\"level\":1} 2026-10-27T09:02:35.000Z pending\nevt_176 wallet/u40 points.awarded {\"userId\":\"u40\",\"amount\":917,\"reason\":\"lesson 155\",\"balance\":1702} 2026-10-27T09:02:36.000Z pending\nevt_177 wallet/u40 level.reached {\"userId\":\"u40\",\"level\":1} 2026-10-27T09:02:36.000Z pending\nevt_178 enrollment/enr_71 enrollment.created {\"enrollmentId\":\"enr_71\",\"userId\":\"u54\",\"courseId\":\"c7\"} 2026-10-27T09:02:38.000Z pending\nevt_179 enrollment/enr_72 enrollment.created {\"enrollmentId\":\"enr_72\",\"userId\":\"u30\",\"courseId\":\"c1\"} 2026-10-27T09:02:39.000Z pending\nevt_180 wallet/u27 points.awarded {\"userId\":\"u27\",\"amount\":1626,\"reason\":\"lesson 159\",\"balance\":2188} 2026-10-27T09:02:40.000Z pending\nevt_181 wallet/u27 level.reached {\"userId\":\"u27\",\"level\":1} 2026-10-27T09:02:40.000Z pending\nevt_182 wallet/u27 level.reached {\"userId\":\"u27\",\"level\":2} 2026-10-27T09:02:40.000Z pending\nevt_183 wallet/u58 points.awarded {\"userId\":\"u58\",\"amount\":373,\"reason\":\"lesson 160\",\"balance\":3051} 2026-10-27T09:02:41.000Z pending\nevt_184 wallet/u58 level.reached {\"userId\":\"u58\",\"level\":3} 2026-10-27T09:02:41.000Z pending\nevt_185 wallet/u8 points.awarded {\"userId\":\"u8\",\"amount\":1022,\"reason\":\"lesson 161\",\"balance\":4326} 2026-10-27T09:02:42.000Z pending\nevt_186 wallet/u8 level.reached {\"userId\":\"u8\",\"level\":4} 2026-10-27T09:02:42.000Z pending\nevt_187 enrollment/enr_73 enrollment.created {\"enrollmentId\":\"enr_73\",\"userId\":\"u46\",\"courseId\":\"c4\"} 2026-10-27T09:02:43.000Z pending\nevt_188 enrollment/enr_74 enrollment.created {\"enrollmentId\":\"enr_74\",\"userId\":\"u9\",\"courseId\":\"c6\"} 2026-10-27T09:02:45.000Z pending\nevt_189 wallet/u12 points.awarded {\"userId\":\"u12\",\"amount\":197,\"reason\":\"lesson 165\",\"balance\":704} 2026-10-27T09:02:46.000Z pending\nevt_190 enrollment/enr_75 enrollment.created {\"enrollmentId\":\"enr_75\",\"userId\":\"u44\",\"courseId\":\"c4\"} 2026-10-27T09:02:47.000Z pending\nevt_191 enrollment/enr_76 enrollment.created {\"enrollmentId\":\"enr_76\",\"userId\":\"u56\",\"courseId\":\"c3\"} 2026-10-27T09:02:48.000Z pending\nevt_192 enrollment/enr_77 enrollment.created {\"enrollmentId\":\"enr_77\",\"userId\":\"u7\",\"courseId\":\"c7\"} 2026-10-27T09:02:49.000Z pending\nevt_193 wallet/u24 points.awarded {\"userId\":\"u24\",\"amount\":881,\"reason\":\"lesson 169\",\"balance\":1768} 2026-10-27T09:02:50.000Z pending\nevt_194 wallet/u24 level.reached {\"userId\":\"u24\",\"level\":1} 2026-10-27T09:02:50.000Z pending\nevt_195 enrollment/enr_78 enrollment.created {\"enrollmentId\":\"enr_78\",\"userId\":\"u10\",\"courseId\":\"c1\"} 2026-10-27T09:02:51.000Z pending\nevt_196 wallet/u3 points.awarded {\"userId\":\"u3\",\"amount\":369,\"reason\":\"lesson 171\",\"balance\":643} 2026-10-27T09:02:52.000Z pending\nevt_197 wallet/u22 points.awarded {\"userId\":\"u22\",\"amount\":1133,\"reason\":\"lesson 172\",\"balance\":2730} 2026-10-27T09:02:53.000Z pending\nevt_198 wallet/u22 level.reached {\"userId\":\"u22\",\"level\":2} 2026-10-27T09:02:53.000Z pending\nevt_199 wallet/u26 points.awarded {\"userId\":\"u26\",\"amount\":369,\"reason\":\"lesson 173\",\"balance\":1240} 2026-10-27T09:02:54.000Z pending\nevt_200 wallet/u26 level.reached {\"userId\":\"u26\",\"level\":1} 2026-10-27T09:02:54.000Z pending\nevt_201 wallet/u59 points.awarded {\"userId\":\"u59\",\"amount\":1537,\"reason\":\"lesson 174\",\"balance\":2483} 2026-10-27T09:02:55.000Z pending\nevt_202 wallet/u59 level.reached {\"userId\":\"u59\",\"level\":1} 2026-10-27T09:02:55.000Z pending\nevt_203 wallet/u59 level.reached {\"userId\":\"u59\",\"level\":2} 2026-10-27T09:02:55.000Z pending\nevt_204 enrollment/enr_79 enrollment.created {\"enrollmentId\":\"enr_79\",\"userId\":\"u10\",\"courseId\":\"c7\"} 2026-10-27T09:02:56.000Z pending\nevt_205 wallet/u2 points.awarded {\"userId\":\"u2\",\"amount\":1100,\"reason\":\"lesson 176\",\"balance\":2555} 2026-10-27T09:02:57.000Z pending\nevt_206 wallet/u2 level.reached {\"userId\":\"u2\",\"level\":2} 2026-10-27T09:02:57.000Z pending\nevt_207 wallet/u48 points.awarded {\"userId\":\"u48\",\"amount\":1266,\"reason\":\"lesson 177\",\"balance\":1705} 2026-10-27T09:02:58.000Z pending\nevt_208 wallet/u48 level.reached {\"userId\":\"u48\",\"level\":1} 2026-10-27T09:02:58.000Z pending\nevt_209 enrollment/enr_80 enrollment.created {\"enrollmentId\":\"enr_80\",\"userId\":\"u5\",\"courseId\":\"c7\"} 2026-10-27T09:02:59.000Z pending\nevt_210 wallet/u12 points.awarded {\"userId\":\"u12\",\"amount\":1244,\"reason\":\"lesson 180\",\"balance\":1948} 2026-10-27T09:03:01.000Z pending\nevt_211 wallet/u12 level.reached {\"userId\":\"u12\",\"level\":1} 2026-10-27T09:03:01.000Z pending\nevt_212 enrollment/enr_81 enrollment.created {\"enrollmentId\":\"enr_81\",\"userId\":\"u27\",\"courseId\":\"c2\"} 2026-10-27T09:03:02.000Z pending\nevt_213 enrollment/enr_82 enrollment.created {\"enrollmentId\":\"enr_82\",\"userId\":\"u1\",\"courseId\":\"c2\"} 2026-10-27T09:03:04.000Z pending\nevt_214 enrollment/enr_83 enrollment.created {\"enrollmentId\":\"enr_83\",\"userId\":\"u46\",\"courseId\":\"c5\"} 2026-10-27T09:03:06.000Z pending\nevt_215 enrollment/enr_84 enrollment.created {\"enrollmentId\":\"enr_84\",\"userId\":\"u36\",\"courseId\":\"c4\"} 2026-10-27T09:03:07.000Z pending\nevt_216 wallet/u60 points.awarded {\"userId\":\"u60\",\"amount\":1308,\"reason\":\"lesson 188\",\"balance\":2373} 2026-10-27T09:03:09.000Z pending\nevt_217 wallet/u60 level.reached {\"userId\":\"u60\",\"level\":2} 2026-10-27T09:03:09.000Z pending\nevt_218 wallet/u39 points.awarded {\"userId\":\"u39\",\"amount\":1119,\"reason\":\"lesson 189\",\"balance\":1325} 2026-10-27T09:03:10.000Z pending\nevt_219 wallet/u39 level.reached {\"userId\":\"u39\",\"level\":1} 2026-10-27T09:03:10.000Z pending\nevt_220 wallet/u45 points.awarded {\"userId\":\"u45\",\"amount\":723,\"reason\":\"lesson 190\",\"balance\":1354} 2026-10-27T09:03:11.000Z pending\nevt_221 wallet/u45 level.reached {\"userId\":\"u45\",\"level\":1} 2026-10-27T09:03:11.000Z pending\nevt_222 enrollment/enr_85 enrollment.created {\"enrollmentId\":\"enr_85\",\"userId\":\"u4\",\"courseId\":\"c7\"} 2026-10-27T09:03:12.000Z pending\nevt_223 wallet/u8 points.awarded {\"userId\":\"u8\",\"amount\":961,\"reason\":\"lesson 192\",\"balance\":5287} 2026-10-27T09:03:13.000Z pending\nevt_224 wallet/u8 level.reached {\"userId\":\"u8\",\"level\":5} 2026-10-27T09:03:13.000Z pending\nevt_225 wallet/u57 points.awarded {\"userId\":\"u57\",\"amount\":830,\"reason\":\"lesson 193\",\"balance\":2693} 2026-10-27T09:03:14.000Z pending\nevt_226 wallet/u57 level.reached {\"userId\":\"u57\",\"level\":2} 2026-10-27T09:03:14.000Z pending\nevt_227 enrollment/enr_86 enrollment.created {\"enrollmentId\":\"enr_86\",\"userId\":\"u32\",\"courseId\":\"c7\"} 2026-10-27T09:03:15.000Z pending\nevt_228 wallet/u15 points.awarded {\"userId\":\"u15\",\"amount\":955,\"reason\":\"lesson 195\",\"balance\":2208} 2026-10-27T09:03:16.000Z pending\nevt_229 wallet/u15 level.reached {\"userId\":\"u15\",\"level\":2} 2026-10-27T09:03:16.000Z pending\nevt_230 wallet/u16 points.awarded {\"userId\":\"u16\",\"amount\":1539,\"reason\":\"lesson 197\",\"balance\":2554} 2026-10-27T09:03:18.000Z pending\nevt_231 wallet/u16 level.reached {\"userId\":\"u16\",\"level\":2} 2026-10-27T09:03:18.000Z pending\nevt_232 enrollment/enr_87 enrollment.created {\"enrollmentId\":\"enr_87\",\"userId\":\"u11\",\"courseId\":\"c5\"} 2026-10-27T09:03:21.000Z pending\nevt_233 enrollment/enr_88 enrollment.created {\"enrollmentId\":\"enr_88\",\"userId\":\"u25\",\"courseId\":\"c3\"} 2026-10-27T09:03:23.000Z pending\nevt_234 enrollment/enr_89 enrollment.created {\"enrollmentId\":\"enr_89\",\"userId\":\"u54\",\"courseId\":\"c6\"} 2026-10-27T09:03:24.000Z pending\nevt_237 enrollment/enr_90 enrollment.created {\"enrollmentId\":\"enr_90\",\"userId\":\"u9\",\"courseId\":\"c8\"} 2026-10-27T09:03:26.000Z pending\nevt_238 wallet/u7 points.awarded {\"userId\":\"u7\",\"amount\":715,\"reason\":\"lesson 206\",\"balance\":2951} 2026-10-27T09:03:27.000Z pending\nevt_239 enrollment/enr_91 enrollment.created {\"enrollmentId\":\"enr_91\",\"userId\":\"u55\",\"courseId\":\"c6\"} 2026-10-27T09:03:28.000Z pending\nevt_240 enrollment/enr_92 enrollment.created {\"enrollmentId\":\"enr_92\",\"userId\":\"u10\",\"courseId\":\"c5\"} 2026-10-27T09:03:29.000Z pending\nevt_241 enrollment/enr_93 enrollment.created {\"enrollmentId\":\"enr_93\",\"userId\":\"u18\",\"courseId\":\"c4\"} 2026-10-27T09:03:30.000Z pending\nevt_242 wallet/u40 points.awarded {\"userId\":\"u40\",\"amount\":230,\"reason\":\"lesson 210\",\"balance\":1932} 2026-10-27T09:03:31.000Z pending\nevt_243 enrollment/enr_94 enrollment.created {\"enrollmentId\":\"enr_94\",\"userId\":\"u11\",\"courseId\":\"c4\"} 2026-10-27T09:03:32.000Z pending\nevt_244 enrollment/enr_95 enrollment.created {\"enrollmentId\":\"enr_95\",\"userId\":\"u5\",\"courseId\":\"c1\"} 2026-10-27T09:03:33.000Z pending\nevt_245 enrollment/enr_96 enrollment.created {\"enrollmentId\":\"enr_96\",\"userId\":\"u55\",\"courseId\":\"c8\"} 2026-10-27T09:03:34.000Z pending\nevt_247 wallet/u46 points.awarded {\"userId\":\"u46\",\"amount\":261,\"reason\":\"lesson 215\",\"balance\":1931} 2026-10-27T09:03:36.000Z pending\nevt_248 wallet/u44 points.awarded {\"userId\":\"u44\",\"amount\":261,\"reason\":\"lesson 217\",\"balance\":1152} 2026-10-27T09:03:38.000Z pending\nevt_249 wallet/u44 level.reached {\"userId\":\"u44\",\"level\":1} 2026-10-27T09:03:38.000Z pending\nevt_250 wallet/u48 points.awarded {\"userId\":\"u48\",\"amount\":1406,\"reason\":\"lesson 218\",\"balance\":3111} 2026-10-27T09:03:39.000Z pending\nevt_251 wallet/u48 level.reached {\"userId\":\"u48\",\"level\":2} 2026-10-27T09:03:39.000Z pending\nevt_252 wallet/u48 level.reached {\"userId\":\"u48\",\"level\":3} 2026-10-27T09:03:39.000Z pending\nevt_253 wallet/u58 points.awarded {\"userId\":\"u58\",\"amount\":1667,\"reason\":\"lesson 219\",\"balance\":4718} 2026-10-27T09:03:40.000Z pending\nevt_254 wallet/u58 level.reached {\"userId\":\"u58\",\"level\":4} 2026-10-27T09:03:40.000Z pending\nevt_255 enrollment/enr_98 enrollment.created {\"enrollmentId\":\"enr_98\",\"userId\":\"u54\",\"courseId\":\"c4\"} 2026-10-27T09:03:41.000Z pending\nevt_256 wallet/u33 points.awarded {\"userId\":\"u33\",\"amount\":1586,\"reason\":\"lesson 221\",\"balance\":3783} 2026-10-27T09:03:42.000Z pending\nevt_257 wallet/u33 level.reached {\"userId\":\"u33\",\"level\":3} 2026-10-27T09:03:42.000Z pending\nevt_258 enrollment/enr_99 enrollment.created {\"enrollmentId\":\"enr_99\",\"userId\":\"u19\",\"courseId\":\"c4\"} 2026-10-27T09:03:43.000Z pending\nevt_259 wallet/u36 points.awarded {\"userId\":\"u36\",\"amount\":470,\"reason\":\"lesson 223\",\"balance\":2475} 2026-10-27T09:03:44.000Z pending\nevt_260 wallet/u24 points.awarded {\"userId\":\"u24\",\"amount\":1155,\"reason\":\"lesson 224\",\"balance\":2923} 2026-10-27T09:03:45.000Z pending\nevt_261 wallet/u24 level.reached {\"userId\":\"u24\",\"level\":2} 2026-10-27T09:03:45.000Z pending\nevt_262 wallet/u4 points.awarded {\"userId\":\"u4\",\"amount\":1775,\"reason\":\"lesson 225\",\"balance\":3227} 2026-10-27T09:03:46.000Z pending\nevt_263 wallet/u4 level.reached {\"userId\":\"u4\",\"level\":2} 2026-10-27T09:03:46.000Z pending\nevt_264 wallet/u4 level.reached {\"userId\":\"u4\",\"level\":3} 2026-10-27T09:03:46.000Z pending\nevt_265 wallet/u4 points.awarded {\"userId\":\"u4\",\"amount\":63,\"reason\":\"lesson 226\",\"balance\":3290} 2026-10-27T09:03:47.000Z pending\nevt_266 enrollment/enr_100 enrollment.created {\"enrollmentId\":\"enr_100\",\"userId\":\"u9\",\"courseId\":\"c7\"} 2026-10-27T09:03:50.000Z pending\nevt_267 enrollment/enr_101 enrollment.created {\"enrollmentId\":\"enr_101\",\"userId\":\"u32\",\"courseId\":\"c5\"} 2026-10-27T09:03:51.000Z pending\nevt_268 enrollment/enr_102 enrollment.created {\"enrollmentId\":\"enr_102\",\"userId\":\"u14\",\"courseId\":\"c5\"} 2026-10-27T09:03:52.000Z pending\nevt_269 wallet/u6 points.awarded {\"userId\":\"u6\",\"amount\":1703,\"reason\":\"lesson 232\",\"balance\":2388} 2026-10-27T09:03:53.000Z pending\nevt_270 wallet/u6 level.reached {\"userId\":\"u6\",\"level\":1} 2026-10-27T09:03:53.000Z pending\nevt_271 wallet/u6 level.reached {\"userId\":\"u6\",\"level\":2} 2026-10-27T09:03:53.000Z pending\nevt_272 enrollment/enr_103 enrollment.created {\"enrollmentId\":\"enr_103\",\"userId\":\"u22\",\"courseId\":\"c5\"} 2026-10-27T09:03:54.000Z pending\nevt_273 enrollment/enr_104 enrollment.created {\"enrollmentId\":\"enr_104\",\"userId\":\"u34\",\"courseId\":\"c1\"} 2026-10-27T09:03:55.000Z pending\nevt_274 enrollment/enr_105 enrollment.created {\"enrollmentId\":\"enr_105\",\"userId\":\"u33\",\"courseId\":\"c4\"} 2026-10-27T09:03:57.000Z pending\nevt_275 enrollment/enr_106 enrollment.created {\"enrollmentId\":\"enr_106\",\"userId\":\"u43\",\"courseId\":\"c5\"} 2026-10-27T09:03:58.000Z pending\nevt_276 wallet/u26 points.awarded {\"userId\":\"u26\",\"amount\":678,\"reason\":\"lesson 238\",\"balance\":1918} 2026-10-27T09:03:59.000Z pending\nevt_277 enrollment/enr_107 enrollment.created {\"enrollmentId\":\"enr_107\",\"userId\":\"u47\",\"courseId\":\"c4\"} 2026-10-27T09:04:00.000Z pending\nevt_278 wallet/u12 points.awarded {\"userId\":\"u12\",\"amount\":1600,\"reason\":\"lesson 240\",\"balance\":3548} 2026-10-27T09:04:01.000Z pending\nevt_279 wallet/u12 level.reached {\"userId\":\"u12\",\"level\":2} 2026-10-27T09:04:01.000Z pending\nevt_280 wallet/u12 level.reached {\"userId\":\"u12\",\"level\":3} 2026-10-27T09:04:01.000Z pending\nevt_281 enrollment/enr_108 enrollment.created {\"enrollmentId\":\"enr_108\",\"userId\":\"u16\",\"courseId\":\"c1\"} 2026-10-27T09:04:02.000Z pending\nevt_282 wallet/u29 points.awarded {\"userId\":\"u29\",\"amount\":770,\"reason\":\"lesson 243\",\"balance\":1606} 2026-10-27T09:04:04.000Z pending\nevt_283 wallet/u29 level.reached {\"userId\":\"u29\",\"level\":1} 2026-10-27T09:04:04.000Z pending\nevt_284 enrollment/enr_109 enrollment.created {\"enrollmentId\":\"enr_109\",\"userId\":\"u54\",\"courseId\":\"c2\"} 2026-10-27T09:04:05.000Z pending\nevt_286 wallet/u51 points.awarded {\"userId\":\"u51\",\"amount\":625,\"reason\":\"lesson 246\",\"balance\":1475} 2026-10-27T09:04:07.000Z pending\nevt_287 wallet/u51 level.reached {\"userId\":\"u51\",\"level\":1} 2026-10-27T09:04:07.000Z pending\nevt_288 enrollment/enr_111 enrollment.created {\"enrollmentId\":\"enr_111\",\"userId\":\"u51\",\"courseId\":\"c2\"} 2026-10-27T09:04:08.000Z pending\nevt_289 wallet/u33 points.awarded {\"userId\":\"u33\",\"amount\":381,\"reason\":\"lesson 248\",\"balance\":4164} 2026-10-27T09:04:09.000Z pending\nevt_290 wallet/u33 level.reached {\"userId\":\"u33\",\"level\":4} 2026-10-27T09:04:09.000Z pending\nevt_291 enrollment/enr_112 enrollment.created {\"enrollmentId\":\"enr_112\",\"userId\":\"u20\",\"courseId\":\"c7\"} 2026-10-27T09:04:10.000Z pending\nevt_292 enrollment/enr_113 enrollment.created {\"enrollmentId\":\"enr_113\",\"userId\":\"u45\",\"courseId\":\"c2\"} 2026-10-27T09:04:11.000Z pending\nevt_293 enrollment/enr_114 enrollment.created {\"enrollmentId\":\"enr_114\",\"userId\":\"u20\",\"courseId\":\"c4\"} 2026-10-27T09:04:12.000Z pending\nevt_294 enrollment/enr_115 enrollment.created {\"enrollmentId\":\"enr_115\",\"userId\":\"u60\",\"courseId\":\"c5\"} 2026-10-27T09:04:13.000Z pending\nevt_295 wallet/u28 points.awarded {\"userId\":\"u28\",\"amount\":383,\"reason\":\"lesson 253\",\"balance\":1607} 2026-10-27T09:04:14.000Z pending\nevt_296 wallet/u50 points.awarded {\"userId\":\"u50\",\"amount\":421,\"reason\":\"lesson 256\",\"balance\":1134} 2026-10-27T09:04:17.000Z pending\nevt_297 wallet/u50 level.reached {\"userId\":\"u50\",\"level\":1} 2026-10-27T09:04:17.000Z pending\nevt_298 enrollment/enr_116 enrollment.created {\"enrollmentId\":\"enr_116\",\"userId\":\"u34\",\"courseId\":\"c5\"} 2026-10-27T09:04:18.000Z pending\nevt_299 wallet/u18 points.awarded {\"userId\":\"u18\",\"amount\":515,\"reason\":\"lesson 258\",\"balance\":3529} 2026-10-27T09:04:19.000Z pending\nevt_300 enrollment/enr_117 enrollment.created {\"enrollmentId\":\"enr_117\",\"userId\":\"u53\",\"courseId\":\"c4\"} 2026-10-27T09:04:22.000Z pending\nevt_301 wallet/u8 points.awarded {\"userId\":\"u8\",\"amount\":1376,\"reason\":\"lesson 262\",\"balance\":6663} 2026-10-27T09:04:23.000Z pending\nevt_302 wallet/u8 level.reached {\"userId\":\"u8\",\"level\":6} 2026-10-27T09:04:23.000Z pending\nevt_303 enrollment/enr_118 enrollment.created {\"enrollmentId\":\"enr_118\",\"userId\":\"u50\",\"courseId\":\"c3\"} 2026-10-27T09:04:26.000Z pending\nevt_307 wallet/u27 points.awarded {\"userId\":\"u27\",\"amount\":1431,\"reason\":\"lesson 269\",\"balance\":3619} 2026-10-27T09:04:30.000Z pending\nevt_308 wallet/u27 level.reached {\"userId\":\"u27\",\"level\":3} 2026-10-27T09:04:30.000Z pending\nevt_309 enrollment/enr_119 enrollment.created {\"enrollmentId\":\"enr_119\",\"userId\":\"u51\",\"courseId\":\"c3\"} 2026-10-27T09:04:33.000Z pending\nevt_310 enrollment/enr_120 enrollment.created {\"enrollmentId\":\"enr_120\",\"userId\":\"u45\",\"courseId\":\"c3\"} 2026-10-27T09:04:34.000Z pending\nevt_311 wallet/u38 points.awarded {\"userId\":\"u38\",\"amount\":89,\"reason\":\"lesson 274\",\"balance\":2667} 2026-10-27T09:04:35.000Z pending\nevt_312 wallet/u58 points.awarded {\"userId\":\"u58\",\"amount\":1575,\"reason\":\"lesson 277\",\"balance\":6293} 2026-10-27T09:04:38.000Z pending\nevt_313 wallet/u58 level.reached {\"userId\":\"u58\",\"level\":5} 2026-10-27T09:04:38.000Z pending\nevt_314 wallet/u58 level.reached {\"userId\":\"u58\",\"level\":6} 2026-10-27T09:04:38.000Z pending\nevt_315 wallet/u32 points.awarded {\"userId\":\"u32\",\"amount\":510,\"reason\":\"lesson 281\",\"balance\":1809} 2026-10-27T09:04:42.000Z pending\nevt_316 wallet/u11 points.awarded {\"userId\":\"u11\",\"amount\":799,\"reason\":\"lesson 282\",\"balance\":1169} 2026-10-27T09:04:43.000Z pending\nevt_317 wallet/u11 level.reached {\"userId\":\"u11\",\"level\":1} 2026-10-27T09:04:43.000Z pending\nevt_318 enrollment/enr_121 enrollment.created {\"enrollmentId\":\"enr_121\",\"userId\":\"u3\",\"courseId\":\"c3\"} 2026-10-27T09:04:45.000Z pending\nevt_319 wallet/u41 points.awarded {\"userId\":\"u41\",\"amount\":679,\"reason\":\"lesson 285\",\"balance\":1159} 2026-10-27T09:04:46.000Z pending\nevt_320 wallet/u41 level.reached {\"userId\":\"u41\",\"level\":1} 2026-10-27T09:04:46.000Z pending\nevt_321 wallet/u13 points.awarded {\"userId\":\"u13\",\"amount\":991,\"reason\":\"lesson 286\",\"balance\":2815} 2026-10-27T09:04:47.000Z pending\nevt_322 wallet/u13 level.reached {\"userId\":\"u13\",\"level\":2} 2026-10-27T09:04:47.000Z pending\nevt_323 wallet/u44 points.awarded {\"userId\":\"u44\",\"amount\":1359,\"reason\":\"lesson 288\",\"balance\":2511} 2026-10-27T09:04:49.000Z pending\nevt_324 wallet/u44 level.reached {\"userId\":\"u44\",\"level\":2} 2026-10-27T09:04:49.000Z pending\nevt_325 enrollment/enr_122 enrollment.created {\"enrollmentId\":\"enr_122\",\"userId\":\"u11\",\"courseId\":\"c7\"} 2026-10-27T09:04:50.000Z pending\nevt_326 enrollment/enr_123 enrollment.created {\"enrollmentId\":\"enr_123\",\"userId\":\"u24\",\"courseId\":\"c6\"} 2026-10-27T09:04:51.000Z pending\nevt_327 wallet/u9 points.awarded {\"userId\":\"u9\",\"amount\":541,\"reason\":\"lesson 292\",\"balance\":1590} 2026-10-27T09:04:53.000Z pending\nevt_328 enrollment/enr_124 enrollment.created {\"enrollmentId\":\"enr_124\",\"userId\":\"u47\",\"courseId\":\"c3\"} 2026-10-27T09:04:56.000Z pending\nevt_329 enrollment/enr_125 enrollment.created {\"enrollmentId\":\"enr_125\",\"userId\":\"u43\",\"courseId\":\"c4\"} 2026-10-27T09:04:57.000Z pending\nevt_330 wallet/u5 points.awarded {\"userId\":\"u5\",\"amount\":1002,\"reason\":\"lesson 297\",\"balance\":3255} 2026-10-27T09:04:58.000Z pending\nevt_331 wallet/u5 level.reached {\"userId\":\"u5\",\"level\":3} 2026-10-27T09:04:58.000Z pending\nevt_332 wallet/u9 points.awarded {\"userId\":\"u9\",\"amount\":1391,\"reason\":\"lesson 298\",\"balance\":2981} 2026-10-27T09:04:59.000Z pending\nevt_333 wallet/u9 level.reached {\"userId\":\"u9\",\"level\":2} 2026-10-27T09:04:59.000Z pending",
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

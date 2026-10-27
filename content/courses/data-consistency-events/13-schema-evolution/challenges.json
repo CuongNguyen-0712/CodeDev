@@ -1,0 +1,36 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_dce_511",
+      "name": "evolving-event-schemas",
+      "type": "quiz",
+      "title": "Evolving event schemas without breaking consumers",
+      "description": "Two statements on the ProgressRecorded change at CodeDev: a consumer whose validator rejected an additive field, and a producer change that a schema compatibility check accepted.",
+      "difficulty": "medium",
+      "outcomes": ["sagas"],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The producer added one optional field, completedLessons, to ProgressRecorded v2. Nothing else changed. The leaderboard consumer validates with zod:\n\nconst ProgressV2 = z.object({\n  enrollmentId: z.string(),\n  learnerId: z.string(),\n  courseId: z.string(),\n  percent: z.number().min(0).max(100),\n}).strict();\n\nleaderboard-consumer 09:41:07 WARN validation failed, sending to DLQ\n  eventId=evt_a204 issues=[{\"code\":\"unrecognized_keys\",\"keys\":[\"completedLessons\"]}]\n\nStatement: \"Removing .strict() from this schema lets the consumer process the new events, while an event that has no courseId is still rejected.\"",
+          "explanation": "True. .strict() makes zod reject any key the schema does not declare, so a purely additive producer change sends every event to the DLQ. Without it, z.object strips unknown keys by default and still enforces the declared ones: courseId stays required, so an event without it still fails validation. That is a tolerant reader: strict about the fields this consumer uses, indifferent to fields it does not know. The misconception is that tolerance means accepting anything; a tolerant reader still rejects events that lack what it needs.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Proposed change to ProgressRecorded (same version number, same field names):\n\n-  percent: number;   // 0..100\n+  percent: number;   // 0..1, a fraction for the mobile progress ring\n\nCI output:\nschema-check ProgressRecorded: proposed schema is COMPATIBLE with all registered versions (mode: FULL_TRANSITIVE)\n\nCertificate consumer:\nif (event.percent >= 100) await issueCertificate(event.enrollmentId);\n\nStatement: \"Because the schema check accepted the change as compatible with every registered version, the certificate consumer keeps issuing certificates after the producer deploys it.\"",
+          "explanation": "False. A compatibility check compares structure: field names, types, required or optional. percent is a number before and after, so every mode passes. What changed is the meaning, and no schema check sees meaning: after the deploy a finished course has percent 1, the condition percent >= 100 is never true, and certificates stop with no error at all. The fix is a new field name (for example progressRatio) or a new version, never a new meaning for an old name. The misconception is that a green registry check proves consumers are safe; it proves only that they can still parse the bytes.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        }
+      ]
+    }
+  ]
+}

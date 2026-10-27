@@ -1,0 +1,213 @@
+{
+  "publicId": "data-consistency-events",
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1793062613/codedev/courses/data-consistency-events/cover",
+  "title": "Data Consistency & Event-Driven Patterns: Outbox, Idempotent Consumers, Sagas & Reconciliation",
+  "concept": "Keep data correct when one business action spans a database, a broker and other services: the dual-write problem, transactional outbox and publisher, inbox deduplication, ordering per key, safe replay, sagas with compensation, reconciliation, and schema evolution for events.",
+  "description": "An expert course for engineers whose system no longer fits in one transaction. Every lesson starts from an incident on the CodeDev learning platform - an enrollment committed in PostgreSQL whose \"enrolled\" event never reached the certificate service, a wallet consumer an AI wrote that added points twice on redelivery, progress events applied out of order, a replay that doubled every score, a payment that succeeded while the enrollment step failed - and fixes it with a pattern you can test: the dual-write problem, the DB Commit Succeeded, Publish Failed scenario, outbox in the same transaction, an outbox publisher that survives crashes, inbox deduplication, ordering by aggregate, safe replay, eventual consistency, sagas and compensation, reconciliation, CDC versus outbox, schema evolution and monitoring. 15 lessons with True/False quizzes on real logs and timelines, and TypeScript challenges graded by hidden tests on in-memory stores with transactions.",
+  "level": "expert",
+  "durationMinutes": 480,
+  "instructor": "CodeDev Engineering Team",
+  "language": "TypeScript",
+  "category": "Distributed Systems",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 200,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 1000
+    },
+    {
+      "priceType": "money",
+      "amount": 349000,
+      "currency": "VND"
+    }
+  ],
+  "completionRules": {},
+  "domain": "data",
+  "learningOutcomes": [
+    {
+      "code": "dual-write",
+      "text": "Explain the dual-write problem and close it with a transactional outbox"
+    },
+    {
+      "code": "idempotent-consumers",
+      "text": "Make consumers idempotent with an inbox so redelivered events change nothing"
+    },
+    {
+      "code": "delivery-ordering",
+      "text": "Publish at least once, keep order per aggregate key and replay without doubling effects"
+    },
+    {
+      "code": "eventual-consistency",
+      "text": "Design for eventual consistency and reconcile drift between sources and read models"
+    },
+    {
+      "code": "sagas",
+      "text": "Coordinate multi-step flows with sagas and compensation, and evolve event schemas safely"
+    }
+  ],
+  "testedVersions": {
+    "TypeScript": "5.9.3 (tsc --strict in the code runner)",
+    "PostgreSQL": "16-17 (lesson SQL)",
+    "Brokers": "Kafka / RabbitMQ / SQS concepts in lessons (check current docs)"
+  },
+  "lastReviewedAt": "2026-10-26",
+  "sourceLinks": [
+    "https://microservices.io/patterns/data/transactional-outbox.html",
+    "https://microservices.io/patterns/data/saga.html",
+    "https://www.postgresql.org/docs/current/logical-replication.html"
+  ],
+  "owner": "CodeDev Engineering Team",
+  "knownIssues": [
+    "No broker or database in the code runner: challenges use in-memory stores with transactions, crash points and scripted deliveries"
+  ],
+  "scenario": {
+    "title": "DB Commit Succeeded, Publish Failed",
+    "quiz": "chal_quiz_dce_121",
+    "fixBug": "chal_coding_dce_122"
+  },
+  "careerRoles": [
+    "backend_developer",
+    "data_engineer"
+  ],
+  "skills": {
+    "system_design": 5,
+    "async_programming": 4,
+    "sql": 3,
+    "typescript": 3
+  },
+  "goals": [
+    "grow_in_role",
+    "interview_prep"
+  ],
+  "prerequisites": [
+    "sql-data-modeling",
+    "nestjs-modular-monolith",
+    "background-jobs-messaging"
+  ],
+  "modules": [
+    {
+      "orderIndex": 1,
+      "title": "Atomicity",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "01-dual-write",
+          "title": "The dual-write problem: two systems, one commit",
+          "sanityId": "lesson-dce-1-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "02-commit-publish-failed",
+          "title": "DB commit succeeded, publish failed: the event that never arrived",
+          "sanityId": "lesson-dce-1-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "03-outbox-transaction",
+          "title": "A transactional outbox: the event in the same commit",
+          "sanityId": "lesson-dce-1-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Delivery",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "04-outbox-publisher",
+          "title": "An outbox publisher that survives a crash",
+          "sanityId": "lesson-dce-2-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "05-inbox-dedup",
+          "title": "Inbox: deduplicate on the consumer side",
+          "sanityId": "lesson-dce-2-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "06-spot-non-idempotent-consumer",
+          "title": "Spot the AI mistake: a consumer that adds points twice",
+          "sanityId": "lesson-dce-2-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Ordering & Replay",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "07-ordering-by-key",
+          "title": "Ordering per aggregate key",
+          "sanityId": "lesson-dce-3-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "08-safe-replay",
+          "title": "Replay events from an offset without doubling",
+          "sanityId": "lesson-dce-3-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "09-eventual-consistency",
+          "title": "Eventual consistency users can live with",
+          "sanityId": "lesson-dce-3-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 4,
+      "title": "Long-Running Flows",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "10-saga-compensation",
+          "title": "Sagas: compensating a failed step",
+          "sanityId": "lesson-dce-4-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "11-reconciliation",
+          "title": "Reconciliation: find and fix drift",
+          "sanityId": "lesson-dce-4-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "12-cdc-vs-outbox",
+          "title": "Change data capture or outbox?",
+          "sanityId": "lesson-dce-4-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 5,
+      "title": "Operating Events",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "13-schema-evolution",
+          "title": "Evolving event schemas without breaking consumers",
+          "sanityId": "lesson-dce-5-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "14-monitoring-consistency",
+          "title": "Monitoring lag, duplicates & drift",
+          "sanityId": "lesson-dce-5-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "15-design-review",
+          "title": "Design review: enrollment, payment & certificate flow",
+          "sanityId": "lesson-dce-5-3"
+        }
+      ]
+    }
+  ]
+}

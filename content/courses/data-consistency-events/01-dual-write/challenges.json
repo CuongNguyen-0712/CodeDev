@@ -1,0 +1,50 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_dce_111",
+      "name": "dual-write-both-orders",
+      "type": "quiz",
+      "title": "The dual-write problem: where the gap is",
+      "description": "Two versions of the CodeDev enroll handler, one per order of the two writes. Decide for each statement whether it holds for the code and the failure shown.",
+      "difficulty": "medium",
+      "outcomes": [
+        "dual-write"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "async enroll(userId: string, courseId: string) {\n  const enrollment = await this.db.transaction(async (tx) =>\n    tx.enrollments.insert({ userId, courseId, status: \"active\" }));   // COMMIT here\n  for (let attempt = 1; attempt <= 5; attempt++) {\n    try {\n      await this.broker.publish(\"enrollments\", toEvent(enrollment));\n      return enrollment;\n    } catch (err) {\n      await sleep(2 ** attempt * 100);   // 200, 400, 800, 1600, 3200 ms\n    }\n  }\n  this.logger.warn(`gave up publishing for ${enrollment.id}`);\n  return enrollment;\n}\n\nA rolling deploy sends SIGKILL to the pod right after the transaction committed, before the first publish attempt.\n\nStatement: \"The enrollment row stays committed and its enrollment.created event is never published; the retry loop cannot help, because it only exists in the process that was killed.\"",
+          "explanation": "True. The commit is durable, so the row survives the kill. The fact that an event still has to be sent lives only in the memory of the killed process: the loop, its attempt counter and the enrollment object disappear with it, and nothing after a restart knows about this enrollment. Retries only help with failures the process survives, and even then only for outages shorter than about 6 seconds here. The common misconception is that \"retry with backoff\" makes the publish reliable; it makes it more likely, not guaranteed. A durable record of the pending event (an outbox row in the same commit) is what survives the kill.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "async enroll(userId: string, courseId: string) {\n  return this.db.transaction({ isolation: \"serializable\" }, async (tx) => {\n    await this.assertSeatAvailable(tx, courseId);\n    const enrollment = await tx.enrollments.insert({ userId, courseId, status: \"active\" });\n    await this.broker.publish(\"enrollments\", toEvent(enrollment));\n    return enrollment;\n  });   // COMMIT happens when the callback returns\n}\n\nLog of one request:\n10:00:41.219 DEBUG publish enrollment.created key=enr_70318 acked (9 ms)\n10:00:41.224 ERROR tx COMMIT failed: could not serialize access due to read/write dependencies among transactions (SQLSTATE 40001)\n10:00:41.225 INFO  POST /enrollments 409 Conflict\n\nStatement: \"Because the publish ran inside the transaction callback, the failed COMMIT also withdraws enrollment.created from the broker, so no consumer will process an event for enr_70318.\"",
+          "explanation": "False. Only operations that go through tx take part in the PostgreSQL transaction. The broker acknowledged the message at .219, so it is in the broker's log, and a rollback in PostgreSQL has no way to remove it. Consumers will process an event for an enrollment that was rolled back: a ghost event. Publishing inside the callback is really the order publish-then-commit, and it adds two more problems: the transaction (with its locks and pooled connection) stays open during a network call, and a broker outage now blocks every enrollment. The misconception is that code placed inside a transaction callback is automatically transactional.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

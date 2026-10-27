@@ -1,0 +1,2220 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_dce_121",
+      "name": "commit-succeeded-publish-failed-evidence",
+      "type": "quiz",
+      "title": "DB Commit Succeeded, Publish Failed: read the evidence",
+      "description": "37 learners enrolled during a three-minute broker failover never received their welcome email, badge or certificate of enrollment. Six statements on one evidence pack - the support escalation (A), the reconciliation query (B), the service log (C), the code (D) and the broker metrics (E) - take you from the evidence to the hypothesis, past a consumer that \"lost\" the events and a fix that wraps the publish in the transaction, to the outbox and the test that proves it.",
+      "difficulty": "medium",
+      "outcomes": [
+        "dual-write"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence B - warehouse reconciliation, enrollments LEFT JOIN certificate receipts, per minute:\n       minute        | enrolled | receipted\n 2026-10-27 14:02:00 |       33 |        33\n 2026-10-27 14:03:00 |       31 |        22\n 2026-10-27 14:04:00 |       28 |        14\n 2026-10-27 14:05:00 |       30 |        16\n 2026-10-27 14:06:00 |       27 |        27\n\nEvidence C - enrollment-service log:\n14:04:12.481 INFO  POST /enrollments user=u_51207 course=postgres-performance\n14:04:12.493 DEBUG tx COMMIT enrollment enr_88412 (12 ms)\n14:04:17.498 WARN  publish enrollment.created failed for enr_88412: BrokerTimeoutError: publish to enrollments timed out after 5000 ms\n14:04:17.499 INFO  POST /enrollments 201 Created 5018 ms\n$ grep -c \"WARN  publish enrollment.created failed\" enrollment-service-2026-10-27.log\n37      (first 14:03:13.115, last 14:05:54.310)\n\nStatement: \"The 37 learners have committed enrollment rows and their requests answered 201 Created; what is missing is only what should have happened downstream of enrollment.created.\"",
+          "explanation": "True. B counts the 37 in the enrolled column (they exist in enroll.enrollments) and only the receipts are short, by 9 + 14 + 14 = 37. C shows the order for one of them: COMMIT at 14:04:12.493, then the publish timeout, then 201 Created. So the enrollment itself is fine; the welcome email, badge and certificate, which all hang off the event, never happened. Reading this correctly matters: the repair is to emit the missing events, not to re-enroll anybody. The common mistake is to treat \"the learner has no badge\" as \"the enrollment failed\".",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence C - enrollment-service log:\n14:04:12.481 INFO  POST /enrollments user=u_51207 course=postgres-performance\n14:04:12.493 DEBUG tx COMMIT enrollment enr_88412 (12 ms)\n14:04:17.498 WARN  publish enrollment.created failed for enr_88412: BrokerTimeoutError: publish to enrollments timed out after 5000 ms\n14:04:17.499 INFO  POST /enrollments 201 Created 5018 ms\n$ grep -c \"WARN  publish enrollment.created failed\" enrollment-service-2026-10-27.log\n37      (first 14:03:13.115, last 14:05:54.310)\n\nEvidence D - enrollment.service.ts:\nconst enrollment = await this.db.transaction(async (tx) => {\n  await this.assertCanEnroll(tx, userId, courseId);\n  return tx.enrollments.insert({ userId, courseId, status: \"active\" });\n});                                                   // COMMIT\ntry {\n  await this.broker.publish(\"enrollments\", { id: randomUUID(), key: enrollment.id, type: \"enrollment.created\", payload: { ... } });\n} catch (err) {\n  this.logger.warn(`publish enrollment.created failed for ${enrollment.id}: ${err}`);\n}\nreturn enrollment;                                    // controller answers 201\n\nStatement: \"The commit and the publish are two independent writes; for 37 requests the publish failed after COMMIT had already made the enrollment durable, and the catch block turned each lost event into a 201.\"",
+          "explanation": "True. This is the dual write in order A (commit, then publish). The COMMIT is durable on its own; the publish is a second write to another system, and nothing ties the two together. During the failover the publish timed out, the catch logged a warning and returned, and the controller answered 201, so neither the learner nor any alert noticed. The 37 warnings in C match the 37 missing receipts in B. The misconception is that logging an error is handling it: after the catch, nothing remembers that the event still has to be sent.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence E - broker dashboard and a topic search:\n14:03:08  broker-2 restarted (node upgrade); leader election for partitions 1 and 4 of \"enrollments\"\n14:05:55  all partitions of \"enrollments\" have a leader again\nProducer errors, client enrollment-service    14:03: 9   14:04: 14   14:05: 14   14:06: 0\nRecords in, topic enrollments, per minute     14:02: 33  14:03: 22   14:04: 14   14:05: 16   14:06: 27\nConsumer group certificate-service, max lag   14:00-14:10: 2\n$ search topic \"enrollments\" for keys of the 37 enrollments (offsets from 14:00 to 14:10)\n0 records found\n\nStatement: \"The 37 events reached the enrollments topic and the certificate consumer skipped them during the leader election; resetting the certificate-service consumer group offsets to 14:03 will deliver them.\"",
+          "explanation": "False. The topic search finds no record for any of the 37 keys, records in per minute dropped by exactly the producer error counts (9, 14, 14), and the consumer group was never more than 2 messages behind. The messages were never written, so there is nothing for the consumer to have skipped. Resetting the offsets would replay the events the certificate service already processed (deduplicated, at best) and deliver none of the 37. The misconception is to start debugging at the consumer because that is where the missing effect shows up; first check whether the message exists at all.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Proposed fix in the incident channel:\n\nreturn this.db.transaction(async (tx) => {\n  await this.assertCanEnroll(tx, userId, courseId);\n  const enrollment = await tx.enrollments.insert({ userId, courseId, status: \"active\" });\n  await this.broker.publish(\"enrollments\", toEvent(enrollment));   // throws -> rollback\n  return enrollment;\n});                                                                 // COMMIT\n\nStatement: \"With this change the enrollment and the event are atomic: a failed publish rolls the enrollment back, and a failed COMMIT withdraws the event that was already published.\"",
+          "explanation": "False. The first half is true, the second is not: the broker does not take part in the PostgreSQL transaction, so once it acknowledged the message, a failed COMMIT (serialization failure, constraint violation, crash, lost connection) cannot take it back. This is publish-then-commit, which produces ghost events, exactly the launch-day incident of lesson 1.1. It also makes every enrollment fail for as long as the broker is down (here almost three minutes) and holds the transaction open during a network call. The misconception is that anything inside the transaction callback is transactional.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Proposed fix after the review:\n\n-- request\nBEGIN;\nINSERT INTO enrollments (...) VALUES (...);\nINSERT INTO outbox (id, aggregate_type, aggregate_id, event_type, payload, status) VALUES ($4, 'enrollment', $1, 'enrollment.created', $5, 'pending');\nCOMMIT;\n\n-- relay, every second\nSELECT id, aggregate_id, event_type, payload FROM outbox WHERE status = 'pending' ORDER BY id LIMIT 100;\n-- for each row: publish with message id = outbox.id, then\nUPDATE outbox SET status = 'sent', sent_at = now() WHERE id = $1;\n\nStatement: \"Because the outbox row commits together with the enrollment, the relay publishes every event exactly once, so the certificate service can stop deduplicating by event id.\"",
+          "explanation": "False. The outbox closes the gap in the request (the event can no longer be lost or exist without its row), but the relay has its own gap: a crash, a timeout or a lost acknowledgement after the publish and before the UPDATE leaves the row pending, and the next tick publishes it again. The outbox gives at-least-once delivery. It is safe because the message id is the outbox row id, so the copy carries the same id and a consumer that deduplicates by event id processes it once. Removing the deduplication would send a second welcome email after the next relay crash. The misconception is that \"transactional\" on the producer side means exactly-once delivery end to end.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Regression test added with the outbox:\n\nfor crash of [none, \"beforeCommit\", \"afterCommit\", \"afterPublish\", \"beforeMarkSent\"]:\n  for brokerDown of [false, true]:\n    enroll(u1), enroll(u2) with the crash and the broker state\n    restart the service; broker up; run the relay until no row is pending\n    assert: each committed enrollment has exactly 1 distinct enrollment.created id\n    assert: no enrollment.created exists for an enrollment that did not commit\n\nStatement: \"This test fails on the code from evidence D (at least for afterCommit and for the broker-down runs) and passes on the outbox version in every combination, which is the evidence that the dual write is gone.\"",
+          "explanation": "True. On the code from D, a crash after COMMIT or a broker outage leaves a committed enrollment with no event, so the first assertion fails; that reproduces the incident deterministically, which a log line never can. On the outbox version every combination ends with one distinct id per committed enrollment: crashes before COMMIT leave neither row, crashes after COMMIT leave a pending row the relay sends after the restart, and a crash after a publish leads to a re-publish with the same id. A test that fails on the old code and passes on the new one is the proof a fix needs; \"no warnings since the deploy\" only shows that no failover has happened yet.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_dce_122",
+      "name": "commit-succeeded-publish-failed",
+      "type": "fix_bug",
+      "title": "DB Commit Succeeded, Publish Failed",
+      "description": "During a three-minute broker failover, 37 CodeDev learners were enrolled (their rows are committed and they got 201 Created) but the certificate service never received enrollment.created for them: no welcome email, no badge. A crash between the commit and the publish loses events the same way. The enrollment service commits the enrollment, then publishes, and swallows the publish error.\n\nFix createEnrollmentService so that every committed enrollment eventually produces exactly one logical enrollment.created, and no event exists for an enrollment that did not commit, whatever the broker and the process do:\n- enroll(cmd) keeps its validation (409 \"unknown course\", \"already enrolled\"), writes the enrollment AND an outbox row { id: ids.next(\"evt\"), aggregateType: \"enrollment\", aggregateId: <enrollment id>, eventType: \"enrollment.created\", payload: { enrollmentId, userId, courseId }, createdAt, status: \"pending\", sentAt: null } in the same db.tx(), and does not publish. Enrolling must work while the broker is down.\n- relayOnce() (the scheduler calls it every second) publishes every pending outbox row, in the order the rows were written, to the \"enrollments\" topic as { id: <outbox id>, key: <aggregateId>, type: <eventType>, payload }, and marks a row \"sent\" (with sentAt) only after its publish returned. If a publish throws, leave the remaining rows pending for the next tick.\nThe certificate service deduplicates by message id: a row published twice with the same id counts once, a row published under two different ids counts twice.\n\nThe file provides db.tx(fn) (runs fn on a copy of the tables and commits only if fn returns), broker.publish (throws BrokerTimeout while the broker is down), ids.next(prefix) (a sequence), clock.now() and the crash points. Do not change them or the test runner.\n\nInput (stdin, JSON): { courses: [{ id, title, seats }], steps }. A step is { op: \"enroll\", userId, courseId, crash? }, { op: \"relay\", crash? } or { op: \"broker\", up: boolean }. crash is \"beforeCommit\", \"afterCommit\" or \"afterPublish\": the process dies the first time it reaches that point during the step (every later call in that step throws Crash, even if a catch swallowed the first one), and the runner restarts the service, which loses everything held in memory.\nOutput: one line per enroll step with the answer (\"201 Created\", \"409 rejected (<reason>)\", \"500 ...\" or \"no response (process crashed <point>)\"), then, after a final restart with the broker up and three relay ticks, one line per committed enrollment \"<userId>/<courseId>: <n> event(s)\" (deduplicated by message id), the number of events that belong to no committed enrollment, and the number of outbox rows still pending. Expected: 1 event for every enrollment, 0 orphan events, 0 pending rows.",
+      "difficulty": "hard",
+      "outcomes": [
+        "dual-write"
+      ],
+      "points": 40,
+      "hints": [
+        "After the COMMIT of enroll(), where does the information \"this enrollment still needs its event\" live? What happens to it when the broker is down for three minutes, or when the process is killed and restarted?",
+        "Look at the two places that touch the broker: the try/catch after db.tx() in enroll(), and relayOnce(), which does nothing today. The first must disappear from the request path; the second is where publishing belongs. In the relay, check which id goes on the wire and when a row stops being pending.",
+        "A similar case on different data: a wallet top-up writes { topup } and, in the same tx, a row { id: ids.next(\"msg\"), kind: \"wallet.credited\", status: \"queued\" }. A worker later reads the queued rows in order, sends each one with its own row id as the message id, and only then flips it to \"done\" in a second tx. If the worker dies between the send and the flip, the same message id is sent again and the receiver ignores it."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Broker failover during enroll: every committed enrollment still gets its event",
+          "input": {
+            "courses": [
+              {
+                "id": "c1",
+                "title": "PostgreSQL Performance Engineering",
+                "seats": 500
+              },
+              {
+                "id": "c2",
+                "title": "API Design for Production",
+                "seats": 500
+              }
+            ],
+            "steps": [
+              {
+                "op": "enroll",
+                "userId": "u1",
+                "courseId": "c1"
+              },
+              {
+                "op": "broker",
+                "up": false
+              },
+              {
+                "op": "enroll",
+                "userId": "u2",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u3",
+                "courseId": "c1"
+              },
+              {
+                "op": "broker",
+                "up": true
+              },
+              {
+                "op": "enroll",
+                "userId": "u4",
+                "courseId": "c1"
+              },
+              {
+                "op": "relay"
+              }
+            ]
+          },
+          "expected": "enroll u1/c1: 201 Created\nenroll u2/c1: 201 Created\nenroll u3/c1: 201 Created\nenroll u4/c1: 201 Created\n--- after a restart and 3 relay ticks with the broker up\nu1/c1: 1 event\nu2/c1: 1 event\nu3/c1: 1 event\nu4/c1: 1 event\nevents for no committed enrollment: 0\noutbox rows still pending: 0",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Process crashes right after COMMIT: the event goes out after the restart",
+          "input": {
+            "courses": [
+              {
+                "id": "c1",
+                "title": "PostgreSQL Performance Engineering",
+                "seats": 500
+              },
+              {
+                "id": "c2",
+                "title": "API Design for Production",
+                "seats": 500
+              }
+            ],
+            "steps": [
+              {
+                "op": "enroll",
+                "userId": "u1",
+                "courseId": "c1",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u2",
+                "courseId": "c1"
+              },
+              {
+                "op": "relay"
+              }
+            ]
+          },
+          "expected": "enroll u1/c1: no response (process crashed afterCommit)\nenroll u2/c1: 201 Created\n--- after a restart and 3 relay ticks with the broker up\nu1/c1: 1 event\nu2/c1: 1 event\nevents for no committed enrollment: 0\noutbox rows still pending: 0",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Crash before COMMIT: no enrollment and no event, the retried request works",
+          "input": {
+            "courses": [
+              {
+                "id": "c1",
+                "title": "PostgreSQL Performance Engineering",
+                "seats": 500
+              },
+              {
+                "id": "c2",
+                "title": "API Design for Production",
+                "seats": 500
+              }
+            ],
+            "steps": [
+              {
+                "op": "enroll",
+                "userId": "u1",
+                "courseId": "c1",
+                "crash": "beforeCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u1",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u2",
+                "courseId": "c2",
+                "crash": "beforeCommit"
+              },
+              {
+                "op": "relay"
+              }
+            ]
+          },
+          "expected": "enroll u1/c1: no response (process crashed beforeCommit)\nenroll u1/c1: 201 Created\nenroll u2/c2: no response (process crashed beforeCommit)\n--- after a restart and 3 relay ticks with the broker up\nu1/c1: 1 event\nevents for no committed enrollment: 0\noutbox rows still pending: 0",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Relay crashes after a publish: the row is sent again with the same id and counts once",
+          "input": {
+            "courses": [
+              {
+                "id": "c1",
+                "title": "PostgreSQL Performance Engineering",
+                "seats": 500
+              },
+              {
+                "id": "c2",
+                "title": "API Design for Production",
+                "seats": 500
+              }
+            ],
+            "steps": [
+              {
+                "op": "enroll",
+                "userId": "u1",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u2",
+                "courseId": "c1"
+              },
+              {
+                "op": "relay",
+                "crash": "afterPublish"
+              },
+              {
+                "op": "enroll",
+                "userId": "u3",
+                "courseId": "c1"
+              },
+              {
+                "op": "relay",
+                "crash": "afterPublish"
+              },
+              {
+                "op": "relay"
+              }
+            ]
+          },
+          "expected": "enroll u1/c1: 201 Created\nenroll u2/c1: 201 Created\nenroll u3/c1: 201 Created\n--- after a restart and 3 relay ticks with the broker up\nu1/c1: 1 event\nu2/c1: 1 event\nu3/c1: 1 event\nevents for no committed enrollment: 0\noutbox rows still pending: 0",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Broker down while the relay runs: rows stay pending and are published later",
+          "input": {
+            "courses": [
+              {
+                "id": "c1",
+                "title": "PostgreSQL Performance Engineering",
+                "seats": 500
+              },
+              {
+                "id": "c2",
+                "title": "API Design for Production",
+                "seats": 500
+              }
+            ],
+            "steps": [
+              {
+                "op": "enroll",
+                "userId": "u1",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u2",
+                "courseId": "c1"
+              },
+              {
+                "op": "broker",
+                "up": false
+              },
+              {
+                "op": "relay"
+              },
+              {
+                "op": "enroll",
+                "userId": "u3",
+                "courseId": "c1"
+              },
+              {
+                "op": "relay",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "relay"
+              }
+            ]
+          },
+          "expected": "enroll u1/c1: 201 Created\nenroll u2/c1: 201 Created\nenroll u3/c1: 201 Created\n--- after a restart and 3 relay ticks with the broker up\nu1/c1: 1 event\nu2/c1: 1 event\nu3/c1: 1 event\nevents for no committed enrollment: 0\noutbox rows still pending: 0",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Rejected commands (already enrolled, unknown course) produce no event",
+          "input": {
+            "courses": [
+              {
+                "id": "c1",
+                "title": "PostgreSQL Performance Engineering",
+                "seats": 500
+              },
+              {
+                "id": "c2",
+                "title": "API Design for Production",
+                "seats": 500
+              }
+            ],
+            "steps": [
+              {
+                "op": "enroll",
+                "userId": "u1",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u1",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u2",
+                "courseId": "c9"
+              },
+              {
+                "op": "broker",
+                "up": false
+              },
+              {
+                "op": "enroll",
+                "userId": "u1",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u3",
+                "courseId": "c2"
+              },
+              {
+                "op": "broker",
+                "up": true
+              },
+              {
+                "op": "relay"
+              }
+            ]
+          },
+          "expected": "enroll u1/c1: 201 Created\nenroll u1/c1: 409 rejected (already enrolled)\nenroll u2/c9: 409 rejected (unknown course)\nenroll u1/c1: 409 rejected (already enrolled)\nenroll u3/c2: 201 Created\n--- after a restart and 3 relay ticks with the broker up\nu1/c1: 1 event\nu3/c2: 1 event\nevents for no committed enrollment: 0\noutbox rows still pending: 0",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Large: 300 enrollments through two failovers and crashes at every point",
+          "input": {
+            "courses": [
+              {
+                "id": "c1",
+                "title": "PostgreSQL Performance Engineering",
+                "seats": 500
+              },
+              {
+                "id": "c2",
+                "title": "API Design for Production",
+                "seats": 500
+              }
+            ],
+            "steps": [
+              {
+                "op": "enroll",
+                "userId": "u1",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u2",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u3",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u4",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u5",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u6",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u7",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u8",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u9",
+                "courseId": "c2",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u10",
+                "courseId": "c1"
+              },
+              {
+                "op": "relay",
+                "crash": "afterPublish"
+              },
+              {
+                "op": "enroll",
+                "userId": "u11",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u12",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u13",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u14",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u15",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u16",
+                "courseId": "c1",
+                "crash": "afterPublish"
+              },
+              {
+                "op": "enroll",
+                "userId": "u17",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u18",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u19",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u20",
+                "courseId": "c1"
+              },
+              {
+                "op": "relay",
+                "crash": "afterPublish"
+              },
+              {
+                "op": "enroll",
+                "userId": "u21",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u22",
+                "courseId": "c1",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u23",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u24",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u25",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u22",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u26",
+                "courseId": "c1",
+                "crash": "afterPublish"
+              },
+              {
+                "op": "enroll",
+                "userId": "u27",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u28",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u29",
+                "courseId": "c1",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u30",
+                "courseId": "c2"
+              },
+              {
+                "op": "relay"
+              },
+              {
+                "op": "enroll",
+                "userId": "u31",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u32",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u33",
+                "courseId": "c2",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u34",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u35",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u36",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u37",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u38",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u39",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u40",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u40",
+                "courseId": "c9"
+              },
+              {
+                "op": "relay",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u41",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u42",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u43",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u44",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u45",
+                "courseId": "c2",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u46",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u47",
+                "courseId": "c1",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u48",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u49",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u50",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u47",
+                "courseId": "c1"
+              },
+              {
+                "op": "relay"
+              },
+              {
+                "op": "enroll",
+                "userId": "u51",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u52",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u53",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u54",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u55",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u56",
+                "courseId": "c1",
+                "crash": "beforeCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u57",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u58",
+                "courseId": "c1",
+                "crash": "beforeCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u59",
+                "courseId": "c1"
+              },
+              {
+                "op": "broker",
+                "up": false
+              },
+              {
+                "op": "enroll",
+                "userId": "u60",
+                "courseId": "c2"
+              },
+              {
+                "op": "relay",
+                "crash": "afterPublish"
+              },
+              {
+                "op": "enroll",
+                "userId": "u61",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u62",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u63",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u64",
+                "courseId": "c1",
+                "crash": "beforeCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u65",
+                "courseId": "c1",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u66",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u67",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u68",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u69",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u70",
+                "courseId": "c1"
+              },
+              {
+                "op": "relay",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u71",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u72",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u73",
+                "courseId": "c1",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u74",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u75",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u72",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u76",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u77",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u78",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u79",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u80",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u80",
+                "courseId": "c9"
+              },
+              {
+                "op": "relay",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u81",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u82",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u83",
+                "courseId": "c1",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u84",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u85",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u86",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u87",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u88",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u89",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u90",
+                "courseId": "c2",
+                "crash": "beforeCommit"
+              },
+              {
+                "op": "relay"
+              },
+              {
+                "op": "enroll",
+                "userId": "u91",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u92",
+                "courseId": "c1",
+                "crash": "afterPublish"
+              },
+              {
+                "op": "enroll",
+                "userId": "u93",
+                "courseId": "c2",
+                "crash": "beforeCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u94",
+                "courseId": "c1"
+              },
+              {
+                "op": "broker",
+                "up": true
+              },
+              {
+                "op": "enroll",
+                "userId": "u95",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u96",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u97",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u98",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u99",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u100",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u97",
+                "courseId": "c1"
+              },
+              {
+                "op": "relay",
+                "crash": "afterPublish"
+              },
+              {
+                "op": "enroll",
+                "userId": "u101",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u102",
+                "courseId": "c2",
+                "crash": "beforeCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u103",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u104",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u105",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u106",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u107",
+                "courseId": "c1",
+                "crash": "beforeCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u108",
+                "courseId": "c2",
+                "crash": "beforeCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u109",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u110",
+                "courseId": "c1"
+              },
+              {
+                "op": "relay",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u111",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u112",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u113",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u114",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u115",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u116",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u117",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u118",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u119",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u120",
+                "courseId": "c2",
+                "crash": "beforeCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u120",
+                "courseId": "c9"
+              },
+              {
+                "op": "relay"
+              },
+              {
+                "op": "enroll",
+                "userId": "u121",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u122",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u123",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u124",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u125",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u122",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u126",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u127",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u128",
+                "courseId": "c1",
+                "crash": "beforeCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u129",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u130",
+                "courseId": "c1"
+              },
+              {
+                "op": "relay",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u131",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u132",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u133",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u134",
+                "courseId": "c1",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u135",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u136",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u137",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u138",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u139",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u140",
+                "courseId": "c1"
+              },
+              {
+                "op": "relay",
+                "crash": "afterPublish"
+              },
+              {
+                "op": "enroll",
+                "userId": "u141",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u142",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u143",
+                "courseId": "c1",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u144",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u145",
+                "courseId": "c1",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u146",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u147",
+                "courseId": "c2",
+                "crash": "beforeCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u148",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u149",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u150",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u147",
+                "courseId": "c2"
+              },
+              {
+                "op": "relay",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u151",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u152",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u153",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u154",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u155",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u156",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u157",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u158",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u159",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u160",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u160",
+                "courseId": "c9"
+              },
+              {
+                "op": "relay",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u161",
+                "courseId": "c1",
+                "crash": "beforeCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u162",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u163",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u164",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u165",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u166",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u167",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u168",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u169",
+                "courseId": "c1",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u170",
+                "courseId": "c1"
+              },
+              {
+                "op": "relay",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u171",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u172",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u173",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u174",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u175",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u172",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u176",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u177",
+                "courseId": "c2",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u178",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u179",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u180",
+                "courseId": "c2"
+              },
+              {
+                "op": "relay",
+                "crash": "afterPublish"
+              },
+              {
+                "op": "enroll",
+                "userId": "u181",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u182",
+                "courseId": "c1",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u183",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u184",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u185",
+                "courseId": "c1",
+                "crash": "beforeCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u186",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u187",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u188",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u189",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u190",
+                "courseId": "c1",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "relay",
+                "crash": "afterPublish"
+              },
+              {
+                "op": "enroll",
+                "userId": "u191",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u192",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u193",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u194",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u195",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u196",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u197",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u198",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u199",
+                "courseId": "c1"
+              },
+              {
+                "op": "broker",
+                "up": false
+              },
+              {
+                "op": "enroll",
+                "userId": "u200",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u197",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u200",
+                "courseId": "c9"
+              },
+              {
+                "op": "relay",
+                "crash": "afterPublish"
+              },
+              {
+                "op": "enroll",
+                "userId": "u201",
+                "courseId": "c2",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u202",
+                "courseId": "c1",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u203",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u204",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u205",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u206",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u207",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u208",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u209",
+                "courseId": "c1",
+                "crash": "beforeCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u210",
+                "courseId": "c2"
+              },
+              {
+                "op": "relay"
+              },
+              {
+                "op": "enroll",
+                "userId": "u211",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u212",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u213",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u214",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u215",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u216",
+                "courseId": "c2",
+                "crash": "afterPublish"
+              },
+              {
+                "op": "enroll",
+                "userId": "u217",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u218",
+                "courseId": "c1",
+                "crash": "afterPublish"
+              },
+              {
+                "op": "enroll",
+                "userId": "u219",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u220",
+                "courseId": "c1"
+              },
+              {
+                "op": "relay",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u221",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u222",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u223",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u224",
+                "courseId": "c1",
+                "crash": "beforeCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u225",
+                "courseId": "c2",
+                "crash": "beforeCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u222",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u226",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u227",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u228",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u229",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u230",
+                "courseId": "c1"
+              },
+              {
+                "op": "relay",
+                "crash": "afterPublish"
+              },
+              {
+                "op": "enroll",
+                "userId": "u231",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u232",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u233",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u234",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u235",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u236",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u237",
+                "courseId": "c2",
+                "crash": "afterPublish"
+              },
+              {
+                "op": "enroll",
+                "userId": "u238",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u239",
+                "courseId": "c1"
+              },
+              {
+                "op": "broker",
+                "up": true
+              },
+              {
+                "op": "enroll",
+                "userId": "u240",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u240",
+                "courseId": "c9"
+              },
+              {
+                "op": "relay",
+                "crash": "afterPublish"
+              },
+              {
+                "op": "enroll",
+                "userId": "u241",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u242",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u243",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u244",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u245",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u246",
+                "courseId": "c2",
+                "crash": "beforeCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u247",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u248",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u249",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u250",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u247",
+                "courseId": "c1"
+              },
+              {
+                "op": "relay",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u251",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u252",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u253",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u254",
+                "courseId": "c1",
+                "crash": "beforeCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u255",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u256",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u257",
+                "courseId": "c1",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u258",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u259",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u260",
+                "courseId": "c1",
+                "crash": "beforeCommit"
+              },
+              {
+                "op": "relay",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u261",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u262",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u263",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u264",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u265",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u266",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u267",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u268",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u269",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u270",
+                "courseId": "c2"
+              },
+              {
+                "op": "relay"
+              },
+              {
+                "op": "enroll",
+                "userId": "u271",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u272",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u273",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u274",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u275",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u272",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u276",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u277",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u278",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u279",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u280",
+                "courseId": "c1",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u280",
+                "courseId": "c9"
+              },
+              {
+                "op": "relay"
+              },
+              {
+                "op": "enroll",
+                "userId": "u281",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u282",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u283",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u284",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u285",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u286",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u287",
+                "courseId": "c1",
+                "crash": "afterCommit"
+              },
+              {
+                "op": "enroll",
+                "userId": "u288",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u289",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u290",
+                "courseId": "c1"
+              },
+              {
+                "op": "relay"
+              },
+              {
+                "op": "enroll",
+                "userId": "u291",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u292",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u293",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u294",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u295",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u296",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u297",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u298",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u299",
+                "courseId": "c1"
+              },
+              {
+                "op": "enroll",
+                "userId": "u300",
+                "courseId": "c2"
+              },
+              {
+                "op": "enroll",
+                "userId": "u297",
+                "courseId": "c2"
+              },
+              {
+                "op": "relay"
+              }
+            ]
+          },
+          "expected": "enroll u1/c1: 201 Created\nenroll u2/c1: 201 Created\nenroll u3/c2: 201 Created\nenroll u4/c1: 201 Created\nenroll u5/c1: 201 Created\nenroll u6/c2: 201 Created\nenroll u7/c1: 201 Created\nenroll u8/c1: 201 Created\nenroll u9/c2: no response (process crashed afterCommit)\nenroll u10/c1: 201 Created\nenroll u11/c1: 201 Created\nenroll u12/c2: 201 Created\nenroll u13/c1: 201 Created\nenroll u14/c1: 201 Created\nenroll u15/c2: 201 Created\nenroll u16/c1: 201 Created\nenroll u17/c1: 201 Created\nenroll u18/c2: 201 Created\nenroll u19/c1: 201 Created\nenroll u20/c1: 201 Created\nenroll u21/c2: 201 Created\nenroll u22/c1: no response (process crashed afterCommit)\nenroll u23/c1: 201 Created\nenroll u24/c2: 201 Created\nenroll u25/c1: 201 Created\nenroll u22/c1: 409 rejected (already enrolled)\nenroll u26/c1: 201 Created\nenroll u27/c2: 201 Created\nenroll u28/c1: 201 Created\nenroll u29/c1: no response (process crashed afterCommit)\nenroll u30/c2: 201 Created\nenroll u31/c1: 201 Created\nenroll u32/c1: 201 Created\nenroll u33/c2: no response (process crashed afterCommit)\nenroll u34/c1: 201 Created\nenroll u35/c1: 201 Created\nenroll u36/c2: 201 Created\nenroll u37/c1: 201 Created\nenroll u38/c1: 201 Created\nenroll u39/c2: 201 Created\nenroll u40/c1: 201 Created\nenroll u40/c9: 409 rejected (unknown course)\nenroll u41/c1: 201 Created\nenroll u42/c2: 201 Created\nenroll u43/c1: 201 Created\nenroll u44/c1: 201 Created\nenroll u45/c2: no response (process crashed afterCommit)\nenroll u46/c1: 201 Created\nenroll u47/c1: no response (process crashed afterCommit)\nenroll u48/c2: 201 Created\nenroll u49/c1: 201 Created\nenroll u50/c1: 201 Created\nenroll u47/c1: 409 rejected (already enrolled)\nenroll u51/c2: 201 Created\nenroll u52/c1: 201 Created\nenroll u53/c1: 201 Created\nenroll u54/c2: 201 Created\nenroll u55/c1: 201 Created\nenroll u56/c1: no response (process crashed beforeCommit)\nenroll u57/c2: 201 Created\nenroll u58/c1: no response (process crashed beforeCommit)\nenroll u59/c1: 201 Created\nenroll u60/c2: 201 Created\nenroll u61/c1: 201 Created\nenroll u62/c1: 201 Created\nenroll u63/c2: 201 Created\nenroll u64/c1: no response (process crashed beforeCommit)\nenroll u65/c1: no response (process crashed afterCommit)\nenroll u66/c2: 201 Created\nenroll u67/c1: 201 Created\nenroll u68/c1: 201 Created\nenroll u69/c2: 201 Created\nenroll u70/c1: 201 Created\nenroll u71/c1: 201 Created\nenroll u72/c2: 201 Created\nenroll u73/c1: no response (process crashed afterCommit)\nenroll u74/c1: 201 Created\nenroll u75/c2: 201 Created\nenroll u72/c2: 409 rejected (already enrolled)\nenroll u76/c1: 201 Created\nenroll u77/c1: 201 Created\nenroll u78/c2: 201 Created\nenroll u79/c1: 201 Created\nenroll u80/c1: 201 Created\nenroll u80/c9: 409 rejected (unknown course)\nenroll u81/c2: 201 Created\nenroll u82/c1: 201 Created\nenroll u83/c1: no response (process crashed afterCommit)\nenroll u84/c2: 201 Created\nenroll u85/c1: 201 Created\nenroll u86/c1: 201 Created\nenroll u87/c2: 201 Created\nenroll u88/c1: 201 Created\nenroll u89/c1: 201 Created\nenroll u90/c2: no response (process crashed beforeCommit)\nenroll u91/c1: 201 Created\nenroll u92/c1: 201 Created\nenroll u93/c2: no response (process crashed beforeCommit)\nenroll u94/c1: 201 Created\nenroll u95/c1: 201 Created\nenroll u96/c2: 201 Created\nenroll u97/c1: 201 Created\nenroll u98/c1: 201 Created\nenroll u99/c2: 201 Created\nenroll u100/c1: 201 Created\nenroll u97/c1: 409 rejected (already enrolled)\nenroll u101/c1: 201 Created\nenroll u102/c2: no response (process crashed beforeCommit)\nenroll u103/c1: 201 Created\nenroll u104/c1: 201 Created\nenroll u105/c2: 201 Created\nenroll u106/c1: 201 Created\nenroll u107/c1: no response (process crashed beforeCommit)\nenroll u108/c2: no response (process crashed beforeCommit)\nenroll u109/c1: 201 Created\nenroll u110/c1: 201 Created\nenroll u111/c2: 201 Created\nenroll u112/c1: 201 Created\nenroll u113/c1: 201 Created\nenroll u114/c2: 201 Created\nenroll u115/c1: 201 Created\nenroll u116/c1: 201 Created\nenroll u117/c2: 201 Created\nenroll u118/c1: 201 Created\nenroll u119/c1: 201 Created\nenroll u120/c2: no response (process crashed beforeCommit)\nenroll u120/c9: 409 rejected (unknown course)\nenroll u121/c1: 201 Created\nenroll u122/c1: 201 Created\nenroll u123/c2: 201 Created\nenroll u124/c1: 201 Created\nenroll u125/c1: 201 Created\nenroll u122/c1: 409 rejected (already enrolled)\nenroll u126/c2: 201 Created\nenroll u127/c1: 201 Created\nenroll u128/c1: no response (process crashed beforeCommit)\nenroll u129/c2: 201 Created\nenroll u130/c1: 201 Created\nenroll u131/c1: 201 Created\nenroll u132/c2: 201 Created\nenroll u133/c1: 201 Created\nenroll u134/c1: no response (process crashed afterCommit)\nenroll u135/c2: 201 Created\nenroll u136/c1: 201 Created\nenroll u137/c1: 201 Created\nenroll u138/c2: 201 Created\nenroll u139/c1: 201 Created\nenroll u140/c1: 201 Created\nenroll u141/c2: 201 Created\nenroll u142/c1: 201 Created\nenroll u143/c1: no response (process crashed afterCommit)\nenroll u144/c2: 201 Created\nenroll u145/c1: no response (process crashed afterCommit)\nenroll u146/c1: 201 Created\nenroll u147/c2: no response (process crashed beforeCommit)\nenroll u148/c1: 201 Created\nenroll u149/c1: 201 Created\nenroll u150/c2: 201 Created\nenroll u147/c2: 201 Created\nenroll u151/c1: 201 Created\nenroll u152/c1: 201 Created\nenroll u153/c2: 201 Created\nenroll u154/c1: 201 Created\nenroll u155/c1: 201 Created\nenroll u156/c2: 201 Created\nenroll u157/c1: 201 Created\nenroll u158/c1: 201 Created\nenroll u159/c2: 201 Created\nenroll u160/c1: 201 Created\nenroll u160/c9: 409 rejected (unknown course)\nenroll u161/c1: no response (process crashed beforeCommit)\nenroll u162/c2: 201 Created\nenroll u163/c1: 201 Created\nenroll u164/c1: 201 Created\nenroll u165/c2: 201 Created\nenroll u166/c1: 201 Created\nenroll u167/c1: 201 Created\nenroll u168/c2: 201 Created\nenroll u169/c1: no response (process crashed afterCommit)\nenroll u170/c1: 201 Created\nenroll u171/c2: 201 Created\nenroll u172/c1: 201 Created\nenroll u173/c1: 201 Created\nenroll u174/c2: 201 Created\nenroll u175/c1: 201 Created\nenroll u172/c1: 409 rejected (already enrolled)\nenroll u176/c1: 201 Created\nenroll u177/c2: no response (process crashed afterCommit)\nenroll u178/c1: 201 Created\nenroll u179/c1: 201 Created\nenroll u180/c2: 201 Created\nenroll u181/c1: 201 Created\nenroll u182/c1: no response (process crashed afterCommit)\nenroll u183/c2: 201 Created\nenroll u184/c1: 201 Created\nenroll u185/c1: no response (process crashed beforeCommit)\nenroll u186/c2: 201 Created\nenroll u187/c1: 201 Created\nenroll u188/c1: 201 Created\nenroll u189/c2: 201 Created\nenroll u190/c1: no response (process crashed afterCommit)\nenroll u191/c1: 201 Created\nenroll u192/c2: 201 Created\nenroll u193/c1: 201 Created\nenroll u194/c1: 201 Created\nenroll u195/c2: 201 Created\nenroll u196/c1: 201 Created\nenroll u197/c1: 201 Created\nenroll u198/c2: 201 Created\nenroll u199/c1: 201 Created\nenroll u200/c1: 201 Created\nenroll u197/c1: 409 rejected (already enrolled)\nenroll u200/c9: 409 rejected (unknown course)\nenroll u201/c2: no response (process crashed afterCommit)\nenroll u202/c1: no response (process crashed afterCommit)\nenroll u203/c1: 201 Created\nenroll u204/c2: 201 Created\nenroll u205/c1: 201 Created\nenroll u206/c1: 201 Created\nenroll u207/c2: 201 Created\nenroll u208/c1: 201 Created\nenroll u209/c1: no response (process crashed beforeCommit)\nenroll u210/c2: 201 Created\nenroll u211/c1: 201 Created\nenroll u212/c1: 201 Created\nenroll u213/c2: 201 Created\nenroll u214/c1: 201 Created\nenroll u215/c1: 201 Created\nenroll u216/c2: 201 Created\nenroll u217/c1: 201 Created\nenroll u218/c1: 201 Created\nenroll u219/c2: 201 Created\nenroll u220/c1: 201 Created\nenroll u221/c1: 201 Created\nenroll u222/c2: 201 Created\nenroll u223/c1: 201 Created\nenroll u224/c1: no response (process crashed beforeCommit)\nenroll u225/c2: no response (process crashed beforeCommit)\nenroll u222/c2: 409 rejected (already enrolled)\nenroll u226/c1: 201 Created\nenroll u227/c1: 201 Created\nenroll u228/c2: 201 Created\nenroll u229/c1: 201 Created\nenroll u230/c1: 201 Created\nenroll u231/c2: 201 Created\nenroll u232/c1: 201 Created\nenroll u233/c1: 201 Created\nenroll u234/c2: 201 Created\nenroll u235/c1: 201 Created\nenroll u236/c1: 201 Created\nenroll u237/c2: 201 Created\nenroll u238/c1: 201 Created\nenroll u239/c1: 201 Created\nenroll u240/c2: 201 Created\nenroll u240/c9: 409 rejected (unknown course)\nenroll u241/c1: 201 Created\nenroll u242/c1: 201 Created\nenroll u243/c2: 201 Created\nenroll u244/c1: 201 Created\nenroll u245/c1: 201 Created\nenroll u246/c2: no response (process crashed beforeCommit)\nenroll u247/c1: 201 Created\nenroll u248/c1: 201 Created\nenroll u249/c2: 201 Created\nenroll u250/c1: 201 Created\nenroll u247/c1: 409 rejected (already enrolled)\nenroll u251/c1: 201 Created\nenroll u252/c2: 201 Created\nenroll u253/c1: 201 Created\nenroll u254/c1: no response (process crashed beforeCommit)\nenroll u255/c2: 201 Created\nenroll u256/c1: 201 Created\nenroll u257/c1: no response (process crashed afterCommit)\nenroll u258/c2: 201 Created\nenroll u259/c1: 201 Created\nenroll u260/c1: no response (process crashed beforeCommit)\nenroll u261/c2: 201 Created\nenroll u262/c1: 201 Created\nenroll u263/c1: 201 Created\nenroll u264/c2: 201 Created\nenroll u265/c1: 201 Created\nenroll u266/c1: 201 Created\nenroll u267/c2: 201 Created\nenroll u268/c1: 201 Created\nenroll u269/c1: 201 Created\nenroll u270/c2: 201 Created\nenroll u271/c1: 201 Created\nenroll u272/c1: 201 Created\nenroll u273/c2: 201 Created\nenroll u274/c1: 201 Created\nenroll u275/c1: 201 Created\nenroll u272/c1: 409 rejected (already enrolled)\nenroll u276/c2: 201 Created\nenroll u277/c1: 201 Created\nenroll u278/c1: 201 Created\nenroll u279/c2: 201 Created\nenroll u280/c1: no response (process crashed afterCommit)\nenroll u280/c9: 409 rejected (unknown course)\nenroll u281/c1: 201 Created\nenroll u282/c2: 201 Created\nenroll u283/c1: 201 Created\nenroll u284/c1: 201 Created\nenroll u285/c2: 201 Created\nenroll u286/c1: 201 Created\nenroll u287/c1: no response (process crashed afterCommit)\nenroll u288/c2: 201 Created\nenroll u289/c1: 201 Created\nenroll u290/c1: 201 Created\nenroll u291/c2: 201 Created\nenroll u292/c1: 201 Created\nenroll u293/c1: 201 Created\nenroll u294/c2: 201 Created\nenroll u295/c1: 201 Created\nenroll u296/c1: 201 Created\nenroll u297/c2: 201 Created\nenroll u298/c1: 201 Created\nenroll u299/c1: 201 Created\nenroll u300/c2: 201 Created\nenroll u297/c2: 409 rejected (already enrolled)\n--- after a restart and 3 relay ticks with the broker up\nu1/c1: 1 event\nu2/c1: 1 event\nu3/c2: 1 event\nu4/c1: 1 event\nu5/c1: 1 event\nu6/c2: 1 event\nu7/c1: 1 event\nu8/c1: 1 event\nu9/c2: 1 event\nu10/c1: 1 event\nu11/c1: 1 event\nu12/c2: 1 event\nu13/c1: 1 event\nu14/c1: 1 event\nu15/c2: 1 event\nu16/c1: 1 event\nu17/c1: 1 event\nu18/c2: 1 event\nu19/c1: 1 event\nu20/c1: 1 event\nu21/c2: 1 event\nu22/c1: 1 event\nu23/c1: 1 event\nu24/c2: 1 event\nu25/c1: 1 event\nu26/c1: 1 event\nu27/c2: 1 event\nu28/c1: 1 event\nu29/c1: 1 event\nu30/c2: 1 event\nu31/c1: 1 event\nu32/c1: 1 event\nu33/c2: 1 event\nu34/c1: 1 event\nu35/c1: 1 event\nu36/c2: 1 event\nu37/c1: 1 event\nu38/c1: 1 event\nu39/c2: 1 event\nu40/c1: 1 event\nu41/c1: 1 event\nu42/c2: 1 event\nu43/c1: 1 event\nu44/c1: 1 event\nu45/c2: 1 event\nu46/c1: 1 event\nu47/c1: 1 event\nu48/c2: 1 event\nu49/c1: 1 event\nu50/c1: 1 event\nu51/c2: 1 event\nu52/c1: 1 event\nu53/c1: 1 event\nu54/c2: 1 event\nu55/c1: 1 event\nu57/c2: 1 event\nu59/c1: 1 event\nu60/c2: 1 event\nu61/c1: 1 event\nu62/c1: 1 event\nu63/c2: 1 event\nu65/c1: 1 event\nu66/c2: 1 event\nu67/c1: 1 event\nu68/c1: 1 event\nu69/c2: 1 event\nu70/c1: 1 event\nu71/c1: 1 event\nu72/c2: 1 event\nu73/c1: 1 event\nu74/c1: 1 event\nu75/c2: 1 event\nu76/c1: 1 event\nu77/c1: 1 event\nu78/c2: 1 event\nu79/c1: 1 event\nu80/c1: 1 event\nu81/c2: 1 event\nu82/c1: 1 event\nu83/c1: 1 event\nu84/c2: 1 event\nu85/c1: 1 event\nu86/c1: 1 event\nu87/c2: 1 event\nu88/c1: 1 event\nu89/c1: 1 event\nu91/c1: 1 event\nu92/c1: 1 event\nu94/c1: 1 event\nu95/c1: 1 event\nu96/c2: 1 event\nu97/c1: 1 event\nu98/c1: 1 event\nu99/c2: 1 event\nu100/c1: 1 event\nu101/c1: 1 event\nu103/c1: 1 event\nu104/c1: 1 event\nu105/c2: 1 event\nu106/c1: 1 event\nu109/c1: 1 event\nu110/c1: 1 event\nu111/c2: 1 event\nu112/c1: 1 event\nu113/c1: 1 event\nu114/c2: 1 event\nu115/c1: 1 event\nu116/c1: 1 event\nu117/c2: 1 event\nu118/c1: 1 event\nu119/c1: 1 event\nu121/c1: 1 event\nu122/c1: 1 event\nu123/c2: 1 event\nu124/c1: 1 event\nu125/c1: 1 event\nu126/c2: 1 event\nu127/c1: 1 event\nu129/c2: 1 event\nu130/c1: 1 event\nu131/c1: 1 event\nu132/c2: 1 event\nu133/c1: 1 event\nu134/c1: 1 event\nu135/c2: 1 event\nu136/c1: 1 event\nu137/c1: 1 event\nu138/c2: 1 event\nu139/c1: 1 event\nu140/c1: 1 event\nu141/c2: 1 event\nu142/c1: 1 event\nu143/c1: 1 event\nu144/c2: 1 event\nu145/c1: 1 event\nu146/c1: 1 event\nu148/c1: 1 event\nu149/c1: 1 event\nu150/c2: 1 event\nu147/c2: 1 event\nu151/c1: 1 event\nu152/c1: 1 event\nu153/c2: 1 event\nu154/c1: 1 event\nu155/c1: 1 event\nu156/c2: 1 event\nu157/c1: 1 event\nu158/c1: 1 event\nu159/c2: 1 event\nu160/c1: 1 event\nu162/c2: 1 event\nu163/c1: 1 event\nu164/c1: 1 event\nu165/c2: 1 event\nu166/c1: 1 event\nu167/c1: 1 event\nu168/c2: 1 event\nu169/c1: 1 event\nu170/c1: 1 event\nu171/c2: 1 event\nu172/c1: 1 event\nu173/c1: 1 event\nu174/c2: 1 event\nu175/c1: 1 event\nu176/c1: 1 event\nu177/c2: 1 event\nu178/c1: 1 event\nu179/c1: 1 event\nu180/c2: 1 event\nu181/c1: 1 event\nu182/c1: 1 event\nu183/c2: 1 event\nu184/c1: 1 event\nu186/c2: 1 event\nu187/c1: 1 event\nu188/c1: 1 event\nu189/c2: 1 event\nu190/c1: 1 event\nu191/c1: 1 event\nu192/c2: 1 event\nu193/c1: 1 event\nu194/c1: 1 event\nu195/c2: 1 event\nu196/c1: 1 event\nu197/c1: 1 event\nu198/c2: 1 event\nu199/c1: 1 event\nu200/c1: 1 event\nu201/c2: 1 event\nu202/c1: 1 event\nu203/c1: 1 event\nu204/c2: 1 event\nu205/c1: 1 event\nu206/c1: 1 event\nu207/c2: 1 event\nu208/c1: 1 event\nu210/c2: 1 event\nu211/c1: 1 event\nu212/c1: 1 event\nu213/c2: 1 event\nu214/c1: 1 event\nu215/c1: 1 event\nu216/c2: 1 event\nu217/c1: 1 event\nu218/c1: 1 event\nu219/c2: 1 event\nu220/c1: 1 event\nu221/c1: 1 event\nu222/c2: 1 event\nu223/c1: 1 event\nu226/c1: 1 event\nu227/c1: 1 event\nu228/c2: 1 event\nu229/c1: 1 event\nu230/c1: 1 event\nu231/c2: 1 event\nu232/c1: 1 event\nu233/c1: 1 event\nu234/c2: 1 event\nu235/c1: 1 event\nu236/c1: 1 event\nu237/c2: 1 event\nu238/c1: 1 event\nu239/c1: 1 event\nu240/c2: 1 event\nu241/c1: 1 event\nu242/c1: 1 event\nu243/c2: 1 event\nu244/c1: 1 event\nu245/c1: 1 event\nu247/c1: 1 event\nu248/c1: 1 event\nu249/c2: 1 event\nu250/c1: 1 event\nu251/c1: 1 event\nu252/c2: 1 event\nu253/c1: 1 event\nu255/c2: 1 event\nu256/c1: 1 event\nu257/c1: 1 event\nu258/c2: 1 event\nu259/c1: 1 event\nu261/c2: 1 event\nu262/c1: 1 event\nu263/c1: 1 event\nu264/c2: 1 event\nu265/c1: 1 event\nu266/c1: 1 event\nu267/c2: 1 event\nu268/c1: 1 event\nu269/c1: 1 event\nu270/c2: 1 event\nu271/c1: 1 event\nu272/c1: 1 event\nu273/c2: 1 event\nu274/c1: 1 event\nu275/c1: 1 event\nu276/c2: 1 event\nu277/c1: 1 event\nu278/c1: 1 event\nu279/c2: 1 event\nu280/c1: 1 event\nu281/c1: 1 event\nu282/c2: 1 event\nu283/c1: 1 event\nu284/c1: 1 event\nu285/c2: 1 event\nu286/c1: 1 event\nu287/c1: 1 event\nu288/c2: 1 event\nu289/c1: 1 event\nu290/c1: 1 event\nu291/c2: 1 event\nu292/c1: 1 event\nu293/c1: 1 event\nu294/c2: 1 event\nu295/c1: 1 event\nu296/c1: 1 event\nu297/c2: 1 event\nu298/c1: 1 event\nu299/c1: 1 event\nu300/c2: 1 event\nevents for no committed enrollment: 0\noutbox rows still pending: 0",
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

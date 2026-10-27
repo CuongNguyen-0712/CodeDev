@@ -1,0 +1,36 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_dce_521",
+      "name": "monitoring-lag-duplicates-drift",
+      "type": "quiz",
+      "title": "Monitoring lag, duplicates & drift",
+      "description": "Two statements on CodeDev's event pipeline: a consumer lag alert that averages over partitions, and an outbox whose row count looks normal while one row has been stuck for hours.",
+      "difficulty": "medium",
+      "outcomes": ["eventual-consistency"],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Saturday 10:30. Progress events are keyed by enrollmentId.\n\n$ kafka-consumer-groups.sh --bootstrap-server kafka:9092 --describe --group leaderboard\nGROUP        TOPIC              PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG\nleaderboard  progress.recorded  0          1204551         1204553         2\nleaderboard  progress.recorded  1          1198032         1198032         0\nleaderboard  progress.recorded  2          1187340         1229222         41882\nleaderboard  progress.recorded  3          1201877         1201880         3\n\nAlert rule (not firing, current value 10471.75):\n  expr: avg by (group) (kafka_consumergroup_lag) > 20000\n  for: 10m\n\nStatement: \"Because this alert is not firing, no learner is waiting longer than usual for a leaderboard update.\"",
+          "explanation": "False. The average divides one stuck partition by four. Partition 2 is 41,882 messages behind while the others are at zero or near it, and since events are keyed by enrollmentId, every learner whose enrollment hashes to partition 2 is waiting, about a quarter of all learners. Alert on the worst partition (max by group) and preferably on time lag, which means the same thing at peak and at night. The misconception is that an aggregate over partitions describes each learner's experience; ordering per key makes delays per partition, not per group.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Tuesday 14:00. This outbox publisher skips a row that fails and retries it on the next poll, so other rows keep flowing.\n\noutbox_pending_rows                 118     (normal on weekdays: 80-150)\noutbox_oldest_pending_age_seconds   9612\n\noutbox-publisher 13:59:55 WARN publish failed id=ob_771203 type=LessonCompleted error=\"record too large\" attempt=1922\noutbox-publisher 13:59:55 INFO published batch size=100 skipped=1\n\nStatement: \"An alert on the pending row count would stay silent here, while an alert on the oldest pending age set at 5 minutes would fire.\"",
+          "explanation": "True. Because the publisher skips the failing row, the rest of the queue drains and the count stays inside its normal range, so a count threshold has nothing to see. The oldest pending age measures how long the slowest waiting event has already waited: 9,612 s is more than two and a half hours, far above 300 s. That row is a real learner's LessonCompleted event, so their progress, leaderboard points and possibly certificate are stuck. The misconception is that a normal-looking backlog means a healthy outbox; the count describes traffic, the age describes waiting.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        }
+      ]
+    }
+  ]
+}

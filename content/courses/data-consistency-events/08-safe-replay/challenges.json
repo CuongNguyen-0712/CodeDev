@@ -1,0 +1,7340 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_dce_321",
+      "name": "safe-replay-quiz",
+      "type": "quiz",
+      "title": "Read the replay evidence: skipped, doubled or behind?",
+      "description": "Two pieces of evidence from the leaderboard projection: a handler that crashed between two statements, and the offsets of a rebuilt version before the switch.",
+      "difficulty": "medium",
+      "outcomes": [
+        "delivery-ordering",
+        "idempotent-consumers"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The leaderboard handler after the first fix (each db.query runs in autocommit mode, no BEGIN):\n\nconst { rows } = await db.query(\n  \"SELECT last_offset FROM projection_offsets WHERE projection = 'leaderboard' AND partition = $1\", [partition]);\nif (rows.length && offset <= rows[0].last_offset) return;            // already applied\nawait db.query(\"UPDATE leaderboard SET score = score + $1 WHERE learner_id = $2\", [points, learnerId]);\nawait db.query(\"UPDATE projection_offsets SET last_offset = $1 WHERE projection = 'leaderboard' AND partition = $2\", [offset, partition]);\n\nPod log:\n14:02:07.204 apply p3 offset=51877 u_17 +50\n14:02:07.209 OOMKilled (exit 137)\n14:02:19.630 started, consumer group resumes p3 at offset 51870\n14:02:19.702 apply p3 offset=51877 u_17 +50\n\nStatement: \"Because the handler skips offsets at or below projection_offsets.last_offset, the second delivery of offset 51877 cannot add u_17's 50 points again.\"",
+          "explanation": "False. The skip only works if the stored offset always describes the stored score. Here they are written by two autocommit statements: the pod was killed after the score UPDATE committed and before the offset UPDATE ran, so last_offset is still below 51877 and the redelivery passes the check and adds 50 points a second time. Put the offset check, the score change and the offset change in one transaction (BEGIN ... COMMIT), so a crash leaves either both or neither. The misconception is that having an offset check is enough; what makes it safe is that the offset is committed atomically with the state it protects.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "leaderboard_v2 is being rebuilt from offset 0 while leaderboard_v1 keeps serving and consuming live events. Before switching the leaderboard view to v2, the on-call engineer runs:\n\nSELECT partition, projection, last_offset FROM projection_offsets ORDER BY partition, projection;\n\n partition | projection     | last_offset\n-----------+----------------+------------\n         0 | leaderboard_v1 |       88120\n         0 | leaderboard_v2 |       88123\n         1 | leaderboard_v1 |       90417\n         1 | leaderboard_v2 |       90410\n         2 | leaderboard_v1 |       71002\n         2 | leaderboard_v2 |       71002\n\nStatement: \"Switching readers to leaderboard_v2 right now could show some learners fewer points than v1 shows them.\"",
+          "explanation": "True. v2 is ahead on partition 0 and level on partition 2, but behind on partition 1: offsets 90411 to 90417 are already in v1 and not yet in v2. Learners whose events are in that range would lose points the moment readers switch. A version has caught up only when, for every partition, its last applied offset is at least the active version's; partitions are independent, so being ahead on one does not make up for being behind on another. Wait (or run the check in a loop) until the query that lists partitions where v2 is behind returns no rows, then switch in the same transaction as that check.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_dce_322",
+      "name": "safe-replay-projection",
+      "type": "mini_coding",
+      "title": "Replay into the leaderboard without doubling a score",
+      "description": "Replaying three days of points events into the CodeDev leaderboard doubled every score in that range, because the projection added points for every delivery. Write LeaderboardStore, a leaderboard read model kept in versions (\"v1\", \"v2\", ...) that counts every event at most once per version, whether it comes from the live consumer, a replay from an offset, a full rebuild or a redelivery after a crash. Events are { p, o, learner, points }: partition, offset inside that partition (offsets of different partitions are unrelated), learner id, points (may be negative). All state lives in the provided FakeDb (tx(fn) commits fn's writes atomically, or nothing if fn throws): after a crash the runner creates a new LeaderboardStore on the same database. apply(version, event) returns \"rejected\" without a transaction when p or o is not an integer >= 0, learner is not a non-empty string or points is not an integer; otherwise it makes exactly one db.tx call, reads the last applied offset of (version, p) inside it, returns \"skipped\" and writes nothing when o is at or below it, else adds points to the learner's score in that version and stores o as the last applied offset of (version, p) in the same transaction and returns \"applied\". switchTo(version) makes version the active one in one transaction only if it has caught up: for every partition the active version has applied, the target's last applied offset exists and is at least as high; it returns true (switched, or already active) or false (nothing changes). active() returns the active version (\"v1\" at first); scores(version) and offsets(version) return { learner: score } and { \"<partition>\": last offset } ({} when empty). Input (stdin): { \"log\": [events in broker order], \"ops\": [...] } with ops { op: \"live\", n, crashAt? } (the live consumer applies its next n events to the active version and then commits its position; with crashAt { p, o } the process crashes right after the first commit made while applying that event, and the consumer restarts from its last committed position), { op: \"replay\", version, p, from } (every event of partition p with offset >= from, from the whole log), { op: \"rebuild\", version, n? } (the next n events of the log, or the rest, into that version), { op: \"switch\", to }. The runner prints one line per op, then the active version and each version's offsets, number of learners, total and top 3.",
+      "difficulty": "hard",
+      "outcomes": [
+        "delivery-ordering"
+      ],
+      "points": 40,
+      "hints": [
+        "Picture the process dying a microsecond after a commit. What must already be true in the database for the redelivered event to be recognised - and what would happen if the score were saved but the offset that explains it were not?",
+        "Look at three things: the key of a stored offset (it must name both the version and the partition), where the offset check happens (inside the same db.tx call as the writes, not in a transaction before it, and not in a field of the class that disappears on restart), and the comparison (an offset equal to the stored one has already been applied). For switchTo, walk the active version's offsets and compare each partition with the target's, in one transaction with the write of the new active version.",
+        "A similar run on a different log: v1 has applied p0 up to 7 and p1 up to 3. A replay of p1 from 0 delivers p1#0..p1#5: #0-#3 are skipped, #4 and #5 are applied, and v1's p1 becomes 5. A rebuild of v2 that has reached p0=9 and p1=2 cannot replace v1 yet (p1: 2 < 5), even though it is ahead on p0; after it reaches p1=5 the switch succeeds, and the live events that v2 already has are then skipped by v2."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The incident: replaying both partitions from an old offset changes no score",
+          "input": {
+            "log": [
+              {
+                "p": 0,
+                "o": 0,
+                "learner": "u_17",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 0,
+                "learner": "u_42",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 1,
+                "learner": "u_42",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 2,
+                "learner": "u_17",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 1,
+                "learner": "u_7",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 2,
+                "learner": "u_17",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 3,
+                "learner": "u_7",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 3,
+                "learner": "u_42",
+                "points": 50
+              }
+            ],
+            "ops": [
+              {
+                "op": "live",
+                "n": 8
+              },
+              {
+                "op": "replay",
+                "version": "v1",
+                "p": 0,
+                "from": 0
+              },
+              {
+                "op": "replay",
+                "version": "v1",
+                "p": 1,
+                "from": 2
+              }
+            ]
+          },
+          "expected": "live 8: applied 8, skipped 0, rejected 0 -> position 8/8\nreplay v1 p0 from 0: applied 0, skipped 4, rejected 0\nreplay v1 p1 from 2: applied 0, skipped 2, rejected 0\nactive v1\nv1: offsets p0=3 p1=3; learners 3, total 230; top u_17=80 u_42=80 u_7=70",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Rebuild into v2, switch refused while behind, switch once caught up, live goes on in v2",
+          "input": {
+            "log": [
+              {
+                "p": 0,
+                "o": 0,
+                "learner": "u_17",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 0,
+                "learner": "u_42",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 1,
+                "learner": "u_42",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 2,
+                "learner": "u_17",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 1,
+                "learner": "u_7",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 2,
+                "learner": "u_17",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 3,
+                "learner": "u_7",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 3,
+                "learner": "u_42",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 4,
+                "learner": "u_7",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 4,
+                "learner": "u_17",
+                "points": 20
+              }
+            ],
+            "ops": [
+              {
+                "op": "live",
+                "n": 6
+              },
+              {
+                "op": "rebuild",
+                "version": "v2",
+                "n": 4
+              },
+              {
+                "op": "switch",
+                "to": "v2"
+              },
+              {
+                "op": "rebuild",
+                "version": "v2"
+              },
+              {
+                "op": "switch",
+                "to": "v2"
+              },
+              {
+                "op": "live",
+                "n": 10
+              }
+            ]
+          },
+          "expected": "live 6: applied 6, skipped 0, rejected 0 -> position 6/10\nrebuild v2: applied 4, skipped 0, rejected 0 -> position 4/10\nswitch to v2: refused, active stays v1\nrebuild v2: applied 6, skipped 0, rejected 0 -> position 10/10\nswitch to v2: ok\nlive 10: applied 0, skipped 4, rejected 0 -> position 10/10\nactive v2\nv1: offsets p0=2 p1=2; learners 3, total 160; top u_17=80 u_7=50 u_42=30\nv2: offsets p0=4 p1=4; learners 3, total 260; top u_17=100 u_42=80 u_7=80",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Crash right after a commit: the redelivered events are skipped, nothing counts twice",
+          "input": {
+            "log": [
+              {
+                "p": 0,
+                "o": 0,
+                "learner": "u_17",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 0,
+                "learner": "u_42",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 1,
+                "learner": "u_42",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 2,
+                "learner": "u_17",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 1,
+                "learner": "u_7",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 2,
+                "learner": "u_17",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 3,
+                "learner": "u_7",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 3,
+                "learner": "u_42",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 4,
+                "learner": "u_7",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 4,
+                "learner": "u_17",
+                "points": 20
+              }
+            ],
+            "ops": [
+              {
+                "op": "live",
+                "n": 3
+              },
+              {
+                "op": "live",
+                "n": 4,
+                "crashAt": {
+                  "p": 0,
+                  "o": 2
+                }
+              },
+              {
+                "op": "live",
+                "n": 4,
+                "crashAt": {
+                  "p": 1,
+                  "o": 2
+                }
+              },
+              {
+                "op": "live",
+                "n": 10
+              }
+            ]
+          },
+          "expected": "live 3: applied 3, skipped 0, rejected 0 -> position 3/10\nlive 4: applied 0, skipped 0, rejected 0; crash after a commit while applying p0#2, restart from position 3\nlive 4: applied 1, skipped 1, rejected 0; crash after a commit while applying p1#2, restart from position 3\nlive 10: applied 4, skipped 3, rejected 0 -> position 10/10\nactive v1\nv1: offsets p0=4 p1=4; learners 3, total 260; top u_17=100 u_42=80 u_7=80",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Offsets are per partition: p1 at offset 3 is new even though p0 is past 100",
+          "input": {
+            "log": [
+              {
+                "p": 0,
+                "o": 100,
+                "learner": "u_17",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 3,
+                "learner": "u_42",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 101,
+                "learner": "u_42",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 4,
+                "learner": "u_17",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 0,
+                "learner": "u_7",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 5,
+                "learner": "u_7",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 102,
+                "learner": "u_17",
+                "points": 20
+              }
+            ],
+            "ops": [
+              {
+                "op": "live",
+                "n": 7
+              },
+              {
+                "op": "replay",
+                "version": "v1",
+                "p": 1,
+                "from": 0
+              }
+            ]
+          },
+          "expected": "live 7: applied 7, skipped 0, rejected 0 -> position 7/7\nreplay v1 p1 from 0: applied 0, skipped 3, rejected 0\nactive v1\nv1: offsets p0=102 p1=5 p2=0; learners 3, total 125; top u_17=80 u_42=30 u_7=15",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "A replay that runs ahead of the live consumer, then live and a redelivered last event",
+          "input": {
+            "log": [
+              {
+                "p": 0,
+                "o": 0,
+                "learner": "u_17",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 0,
+                "learner": "u_42",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 1,
+                "learner": "u_42",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 2,
+                "learner": "u_17",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 1,
+                "learner": "u_7",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 2,
+                "learner": "u_17",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 3,
+                "learner": "u_7",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 3,
+                "learner": "u_42",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 4,
+                "learner": "u_7",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 4,
+                "learner": "u_17",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 4,
+                "learner": "u_17",
+                "points": 20
+              }
+            ],
+            "ops": [
+              {
+                "op": "live",
+                "n": 3
+              },
+              {
+                "op": "replay",
+                "version": "v1",
+                "p": 0,
+                "from": 0
+              },
+              {
+                "op": "live",
+                "n": 5
+              },
+              {
+                "op": "replay",
+                "version": "v1",
+                "p": 1,
+                "from": 3
+              },
+              {
+                "op": "live",
+                "n": 10
+              }
+            ]
+          },
+          "expected": "live 3: applied 3, skipped 0, rejected 0 -> position 3/11\nreplay v1 p0 from 0: applied 3, skipped 2, rejected 0\nlive 5: applied 3, skipped 2, rejected 0 -> position 8/11\nreplay v1 p1 from 3: applied 1, skipped 2, rejected 0\nlive 10: applied 0, skipped 3, rejected 0 -> position 11/11\nactive v1\nv1: offsets p0=4 p1=4; learners 3, total 260; top u_17=100 u_42=80 u_7=80",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Each version keeps its own offsets; switching to an empty version or the same one",
+          "input": {
+            "log": [
+              {
+                "p": 0,
+                "o": 0,
+                "learner": "u_17",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 0,
+                "learner": "u_42",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 1,
+                "learner": "u_42",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 2,
+                "learner": "u_17",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 1,
+                "learner": "u_7",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 2,
+                "learner": "u_17",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 3,
+                "learner": "u_7",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 3,
+                "learner": "u_42",
+                "points": 50
+              }
+            ],
+            "ops": [
+              {
+                "op": "live",
+                "n": 8
+              },
+              {
+                "op": "switch",
+                "to": "v3"
+              },
+              {
+                "op": "switch",
+                "to": "v1"
+              },
+              {
+                "op": "rebuild",
+                "version": "v2"
+              },
+              {
+                "op": "switch",
+                "to": "v2"
+              },
+              {
+                "op": "replay",
+                "version": "v1",
+                "p": 0,
+                "from": 2
+              },
+              {
+                "op": "switch",
+                "to": "v1"
+              }
+            ]
+          },
+          "expected": "live 8: applied 8, skipped 0, rejected 0 -> position 8/8\nswitch to v3: refused, active stays v1\nswitch to v1: ok\nrebuild v2: applied 8, skipped 0, rejected 0 -> position 8/8\nswitch to v2: ok\nreplay v1 p0 from 2: applied 0, skipped 2, rejected 0\nswitch to v1: ok\nactive v1\nv1: offsets p0=3 p1=3; learners 3, total 230; top u_17=80 u_42=80 u_7=70\nv2: offsets p0=3 p1=3; learners 3, total 230; top u_17=80 u_42=80 u_7=70\nv3: offsets none; learners 0, total 0; top none",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Invalid events are rejected without a write; revoked (negative) points are applied",
+          "input": {
+            "log": [
+              {
+                "p": 0,
+                "o": 0,
+                "learner": "u_17",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": -1,
+                "learner": "u_17",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": "1",
+                "learner": "u_17",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 1,
+                "learner": "",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 1,
+                "learner": "u_17",
+                "points": 2.5
+              },
+              {
+                "p": 0,
+                "o": 1,
+                "learner": "u_17",
+                "points": "10"
+              },
+              {
+                "p": -1,
+                "o": 1,
+                "learner": "u_17",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 0,
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 1,
+                "learner": "u_17",
+                "points": -20
+              },
+              {
+                "p": 1,
+                "o": 0,
+                "learner": "u_42",
+                "points": 30
+              }
+            ],
+            "ops": [
+              {
+                "op": "live",
+                "n": 10
+              },
+              {
+                "op": "replay",
+                "version": "v1",
+                "p": 0,
+                "from": 0
+              }
+            ]
+          },
+          "expected": "live 10: applied 3, skipped 0, rejected 7 -> position 10/10\nreplay v1 p0 from 0: applied 0, skipped 2, rejected 4\nactive v1\nv1: offsets p0=1 p1=0; learners 2, total 60; top u_17=30 u_42=30",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Large: 1100+ events on 4 partitions, a crash, a replay, a rebuild and a switch",
+          "input": {
+            "log": [
+              {
+                "p": 1,
+                "o": 120,
+                "learner": "u_1029",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 121,
+                "learner": "u_1008",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 77777,
+                "learner": "u_1014",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 0,
+                "learner": "u_1001",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5000,
+                "learner": "u_1046",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 1,
+                "learner": "u_1058",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 2,
+                "learner": "u_1058",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77778,
+                "learner": "u_1025",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5001,
+                "learner": "u_1032",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77779,
+                "learner": "u_1055",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5002,
+                "learner": "u_1001",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5003,
+                "learner": "u_1012",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 122,
+                "learner": "u_1044",
+                "points": -10
+              },
+              {
+                "p": 3,
+                "o": 77780,
+                "learner": "u_1013",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5004,
+                "learner": "u_1002",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77781,
+                "learner": "u_1012",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 3,
+                "learner": "u_1015",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 4,
+                "learner": "u_1041",
+                "points": -10
+              },
+              {
+                "p": 2,
+                "o": 5,
+                "learner": "u_1015",
+                "points": -10
+              },
+              {
+                "p": 3,
+                "o": 77782,
+                "learner": "u_1046",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5005,
+                "learner": "u_1019",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77783,
+                "learner": "u_1013",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77784,
+                "learner": "u_1057",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77785,
+                "learner": "u_1028",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 123,
+                "learner": "u_1047",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 6,
+                "learner": "u_1024",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 124,
+                "learner": "u_1027",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 7,
+                "learner": "u_1052",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5006,
+                "learner": "u_1022",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 77786,
+                "learner": "u_1024",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 8,
+                "learner": "u_1054",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77787,
+                "learner": "u_1009",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77788,
+                "learner": "u_1040",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 9,
+                "learner": "u_1054",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 125,
+                "learner": "u_1000",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 10,
+                "learner": "u_1028",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 11,
+                "learner": "u_1020",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 12,
+                "learner": "u_1018",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77789,
+                "learner": "u_1027",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 126,
+                "learner": "u_1045",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 127,
+                "learner": "u_1039",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 128,
+                "learner": "u_1057",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5007,
+                "learner": "u_1027",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 77790,
+                "learner": "u_1019",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 129,
+                "learner": "u_1042",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 130,
+                "learner": "u_1036",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 131,
+                "learner": "u_1046",
+                "points": -10
+              },
+              {
+                "p": 2,
+                "o": 13,
+                "learner": "u_1031",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 14,
+                "learner": "u_1025",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5008,
+                "learner": "u_1059",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 77791,
+                "learner": "u_1013",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 77792,
+                "learner": "u_1043",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77793,
+                "learner": "u_1005",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77794,
+                "learner": "u_1042",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5009,
+                "learner": "u_1059",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 15,
+                "learner": "u_1006",
+                "points": -10
+              },
+              {
+                "p": 1,
+                "o": 132,
+                "learner": "u_1032",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5010,
+                "learner": "u_1014",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 133,
+                "learner": "u_1019",
+                "points": -10
+              },
+              {
+                "p": 3,
+                "o": 77795,
+                "learner": "u_1055",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 134,
+                "learner": "u_1044",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77796,
+                "learner": "u_1026",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5011,
+                "learner": "u_1007",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 16,
+                "learner": "u_1000",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 77797,
+                "learner": "u_1002",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 135,
+                "learner": "u_1042",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 135,
+                "learner": "u_1042",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5012,
+                "learner": "u_1046",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 17,
+                "learner": "u_1054",
+                "points": -10
+              },
+              {
+                "p": 0,
+                "o": 5013,
+                "learner": "u_1032",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5013,
+                "learner": "u_1032",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 18,
+                "learner": "u_1040",
+                "points": -10
+              },
+              {
+                "p": 1,
+                "o": 136,
+                "learner": "u_1015",
+                "points": -10
+              },
+              {
+                "p": 2,
+                "o": 19,
+                "learner": "u_1018",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 20,
+                "learner": "u_1009",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 77798,
+                "learner": "u_1046",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5014,
+                "learner": "u_1018",
+                "points": -10
+              },
+              {
+                "p": 0,
+                "o": 5015,
+                "learner": "u_1055",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 137,
+                "learner": "u_1027",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5016,
+                "learner": "u_1023",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 138,
+                "learner": "u_1049",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5017,
+                "learner": "u_1040",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 139,
+                "learner": "u_1025",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 140,
+                "learner": "u_1055",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5018,
+                "learner": "u_1000",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 141,
+                "learner": "u_1025",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77799,
+                "learner": "u_1022",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 21,
+                "learner": "u_1041",
+                "points": -10
+              },
+              {
+                "p": 1,
+                "o": 142,
+                "learner": "u_1039",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77800,
+                "learner": "u_1011",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5019,
+                "learner": "u_1046",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 77801,
+                "learner": "u_1013",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5020,
+                "learner": "u_1034",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5020,
+                "learner": "u_1034",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5021,
+                "learner": "u_1012",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 77802,
+                "learner": "u_1040",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 77803,
+                "learner": "u_1039",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 143,
+                "learner": "u_1025",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77804,
+                "learner": "u_1024",
+                "points": -10
+              },
+              {
+                "p": 3,
+                "o": 77805,
+                "learner": "u_1004",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5022,
+                "learner": "u_1051",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77806,
+                "learner": "u_1057",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5023,
+                "learner": "u_1045",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 22,
+                "learner": "u_1046",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 144,
+                "learner": "u_1017",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5024,
+                "learner": "u_1058",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 145,
+                "learner": "u_1026",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 77807,
+                "learner": "u_1003",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5025,
+                "learner": "u_1038",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 23,
+                "learner": "u_1036",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5026,
+                "learner": "u_1032",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 24,
+                "learner": "u_1057",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 25,
+                "learner": "u_1024",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5027,
+                "learner": "u_1001",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 146,
+                "learner": "u_1047",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77808,
+                "learner": "u_1053",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 26,
+                "learner": "u_1022",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 147,
+                "learner": "u_1041",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77809,
+                "learner": "u_1028",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77810,
+                "learner": "u_1037",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 27,
+                "learner": "u_1052",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 148,
+                "learner": "u_1020",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5028,
+                "learner": "u_1013",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 28,
+                "learner": "u_1055",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 29,
+                "learner": "u_1019",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5029,
+                "learner": "u_1055",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77811,
+                "learner": "u_1050",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 30,
+                "learner": "u_1019",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 31,
+                "learner": "u_1001",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 77812,
+                "learner": "u_1059",
+                "points": -10
+              },
+              {
+                "p": 0,
+                "o": 5030,
+                "learner": "u_1016",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77813,
+                "learner": "u_1058",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77813,
+                "learner": "u_1058",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77814,
+                "learner": "u_1023",
+                "points": -10
+              },
+              {
+                "p": 2,
+                "o": 32,
+                "learner": "u_1012",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 149,
+                "learner": "u_1016",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77815,
+                "learner": "u_1041",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5031,
+                "learner": "u_1039",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 150,
+                "learner": "u_1030",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 151,
+                "learner": "u_1058",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 152,
+                "learner": "u_1059",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77816,
+                "learner": "u_1047",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5032,
+                "learner": "u_1003",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 153,
+                "learner": "u_1053",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 154,
+                "learner": "u_1025",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5033,
+                "learner": "u_1053",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5034,
+                "learner": "u_1010",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 33,
+                "learner": "u_1031",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 155,
+                "learner": "u_1004",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 156,
+                "learner": "u_1049",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 157,
+                "learner": "u_1053",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5035,
+                "learner": "u_1007",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5036,
+                "learner": "u_1013",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 158,
+                "learner": "u_1015",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 77817,
+                "learner": "u_1048",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 159,
+                "learner": "u_1031",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 160,
+                "learner": "u_1057",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 34,
+                "learner": "u_1037",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5037,
+                "learner": "u_1002",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 35,
+                "learner": "u_1026",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 161,
+                "learner": "u_1042",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5038,
+                "learner": "u_1042",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 36,
+                "learner": "u_1026",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 37,
+                "learner": "u_1006",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 38,
+                "learner": "u_1028",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5039,
+                "learner": "u_1018",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 39,
+                "learner": "u_1053",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 39,
+                "learner": "u_1053",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5040,
+                "learner": "u_1026",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 162,
+                "learner": "u_1016",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5041,
+                "learner": "u_1045",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 40,
+                "learner": "u_1031",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77818,
+                "learner": "u_1047",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77819,
+                "learner": "u_1051",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 163,
+                "learner": "u_1014",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 41,
+                "learner": "u_1057",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5042,
+                "learner": "u_1012",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 42,
+                "learner": "u_1006",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 164,
+                "learner": "u_1058",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5043,
+                "learner": "u_1050",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77820,
+                "learner": "u_1045",
+                "points": -10
+              },
+              {
+                "p": 3,
+                "o": 77821,
+                "learner": "u_1011",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5044,
+                "learner": "u_1059",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 43,
+                "learner": "u_1015",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 165,
+                "learner": "u_1026",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 44,
+                "learner": "u_1057",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 166,
+                "learner": "u_1055",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5045,
+                "learner": "u_1001",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5046,
+                "learner": "u_1017",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77822,
+                "learner": "u_1011",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77823,
+                "learner": "u_1010",
+                "points": -10
+              },
+              {
+                "p": 0,
+                "o": 5047,
+                "learner": "u_1036",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77824,
+                "learner": "u_1050",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 167,
+                "learner": "u_1016",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77825,
+                "learner": "u_1040",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 45,
+                "learner": "u_1031",
+                "points": -10
+              },
+              {
+                "p": 1,
+                "o": 168,
+                "learner": "u_1002",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5048,
+                "learner": "u_1057",
+                "points": -10
+              },
+              {
+                "p": 1,
+                "o": 169,
+                "learner": "u_1056",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5049,
+                "learner": "u_1048",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77826,
+                "learner": "u_1024",
+                "points": -10
+              },
+              {
+                "p": 1,
+                "o": 170,
+                "learner": "u_1038",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5050,
+                "learner": "u_1045",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5051,
+                "learner": "u_1025",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 171,
+                "learner": "u_1024",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 172,
+                "learner": "u_1005",
+                "points": -10
+              },
+              {
+                "p": 0,
+                "o": 5052,
+                "learner": "u_1049",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5053,
+                "learner": "u_1043",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77827,
+                "learner": "u_1048",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 77828,
+                "learner": "u_1032",
+                "points": -10
+              },
+              {
+                "p": 3,
+                "o": 77829,
+                "learner": "u_1020",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 173,
+                "learner": "u_1008",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 46,
+                "learner": "u_1039",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5054,
+                "learner": "u_1015",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 174,
+                "learner": "u_1043",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 47,
+                "learner": "u_1014",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 48,
+                "learner": "u_1039",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77830,
+                "learner": "u_1032",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 49,
+                "learner": "u_1013",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 175,
+                "learner": "u_1010",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77831,
+                "learner": "u_1020",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 50,
+                "learner": "u_1025",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77832,
+                "learner": "u_1055",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5055,
+                "learner": "u_1013",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77833,
+                "learner": "u_1009",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77833,
+                "learner": "u_1009",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 176,
+                "learner": "u_1054",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77834,
+                "learner": "u_1015",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 177,
+                "learner": "u_1005",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 77835,
+                "learner": "u_1041",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77836,
+                "learner": "u_1016",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 51,
+                "learner": "u_1019",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77837,
+                "learner": "u_1028",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5056,
+                "learner": "u_1050",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 178,
+                "learner": "u_1059",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 179,
+                "learner": "u_1014",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77838,
+                "learner": "u_1011",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5057,
+                "learner": "u_1009",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 180,
+                "learner": "u_1040",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 181,
+                "learner": "u_1012",
+                "points": -10
+              },
+              {
+                "p": 3,
+                "o": 77839,
+                "learner": "u_1039",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 182,
+                "learner": "u_1055",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 183,
+                "learner": "u_1050",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 52,
+                "learner": "u_1003",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 53,
+                "learner": "u_1008",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 184,
+                "learner": "u_1000",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 185,
+                "learner": "u_1037",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77840,
+                "learner": "u_1008",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 186,
+                "learner": "u_1003",
+                "points": -10
+              },
+              {
+                "p": 1,
+                "o": 187,
+                "learner": "u_1020",
+                "points": -10
+              },
+              {
+                "p": 2,
+                "o": 54,
+                "learner": "u_1054",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77841,
+                "learner": "u_1035",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 188,
+                "learner": "u_1024",
+                "points": -10
+              },
+              {
+                "p": 0,
+                "o": 5058,
+                "learner": "u_1038",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 55,
+                "learner": "u_1039",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 55,
+                "learner": "u_1039",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5059,
+                "learner": "u_1035",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5060,
+                "learner": "u_1029",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 189,
+                "learner": "u_1020",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 190,
+                "learner": "u_1026",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 56,
+                "learner": "u_1045",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5061,
+                "learner": "u_1024",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 57,
+                "learner": "u_1025",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 58,
+                "learner": "u_1057",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 191,
+                "learner": "u_1007",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 192,
+                "learner": "u_1020",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77842,
+                "learner": "u_1015",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5062,
+                "learner": "u_1030",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5063,
+                "learner": "u_1055",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 59,
+                "learner": "u_1054",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 60,
+                "learner": "u_1044",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 61,
+                "learner": "u_1056",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5064,
+                "learner": "u_1028",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77843,
+                "learner": "u_1049",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 62,
+                "learner": "u_1050",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 193,
+                "learner": "u_1045",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 194,
+                "learner": "u_1025",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 195,
+                "learner": "u_1050",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 196,
+                "learner": "u_1036",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 197,
+                "learner": "u_1030",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77844,
+                "learner": "u_1056",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 63,
+                "learner": "u_1021",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 64,
+                "learner": "u_1047",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77845,
+                "learner": "u_1004",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 65,
+                "learner": "u_1009",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 198,
+                "learner": "u_1053",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77846,
+                "learner": "u_1040",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 199,
+                "learner": "u_1052",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 200,
+                "learner": "u_1029",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 66,
+                "learner": "u_1056",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 67,
+                "learner": "u_1052",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5065,
+                "learner": "u_1008",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 201,
+                "learner": "u_1054",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 202,
+                "learner": "u_1014",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5066,
+                "learner": "u_1009",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 203,
+                "learner": "u_1045",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 203,
+                "learner": "u_1045",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77847,
+                "learner": "u_1056",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77848,
+                "learner": "u_1019",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 68,
+                "learner": "u_1023",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 204,
+                "learner": "u_1020",
+                "points": -10
+              },
+              {
+                "p": 1,
+                "o": 205,
+                "learner": "u_1030",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5067,
+                "learner": "u_1053",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 69,
+                "learner": "u_1051",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 206,
+                "learner": "u_1015",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77849,
+                "learner": "u_1023",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 207,
+                "learner": "u_1050",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 208,
+                "learner": "u_1041",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 209,
+                "learner": "u_1002",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 70,
+                "learner": "u_1045",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 210,
+                "learner": "u_1020",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 211,
+                "learner": "u_1008",
+                "points": -10
+              },
+              {
+                "p": 3,
+                "o": 77850,
+                "learner": "u_1026",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5068,
+                "learner": "u_1028",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77851,
+                "learner": "u_1007",
+                "points": -10
+              },
+              {
+                "p": 2,
+                "o": 71,
+                "learner": "u_1003",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77852,
+                "learner": "u_1054",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77853,
+                "learner": "u_1055",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 212,
+                "learner": "u_1005",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 213,
+                "learner": "u_1018",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 214,
+                "learner": "u_1057",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77854,
+                "learner": "u_1059",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 215,
+                "learner": "u_1026",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 216,
+                "learner": "u_1057",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5069,
+                "learner": "u_1019",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5070,
+                "learner": "u_1018",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 72,
+                "learner": "u_1050",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 73,
+                "learner": "u_1044",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77855,
+                "learner": "u_1001",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5071,
+                "learner": "u_1033",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77856,
+                "learner": "u_1025",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5072,
+                "learner": "u_1037",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 77857,
+                "learner": "u_1003",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 217,
+                "learner": "u_1050",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 74,
+                "learner": "u_1045",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 75,
+                "learner": "u_1047",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77858,
+                "learner": "u_1013",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 76,
+                "learner": "u_1014",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 218,
+                "learner": "u_1005",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5073,
+                "learner": "u_1044",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 77,
+                "learner": "u_1009",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 219,
+                "learner": "u_1005",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5074,
+                "learner": "u_1058",
+                "points": -10
+              },
+              {
+                "p": 3,
+                "o": 77859,
+                "learner": "u_1051",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 220,
+                "learner": "u_1006",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 221,
+                "learner": "u_1033",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77860,
+                "learner": "u_1046",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 78,
+                "learner": "u_1000",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5075,
+                "learner": "u_1058",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5076,
+                "learner": "u_1057",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 79,
+                "learner": "u_1041",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 80,
+                "learner": "u_1000",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 81,
+                "learner": "u_1058",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 222,
+                "learner": "u_1016",
+                "points": -10
+              },
+              {
+                "p": 1,
+                "o": 223,
+                "learner": "u_1001",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77861,
+                "learner": "u_1057",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 77862,
+                "learner": "u_1003",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 224,
+                "learner": "u_1054",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77863,
+                "learner": "u_1052",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5077,
+                "learner": "u_1013",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5078,
+                "learner": "u_1013",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77864,
+                "learner": "u_1026",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 225,
+                "learner": "u_1048",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 77865,
+                "learner": "u_1056",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5079,
+                "learner": "u_1006",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 226,
+                "learner": "u_1056",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77866,
+                "learner": "u_1001",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5080,
+                "learner": "u_1024",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77867,
+                "learner": "u_1018",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 227,
+                "learner": "u_1025",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 77868,
+                "learner": "u_1035",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77869,
+                "learner": "u_1022",
+                "points": -10
+              },
+              {
+                "p": 1,
+                "o": 228,
+                "learner": "u_1055",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5081,
+                "learner": "u_1015",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5082,
+                "learner": "u_1024",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5083,
+                "learner": "u_1002",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 82,
+                "learner": "u_1039",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 229,
+                "learner": "u_1053",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77870,
+                "learner": "u_1024",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 77871,
+                "learner": "u_1026",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 83,
+                "learner": "u_1022",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 230,
+                "learner": "u_1036",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77872,
+                "learner": "u_1046",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5084,
+                "learner": "u_1017",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5085,
+                "learner": "u_1034",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77873,
+                "learner": "u_1020",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5086,
+                "learner": "u_1001",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 231,
+                "learner": "u_1015",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5087,
+                "learner": "u_1024",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 77874,
+                "learner": "u_1018",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5088,
+                "learner": "u_1014",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 232,
+                "learner": "u_1011",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77875,
+                "learner": "u_1046",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 77876,
+                "learner": "u_1003",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5089,
+                "learner": "u_1013",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 233,
+                "learner": "u_1002",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 84,
+                "learner": "u_1020",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 234,
+                "learner": "u_1010",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5090,
+                "learner": "u_1033",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 77877,
+                "learner": "u_1009",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 85,
+                "learner": "u_1008",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 86,
+                "learner": "u_1043",
+                "points": -10
+              },
+              {
+                "p": 2,
+                "o": 87,
+                "learner": "u_1030",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 88,
+                "learner": "u_1030",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5091,
+                "learner": "u_1053",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 89,
+                "learner": "u_1004",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 90,
+                "learner": "u_1027",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 91,
+                "learner": "u_1031",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 235,
+                "learner": "u_1011",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5092,
+                "learner": "u_1002",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5093,
+                "learner": "u_1026",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 236,
+                "learner": "u_1022",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 237,
+                "learner": "u_1050",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77878,
+                "learner": "u_1057",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 238,
+                "learner": "u_1056",
+                "points": -10
+              },
+              {
+                "p": 2,
+                "o": 92,
+                "learner": "u_1056",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77879,
+                "learner": "u_1034",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5094,
+                "learner": "u_1033",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 93,
+                "learner": "u_1052",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5095,
+                "learner": "u_1025",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 239,
+                "learner": "u_1007",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5096,
+                "learner": "u_1027",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 240,
+                "learner": "u_1033",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5097,
+                "learner": "u_1039",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77880,
+                "learner": "u_1043",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77880,
+                "learner": "u_1043",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5098,
+                "learner": "u_1042",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5099,
+                "learner": "u_1048",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77881,
+                "learner": "u_1035",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 241,
+                "learner": "u_1047",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5100,
+                "learner": "u_1032",
+                "points": -10
+              },
+              {
+                "p": 1,
+                "o": 242,
+                "learner": "u_1045",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77882,
+                "learner": "u_1056",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5101,
+                "learner": "u_1013",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 243,
+                "learner": "u_1022",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5102,
+                "learner": "u_1010",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77883,
+                "learner": "u_1050",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 244,
+                "learner": "u_1000",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 94,
+                "learner": "u_1046",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77884,
+                "learner": "u_1008",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 95,
+                "learner": "u_1005",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 77885,
+                "learner": "u_1002",
+                "points": -10
+              },
+              {
+                "p": 3,
+                "o": 77886,
+                "learner": "u_1022",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5103,
+                "learner": "u_1021",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 96,
+                "learner": "u_1017",
+                "points": -10
+              },
+              {
+                "p": 0,
+                "o": 5104,
+                "learner": "u_1043",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 77887,
+                "learner": "u_1059",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 245,
+                "learner": "u_1051",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 77888,
+                "learner": "u_1015",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77889,
+                "learner": "u_1029",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77890,
+                "learner": "u_1026",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77891,
+                "learner": "u_1058",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5105,
+                "learner": "u_1018",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77892,
+                "learner": "u_1046",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5106,
+                "learner": "u_1012",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5107,
+                "learner": "u_1026",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5108,
+                "learner": "u_1020",
+                "points": -10
+              },
+              {
+                "p": 0,
+                "o": 5109,
+                "learner": "u_1023",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5110,
+                "learner": "u_1033",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 246,
+                "learner": "u_1001",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5111,
+                "learner": "u_1015",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 247,
+                "learner": "u_1042",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 248,
+                "learner": "u_1055",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 97,
+                "learner": "u_1054",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 249,
+                "learner": "u_1009",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5112,
+                "learner": "u_1050",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77893,
+                "learner": "u_1029",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5113,
+                "learner": "u_1036",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5114,
+                "learner": "u_1051",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77894,
+                "learner": "u_1038",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 77895,
+                "learner": "u_1056",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5115,
+                "learner": "u_1010",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77896,
+                "learner": "u_1024",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77897,
+                "learner": "u_1002",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77898,
+                "learner": "u_1004",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 77899,
+                "learner": "u_1046",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5116,
+                "learner": "u_1027",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 250,
+                "learner": "u_1028",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 250,
+                "learner": "u_1028",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77900,
+                "learner": "u_1056",
+                "points": -10
+              },
+              {
+                "p": 2,
+                "o": 98,
+                "learner": "u_1050",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 99,
+                "learner": "u_1052",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5117,
+                "learner": "u_1016",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 251,
+                "learner": "u_1002",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 252,
+                "learner": "u_1055",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 100,
+                "learner": "u_1059",
+                "points": -10
+              },
+              {
+                "p": 2,
+                "o": 101,
+                "learner": "u_1033",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77901,
+                "learner": "u_1053",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 253,
+                "learner": "u_1006",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5118,
+                "learner": "u_1032",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5119,
+                "learner": "u_1009",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5120,
+                "learner": "u_1013",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 254,
+                "learner": "u_1055",
+                "points": -10
+              },
+              {
+                "p": 0,
+                "o": 5121,
+                "learner": "u_1007",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77902,
+                "learner": "u_1050",
+                "points": -10
+              },
+              {
+                "p": 3,
+                "o": 77903,
+                "learner": "u_1041",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 102,
+                "learner": "u_1042",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77904,
+                "learner": "u_1054",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 255,
+                "learner": "u_1008",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5122,
+                "learner": "u_1053",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77905,
+                "learner": "u_1030",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5123,
+                "learner": "u_1032",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 103,
+                "learner": "u_1034",
+                "points": -10
+              },
+              {
+                "p": 1,
+                "o": 256,
+                "learner": "u_1015",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5124,
+                "learner": "u_1033",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 104,
+                "learner": "u_1034",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 105,
+                "learner": "u_1015",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77906,
+                "learner": "u_1029",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5125,
+                "learner": "u_1025",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5126,
+                "learner": "u_1015",
+                "points": -10
+              },
+              {
+                "p": 1,
+                "o": 257,
+                "learner": "u_1036",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 258,
+                "learner": "u_1053",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 106,
+                "learner": "u_1007",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 259,
+                "learner": "u_1006",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 107,
+                "learner": "u_1013",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 260,
+                "learner": "u_1049",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 108,
+                "learner": "u_1026",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77907,
+                "learner": "u_1028",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 261,
+                "learner": "u_1029",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77908,
+                "learner": "u_1056",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5127,
+                "learner": "u_1021",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 262,
+                "learner": "u_1014",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 263,
+                "learner": "u_1027",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77909,
+                "learner": "u_1014",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77910,
+                "learner": "u_1045",
+                "points": -10
+              },
+              {
+                "p": 3,
+                "o": 77911,
+                "learner": "u_1010",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 109,
+                "learner": "u_1025",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5128,
+                "learner": "u_1052",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5129,
+                "learner": "u_1049",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77912,
+                "learner": "u_1035",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 264,
+                "learner": "u_1001",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 265,
+                "learner": "u_1052",
+                "points": -10
+              },
+              {
+                "p": 1,
+                "o": 266,
+                "learner": "u_1044",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 267,
+                "learner": "u_1035",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 110,
+                "learner": "u_1013",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5130,
+                "learner": "u_1044",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 111,
+                "learner": "u_1046",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77913,
+                "learner": "u_1026",
+                "points": -10
+              },
+              {
+                "p": 2,
+                "o": 112,
+                "learner": "u_1051",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77914,
+                "learner": "u_1040",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5131,
+                "learner": "u_1046",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 268,
+                "learner": "u_1022",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 77915,
+                "learner": "u_1049",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 269,
+                "learner": "u_1011",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 270,
+                "learner": "u_1009",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 113,
+                "learner": "u_1000",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 271,
+                "learner": "u_1031",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77916,
+                "learner": "u_1020",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77917,
+                "learner": "u_1050",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5132,
+                "learner": "u_1056",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 114,
+                "learner": "u_1031",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 115,
+                "learner": "u_1016",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5133,
+                "learner": "u_1024",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 116,
+                "learner": "u_1013",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5134,
+                "learner": "u_1050",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5135,
+                "learner": "u_1031",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77918,
+                "learner": "u_1000",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77919,
+                "learner": "u_1057",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77920,
+                "learner": "u_1046",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5136,
+                "learner": "u_1020",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 117,
+                "learner": "u_1030",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 118,
+                "learner": "u_1048",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5137,
+                "learner": "u_1013",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 119,
+                "learner": "u_1053",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5138,
+                "learner": "u_1055",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5139,
+                "learner": "u_1012",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 120,
+                "learner": "u_1013",
+                "points": -10
+              },
+              {
+                "p": 2,
+                "o": 121,
+                "learner": "u_1009",
+                "points": -10
+              },
+              {
+                "p": 1,
+                "o": 272,
+                "learner": "u_1014",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 273,
+                "learner": "u_1026",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 122,
+                "learner": "u_1022",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5140,
+                "learner": "u_1011",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77921,
+                "learner": "u_1052",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 274,
+                "learner": "u_1036",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77922,
+                "learner": "u_1009",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77923,
+                "learner": "u_1007",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77924,
+                "learner": "u_1016",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 77925,
+                "learner": "u_1059",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 123,
+                "learner": "u_1019",
+                "points": -10
+              },
+              {
+                "p": 2,
+                "o": 124,
+                "learner": "u_1013",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5141,
+                "learner": "u_1021",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 125,
+                "learner": "u_1006",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77926,
+                "learner": "u_1049",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 126,
+                "learner": "u_1015",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5142,
+                "learner": "u_1027",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 275,
+                "learner": "u_1032",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 275,
+                "learner": "u_1032",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5143,
+                "learner": "u_1027",
+                "points": -10
+              },
+              {
+                "p": 2,
+                "o": 127,
+                "learner": "u_1001",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 127,
+                "learner": "u_1001",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 128,
+                "learner": "u_1005",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5144,
+                "learner": "u_1000",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5145,
+                "learner": "u_1043",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5146,
+                "learner": "u_1057",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77927,
+                "learner": "u_1043",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5147,
+                "learner": "u_1023",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 129,
+                "learner": "u_1048",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 276,
+                "learner": "u_1049",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77928,
+                "learner": "u_1007",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 277,
+                "learner": "u_1046",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77929,
+                "learner": "u_1006",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 278,
+                "learner": "u_1000",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 130,
+                "learner": "u_1040",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5148,
+                "learner": "u_1014",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 279,
+                "learner": "u_1017",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 77930,
+                "learner": "u_1045",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 131,
+                "learner": "u_1034",
+                "points": -10
+              },
+              {
+                "p": 3,
+                "o": 77931,
+                "learner": "u_1024",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 132,
+                "learner": "u_1042",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5149,
+                "learner": "u_1041",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77932,
+                "learner": "u_1035",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77933,
+                "learner": "u_1051",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 280,
+                "learner": "u_1026",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5150,
+                "learner": "u_1050",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5151,
+                "learner": "u_1012",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 281,
+                "learner": "u_1009",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77934,
+                "learner": "u_1031",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 133,
+                "learner": "u_1008",
+                "points": -10
+              },
+              {
+                "p": 2,
+                "o": 134,
+                "learner": "u_1052",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5152,
+                "learner": "u_1002",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 282,
+                "learner": "u_1038",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 135,
+                "learner": "u_1038",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77935,
+                "learner": "u_1022",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 136,
+                "learner": "u_1030",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 77936,
+                "learner": "u_1036",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5153,
+                "learner": "u_1059",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77937,
+                "learner": "u_1012",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 137,
+                "learner": "u_1019",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5154,
+                "learner": "u_1037",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 283,
+                "learner": "u_1011",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 283,
+                "learner": "u_1011",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5155,
+                "learner": "u_1039",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 284,
+                "learner": "u_1002",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 138,
+                "learner": "u_1034",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5156,
+                "learner": "u_1036",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5156,
+                "learner": "u_1036",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77938,
+                "learner": "u_1032",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 139,
+                "learner": "u_1044",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 285,
+                "learner": "u_1036",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 77939,
+                "learner": "u_1008",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5157,
+                "learner": "u_1021",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77940,
+                "learner": "u_1015",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 77941,
+                "learner": "u_1032",
+                "points": -10
+              },
+              {
+                "p": 1,
+                "o": 286,
+                "learner": "u_1027",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5158,
+                "learner": "u_1027",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77942,
+                "learner": "u_1044",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 287,
+                "learner": "u_1039",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 140,
+                "learner": "u_1034",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 141,
+                "learner": "u_1034",
+                "points": -10
+              },
+              {
+                "p": 0,
+                "o": 5159,
+                "learner": "u_1053",
+                "points": -10
+              },
+              {
+                "p": 1,
+                "o": 288,
+                "learner": "u_1046",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5160,
+                "learner": "u_1047",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 77943,
+                "learner": "u_1048",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 289,
+                "learner": "u_1013",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 142,
+                "learner": "u_1025",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 143,
+                "learner": "u_1046",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 290,
+                "learner": "u_1053",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77944,
+                "learner": "u_1032",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5161,
+                "learner": "u_1005",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 144,
+                "learner": "u_1007",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 144,
+                "learner": "u_1007",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 145,
+                "learner": "u_1020",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 146,
+                "learner": "u_1015",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 147,
+                "learner": "u_1006",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77945,
+                "learner": "u_1059",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77946,
+                "learner": "u_1001",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5162,
+                "learner": "u_1008",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 148,
+                "learner": "u_1000",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5163,
+                "learner": "u_1057",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 291,
+                "learner": "u_1004",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77947,
+                "learner": "u_1009",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 149,
+                "learner": "u_1003",
+                "points": -10
+              },
+              {
+                "p": 3,
+                "o": 77948,
+                "learner": "u_1058",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 150,
+                "learner": "u_1013",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77949,
+                "learner": "u_1055",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5164,
+                "learner": "u_1031",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 292,
+                "learner": "u_1046",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 292,
+                "learner": "u_1046",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77950,
+                "learner": "u_1054",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 293,
+                "learner": "u_1036",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77951,
+                "learner": "u_1023",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 151,
+                "learner": "u_1024",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 152,
+                "learner": "u_1053",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 294,
+                "learner": "u_1003",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 295,
+                "learner": "u_1004",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 153,
+                "learner": "u_1005",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5165,
+                "learner": "u_1055",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5166,
+                "learner": "u_1053",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 296,
+                "learner": "u_1027",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5167,
+                "learner": "u_1022",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 297,
+                "learner": "u_1019",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 298,
+                "learner": "u_1055",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5168,
+                "learner": "u_1052",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5169,
+                "learner": "u_1034",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5170,
+                "learner": "u_1043",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 154,
+                "learner": "u_1046",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77952,
+                "learner": "u_1035",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 155,
+                "learner": "u_1044",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5171,
+                "learner": "u_1049",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5172,
+                "learner": "u_1050",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77953,
+                "learner": "u_1054",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5173,
+                "learner": "u_1050",
+                "points": -10
+              },
+              {
+                "p": 2,
+                "o": 156,
+                "learner": "u_1013",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77954,
+                "learner": "u_1008",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 157,
+                "learner": "u_1056",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 299,
+                "learner": "u_1005",
+                "points": -10
+              },
+              {
+                "p": 2,
+                "o": 158,
+                "learner": "u_1001",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77955,
+                "learner": "u_1006",
+                "points": -10
+              },
+              {
+                "p": 2,
+                "o": 159,
+                "learner": "u_1059",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 300,
+                "learner": "u_1003",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 301,
+                "learner": "u_1004",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77956,
+                "learner": "u_1044",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 302,
+                "learner": "u_1035",
+                "points": -10
+              },
+              {
+                "p": 2,
+                "o": 160,
+                "learner": "u_1006",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 303,
+                "learner": "u_1051",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 303,
+                "learner": "u_1051",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5174,
+                "learner": "u_1048",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 161,
+                "learner": "u_1045",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 304,
+                "learner": "u_1011",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77957,
+                "learner": "u_1017",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 305,
+                "learner": "u_1015",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 306,
+                "learner": "u_1002",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77958,
+                "learner": "u_1055",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5175,
+                "learner": "u_1038",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 307,
+                "learner": "u_1017",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 162,
+                "learner": "u_1015",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 77959,
+                "learner": "u_1012",
+                "points": -10
+              },
+              {
+                "p": 2,
+                "o": 163,
+                "learner": "u_1005",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77960,
+                "learner": "u_1039",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 308,
+                "learner": "u_1018",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5176,
+                "learner": "u_1033",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 309,
+                "learner": "u_1049",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 164,
+                "learner": "u_1020",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5177,
+                "learner": "u_1021",
+                "points": -10
+              },
+              {
+                "p": 2,
+                "o": 165,
+                "learner": "u_1009",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5178,
+                "learner": "u_1012",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77961,
+                "learner": "u_1052",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 77961,
+                "learner": "u_1052",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 310,
+                "learner": "u_1036",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77962,
+                "learner": "u_1011",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 166,
+                "learner": "u_1047",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 311,
+                "learner": "u_1058",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77963,
+                "learner": "u_1004",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 167,
+                "learner": "u_1011",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 167,
+                "learner": "u_1011",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 168,
+                "learner": "u_1028",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77964,
+                "learner": "u_1031",
+                "points": -10
+              },
+              {
+                "p": 0,
+                "o": 5179,
+                "learner": "u_1048",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 312,
+                "learner": "u_1034",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 169,
+                "learner": "u_1032",
+                "points": -10
+              },
+              {
+                "p": 2,
+                "o": 170,
+                "learner": "u_1019",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 313,
+                "learner": "u_1010",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 171,
+                "learner": "u_1040",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5180,
+                "learner": "u_1045",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 314,
+                "learner": "u_1014",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 172,
+                "learner": "u_1037",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 173,
+                "learner": "u_1011",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5181,
+                "learner": "u_1015",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77965,
+                "learner": "u_1007",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77966,
+                "learner": "u_1028",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 174,
+                "learner": "u_1038",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 175,
+                "learner": "u_1020",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 176,
+                "learner": "u_1010",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 177,
+                "learner": "u_1034",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77967,
+                "learner": "u_1009",
+                "points": -10
+              },
+              {
+                "p": 0,
+                "o": 5182,
+                "learner": "u_1038",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5183,
+                "learner": "u_1005",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5184,
+                "learner": "u_1039",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 315,
+                "learner": "u_1000",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5185,
+                "learner": "u_1007",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 316,
+                "learner": "u_1002",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77968,
+                "learner": "u_1010",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5186,
+                "learner": "u_1006",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 317,
+                "learner": "u_1048",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5187,
+                "learner": "u_1011",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77969,
+                "learner": "u_1058",
+                "points": -10
+              },
+              {
+                "p": 1,
+                "o": 318,
+                "learner": "u_1024",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 319,
+                "learner": "u_1057",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77970,
+                "learner": "u_1027",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 320,
+                "learner": "u_1047",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5188,
+                "learner": "u_1002",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5189,
+                "learner": "u_1054",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77971,
+                "learner": "u_1002",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 178,
+                "learner": "u_1047",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77972,
+                "learner": "u_1058",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 321,
+                "learner": "u_1024",
+                "points": -10
+              },
+              {
+                "p": 3,
+                "o": 77973,
+                "learner": "u_1036",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 77974,
+                "learner": "u_1002",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 322,
+                "learner": "u_1002",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 323,
+                "learner": "u_1049",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 179,
+                "learner": "u_1015",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 180,
+                "learner": "u_1035",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77975,
+                "learner": "u_1004",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5190,
+                "learner": "u_1056",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77976,
+                "learner": "u_1006",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5191,
+                "learner": "u_1035",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 181,
+                "learner": "u_1036",
+                "points": -10
+              },
+              {
+                "p": 0,
+                "o": 5192,
+                "learner": "u_1034",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77977,
+                "learner": "u_1035",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 324,
+                "learner": "u_1000",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77978,
+                "learner": "u_1016",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 325,
+                "learner": "u_1054",
+                "points": -10
+              },
+              {
+                "p": 1,
+                "o": 326,
+                "learner": "u_1042",
+                "points": -10
+              },
+              {
+                "p": 0,
+                "o": 5193,
+                "learner": "u_1021",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 327,
+                "learner": "u_1008",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 328,
+                "learner": "u_1036",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 329,
+                "learner": "u_1039",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5194,
+                "learner": "u_1018",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5195,
+                "learner": "u_1019",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 330,
+                "learner": "u_1057",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 331,
+                "learner": "u_1040",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 77979,
+                "learner": "u_1041",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 77980,
+                "learner": "u_1042",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 332,
+                "learner": "u_1007",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77981,
+                "learner": "u_1059",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 77981,
+                "learner": "u_1059",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5196,
+                "learner": "u_1051",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5197,
+                "learner": "u_1056",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 182,
+                "learner": "u_1008",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 333,
+                "learner": "u_1045",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5198,
+                "learner": "u_1026",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5199,
+                "learner": "u_1036",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 183,
+                "learner": "u_1037",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 334,
+                "learner": "u_1000",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 335,
+                "learner": "u_1048",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 336,
+                "learner": "u_1044",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 337,
+                "learner": "u_1041",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77982,
+                "learner": "u_1049",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 338,
+                "learner": "u_1025",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5200,
+                "learner": "u_1044",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5201,
+                "learner": "u_1037",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5202,
+                "learner": "u_1012",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 184,
+                "learner": "u_1032",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 185,
+                "learner": "u_1036",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 339,
+                "learner": "u_1058",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 186,
+                "learner": "u_1018",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 77983,
+                "learner": "u_1032",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 187,
+                "learner": "u_1017",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 188,
+                "learner": "u_1038",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 189,
+                "learner": "u_1012",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 189,
+                "learner": "u_1012",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77984,
+                "learner": "u_1052",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77985,
+                "learner": "u_1037",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77986,
+                "learner": "u_1050",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5203,
+                "learner": "u_1040",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5204,
+                "learner": "u_1029",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 190,
+                "learner": "u_1052",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 191,
+                "learner": "u_1058",
+                "points": -10
+              },
+              {
+                "p": 2,
+                "o": 192,
+                "learner": "u_1005",
+                "points": -10
+              },
+              {
+                "p": 3,
+                "o": 77987,
+                "learner": "u_1058",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5205,
+                "learner": "u_1014",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5206,
+                "learner": "u_1007",
+                "points": -10
+              },
+              {
+                "p": 3,
+                "o": 77988,
+                "learner": "u_1010",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 340,
+                "learner": "u_1037",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77989,
+                "learner": "u_1022",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 193,
+                "learner": "u_1049",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5207,
+                "learner": "u_1055",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 77990,
+                "learner": "u_1045",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 194,
+                "learner": "u_1018",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 341,
+                "learner": "u_1043",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 195,
+                "learner": "u_1024",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77991,
+                "learner": "u_1035",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77992,
+                "learner": "u_1006",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77993,
+                "learner": "u_1018",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 196,
+                "learner": "u_1021",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 197,
+                "learner": "u_1016",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 77994,
+                "learner": "u_1045",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5208,
+                "learner": "u_1025",
+                "points": -10
+              },
+              {
+                "p": 1,
+                "o": 342,
+                "learner": "u_1013",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 343,
+                "learner": "u_1002",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77995,
+                "learner": "u_1041",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 77996,
+                "learner": "u_1059",
+                "points": -10
+              },
+              {
+                "p": 0,
+                "o": 5209,
+                "learner": "u_1036",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77997,
+                "learner": "u_1031",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 77998,
+                "learner": "u_1020",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5210,
+                "learner": "u_1044",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 77999,
+                "learner": "u_1030",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 198,
+                "learner": "u_1030",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 344,
+                "learner": "u_1039",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 345,
+                "learner": "u_1026",
+                "points": -10
+              },
+              {
+                "p": 1,
+                "o": 346,
+                "learner": "u_1023",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5211,
+                "learner": "u_1033",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 78000,
+                "learner": "u_1024",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 78001,
+                "learner": "u_1036",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 78002,
+                "learner": "u_1042",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 347,
+                "learner": "u_1029",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 347,
+                "learner": "u_1029",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5212,
+                "learner": "u_1007",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 78003,
+                "learner": "u_1011",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 78004,
+                "learner": "u_1032",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5213,
+                "learner": "u_1020",
+                "points": -10
+              },
+              {
+                "p": 2,
+                "o": 199,
+                "learner": "u_1043",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 200,
+                "learner": "u_1041",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 348,
+                "learner": "u_1018",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 349,
+                "learner": "u_1029",
+                "points": -10
+              },
+              {
+                "p": 0,
+                "o": 5214,
+                "learner": "u_1001",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5215,
+                "learner": "u_1019",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 350,
+                "learner": "u_1040",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 78005,
+                "learner": "u_1007",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 201,
+                "learner": "u_1034",
+                "points": -10
+              },
+              {
+                "p": 3,
+                "o": 78006,
+                "learner": "u_1020",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 202,
+                "learner": "u_1021",
+                "points": -10
+              },
+              {
+                "p": 0,
+                "o": 5216,
+                "learner": "u_1031",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 203,
+                "learner": "u_1053",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 204,
+                "learner": "u_1018",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 351,
+                "learner": "u_1051",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5217,
+                "learner": "u_1057",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 205,
+                "learner": "u_1054",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 78007,
+                "learner": "u_1045",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5218,
+                "learner": "u_1056",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 352,
+                "learner": "u_1043",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5219,
+                "learner": "u_1008",
+                "points": -10
+              },
+              {
+                "p": 3,
+                "o": 78008,
+                "learner": "u_1046",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5220,
+                "learner": "u_1015",
+                "points": -10
+              },
+              {
+                "p": 1,
+                "o": 353,
+                "learner": "u_1031",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 206,
+                "learner": "u_1000",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 354,
+                "learner": "u_1035",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 355,
+                "learner": "u_1032",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 78009,
+                "learner": "u_1009",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 207,
+                "learner": "u_1024",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5221,
+                "learner": "u_1026",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 356,
+                "learner": "u_1040",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5222,
+                "learner": "u_1029",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 78010,
+                "learner": "u_1027",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 208,
+                "learner": "u_1021",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 78011,
+                "learner": "u_1003",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5223,
+                "learner": "u_1012",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5224,
+                "learner": "u_1030",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 357,
+                "learner": "u_1056",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 209,
+                "learner": "u_1051",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 358,
+                "learner": "u_1058",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 210,
+                "learner": "u_1046",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5225,
+                "learner": "u_1046",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 78012,
+                "learner": "u_1057",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5226,
+                "learner": "u_1040",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 78013,
+                "learner": "u_1001",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5227,
+                "learner": "u_1030",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 211,
+                "learner": "u_1054",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5228,
+                "learner": "u_1043",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5228,
+                "learner": "u_1043",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 78014,
+                "learner": "u_1047",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5229,
+                "learner": "u_1037",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 78015,
+                "learner": "u_1052",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5230,
+                "learner": "u_1009",
+                "points": -10
+              },
+              {
+                "p": 0,
+                "o": 5231,
+                "learner": "u_1015",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 359,
+                "learner": "u_1023",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 212,
+                "learner": "u_1048",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 78016,
+                "learner": "u_1032",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 360,
+                "learner": "u_1044",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 213,
+                "learner": "u_1030",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5232,
+                "learner": "u_1023",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 214,
+                "learner": "u_1015",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 215,
+                "learner": "u_1021",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5233,
+                "learner": "u_1037",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 78017,
+                "learner": "u_1001",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 216,
+                "learner": "u_1027",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 217,
+                "learner": "u_1016",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 218,
+                "learner": "u_1046",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 78018,
+                "learner": "u_1020",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5234,
+                "learner": "u_1030",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 361,
+                "learner": "u_1017",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 78019,
+                "learner": "u_1011",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 362,
+                "learner": "u_1037",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5235,
+                "learner": "u_1006",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 363,
+                "learner": "u_1037",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5236,
+                "learner": "u_1026",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 364,
+                "learner": "u_1020",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 219,
+                "learner": "u_1030",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 78020,
+                "learner": "u_1050",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5237,
+                "learner": "u_1038",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 78021,
+                "learner": "u_1033",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5238,
+                "learner": "u_1028",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 78022,
+                "learner": "u_1005",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 365,
+                "learner": "u_1039",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 366,
+                "learner": "u_1003",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 78023,
+                "learner": "u_1044",
+                "points": -10
+              },
+              {
+                "p": 1,
+                "o": 367,
+                "learner": "u_1043",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 78024,
+                "learner": "u_1042",
+                "points": -10
+              },
+              {
+                "p": 0,
+                "o": 5239,
+                "learner": "u_1037",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 78025,
+                "learner": "u_1000",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 220,
+                "learner": "u_1018",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5240,
+                "learner": "u_1028",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5241,
+                "learner": "u_1052",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5242,
+                "learner": "u_1027",
+                "points": -10
+              },
+              {
+                "p": 1,
+                "o": 368,
+                "learner": "u_1046",
+                "points": -10
+              },
+              {
+                "p": 1,
+                "o": 369,
+                "learner": "u_1048",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 221,
+                "learner": "u_1010",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 370,
+                "learner": "u_1036",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 78026,
+                "learner": "u_1010",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 78027,
+                "learner": "u_1018",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 78028,
+                "learner": "u_1023",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5243,
+                "learner": "u_1028",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 222,
+                "learner": "u_1053",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5244,
+                "learner": "u_1000",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5245,
+                "learner": "u_1011",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 223,
+                "learner": "u_1055",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 371,
+                "learner": "u_1049",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5246,
+                "learner": "u_1016",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 224,
+                "learner": "u_1021",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 225,
+                "learner": "u_1055",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5247,
+                "learner": "u_1028",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 226,
+                "learner": "u_1000",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 227,
+                "learner": "u_1055",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 78029,
+                "learner": "u_1001",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 372,
+                "learner": "u_1027",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5248,
+                "learner": "u_1018",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5249,
+                "learner": "u_1016",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 78030,
+                "learner": "u_1035",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 78031,
+                "learner": "u_1029",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 228,
+                "learner": "u_1033",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 229,
+                "learner": "u_1043",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5250,
+                "learner": "u_1049",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5251,
+                "learner": "u_1039",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5252,
+                "learner": "u_1014",
+                "points": -10
+              },
+              {
+                "p": 1,
+                "o": 373,
+                "learner": "u_1003",
+                "points": -10
+              },
+              {
+                "p": 1,
+                "o": 374,
+                "learner": "u_1045",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 230,
+                "learner": "u_1048",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 375,
+                "learner": "u_1041",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 78032,
+                "learner": "u_1009",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 78033,
+                "learner": "u_1008",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 376,
+                "learner": "u_1026",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 231,
+                "learner": "u_1053",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 232,
+                "learner": "u_1042",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5253,
+                "learner": "u_1003",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 377,
+                "learner": "u_1000",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 233,
+                "learner": "u_1052",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5254,
+                "learner": "u_1001",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 378,
+                "learner": "u_1028",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 379,
+                "learner": "u_1027",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 78034,
+                "learner": "u_1054",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5255,
+                "learner": "u_1005",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 234,
+                "learner": "u_1035",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 235,
+                "learner": "u_1029",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 78035,
+                "learner": "u_1058",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5256,
+                "learner": "u_1029",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 78036,
+                "learner": "u_1044",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 78037,
+                "learner": "u_1003",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5257,
+                "learner": "u_1036",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 236,
+                "learner": "u_1002",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 237,
+                "learner": "u_1013",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5258,
+                "learner": "u_1035",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 380,
+                "learner": "u_1021",
+                "points": -10
+              },
+              {
+                "p": 3,
+                "o": 78038,
+                "learner": "u_1052",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5259,
+                "learner": "u_1036",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 238,
+                "learner": "u_1039",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 381,
+                "learner": "u_1022",
+                "points": 50
+              },
+              {
+                "p": 2,
+                "o": 239,
+                "learner": "u_1012",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 78039,
+                "learner": "u_1001",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 78040,
+                "learner": "u_1029",
+                "points": -10
+              },
+              {
+                "p": 3,
+                "o": 78041,
+                "learner": "u_1049",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 382,
+                "learner": "u_1017",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5260,
+                "learner": "u_1011",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 240,
+                "learner": "u_1010",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 241,
+                "learner": "u_1019",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 383,
+                "learner": "u_1023",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 78042,
+                "learner": "u_1009",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 78043,
+                "learner": "u_1044",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 384,
+                "learner": "u_1056",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 385,
+                "learner": "u_1027",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 242,
+                "learner": "u_1044",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5261,
+                "learner": "u_1012",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5262,
+                "learner": "u_1043",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 386,
+                "learner": "u_1042",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5263,
+                "learner": "u_1011",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 78044,
+                "learner": "u_1010",
+                "points": 10
+              },
+              {
+                "p": 3,
+                "o": 78045,
+                "learner": "u_1037",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 387,
+                "learner": "u_1042",
+                "points": 50
+              },
+              {
+                "p": 3,
+                "o": 78046,
+                "learner": "u_1053",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 243,
+                "learner": "u_1007",
+                "points": -10
+              },
+              {
+                "p": 1,
+                "o": 388,
+                "learner": "u_1006",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 389,
+                "learner": "u_1011",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 244,
+                "learner": "u_1017",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 78047,
+                "learner": "u_1020",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 390,
+                "learner": "u_1021",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 245,
+                "learner": "u_1045",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 391,
+                "learner": "u_1031",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 392,
+                "learner": "u_1057",
+                "points": 5
+              },
+              {
+                "p": 2,
+                "o": 246,
+                "learner": "u_1008",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5264,
+                "learner": "u_1009",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5265,
+                "learner": "u_1031",
+                "points": -10
+              },
+              {
+                "p": 2,
+                "o": 247,
+                "learner": "u_1007",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 393,
+                "learner": "u_1016",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 393,
+                "learner": "u_1016",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 394,
+                "learner": "u_1038",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 395,
+                "learner": "u_1024",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5266,
+                "learner": "u_1043",
+                "points": 20
+              },
+              {
+                "p": 2,
+                "o": 248,
+                "learner": "u_1001",
+                "points": 20
+              },
+              {
+                "p": 3,
+                "o": 78048,
+                "learner": "u_1000",
+                "points": 5
+              },
+              {
+                "p": 0,
+                "o": 5267,
+                "learner": "u_1011",
+                "points": 50
+              },
+              {
+                "p": 1,
+                "o": 396,
+                "learner": "u_1020",
+                "points": 5
+              },
+              {
+                "p": 3,
+                "o": 78049,
+                "learner": "u_1017",
+                "points": -10
+              },
+              {
+                "p": 1,
+                "o": 397,
+                "learner": "u_1039",
+                "points": 50
+              },
+              {
+                "p": 0,
+                "o": 5268,
+                "learner": "u_1037",
+                "points": 10
+              },
+              {
+                "p": 2,
+                "o": 249,
+                "learner": "u_1008",
+                "points": 5
+              },
+              {
+                "p": 1,
+                "o": 398,
+                "learner": "u_1034",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 399,
+                "learner": "u_1027",
+                "points": 20
+              },
+              {
+                "p": 0,
+                "o": 5269,
+                "learner": "u_1028",
+                "points": 10
+              },
+              {
+                "p": 0,
+                "o": 5270,
+                "learner": "u_1052",
+                "points": 10
+              },
+              {
+                "p": 1,
+                "o": 400,
+                "learner": "u_1048",
+                "points": 20
+              },
+              {
+                "p": 1,
+                "o": 401,
+                "learner": "u_1004",
+                "points": 20
+              }
+            ],
+            "ops": [
+              {
+                "op": "live",
+                "n": 500
+              },
+              {
+                "op": "live",
+                "n": 300,
+                "crashAt": {
+                  "p": 0,
+                  "o": 5157
+                }
+              },
+              {
+                "op": "rebuild",
+                "version": "v2",
+                "n": 700
+              },
+              {
+                "op": "replay",
+                "version": "v1",
+                "p": 2,
+                "from": 0
+              },
+              {
+                "op": "live",
+                "n": 400
+              },
+              {
+                "op": "switch",
+                "to": "v2"
+              },
+              {
+                "op": "rebuild",
+                "version": "v2"
+              },
+              {
+                "op": "switch",
+                "to": "v2"
+              },
+              {
+                "op": "live",
+                "n": 2000
+              }
+            ]
+          },
+          "expected": "live 500: applied 490, skipped 10, rejected 0 -> position 500/1100\nlive 300: applied 136, skipped 4, rejected 0; crash after a commit while applying p0#5157, restart from position 500\nrebuild v2: applied 684, skipped 16, rejected 0 -> position 700/1100\nreplay v1 p2 from 0: applied 110, skipped 146, rejected 0\nlive 400: applied 189, skipped 211, rejected 0 -> position 900/1100\nswitch to v2: refused, active stays v1\nrebuild v2: applied 392, skipped 8, rejected 0 -> position 1100/1100\nswitch to v2: ok\nlive 2000: applied 0, skipped 200, rejected 0 -> position 1100/1100\nactive v2\nv1: offsets p0=5215 p1=350 p2=249 p3=78005; learners 60, total 16620; top u_1015=525 u_1055=525 u_1013=475\nv2: offsets p0=5270 p1=401 p2=249 p3=78049; learners 60, total 19500; top u_1015=525 u_1055=525 u_1028=515",
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}
