@@ -7,7 +7,7 @@ import { userService } from "@/services/user.service";
 
 export async function GET() {
     try {
-        const session = await getAuthSession();
+        const session = await getAuthSession({ allowLocked: true }); // the lock page reads it (plan 12.3)
 
         if (!session) {
             throw new ApiError("Unauthorized", 401);

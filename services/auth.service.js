@@ -112,6 +112,7 @@ export const authService = {
         }
 
         user.permissions = permissions.rows.map(p => p.permissions);
+        user.verifyLockAt = await userDb.getVerifyLockAt({ userId: user.id });
         user.session = await authService.createSession({ userId: user.id, userAgent, ip });
 
         return user;
@@ -147,10 +148,14 @@ export const authService = {
         }
 
         user.permissions = permissions.rows.map(p => p.permissions);
+        user.verifyLockAt = await userDb.getVerifyLockAt({ userId: user.id });
         user.session = await authService.createSession({ userId: user.id, userAgent, ip });
 
         return { result, user };
     },
+
+    /** `verifyLockAt` claim (plan 12.3): end of the grace period as epoch ms, null once verified. */
+    getVerifyLockAt: (userId) => userDb.getVerifyLockAt({ userId }),
 
     /** Links a provider account to `userId` (public id). Throws SQLSTATE CD409 when it is taken. */
     linkProviderAccount: async ({ userId, provider, providerAccountId, providerEmail }) => {

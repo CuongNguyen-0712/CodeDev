@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query"
 
 import { authClient } from "@/clients/auth.client"
 import { userKeys } from "@/keys/user.keys"
+import { isVerifyLocked } from "@/lib/verifyLock"
 
 import { Button } from "@/components/shadcn/button"
 import { Spinner } from "@/components/shadcn/spinner"
@@ -21,7 +22,7 @@ const COPY = {
 
 /** /auth/verify-email?token=… (docs/email-verification-plan.md 4B and 6.5). */
 export default function VerifyEmail() {
-    const { status: sessionStatus } = useSession()
+    const { data: session, status: sessionStatus, update } = useSession()
     const queryClient = useQueryClient()
     const [state, setState] = useState("verifying")
     const [resend, setResend] = useState(null)
@@ -41,6 +42,13 @@ export default function VerifyEmail() {
             .catch((err) => setState(err?.data?.data?.status || "invalid"))
             .finally(() => queryClient.invalidateQueries({ queryKey: userKeys.me() }))
     }, [queryClient])
+
+    // A locked session (plan 12.3) in this browser re-reads its claim, so "Continue" opens /home.
+    const ok = state === "verified" || state === "already_verified"
+    const locked = isVerifyLocked(session)
+    useEffect(() => {
+        if (ok && locked) update()
+    }, [ok, locked, update])
 
     const handleResend = async () => {
         setResend("sending")

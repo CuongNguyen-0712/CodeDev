@@ -79,7 +79,9 @@ export async function POST(req) {
 
         const now = Date.now();
         const accessExpiresAt = now + AUTH.ACCESS_TTL_SEC * 1000;
-        const renewed = { ...token, sid: result.sessionId, accessExpiresAt, checkedAt: now };
+        // The lock claim (plan 12.3) follows PostgreSQL at each refresh; a failed read keeps the old one.
+        const verifyLockAt = await authService.getVerifyLockAt(token.id).catch(() => token.verifyLockAt ?? null);
+        const renewed = { ...token, sid: result.sessionId, accessExpiresAt, checkedAt: now, verifyLockAt };
         for (const legacy of ["refreshToken", "tokenId", "sessionId", "expiresAt", "error"]) delete renewed[legacy];
         await writeSessionCookie(renewed);
 

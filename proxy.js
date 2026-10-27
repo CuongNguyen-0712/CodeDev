@@ -9,6 +9,7 @@ import { ACCESS } from "@/auth/access";
 
 import { isFatalSessionError } from "@/constants/auth";
 import { decodeAuthJwt } from "@/lib/authJwt";
+import { isVerifyLocked, VERIFY_REQUIRED_PATH } from "@/lib/verifyLock";
 
 import { match } from "path-to-regexp";
 
@@ -68,6 +69,15 @@ export default async function proxy(req) {
             if (!allowed) {
                 return NextResponse.redirect(new URL('/403', req.url))
             }
+        }
+
+        // Grace period over, email still unverified (plan 12.3): every signed-in page asks to verify.
+        if (isVerifyLocked(token)) {
+            const target = new URL(VERIFY_REQUIRED_PATH, req.url)
+            target.searchParams.set('next', pathname + req.nextUrl.search)
+            const res = NextResponse.redirect(target)
+            res.headers.set('Cache-Control', 'private, no-store, max-age=0')
+            return res
         }
 
         // Signed-in pages must not be served from a browser / CDN cache after the user signs out.

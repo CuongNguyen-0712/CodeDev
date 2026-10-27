@@ -200,6 +200,7 @@ async function startSession(token, user) {
         sid: session.sessionId,
         accessExpiresAt: now + AUTH.ACCESS_TTL_SEC * 1000,
         checkedAt: now,
+        verifyLockAt: user.verifyLockAt ?? null,
     };
 }
 
@@ -302,7 +303,7 @@ export const authOptions = {
             return providerSignIn({ user, account, profile });
         },
 
-        async jwt({ token, user, account }) {
+        async jwt({ token, user, account, trigger }) {
             // ---- Sign in: the session was committed to PostgreSQL by authService.createSession.
             if (account && user) {
                 return startSession(token, account.provider === "credentials" ? user : user.codedev);
@@ -331,6 +332,16 @@ export const authOptions = {
             const sessionId = tokenSessionId(token);
             if (!sessionId) {
                 return { ...token, error: SESSION_ERROR.INVALID };
+            }
+
+            // useSession().update() after the email was verified (plan 12.3): the lock comes from
+            // PostgreSQL, never from the data the client sends with update().
+            if (trigger === "update") {
+                try {
+                    token = { ...token, verifyLockAt: await authService.getVerifyLockAt(token.id) };
+                } catch (err) {
+                    console.error("[auth] Lock check failed:", err?.message);
+                }
             }
 
             const now = Date.now();
@@ -364,6 +375,7 @@ export const authOptions = {
                 },
                 // When the access state ends; the client refreshes shortly before it.
                 accessExpiresAt: tokenAccessExpiresAt(token),
+                verifyLockAt: token.verifyLockAt ?? null,
                 error: token.error,
             };
         },

@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 export async function POST(req) {
     try {
         assertSameOrigin(req);
-        const session = await requireAuthSession();
+        const session = await requireAuthSession({ allowLocked: true }); // the lock page sends it (plan 12.3)
 
         const limit = await rateLimiters.emailVerify.limitRequest(req, session.user.id);
         if (!limit.allowed) return limit.response;

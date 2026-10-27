@@ -8,6 +8,9 @@ import { runAction } from "@/lib/serverAction";
 import { EMAIL_PATTERN } from "@/lib/definition";
 
 export async function updateUserProfileAction(data) {
+    // A locked account (plan 12.3) may still fix a mistyped email, and nothing else.
+    const emailOnly = Boolean(data?.email) && !["nickname", "surname", "phone", "name", "bio"].some((key) => data[key]);
+
     return runAction(async ({ userId }) => {
         // The profile image is set only by uploadAvatarAction (server-chosen Cloudinary asset);
         // an image URL sent here is ignored so a client cannot point it at an arbitrary URL.
@@ -46,5 +49,5 @@ export async function updateUserProfileAction(data) {
         if (email) await emailVerificationService.request(userId);
 
         return updated;
-    }, { limiter: rateLimiters.profile, context: "updateUserProfileAction" });
+    }, { allowLocked: emailOnly, limiter: rateLimiters.profile, context: "updateUserProfileAction" });
 }

@@ -17,7 +17,7 @@ export async function PATCH(req) {
     try {
         assertSameOrigin(req);
 
-        const session = await getAuthSession({ validate: false, allowExpiredAccess: true });
+        const session = await getAuthSession({ validate: false, allowExpiredAccess: true, allowLocked: true });
 
         const userId = session?.user?.id;
         const sessionId = session?.user?.sessionId;

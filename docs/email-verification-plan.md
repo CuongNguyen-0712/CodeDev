@@ -604,7 +604,9 @@ Lên plan 2026-10-26. Thay mốc thời gian của 11.2 (xóa sau 7 ngày → kh
 
 Đã chốt 2026-10-26: tài khoản từng xác minh rồi đổi email bị khóa sau 7 ngày nhưng không bị xóa; user cũ có ân hạn tối thiểu 48h; 12.4 làm phương án 3.
 
-Trạng thái 2026-10-26: bước 1 của 12.7 đã làm và test trên local (migration `20261026_003_verify_lock.sql`, thay cho tên `20261027_001` bên dưới). Đổi email của tài khoản chưa từng xác minh giữ nguyên hạn, để không gia hạn được bằng cách đổi email. Chưa lên prod; bước 2–4 chưa làm.
+Trạng thái 2026-10-26: bước 1 của 12.7 đã làm và test trên local (migration `20261026_003_verify_lock.sql`, thay cho tên `20261027_001` bên dưới). Đổi email của tài khoản chưa từng xác minh giữ nguyên hạn, để không gia hạn được bằng cách đổi email. Chưa lên prod.
+
+Trạng thái bước 2: claim `verifyLockAt`, `proxy.js`, guard API (`allowLocked`), trang `/auth/verify-required` đã làm và test trên local (test `__tests__/auth/verifyLock.test.js`). Khác 12.3: trang khóa **không** có nút "Use Google or GitHub": đang đăng nhập mà bấm OAuth với email khác sẽ vào / tạo tài khoản khác (đúng tình huống 12.4), nên chỉ giữ Resend / Change email / Sign out. `POST /api/auth/link/start` vì thế không cần `allowLocked`. Thêm vào danh sách được phép: `POST /api/pusher/auth` (nghe sự kiện đã xác minh) và các API đọc công khai (danh sách khóa học, chi tiết, comment, roadmap). Bước 3–4 chưa làm.
 
 ### 12.1 Mốc thời gian
 
