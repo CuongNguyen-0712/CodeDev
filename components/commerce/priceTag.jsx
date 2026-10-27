@@ -28,7 +28,9 @@ export function PriceTag({ course, className }) {
     ].filter(Boolean).join(', ');
 
     return (
-        <span className={cn("inline-flex flex-wrap items-center gap-1.5", className)} aria-label={description}>
+        <span className={cn("inline-flex flex-wrap items-center gap-1.5", className)}>
+            {/* aria-label is ignored on a role-less span, so the description is real (visually hidden) text. */}
+            <span className="sr-only">{description}</span>
             <Badge variant="primary" aria-hidden="true">
                 <LuCrown aria-hidden="true" />
                 Premium

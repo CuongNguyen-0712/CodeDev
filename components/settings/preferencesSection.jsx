@@ -75,7 +75,7 @@ function SelectField({ id, label, value, onChange, disabled, noneLabel, options,
 
 function PreferencesSkeleton() {
     return (
-        <div className="flex flex-col gap-4 p-4" aria-busy="true" aria-label="Loading preferences">
+        <div className="flex flex-col gap-4 p-4" role="status" aria-busy="true" aria-label="Loading preferences">
             <Skeleton className="h-6 w-64 max-w-full" />
             <div className="grid gap-3 sm:grid-cols-2">
                 <Skeleton className="h-14 w-full" />

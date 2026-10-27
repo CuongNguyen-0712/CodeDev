@@ -90,11 +90,11 @@ export function InputGroup({
                 )}
             </InputGroupRoot>
             {/* Reserved slot: compact 16px height eliminates shift without bloated spacing */}
-            <div className="min-h-4 flex items-center text-[11px] leading-4">
+            <div className="min-h-4 flex items-center text-xs leading-4">
                 {error ? (
                     <FieldError
                         id={errorId}
-                        className="flex items-center gap-1 font-medium text-[11px] leading-4 text-destructive animate-in fade-in-50 duration-150"
+                        className="flex items-center gap-1 font-medium text-xs leading-4 text-destructive animate-in fade-in-50 duration-150"
                     >
                         <LuCircleAlert className="size-3 shrink-0" aria-hidden="true" />
                         <span>{error}</span>
@@ -152,11 +152,11 @@ export function TextAreaGroup({
                     </InputGroupAddon>
                 )}
             </InputGroupRoot>
-            <div className="min-h-4 flex items-center text-[11px] leading-4">
+            <div className="min-h-4 flex items-center text-xs leading-4">
                 {error && (
                     <FieldError
                         id={errorId}
-                        className="flex items-center gap-1 font-medium text-[11px] leading-4 text-destructive animate-in fade-in-50 duration-150"
+                        className="flex items-center gap-1 font-medium text-xs leading-4 text-destructive animate-in fade-in-50 duration-150"
                     >
                         <LuCircleAlert className="size-3 shrink-0" aria-hidden="true" />
                         <span>{error}</span>

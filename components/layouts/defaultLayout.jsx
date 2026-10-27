@@ -4,9 +4,10 @@
 // `enter`: sections rise in on load (.page-enter); off for full-screen tools like the learning workspace.
 function LayoutContent({ children, enter }) {
     return (
-        <section className={`${enter ? 'page-enter ' : ''}flex h-dvh w-full flex-col overflow-y-auto bg-background`}>
+        // A div, not a <section>: page <header>s inside a section lose their banner landmark.
+        <div className={`${enter ? 'page-enter ' : ''}flex h-dvh w-full flex-col overflow-y-auto bg-background`}>
             {children}
-        </section>
+        </div>
     )
 }
 

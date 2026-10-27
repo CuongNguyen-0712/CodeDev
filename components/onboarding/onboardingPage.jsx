@@ -144,7 +144,7 @@ function ProgressHeader({ step }) {
                                     ? "font-medium text-foreground"
                                     : state === "done"
                                         ? "text-muted-foreground"
-                                        : "text-muted-foreground/70"
+                                        : "text-muted-foreground"
                             }
                         >
                             <span className="flex items-center gap-1">
@@ -162,23 +162,23 @@ function ProgressHeader({ step }) {
 
 function ReviewRow({ label, value, onEdit, disabled }) {
     return (
-        <div className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0 space-y-0.5">
-                <dt className="text-sm text-muted-foreground">{label}</dt>
-                <dd className="m-0 text-sm text-foreground">{value}</dd>
-            </div>
-            <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={onEdit}
-                disabled={disabled}
-                aria-label={`Edit ${label.toLowerCase()}`}
-                className="self-start"
-            >
-                <LuPencil />
-                Edit
-            </Button>
+        // A <dl> row may only hold <dt>/<dd>, so the Edit button sits in its own <dd> beside the value.
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-0.5 px-4 py-3">
+            <dt className="text-sm text-muted-foreground">{label}</dt>
+            <dd className="col-start-1 m-0 min-w-0 text-sm text-foreground">{value}</dd>
+            <dd className="col-start-2 row-span-2 row-start-1 m-0">
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={onEdit}
+                    disabled={disabled}
+                    aria-label={`Edit ${label.toLowerCase()}`}
+                >
+                    <LuPencil />
+                    Edit
+                </Button>
+            </dd>
         </div>
     );
 }
@@ -204,7 +204,7 @@ function RecommendationsStep({ sessionStatus, headingRef, onEdit }) {
             )}
 
             {pending ? (
-                <ul className="m-0 grid list-none gap-3 p-0 sm:grid-cols-2 lg:grid-cols-3" aria-busy="true" aria-label="Loading recommendations">
+                <ul className="m-0 grid list-none gap-3 p-0 sm:grid-cols-2 lg:grid-cols-3" role="status" aria-busy="true" aria-label="Loading recommendations">
                     {Array.from({ length: 3 }, (_, index) => (
                         <li key={index}><RecommendationCardSkeleton /></li>
                     ))}
@@ -608,7 +608,7 @@ function OnboardingWizard({ catalog, state, sessionStatus }) {
 
 function OnboardingSkeleton() {
     return (
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 pt-6 pb-12 sm:px-6 lg:pt-10" aria-busy="true" aria-label="Loading onboarding">
+        <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 pt-6 pb-12 sm:px-6 lg:pt-10" role="status" aria-busy="true" aria-label="Loading onboarding">
             <Skeleton className="size-7 rounded-md" />
             <div className="space-y-2">
                 <Skeleton className="h-9 w-80 max-w-full" />

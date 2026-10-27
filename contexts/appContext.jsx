@@ -12,18 +12,23 @@ const STORAGE_KEY = 'codedev_dashboard_state';
 export const AppProvider = ({ children }) => {
     const pathname = usePathname();
     const [overlay, setOverlayState] = useState(null);
-    const [isDashboard, setIsDashboard] = useState(false);
+    // Starts open, the desktop default, so the server render already shows the labelled sidebar and
+    // the layout does not jump after hydration. Below 768 px the desktop sidebar is hidden (a Sheet is used).
+    const [isDashboard, setIsDashboard] = useState(true);
     const [isRedirect, setIsRedirect] = useState(false);
 
     useEffect(() => {
+        // shortcut: users who collapsed the sidebar still see one collapse after hydration; reading the
+        // sidebar_state cookie on the server would remove it but makes every route dynamic.
         try {
-            const saved = localStorage.getItem(STORAGE_KEY);
-            if (typeof window !== 'undefined' && window.innerWidth >= 768) {
-                // Desktop starts with the labelled sidebar unless the user collapsed it before.
-                setIsDashboard(saved === null ? true : JSON.parse(saved));
+            if (window.innerWidth < 768) {
+                setIsDashboard(false);
+                return;
             }
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved !== null) setIsDashboard(Boolean(JSON.parse(saved)));
         } catch {
-            setIsDashboard(false);
+            // Unreadable storage keeps the default.
         }
     }, []);
 

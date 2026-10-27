@@ -33,9 +33,9 @@ function formatLoginError(error) {
     return error || "Sign in failed. Please check your credentials."
 }
 
-export default function Login({ active, changeForm }) {
+export default function Login({ active, changeForm, initialUsername = '' }) {
     const [formData, setFormData] = useState({
-        username: '',
+        username: initialUsername,
         password: '',
     })
 

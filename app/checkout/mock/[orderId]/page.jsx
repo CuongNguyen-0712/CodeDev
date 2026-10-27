@@ -21,7 +21,9 @@ export default async function Page({ params }) {
     return (
         <Suspense fallback={<LoadingRedirect />}>
             <DefaultLayout>
-                <MockCheckoutPage orderId={orderId} />
+                <main className="w-full">
+                    <MockCheckoutPage orderId={orderId} />
+                </main>
             </DefaultLayout>
         </Suspense>
     );

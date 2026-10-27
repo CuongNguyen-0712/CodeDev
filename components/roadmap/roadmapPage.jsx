@@ -33,7 +33,7 @@ const FALLBACK_LOGO = '/image/static/no_image.png';
 function RoadmapRowSkeleton() {
     return (
         <li className="flex items-start gap-4 px-4 py-4">
-            <Skeleton className="size-9 shrink-0 rounded-md" />
+            <Skeleton className="h-9 w-23 shrink-0 rounded-md" />
             <div className="min-w-0 flex-1 space-y-2">
                 <Skeleton className="h-4 w-56 max-w-[60vw]" />
                 <Skeleton className="h-3 w-full max-w-md" />
@@ -48,19 +48,24 @@ function LanguageStack({ languages }) {
     // The list query aggregates languages through LEFT JOINs, so a roadmap
     // without courses yields an empty placeholder object. Skip those.
     const items = languages.filter((lang) => lang && lang.id != null);
-    const visible = items.slice(0, 3);
+    // At most three tiles (two logos + "+N" when there are more) in a fixed-width slot, so every
+    // row's title starts at the same x whatever the number of languages.
+    const visible = items.slice(0, items.length > 3 ? 2 : 3);
     const extra = items.length - visible.length;
+    const slot = "flex w-23 shrink-0 items-center -space-x-2";
 
     if (items.length === 0) {
         return (
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-md border bg-background text-muted-foreground">
-                <LuRoute className="size-4" aria-hidden="true" />
+            <span className={slot}>
+                <span className="flex size-9 items-center justify-center rounded-md border bg-background text-muted-foreground">
+                    <LuRoute className="size-4" aria-hidden="true" />
+                </span>
             </span>
         );
     }
 
     return (
-        <span className="flex shrink-0 items-center -space-x-2" title={items.map((lang) => lang.name).join(', ')}>
+        <span className={slot} title={items.map((lang) => lang.name).join(', ')}>
             {visible.map((lang) => (
                 <span
                     key={lang.id}
@@ -183,7 +188,9 @@ export default function RoadmapPage() {
     const showEmpty = !isLoading && !isError && filteredRoadmaps.length === 0;
     const countLabel = isLoading
         ? 'Loading roadmaps...'
-        : `${filteredRoadmaps.length} roadmap${filteredRoadmaps.length === 1 ? '' : 's'}`;
+        : showError
+            ? 'Roadmaps unavailable'
+            : `${filteredRoadmaps.length} roadmap${filteredRoadmaps.length === 1 ? '' : 's'}`;
     const emptyTitle = hasActiveFilters ? 'No roadmaps match these filters' : 'No roadmaps published yet';
 
     return (
@@ -257,11 +264,12 @@ export default function RoadmapPage() {
                                     <li key={roadmap.id} className="animate-enter" style={{ '--enter-index': index % 20 }}>
                                         <Link
                                             href={`/roadmap/${roadmap.id}`}
-                                            className="group flex items-start gap-4 px-4 py-4 outline-none transition-colors hover:bg-accent/60 focus-visible:bg-accent/60 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset active:bg-accent"
+                                            // Phones: logos on their own row so the text gets the full width; sm+: logos | text | level.
+                                            className="group grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 gap-y-3 px-4 py-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] outline-none transition-colors hover:bg-accent/60 focus-visible:bg-accent/60 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset active:bg-accent"
                                         >
                                             <LanguageStack languages={languages} />
 
-                                            <div className="min-w-0 flex-1 space-y-1">
+                                            <div className="min-w-0 space-y-1 max-sm:col-start-1 max-sm:row-start-2">
                                                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                                                     <h3 className="text-sm font-semibold text-foreground group-hover:text-primary-ink">
                                                         {roadmap.title}
@@ -279,7 +287,8 @@ export default function RoadmapPage() {
                                                 </p>
                                             </div>
 
-                                            <div className="flex shrink-0 items-center gap-3 self-center">
+                                            {/* Fixed width: "Beginner" and "Intermediate" rows keep the same text column. */}
+                                            <div className="flex shrink-0 items-center justify-end gap-3 self-center sm:w-32 max-sm:col-start-2 max-sm:row-span-2 max-sm:row-start-1">
                                                 <Badge variant="muted" className="max-sm:hidden">{levelLabel}</Badge>
                                                 <LuChevronRight
                                                     className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground"

@@ -463,7 +463,7 @@ function ResendVerificationButton() {
 
 function SettingsSkeleton() {
     return (
-        <div className="flex flex-col gap-6" aria-busy="true" aria-label="Loading settings">
+        <div className="flex flex-col gap-6" role="status" aria-busy="true" aria-label="Loading settings">
             {[140, 320, 200].map((height, index) => (
                 <div
                     key={height}

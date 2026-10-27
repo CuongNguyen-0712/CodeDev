@@ -79,7 +79,7 @@ export function Stat({ icon: Icon, label, iconClassName, children }) {
 
 function ProfileSkeleton() {
     return (
-        <div className="flex flex-col gap-6" aria-busy="true" aria-label="Loading profile">
+        <div className="flex flex-col gap-6" role="status" aria-busy="true" aria-label="Loading profile">
             <div className="flex items-start gap-4">
                 <Skeleton className="size-16 rounded-full" />
                 <div className="flex-1 space-y-2.5">

@@ -108,11 +108,13 @@ export default function CoursePage() {
 
     const courses = data?.pages?.flatMap(page => page.data) ?? [];
 
+    const showError = !isLoading && isError && courses.length === 0;
+    // "0 courses" next to a load error reads as an empty catalog, so the count waits for real data.
     const countLabel = isLoading
         ? 'Loading courses...'
-        : `${courses.length}${hasNextPage ? '+' : ''} course${courses.length === 1 ? '' : 's'}`;
-
-    const showError = !isLoading && isError && courses.length === 0;
+        : showError
+            ? 'Courses unavailable'
+            : `${courses.length}${hasNextPage ? '+' : ''} course${courses.length === 1 ? '' : 's'}`;
     const showEmpty = !isLoading && !isError && courses.length === 0;
 
     return (

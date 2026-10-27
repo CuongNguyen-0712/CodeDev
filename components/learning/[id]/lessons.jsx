@@ -177,7 +177,7 @@ export default function LearningLesson({
         <div ref={scrollRef} className="h-full overflow-y-auto">
             <article className="mx-auto w-full max-w-3xl px-5 pt-8 pb-16 sm:px-8 lg:pt-12">
                 {isLoading ? (
-                    <div className="space-y-4" aria-busy="true" aria-label="Loading lesson">
+                    <div className="space-y-4" role="status" aria-busy="true" aria-label="Loading lesson">
                         <Skeleton className="h-3 w-40" />
                         <Skeleton className="h-9 w-3/4" />
                         <Skeleton className="h-4 w-full" />

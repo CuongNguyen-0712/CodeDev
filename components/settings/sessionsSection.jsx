@@ -96,7 +96,7 @@ export default function SessionsSection() {
 
     if (isLoading) {
         return (
-            <div className="flex flex-col gap-3 p-4" aria-busy="true" aria-label="Loading sessions">
+            <div className="flex flex-col gap-3 p-4" role="status" aria-busy="true" aria-label="Loading sessions">
                 {[0, 1].map((index) => (
                     <div key={index} className="flex items-center gap-3">
                         <Skeleton className="size-9 rounded-md" />

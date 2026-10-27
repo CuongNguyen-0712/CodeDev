@@ -164,7 +164,7 @@ function Syllabus({ modules }) {
                                                                 {child.title}
                                                             </span>
                                                             {formatLabel && (
-                                                                <Badge variant="outline" className="tabular text-[10px] text-muted-foreground max-sm:hidden">
+                                                                <Badge variant="outline" className="tabular text-muted-foreground max-sm:hidden">
                                                                     {formatLabel}
                                                                 </Badge>
                                                             )}

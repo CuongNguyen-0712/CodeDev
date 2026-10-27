@@ -92,7 +92,7 @@ export function PurchaseActions({ courseId, course, isLoading = false, error = n
     });
 
     if (authStatus === 'loading') {
-        return <Skeleton className={cn("h-9 w-44", className)} aria-label="Loading course actions" />;
+        return <Skeleton className={cn("h-9 w-44", className)} role="status" aria-label="Loading course actions" />;
     }
 
     if (authStatus !== 'authenticated') {
@@ -109,7 +109,7 @@ export function PurchaseActions({ courseId, course, isLoading = false, error = n
     }
 
     if (isLoading || (!course && !error)) {
-        return <Skeleton className={cn("h-9 w-44", className)} aria-label="Loading course actions" />;
+        return <Skeleton className={cn("h-9 w-44", className)} role="status" aria-label="Loading course actions" />;
     }
 
     if (error || !course) {

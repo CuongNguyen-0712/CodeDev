@@ -267,7 +267,7 @@ function TierLadder({ tiers, current, board }) {
 
 function BoardSkeleton() {
     return (
-        <div className="flex flex-col gap-3" aria-busy="true" aria-label="Loading leaderboard">
+        <div className="flex flex-col gap-3" role="status" aria-busy="true" aria-label="Loading leaderboard">
             <div className="grid gap-3 sm:grid-cols-3">
                 {Array.from({ length: 3 }, (_, i) => <Skeleton key={i} className="h-20 rounded-lg" />)}
             </div>

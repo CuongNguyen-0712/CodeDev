@@ -180,14 +180,14 @@ function SyllabusPanel({
                                                     aria-hidden="true"
                                                 />
                                                 <span className="min-w-0 flex-1">
-                                                    <span className="block tabular text-[11px] text-muted-foreground">
+                                                    <span className="block tabular text-xs text-muted-foreground">
                                                         Chapter {index + 1}
                                                     </span>
                                                     <span className="block text-[13px] leading-snug font-medium text-foreground">
                                                         {module.title}
                                                     </span>
                                                 </span>
-                                                <span className="mt-0.5 shrink-0 text-[11px] text-muted-foreground tabular">
+                                                <span className="mt-0.5 shrink-0 text-xs text-muted-foreground tabular">
                                                     {completedInModule}/{lessons.length}
                                                 </span>
                                             </CollapsibleTrigger>
@@ -215,12 +215,12 @@ function SyllabusPanel({
                                                                     )}
                                                                 >
                                                                     <LessonStatusIcon status={lesson.status} locked={isLocked} />
-                                                                    <span className="w-5 shrink-0 text-[11px] text-muted-foreground tabular">
+                                                                    <span className="w-5 shrink-0 text-xs text-muted-foreground tabular">
                                                                         {lIndex + 1}
                                                                     </span>
                                                                     <span className="min-w-0 flex-1 truncate">{lesson.title}</span>
                                                                     {hasChallenges && (
-                                                                        <Badge variant="outline" className="h-4 px-1 tabular text-[10px] text-muted-foreground">
+                                                                        <Badge variant="outline" className="h-4 px-1 tabular text-xs text-muted-foreground">
                                                                             {challengeKind}
                                                                         </Badge>
                                                                     )}
@@ -495,9 +495,9 @@ export default function StudyingPage({ params }) {
                     {isLoading ? (
                         <Skeleton className="h-4 w-48" />
                     ) : (
-                        <h1 className="truncate text-sm font-semibold" title={data?.title}>
+                        <p className="truncate text-sm font-semibold" title={data?.title}>
                             {data?.title || 'Course'}
-                        </h1>
+                        </p>
                     )}
                     {totalLessonsCount > 0 && (
                         <div className="ml-2 hidden shrink-0 items-center gap-2 md:flex">

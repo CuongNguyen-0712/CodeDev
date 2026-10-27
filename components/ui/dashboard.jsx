@@ -99,7 +99,8 @@ export default function Dashboard() {
   };
 
   return (
-    <Sidebar collapsible="icon" aria-label="Main navigation">
+    // role makes the aria-label count (a role-less div ignores it) and puts the sidebar in a landmark.
+    <Sidebar collapsible="icon" role="navigation" aria-label="Main navigation">
       <SidebarHeader className="h-12 justify-center border-b border-sidebar-border">
         <SidebarMenu>
           <SidebarMenuItem>

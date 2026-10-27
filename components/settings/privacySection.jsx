@@ -42,7 +42,7 @@ export default function PrivacySection() {
 
     if (isLoading) {
         return (
-            <div className="space-y-4 p-4" aria-busy="true" aria-label="Loading privacy settings">
+            <div className="space-y-4 p-4" role="status" aria-busy="true" aria-label="Loading privacy settings">
                 {ROWS.map((row) => <Skeleton key={row.key} className="h-12 w-full" />)}
             </div>
         );

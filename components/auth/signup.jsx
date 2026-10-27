@@ -30,7 +30,7 @@ import { SiGithub, SiGoogle } from "react-icons/si"
 
 const STEPS = ["Your details", "Account"]
 
-export default function Signup({ active, changeForm }) {
+export default function Signup({ active, changeForm, onSignedUp }) {
     const [step, setStep] = useState(0)
 
     const { showAlert: alert } = useApp()
@@ -106,6 +106,7 @@ export default function Signup({ active, changeForm }) {
                 alert(201, response?.data?.verificationSent
                     ? `Account created. We sent a verification link to ${maskEmail(formData.email)}. Sign in to continue.`
                     : "Account created. Sign in to continue.")
+                onSignedUp?.(formData.username)
                 setFormData(defaultState)
                 setStep(0)
                 changeForm()

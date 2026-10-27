@@ -47,6 +47,7 @@ const COPY = {
 
 export default function AuthPage() {
     const [activeForm, setActiveForm] = useState('login')
+    const [signedUpUsername, setSignedUpUsername] = useState('')
 
     const isLogin = activeForm === 'login'
     const isSignup = activeForm === 'signup'
@@ -87,8 +88,11 @@ export default function AuthPage() {
 
                             {/* Both forms stay mounted so typed values survive switching tabs. */}
                             <TabsContent value="login" forceMount className="data-[state=inactive]:hidden">
+                                {/* Remounts after a sign-up so the new username is already filled in. */}
                                 <Login
+                                    key={signedUpUsername}
                                     active={isLogin}
+                                    initialUsername={signedUpUsername}
                                     changeForm={() => setActiveForm('signup')}
                                 />
                             </TabsContent>
@@ -96,6 +100,7 @@ export default function AuthPage() {
                                 <Signup
                                     active={isSignup}
                                     changeForm={() => setActiveForm('login')}
+                                    onSignedUp={setSignedUpUsername}
                                 />
                             </TabsContent>
                         </Tabs>

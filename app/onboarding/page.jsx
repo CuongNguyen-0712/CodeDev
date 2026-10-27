@@ -17,7 +17,9 @@ export default function Page() {
     return (
         <Suspense fallback={<LoadingRedirect />}>
             <DefaultLayout>
-                <OnboardingPage />
+                <main className="w-full">
+                    <OnboardingPage />
+                </main>
             </DefaultLayout>
         </Suspense>
     );

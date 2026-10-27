@@ -230,7 +230,7 @@ export default function QuizChallenge({ challenge, onPassed, onExhausted }) {
                                 aria-label={`Question ${idx + 1}${graded ? (graded.isCorrect ? ', correct' : ', incorrect') : isAnswered(q) ? ', answered' : ''}`}
                                 aria-current={isCurrent ? 'step' : undefined}
                                 className={cn(
-                                    'flex size-6 items-center justify-center rounded-sm border text-[11px] tabular transition-colors',
+                                    'flex size-6 items-center justify-center rounded-sm border text-xs tabular transition-colors',
                                     isCurrent
                                         ? 'border-primary bg-primary text-primary-foreground dark:text-white'
                                         : graded
@@ -297,7 +297,7 @@ export default function QuizChallenge({ challenge, onPassed, onExhausted }) {
                                 <span
                                     aria-hidden="true"
                                     className={cn(
-                                        'flex size-5 shrink-0 items-center justify-center border text-[10px] font-medium',
+                                        'flex size-5 shrink-0 items-center justify-center border text-xs font-medium',
                                         isMultiple ? 'rounded-sm' : 'rounded-full',
                                         selected ? 'border-primary bg-primary text-primary-foreground dark:text-white' : 'border-input bg-background text-muted-foreground',
                                         outcome === 'correct' && 'border-success bg-success text-success-foreground',

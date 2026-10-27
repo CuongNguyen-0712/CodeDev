@@ -161,7 +161,8 @@ function CodeBlock({ value }) {
             <div
                 className="code_content_wrapper"
                 tabIndex={0}
-                role="region"
+                // group, not region: a lesson has many code blocks and same-named landmarks clutter the landmark list.
+                role="group"
                 aria-label={`${fileLabel} code`}
             >
                 <SyntaxHighlighter

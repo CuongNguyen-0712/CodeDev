@@ -183,7 +183,7 @@
         padding: 0 0.3rem;
         border: 1px solid var(--editor-border);
         border-radius: calc(var(--radius) - 0.25rem);
-        font-size: 0.625rem;
+        font-size: 0.75rem;
         letter-spacing: 0.04em;
     }
 

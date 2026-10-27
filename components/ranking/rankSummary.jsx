@@ -61,7 +61,7 @@ export function MyRankSummary() {
 
     if (isLoading) {
         return (
-            <div className="space-y-3" aria-busy="true" aria-label="Loading ranks">
+            <div className="space-y-3" role="status" aria-busy="true" aria-label="Loading ranks">
                 <Skeleton className="h-6 w-24" />
                 <Skeleton className="h-28 w-full rounded-lg" />
             </div>

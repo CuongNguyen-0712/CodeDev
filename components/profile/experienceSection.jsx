@@ -160,7 +160,7 @@ export default function ExperienceSection({ status, currentLevel = 1 }) {
                         </span>
                     )}
                 </div>
-                <div className="flex items-center justify-between border-b bg-muted/40 px-3.5 py-1.5 tabular text-[11px] text-muted-foreground sm:px-4">
+                <div className="flex items-center justify-between border-b bg-muted/40 px-3.5 py-1.5 tabular text-xs text-muted-foreground sm:px-4">
                     <span>Level & Title</span>
                     <span>Min EXP</span>
                 </div>
@@ -198,7 +198,7 @@ export default function ExperienceSection({ status, currentLevel = 1 }) {
                                         </span>
                                     </div>
                                     <span className="text-xs tabular shrink-0 font-medium ml-2">
-                                        {lvl.minExp.toLocaleString()} <span className="text-[10px] opacity-70">EXP</span>
+                                        {lvl.minExp.toLocaleString()} <span className="text-xs font-normal">EXP</span>
                                     </span>
                                 </li>
                             );

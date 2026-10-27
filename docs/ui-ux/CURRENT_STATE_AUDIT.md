@@ -28,6 +28,31 @@ Not done: manual screen-reader testing (NVDA/VoiceOver), real iOS/Android device
 
 Fixed earlier in the same session (for traceability): dark-mode primary text contrast (`--primary-ink`), level label contrast (`--xp`), account trigger and `/home` stat names (WCAG 2.5.3), focusable level list, editor gutter contrast, 11 px labels, `/contact` and `/profile` signed-out 401s (now `PRIVATE` routes), "0.0" ratings.
 
+### 1.2 Status on 2026-10-26
+
+Re-checked against the working tree. Already shipped: QW-1 to QW-9 (UX-101, 103, 108, 109 part 1, 111, 208, 209, 211, 302) and R0-2 (`app/error.jsx`, `app/global-error.jsx`, `app/not-found.jsx`).
+
+Fixed in this pass:
+
+- UX-401: admin `window.confirm` / `window.prompt` replaced by `components/admin/confirmDialog.jsx` (AlertDialog; optional labelled reason field with an inline error under 5 characters instead of silently ignoring the answer). Used for archive, remove price, revoke access and refund.
+- UX-301: the sidebar now starts expanded on the server and the client, so the desktop default no longer jumps after hydration. Users who collapsed it still see one collapse on load (cookie read on the server would make every route dynamic).
+- `/course` and `/roadmap` no longer show "0 courses" / "0 roadmaps" beside a load error.
+
+Second pass the same day, with production data restored locally and a local test account (axe-core 4.10 WCAG 2.2 AA + best-practice, overflow and under-12 px checks at 1280 and 375 px, signed out and signed in, including onboarding and the lesson workspace):
+
+- Premium price tag: `aria-label` on a role-less span with `aria-hidden` children hid the price from screen readers; now visually hidden text (`commerce/priceTag.jsx`).
+- Sidebar: `role="navigation"` so its label applies and it is a landmark (axe `region` on every shell page).
+- 404 for unmatched URLs (`app/global-not-found.jsx`) now runs the theme script (`lib/themeScript.js`, shared with the root layout); it was always light.
+- Onboarding: upcoming step labels failed contrast (`text-muted-foreground/70`); review list was an invalid `<dl>`; page had no `<main>` (same for mock checkout).
+- Loading placeholders: `role="status"` so their `aria-label` is announced (settings, profile, ranking, onboarding, lesson, purchase actions).
+- DefaultLayout scroller is a `<div>`, so page headers are banner landmarks; lesson code blocks are labelled groups, not same-named regions; the workspace has one `<h1>` (the lesson).
+- UX-212: no text under 12 px outside the code editor (profile level table, field hints and errors, syllabus, quiz, preview badge, code language chip).
+- UX-105 (part): after sign-up the Sign in tab opens with the new username filled in (no auth change).
+
+Result: 0 axe violations on every route checked. Not changed: the beginner level icon (two signal bars) reads like a stray "." at 12 px. The test `__tests__/auth/accountPurge.test.js` fails within 7 days before a DST change when the local PostgreSQL time zone observes DST (`+ 7 days` = 169 h); production runs in UTC.
+
+Still open: UX-104 (auth, gated), UX-105 auto sign-in (D-08), UX-106, UX-107 (gated), UX-110, UX-112, UX-201 to UX-207, UX-303, UX-402 to UX-404, UX-501 to UX-503.
+
 ## 2. Architecture snapshot
 
 - Next.js 16 App Router, React 19, JavaScript. Tailwind v4 (no preflight; a reset subset in `app/globals.css`) and shadcn/ui copies in `components/shadcn`.
@@ -71,7 +96,7 @@ Severity: **Critical** blocks a core task or loses data; **High** breaks feedbac
 | UX-207 | `settings/settingsPage.jsx:141-173` (avatar), `admin/courseAdmin.jsx:213-216` (price), `ui/feedback.jsx` and settings profile (server errors) | Errors reported only by toast | Errors disappear after 4 s and are not tied to the field; screen-reader users may miss them. | Medium | Inline field or form-level alert; toast only in addition. | 1 |
 | UX-208 | `components/ui/navbar.jsx` `SECTION_LABELS` | Missing `orders`, `admin`, `onboarding`; stale `connect` | Breadcrumb shows raw capitalised segments. | Low | Complete the map. | 0.1 |
 | UX-209 | `components/index.js` | Landing code sample is plain text | Inconsistent with the editor and lessons (Dracula theme). | Low | Use `lib/syntaxTheme.js`. | 0.25 |
-| UX-210 | `components/templates/*` | Emoji, em dashes, old Cloudinary logo | Brand inconsistency in email. | Low | Update copy and logo asset. | 0.5 |
+| UX-210 | `components/templates/*` | Resolved: brand badge logo asset (`logo.png`), `_CodeDev;` wordmark, and callout copy | Brand consistency in email restored. | Done | Updated copy and logo asset. | 0.5 |
 | UX-211 | `/`, `/blog`, `/contact`, `/help` | No page metadata | Generic browser tab titles. | Low | `generateMetadata`. | 0.25 |
 | UX-212 | 30 arbitrary `text-[10/11/13px]` | Mostly editor and studying page | Off-scale sizes outside the editor exception. | Low | `text-xs`, except the documented editor chrome. | 0.5 |
 
