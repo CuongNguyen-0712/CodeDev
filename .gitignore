@@ -14,6 +14,8 @@ node_modules/
 /dist/
 # Local challenge builds (can hold reference solutions)
 /build/
+# Security audit reports list open findings: keep them local
+/docs/security-audit-*.md
 
 # misc
 .DS_Store
