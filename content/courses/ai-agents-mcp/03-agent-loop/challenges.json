@@ -1,0 +1,3065 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_aam_131",
+      "name": "agent-loop-quiz",
+      "type": "quiz",
+      "title": "Read the loop: tool failures and parallel calls",
+      "description": "Two pieces of evidence from the support agent's loop: a tool timeout that ended the run, and a model request rejected after parallel calls.",
+      "difficulty": "medium",
+      "outcomes": [
+        "agent-ops"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Part of the loop after a first fix:\n\nfor (const call of calls) {\n    try {\n        results.push({ role: \"tool\", callId: call.id, name: call.name, ok: true, result: await tools.get(call.name)!.run(call.args) });\n    } catch (err) {\n        return { status: \"failed\", answer: \"We couldn't process your request. A human will get back to you.\" };\n    }\n}\n\nTrace of ticket #9131 with this loop:\n\nturn 1  model -> call_1 list_orders {}\n        tool  -> threw TimeoutError: orders API timed out after 5000 ms\n        run   -> failed, fallback reply\n\nThe same ticket replayed with a scripted model, the error appended as { ok: false, error: { code: \"tool_failed\", message: \"orders API timed out after 5000 ms\" } }:\n\nturn 2  model -> call_2 list_orders {}\n        tool  -> ok [ord_88 paid, ord_89 authorization_pending]\n\nStatement: \"Ending the run when a tool throws is the safer design here, because the model has no way to use the result of a failed tool call.\"",
+          "explanation": "False. A failed tool call is information the model can act on: retry once (as in the replay, where the second list_orders succeeded), use another tool, ask the learner, or say it could not check and hand over. Feeding the failure back as a structured entry (code tool_failed and a short message) keeps the run going and leaves the decision to the model, while the loop still controls how often it may try (step limits, lesson 3.1). Ending the run turns every transient timeout into a failed ticket, which is what filled the human queue in the incident. Errors the model cannot fix, such as the model API rejecting the request or a bug in the loop, are the ones that should stop the run. The misconception is that stopping is always the safe default; for a read-only lookup it only makes the agent fail more often.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Turn 3 of a run, and what the loop appended:\n\nturn 3  model -> [call_3 get_order {\"order_id\":\"ord_88\"}, call_4 get_progress {\"course_slug\":42}]\n\ntranscript after turn 3:\n  { role: \"assistant\", toolCalls: [call_3 get_order, call_4 get_progress] }\n  { role: \"tool\", callId: \"call_3\", name: \"get_order\", ok: true, result: { id: \"ord_88\", status: \"paid\" } }\n\nloop code for each call:\n  const violations = tool.validate(call.args);\n  if (violations.length > 0) continue;          // skip invalid calls\n\nnext model request -> 400 invalid_request: tool call call_4 has no matching tool result\n\nStatement: \"The request fails because call_4 was skipped when it failed validation; appending an invalid_arguments error for call_4 after call_3's result lets the run continue and tells the model what to fix.\"",
+          "explanation": "True. The model API (and the fake model in the exercise) requires one result for every tool call of the previous turn, in order. The loop recorded call_4 in the assistant message but appended nothing for it, so the next request is rejected before the model ever sees it. Appending { role: \"tool\", callId: \"call_4\", ok: false, error: { code: \"invalid_arguments\", message: \"\\\"course_slug\\\" must be string\" } } after call_3's result satisfies the protocol and tells the model exactly which argument to fix. The misconception is that an invalid call can simply be ignored; every call the model proposed needs an answer, even if the answer is an error.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_aam_132",
+      "name": "agent-loop-fake-model",
+      "type": "mini_coding",
+      "title": "The agent loop, run against a scripted fake model",
+      "description": "The CodeDev support agent runs one loop: ask the model for a turn, run the tool calls it proposes, append the results, repeat. Incident: the shipped loop ran only the first of two parallel calls (the model API then rejected the request: tool call call_4 has no matching tool result), let a tool timeout escape as an exception, and crashed on unknown tool names; 212 of 1,980 runs in one week ended in the fallback reply. Write runAgent(model, tools, task) with tools: Map<string, Tool>. Start the transcript with { role: \"user\", content: task } and repeat: (1) turn = model.next(transcript); do not catch errors thrown by model.next, let them propagate. (2) A turn { final } appends { role: \"assistant\", final } and returns { answer: final, transcript, stats }. (3) A turn { toolCall } is one call, { toolCalls } several calls proposed together. Give each call the id call_<n>, n counting from 1 over the whole run in the order proposed, append ONE message { role: \"assistant\", toolCalls: [{ id, name, args }, ...] }, then handle the calls in that order and append one tool message per call in the same order. A tool message is { role: \"tool\", callId, name, ok: true, result } or { role: \"tool\", callId, name, ok: false, error: { code, message } }: no tool with that name in the map: code unknown_tool, message unknown tool \"<name>\"; available tools: <tool names in map order, joined by \", \">. tool.validate(args) returns violations: code invalid_arguments, message the violations joined by \"; \", and the tool does not run. tool.run(args) throws: code tool_failed, message the Error's message, a thrown string as is, any other value JSON.stringify'd. Otherwise ok: true with the returned value as result. A failing call never stops the run or the other calls of its turn. (4) Ask the model again. There is no step limit in this exercise; the fake model throws when asked for more than 50 turns. stats counts modelTurns (turns returned by model.next), toolCalls (calls proposed), executed (calls to tool.run, including the ones that threw), invalidArguments, unknownTools and toolFailures. The fake model in the runner returns its scripted turns in order (repeating the last one) and, like a real model API, throws if the transcript does not start with the task, does not hold one assistant message per earlier turn with the calls it proposed, reuses a call id, or does not answer every call of its previous turn in order. Input (stdin): { \"task\", \"tools\": [{ name, parameters, outcomes }], \"script\": ModelTurn[], \"summary\"?: true }. The runner prints the transcript (with summary: its length and a checksum), the answer, the stats and how often each tool ran, or error: <message> when runAgent throws. Do not change the types or the test runner.",
+      "difficulty": "hard",
+      "outcomes": [
+        "when-agents",
+        "agent-ops"
+      ],
+      "points": 40,
+      "hints": [
+        "For each proposed call, which of four things happened: the tool does not exist, its arguments are invalid, it ran and threw, or it ran and returned? And whatever happened, what must the model find in the transcript before you ask it for the next turn?",
+        "Look at the order of your appends: the assistant message with all calls of the turn comes first, then exactly one tool message per call, without break or continue in between. Put the try/catch around tool.run only (not around model.next), keep the id counter outside the loop over turns, and check thrown values with instanceof Error and typeof before JSON.stringify.",
+        "A similar run on different input: the task \"Where is my certificate?\", tools get_certificate and list_courses, and a script of one turn with two calls (get_certificate { \"course_slug\": 7 } and send_email {}), then a final answer. The transcript is: the user task; one assistant message with call_1 get_certificate and call_2 send_email; a tool message for call_1 with error invalid_arguments and the validator's message; a tool message for call_2 with error unknown_tool listing get_certificate, list_courses; then the assistant's final answer. The stats show 2 model turns, 2 calls, 0 executed, 1 invalid, 1 unknown, 0 failed, and neither tool ran."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The incident: an orders API timeout is fed back and the model recovers",
+          "input": {
+            "task": "Ticket #9120 from u_4410: I was charged twice for React Hooks, please check.",
+            "tools": [
+              {
+                "name": "list_orders",
+                "parameters": {},
+                "outcomes": [
+                  {
+                    "throw": "orders API timed out after 5000 ms"
+                  },
+                  {
+                    "ok": [
+                      {
+                        "id": "ord_88",
+                        "status": "paid"
+                      },
+                      {
+                        "id": "ord_89",
+                        "status": "authorization_pending"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "name": "get_order",
+                "parameters": {
+                  "order_id": {
+                    "type": "string",
+                    "required": true
+                  }
+                },
+                "outcomes": [
+                  {
+                    "ok": {
+                      "id": "ord_88",
+                      "course": "react-hooks",
+                      "amount": 299000,
+                      "status": "paid",
+                      "paidAt": "2026-10-20T09:14:00Z"
+                    }
+                  },
+                  {
+                    "ok": {
+                      "id": "ord_89",
+                      "course": "react-hooks",
+                      "amount": 299000,
+                      "status": "authorization_pending",
+                      "createdAt": "2026-10-20T09:14:41Z"
+                    }
+                  }
+                ]
+              }
+            ],
+            "script": [
+              {
+                "toolCall": {
+                  "name": "list_orders",
+                  "args": {}
+                }
+              },
+              {
+                "toolCall": {
+                  "name": "list_orders",
+                  "args": {}
+                }
+              },
+              {
+                "toolCalls": [
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "ord_88"
+                    }
+                  },
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "ord_89"
+                    }
+                  }
+                ]
+              },
+              {
+                "final": "You were charged once. ord_89 is a pending card authorization that your bank releases within a few days."
+              }
+            ]
+          },
+          "expected": "user: Ticket #9120 from u_4410: I was charged twice for React Hooks, please check.\nassistant: call_1 list_orders {}\ntool call_1 list_orders error tool_failed: orders API timed out after 5000 ms\nassistant: call_2 list_orders {}\ntool call_2 list_orders ok [{\"id\":\"ord_88\",\"status\":\"paid\"},{\"id\":\"ord_89\",\"status\":\"authorization_pending\"}]\nassistant: call_3 get_order {\"order_id\":\"ord_88\"} | call_4 get_order {\"order_id\":\"ord_89\"}\ntool call_3 get_order ok {\"id\":\"ord_88\",\"course\":\"react-hooks\",\"amount\":299000,\"status\":\"paid\",\"paidAt\":\"2026-10-20T09:14:00Z\"}\ntool call_4 get_order ok {\"id\":\"ord_89\",\"course\":\"react-hooks\",\"amount\":299000,\"status\":\"authorization_pending\",\"createdAt\":\"2026-10-20T09:14:41Z\"}\nassistant final: You were charged once. ord_89 is a pending card authorization that your bank releases within a few days.\nanswer: You were charged once. ord_89 is a pending card authorization that your bank releases within a few days.\nstats: turns 4, calls 4, executed 4, invalid 0, unknown 0, failed 1\nexecutions: list_orders 2, get_order 2",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Parallel calls: one assistant turn, results in call order, a bad call does not stop the others",
+          "input": {
+            "task": "Ticket #9131 from u_5120: my React Hooks progress is stuck at 40%.",
+            "tools": [
+              {
+                "name": "get_order",
+                "parameters": {
+                  "order_id": {
+                    "type": "string",
+                    "required": true
+                  }
+                },
+                "outcomes": [
+                  {
+                    "ok": {
+                      "id": "ord_88",
+                      "course": "react-hooks",
+                      "amount": 299000,
+                      "status": "paid",
+                      "paidAt": "2026-10-20T09:14:00Z"
+                    }
+                  },
+                  {
+                    "ok": {
+                      "id": "ord_89",
+                      "course": "react-hooks",
+                      "amount": 299000,
+                      "status": "authorization_pending",
+                      "createdAt": "2026-10-20T09:14:41Z"
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "get_progress",
+                "parameters": {
+                  "course_slug": {
+                    "type": "string",
+                    "required": true
+                  }
+                },
+                "outcomes": [
+                  {
+                    "ok": {
+                      "course": "react-hooks",
+                      "percent": 40,
+                      "lessonsDone": 6,
+                      "lessons": 15
+                    }
+                  }
+                ]
+              }
+            ],
+            "script": [
+              {
+                "toolCalls": [
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "ord_88"
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": 42
+                    }
+                  },
+                  {
+                    "name": "refund_order",
+                    "args": {
+                      "order_id": "ord_88"
+                    }
+                  },
+                  {
+                    "name": "get_order",
+                    "args": {}
+                  }
+                ]
+              },
+              {
+                "toolCall": {
+                  "name": "get_progress",
+                  "args": {
+                    "course_slug": "react-hooks"
+                  }
+                }
+              },
+              {
+                "final": "Your progress shows 6 of 15 lessons; lessons 7 to 15 were added after you finished the old version."
+              }
+            ]
+          },
+          "expected": "user: Ticket #9131 from u_5120: my React Hooks progress is stuck at 40%.\nassistant: call_1 get_order {\"order_id\":\"ord_88\"} | call_2 get_progress {\"course_slug\":42} | call_3 refund_order {\"order_id\":\"ord_88\"} | call_4 get_order {}\ntool call_1 get_order ok {\"id\":\"ord_88\",\"course\":\"react-hooks\",\"amount\":299000,\"status\":\"paid\",\"paidAt\":\"2026-10-20T09:14:00Z\"}\ntool call_2 get_progress error invalid_arguments: \"course_slug\" must be string\ntool call_3 refund_order error unknown_tool: unknown tool \"refund_order\"; available tools: get_order, get_progress\ntool call_4 get_order error invalid_arguments: missing required argument \"order_id\"\nassistant: call_5 get_progress {\"course_slug\":\"react-hooks\"}\ntool call_5 get_progress ok {\"course\":\"react-hooks\",\"percent\":40,\"lessonsDone\":6,\"lessons\":15}\nassistant final: Your progress shows 6 of 15 lessons; lessons 7 to 15 were added after you finished the old version.\nanswer: Your progress shows 6 of 15 lessons; lessons 7 to 15 were added after you finished the old version.\nstats: turns 3, calls 5, executed 2, invalid 2, unknown 1, failed 0\nexecutions: get_order 1, get_progress 1",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Invalid arguments are fed back and counted; the tool runs only once they are fixed",
+          "input": {
+            "task": "Ticket #9140 from u_6001: how do refunds work?",
+            "tools": [
+              {
+                "name": "search_help_articles",
+                "parameters": {
+                  "query": {
+                    "type": "string",
+                    "required": true
+                  },
+                  "limit": {
+                    "type": "integer"
+                  },
+                  "include_drafts": {
+                    "type": "boolean"
+                  }
+                },
+                "outcomes": [
+                  {
+                    "ok": [
+                      {
+                        "slug": "refunds-and-duplicate-charges",
+                        "title": "Refunds and duplicate charges"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "script": [
+              {
+                "toolCall": {
+                  "name": "search_help_articles",
+                  "args": {
+                    "q": "refund"
+                  }
+                }
+              },
+              {
+                "toolCall": {
+                  "name": "search_help_articles",
+                  "args": {
+                    "query": "refund",
+                    "limit": "5",
+                    "include_drafts": "no"
+                  }
+                }
+              },
+              {
+                "toolCall": {
+                  "name": "search_help_articles",
+                  "args": {
+                    "query": "refund",
+                    "limit": 2.5
+                  }
+                }
+              },
+              {
+                "toolCall": {
+                  "name": "search_help_articles",
+                  "args": null
+                }
+              },
+              {
+                "toolCall": {
+                  "name": "search_help_articles",
+                  "args": [
+                    "refund"
+                  ]
+                }
+              },
+              {
+                "toolCall": {
+                  "name": "search_help_articles",
+                  "args": "refund"
+                }
+              },
+              {
+                "toolCall": {
+                  "name": "search_help_articles",
+                  "args": {
+                    "query": "refund",
+                    "limit": 3,
+                    "include_drafts": false
+                  }
+                }
+              },
+              {
+                "final": "See Refunds and duplicate charges: full refund within 14 days if progress is under 30%."
+              }
+            ]
+          },
+          "expected": "user: Ticket #9140 from u_6001: how do refunds work?\nassistant: call_1 search_help_articles {\"q\":\"refund\"}\ntool call_1 search_help_articles error invalid_arguments: missing required argument \"query\"; unexpected argument \"q\"\nassistant: call_2 search_help_articles {\"query\":\"refund\",\"limit\":\"5\",\"include_drafts\":\"no\"}\ntool call_2 search_help_articles error invalid_arguments: \"limit\" must be integer; \"include_drafts\" must be boolean\nassistant: call_3 search_help_articles {\"query\":\"refund\",\"limit\":2.5}\ntool call_3 search_help_articles error invalid_arguments: \"limit\" must be integer\nassistant: call_4 search_help_articles null\ntool call_4 search_help_articles error invalid_arguments: arguments must be an object\nassistant: call_5 search_help_articles [\"refund\"]\ntool call_5 search_help_articles error invalid_arguments: arguments must be an object\nassistant: call_6 search_help_articles \"refund\"\ntool call_6 search_help_articles error invalid_arguments: arguments must be an object\nassistant: call_7 search_help_articles {\"query\":\"refund\",\"limit\":3,\"include_drafts\":false}\ntool call_7 search_help_articles ok [{\"slug\":\"refunds-and-duplicate-charges\",\"title\":\"Refunds and duplicate charges\"}]\nassistant final: See Refunds and duplicate charges: full refund within 14 days if progress is under 30%.\nanswer: See Refunds and duplicate charges: full refund within 14 days if progress is under 30%.\nstats: turns 8, calls 7, executed 1, invalid 6, unknown 0, failed 0\nexecutions: search_help_articles 1",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Tool exceptions: an Error, a thrown string, a thrown object and null become tool_failed",
+          "input": {
+            "task": "Ticket #9152 from u_7302: two finished lessons are not counted.",
+            "tools": [
+              {
+                "name": "get_sync_job_status",
+                "parameters": {
+                  "learner_id": {
+                    "type": "string"
+                  }
+                },
+                "outcomes": [
+                  {
+                    "throw": "sync service unavailable"
+                  },
+                  {
+                    "throwRaw": "ECONNRESET"
+                  },
+                  {
+                    "throwRaw": {
+                      "status": 503,
+                      "retryAfter": 30
+                    }
+                  },
+                  {
+                    "throwRaw": null
+                  },
+                  {
+                    "ok": {
+                      "lastRun": "2026-10-27T03:00:00Z",
+                      "state": "failed",
+                      "lessonsSkipped": 2
+                    }
+                  }
+                ]
+              }
+            ],
+            "script": [
+              {
+                "toolCall": {
+                  "name": "get_sync_job_status",
+                  "args": {
+                    "learner_id": "u_7302"
+                  }
+                }
+              },
+              {
+                "toolCall": {
+                  "name": "get_sync_job_status",
+                  "args": {
+                    "learner_id": "u_7302"
+                  }
+                }
+              },
+              {
+                "toolCall": {
+                  "name": "get_sync_job_status",
+                  "args": {
+                    "learner_id": "u_7302"
+                  }
+                }
+              },
+              {
+                "toolCall": {
+                  "name": "get_sync_job_status",
+                  "args": {}
+                }
+              },
+              {
+                "toolCall": {
+                  "name": "get_sync_job_status",
+                  "args": {}
+                }
+              },
+              {
+                "final": "The nightly progress sync failed and skipped 2 lessons; I escalated it to the platform team."
+              }
+            ]
+          },
+          "expected": "user: Ticket #9152 from u_7302: two finished lessons are not counted.\nassistant: call_1 get_sync_job_status {\"learner_id\":\"u_7302\"}\ntool call_1 get_sync_job_status error tool_failed: sync service unavailable\nassistant: call_2 get_sync_job_status {\"learner_id\":\"u_7302\"}\ntool call_2 get_sync_job_status error tool_failed: ECONNRESET\nassistant: call_3 get_sync_job_status {\"learner_id\":\"u_7302\"}\ntool call_3 get_sync_job_status error tool_failed: {\"status\":503,\"retryAfter\":30}\nassistant: call_4 get_sync_job_status {}\ntool call_4 get_sync_job_status error tool_failed: null\nassistant: call_5 get_sync_job_status {}\ntool call_5 get_sync_job_status ok {\"lastRun\":\"2026-10-27T03:00:00Z\",\"state\":\"failed\",\"lessonsSkipped\":2}\nassistant final: The nightly progress sync failed and skipped 2 lessons; I escalated it to the platform team.\nanswer: The nightly progress sync failed and skipped 2 lessons; I escalated it to the platform team.\nstats: turns 6, calls 5, executed 5, invalid 0, unknown 0, failed 4\nexecutions: get_sync_job_status 5",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Unknown tools, including constructor, toString and __proto__, list the available tools",
+          "input": {
+            "task": "Ticket #9160 from u_4410: where is my order?",
+            "tools": [
+              {
+                "name": "get_order",
+                "parameters": {
+                  "order_id": {
+                    "type": "string",
+                    "required": true
+                  }
+                },
+                "outcomes": [
+                  {
+                    "ok": {
+                      "id": "ord_88",
+                      "course": "react-hooks",
+                      "amount": 299000,
+                      "status": "paid",
+                      "paidAt": "2026-10-20T09:14:00Z"
+                    }
+                  },
+                  {
+                    "ok": {
+                      "id": "ord_89",
+                      "course": "react-hooks",
+                      "amount": 299000,
+                      "status": "authorization_pending",
+                      "createdAt": "2026-10-20T09:14:41Z"
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "list_orders",
+                "parameters": {},
+                "outcomes": [
+                  {
+                    "throw": "orders API timed out after 5000 ms"
+                  },
+                  {
+                    "ok": [
+                      {
+                        "id": "ord_88",
+                        "status": "paid"
+                      },
+                      {
+                        "id": "ord_89",
+                        "status": "authorization_pending"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "name": "get_progress",
+                "parameters": {
+                  "course_slug": {
+                    "type": "string",
+                    "required": true
+                  }
+                },
+                "outcomes": [
+                  {
+                    "ok": {
+                      "course": "react-hooks",
+                      "percent": 40,
+                      "lessonsDone": 6,
+                      "lessons": 15
+                    }
+                  }
+                ]
+              }
+            ],
+            "script": [
+              {
+                "toolCall": {
+                  "name": "constructor",
+                  "args": {}
+                }
+              },
+              {
+                "toolCall": {
+                  "name": "toString",
+                  "args": {}
+                }
+              },
+              {
+                "toolCalls": [
+                  {
+                    "name": "lookup_order",
+                    "args": {
+                      "id": "ord_88"
+                    }
+                  },
+                  {
+                    "name": "__proto__",
+                    "args": {}
+                  },
+                  {
+                    "name": "Get_Order",
+                    "args": {
+                      "order_id": "ord_88"
+                    }
+                  },
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "ord_88"
+                    }
+                  }
+                ]
+              },
+              {
+                "final": "Order ord_88 for React Hooks is paid."
+              }
+            ]
+          },
+          "expected": "user: Ticket #9160 from u_4410: where is my order?\nassistant: call_1 constructor {}\ntool call_1 constructor error unknown_tool: unknown tool \"constructor\"; available tools: get_order, list_orders, get_progress\nassistant: call_2 toString {}\ntool call_2 toString error unknown_tool: unknown tool \"toString\"; available tools: get_order, list_orders, get_progress\nassistant: call_3 lookup_order {\"id\":\"ord_88\"} | call_4 __proto__ {} | call_5 Get_Order {\"order_id\":\"ord_88\"} | call_6 get_order {\"order_id\":\"ord_88\"}\ntool call_3 lookup_order error unknown_tool: unknown tool \"lookup_order\"; available tools: get_order, list_orders, get_progress\ntool call_4 __proto__ error unknown_tool: unknown tool \"__proto__\"; available tools: get_order, list_orders, get_progress\ntool call_5 Get_Order error unknown_tool: unknown tool \"Get_Order\"; available tools: get_order, list_orders, get_progress\ntool call_6 get_order ok {\"id\":\"ord_88\",\"course\":\"react-hooks\",\"amount\":299000,\"status\":\"paid\",\"paidAt\":\"2026-10-20T09:14:00Z\"}\nassistant final: Order ord_88 for React Hooks is paid.\nanswer: Order ord_88 for React Hooks is paid.\nstats: turns 4, calls 6, executed 1, invalid 0, unknown 5, failed 0\nexecutions: get_order 1, list_orders 0, get_progress 0",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "A final answer on the first turn: no tool calls at all",
+          "input": {
+            "task": "Ticket #9171 from u_8800: \"thanks, all good now!\" (closing message)",
+            "tools": [
+              {
+                "name": "get_order",
+                "parameters": {
+                  "order_id": {
+                    "type": "string",
+                    "required": true
+                  }
+                },
+                "outcomes": [
+                  {
+                    "ok": {
+                      "id": "ord_88",
+                      "course": "react-hooks",
+                      "amount": 299000,
+                      "status": "paid",
+                      "paidAt": "2026-10-20T09:14:00Z"
+                    }
+                  },
+                  {
+                    "ok": {
+                      "id": "ord_89",
+                      "course": "react-hooks",
+                      "amount": 299000,
+                      "status": "authorization_pending",
+                      "createdAt": "2026-10-20T09:14:41Z"
+                    }
+                  }
+                ]
+              }
+            ],
+            "script": [
+              {
+                "final": "Glad it works now. Closing the ticket."
+              },
+              {
+                "toolCall": {
+                  "name": "get_order",
+                  "args": {
+                    "order_id": "ord_88"
+                  }
+                }
+              }
+            ]
+          },
+          "expected": "user: Ticket #9171 from u_8800: \"thanks, all good now!\" (closing message)\nassistant final: Glad it works now. Closing the ticket.\nanswer: Glad it works now. Closing the ticket.\nstats: turns 1, calls 0, executed 0, invalid 0, unknown 0, failed 0\nexecutions: get_order 0",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "No step limit yet: a model stuck on a failing tool is stopped by the runner after 50 turns",
+          "input": {
+            "task": "Ticket #9180 from u_9001: my certificate has the wrong name.",
+            "tools": [
+              {
+                "name": "get_certificate",
+                "parameters": {
+                  "course_slug": {
+                    "type": "string",
+                    "required": true
+                  }
+                },
+                "outcomes": [
+                  {
+                    "throw": "certificates API returned 500"
+                  }
+                ]
+              },
+              {
+                "name": "get_order",
+                "parameters": {
+                  "order_id": {
+                    "type": "string",
+                    "required": true
+                  }
+                },
+                "outcomes": [
+                  {
+                    "ok": {
+                      "id": "ord_88",
+                      "course": "react-hooks",
+                      "amount": 299000,
+                      "status": "paid",
+                      "paidAt": "2026-10-20T09:14:00Z"
+                    }
+                  },
+                  {
+                    "ok": {
+                      "id": "ord_89",
+                      "course": "react-hooks",
+                      "amount": 299000,
+                      "status": "authorization_pending",
+                      "createdAt": "2026-10-20T09:14:41Z"
+                    }
+                  }
+                ]
+              }
+            ],
+            "script": [
+              {
+                "toolCall": {
+                  "name": "get_certificate",
+                  "args": {
+                    "course_slug": "react-hooks"
+                  }
+                }
+              }
+            ]
+          },
+          "expected": "error: runner cap: the model was asked for more than 50 turns\nexecutions: get_certificate 50, get_order 0",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "49 turns of up to 8 parallel calls, then a final answer: transcript checksum and stats",
+          "input": {
+            "task": "Nightly review of 49 open tickets for the support lead.",
+            "tools": [
+              {
+                "name": "get_order",
+                "parameters": {
+                  "order_id": {
+                    "type": "string",
+                    "required": true
+                  }
+                },
+                "outcomes": [
+                  {
+                    "ok": {
+                      "id": "ord_88",
+                      "course": "react-hooks",
+                      "amount": 299000,
+                      "status": "paid",
+                      "paidAt": "2026-10-20T09:14:00Z"
+                    }
+                  },
+                  {
+                    "ok": {
+                      "id": "ord_89",
+                      "course": "react-hooks",
+                      "amount": 299000,
+                      "status": "authorization_pending",
+                      "createdAt": "2026-10-20T09:14:41Z"
+                    }
+                  },
+                  {
+                    "throw": "orders API timed out after 5000 ms"
+                  },
+                  {
+                    "ok": {
+                      "id": "ord_90",
+                      "status": "refunded"
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "get_progress",
+                "parameters": {
+                  "course_slug": {
+                    "type": "string",
+                    "required": true
+                  }
+                },
+                "outcomes": [
+                  {
+                    "ok": {
+                      "percent": 40
+                    }
+                  },
+                  {
+                    "ok": {
+                      "percent": 100
+                    }
+                  },
+                  {
+                    "throwRaw": "ECONNRESET"
+                  }
+                ]
+              },
+              {
+                "name": "search_help_articles",
+                "parameters": {
+                  "query": {
+                    "type": "string",
+                    "required": true
+                  },
+                  "limit": {
+                    "type": "integer"
+                  },
+                  "include_drafts": {
+                    "type": "boolean"
+                  }
+                },
+                "outcomes": [
+                  {
+                    "ok": []
+                  },
+                  {
+                    "ok": [
+                      {
+                        "slug": "certificates"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "name": "get_sync_job_status",
+                "parameters": {
+                  "learner_id": {
+                    "type": "string"
+                  }
+                },
+                "outcomes": [
+                  {
+                    "throw": "sync service unavailable"
+                  },
+                  {
+                    "throwRaw": "ECONNRESET"
+                  },
+                  {
+                    "throwRaw": {
+                      "status": 503,
+                      "retryAfter": 30
+                    }
+                  },
+                  {
+                    "throwRaw": null
+                  },
+                  {
+                    "ok": {
+                      "lastRun": "2026-10-27T03:00:00Z",
+                      "state": "failed",
+                      "lessonsSkipped": 2
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "list_submissions",
+                "parameters": {
+                  "challenge_id": {
+                    "type": "string",
+                    "required": true
+                  },
+                  "limit": {
+                    "type": "integer"
+                  }
+                },
+                "outcomes": [
+                  {
+                    "ok": [
+                      {
+                        "id": "sub_1",
+                        "status": "accepted"
+                      }
+                    ]
+                  },
+                  {
+                    "throwRaw": {
+                      "code": "E_DB"
+                    }
+                  },
+                  {
+                    "ok": []
+                  }
+                ]
+              }
+            ],
+            "script": [
+              {
+                "toolCalls": [
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {
+                      "learner_id": "react-hooks"
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "u_4410"
+                    }
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "challenge_id": "chal_ts_042"
+                    }
+                  },
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "chal_ts_042"
+                    }
+                  },
+                  {
+                    "name": "get_order",
+                    "args": 3
+                  },
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "ord_88",
+                      "debug": "x"
+                    }
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": {}
+                  },
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "react-hooks"
+                    }
+                  }
+                ]
+              },
+              {
+                "toolCalls": [
+                  {
+                    "name": "run_sql",
+                    "args": {
+                      "query": "u_4410",
+                      "include_drafts": true
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": 7,
+                      "limit": 3,
+                      "include_drafts": false
+                    }
+                  },
+                  {
+                    "name": "get_orders",
+                    "args": {
+                      "limit": 2
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "5"
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {
+                      "learner_id": "chal_ts_042"
+                    }
+                  },
+                  {
+                    "name": "valueOf",
+                    "args": 3
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": true
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {
+                      "learner_id": "ord_88"
+                    }
+                  }
+                ]
+              },
+              {
+                "toolCalls": [
+                  {
+                    "name": "get_order",
+                    "args": {}
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {}
+                  },
+                  {
+                    "name": "get_order",
+                    "args": null
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "challenge_id": "refund",
+                      "limit": 6
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "u_4410",
+                      "include_drafts": false,
+                      "user_id": "x"
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {}
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": 7,
+                      "limit": 8,
+                      "include_drafts": 7
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "chal_ts_042"
+                    }
+                  }
+                ]
+              },
+              {
+                "toolCall": {
+                  "name": "get_sync_job_status",
+                  "args": {
+                    "learner_id": "refund"
+                  }
+                }
+              },
+              {
+                "toolCalls": [
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "challenge_id": "ord_88",
+                      "limit": 6,
+                      "constructor": "x"
+                    }
+                  },
+                  {
+                    "name": "get_orders",
+                    "args": {
+                      "learner_id": "refund"
+                    }
+                  },
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "chal_ts_042"
+                    }
+                  },
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "react-hooks"
+                    }
+                  },
+                  {
+                    "name": "valueOf",
+                    "args": {
+                      "course_slug": "react-hooks"
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {}
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {}
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "react-hooks"
+                    }
+                  }
+                ]
+              },
+              {
+                "toolCalls": [
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "ord_88"
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "react-hooks",
+                      "include_drafts": true
+                    }
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "challenge_id": "u_4410"
+                    }
+                  },
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": null
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": null
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "chal_ts_042",
+                      "limit": 1
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {
+                      "learner_id": "react-hooks"
+                    }
+                  },
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "react-hooks"
+                    }
+                  }
+                ]
+              },
+              {
+                "toolCalls": [
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {
+                      "learner_id": "chal_ts_042",
+                      "constructor": "x"
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "u_4410"
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {
+                      "learner_id": "chal_ts_042"
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "u_4410",
+                      "include_drafts": true
+                    }
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": null
+                  },
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "chal_ts_042"
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {}
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "challenge_id": "ord_88",
+                      "limit": 2.5
+                    }
+                  }
+                ]
+              },
+              {
+                "toolCalls": [
+                  {
+                    "name": "get_orders",
+                    "args": {
+                      "query": "ord_88",
+                      "include_drafts": true
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "chal_ts_042",
+                      "debug": "x"
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {
+                      "user_id": "x"
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "chal_ts_042",
+                      "limit": 4,
+                      "include_drafts": true
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "react-hooks"
+                    }
+                  },
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "chal_ts_042"
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": "x"
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": true
+                    }
+                  }
+                ]
+              },
+              {
+                "toolCalls": [
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "chal_ts_042"
+                    }
+                  },
+                  {
+                    "name": "get_order",
+                    "args": "x"
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "chal_ts_042"
+                    }
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": []
+                  },
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "chal_ts_042"
+                    }
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "challenge_id": "u_4410"
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {
+                      "learner_id": "chal_ts_042"
+                    }
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "challenge_id": "ord_88"
+                    }
+                  }
+                ]
+              },
+              {
+                "toolCalls": [
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "u_4410",
+                      "user_id": "x"
+                    }
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": {}
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": null
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": {}
+                  },
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "react-hooks"
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "chal_ts_042",
+                      "limit": 1
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": 3
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "chal_ts_042",
+                      "limit": 5
+                    }
+                  }
+                ]
+              },
+              {
+                "toolCall": {
+                  "name": "list_submissions",
+                  "args": {
+                    "challenge_id": "ord_88",
+                    "limit": 2
+                  }
+                }
+              },
+              {
+                "toolCalls": [
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "refund"
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "u_4410"
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "ord_88",
+                      "include_drafts": true
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "u_4410"
+                    }
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "challenge_id": "react-hooks",
+                      "limit": 8,
+                      "user_id": "x"
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "chal_ts_042"
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "chal_ts_042"
+                    }
+                  },
+                  {
+                    "name": "run_sql",
+                    "args": {
+                      "order_id": "u_4410"
+                    }
+                  }
+                ]
+              },
+              {
+                "toolCalls": [
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "5"
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {}
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "ord_88",
+                      "limit": 2
+                    }
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "challenge_id": "refund"
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "refund",
+                      "limit": 8,
+                      "include_drafts": false
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {
+                      "learner_id": "refund"
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": 3
+                  },
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "ord_88"
+                    }
+                  }
+                ]
+              },
+              {
+                "toolCalls": [
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {
+                      "learner_id": "ord_88"
+                    }
+                  },
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "chal_ts_042"
+                    }
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "challenge_id": "u_4410",
+                      "limit": 2
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "refund"
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": true
+                    }
+                  },
+                  {
+                    "name": "valueOf",
+                    "args": {
+                      "challenge_id": "react-hooks",
+                      "limit": 5
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "refund"
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "react-hooks"
+                    }
+                  }
+                ]
+              },
+              {
+                "toolCalls": [
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "chal_ts_042",
+                      "include_drafts": false
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {
+                      "learner_id": "chal_ts_042"
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {}
+                  },
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "ord_88"
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "chal_ts_042",
+                      "limit": 6,
+                      "include_drafts": true
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "react-hooks"
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "chal_ts_042",
+                      "limit": 4
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {}
+                  }
+                ]
+              },
+              {
+                "toolCalls": [
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "debug": "x"
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "chal_ts_042",
+                      "user_id": "x"
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {}
+                  },
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "u_4410"
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {}
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "u_4410"
+                    }
+                  },
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "react-hooks"
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "u_4410"
+                    }
+                  }
+                ]
+              },
+              {
+                "toolCalls": [
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "chal_ts_042"
+                    }
+                  },
+                  {
+                    "name": "get_order",
+                    "args": null
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {
+                      "learner_id": "chal_ts_042"
+                    }
+                  },
+                  {
+                    "name": "run_sql",
+                    "args": {}
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {
+                      "user_id": "x"
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {}
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": 2.5,
+                      "limit": 4
+                    }
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "challenge_id": 2.5
+                    }
+                  }
+                ]
+              },
+              {
+                "toolCall": {
+                  "name": "search_help_articles",
+                  "args": []
+                }
+              },
+              {
+                "toolCalls": [
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "challenge_id": "refund"
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "chal_ts_042"
+                    }
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": 3
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {
+                      "learner_id": "chal_ts_042"
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {
+                      "learner_id": 2.5
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "u_4410"
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {}
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "challenge_id": "refund",
+                      "constructor": "x"
+                    }
+                  }
+                ]
+              },
+              {
+                "toolCalls": [
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {
+                      "learner_id": "react-hooks"
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": 2.5,
+                      "limit": 4,
+                      "include_drafts": 2.5
+                    }
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "challenge_id": "u_4410"
+                    }
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "challenge_id": true
+                    }
+                  },
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "react-hooks"
+                    }
+                  },
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "ord_88",
+                      "user_id": "x"
+                    }
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "challenge_id": "react-hooks"
+                    }
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "challenge_id": "ord_88",
+                      "user_id": "x"
+                    }
+                  }
+                ]
+              },
+              {
+                "toolCalls": [
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "react-hooks"
+                    }
+                  },
+                  {
+                    "name": "run_sql",
+                    "args": null
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "chal_ts_042",
+                      "include_drafts": false
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "react-hooks",
+                      "limit": 3,
+                      "include_drafts": true
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {}
+                  },
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": null
+                    }
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "challenge_id": "chal_ts_042",
+                      "limit": 4
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "chal_ts_042"
+                    }
+                  }
+                ]
+              },
+              {
+                "toolCalls": [
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "chal_ts_042"
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {}
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": []
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {
+                      "learner_id": "react-hooks"
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {
+                      "learner_id": "refund"
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {
+                      "learner_id": "chal_ts_042"
+                    }
+                  },
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "ord_88",
+                      "user_id": "x"
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "react-hooks",
+                      "debug": "x"
+                    }
+                  }
+                ]
+              },
+              {
+                "toolCalls": [
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "challenge_id": "u_4410",
+                      "limit": 7
+                    }
+                  },
+                  {
+                    "name": "run_sql",
+                    "args": {
+                      "learner_id": "react-hooks"
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {
+                      "learner_id": "ord_88"
+                    }
+                  },
+                  {
+                    "name": "get_order",
+                    "args": 3
+                  },
+                  {
+                    "name": "get_order",
+                    "args": []
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "u_4410"
+                    }
+                  },
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "chal_ts_042"
+                    }
+                  },
+                  {
+                    "name": "run_sql",
+                    "args": {
+                      "challenge_id": "u_4410",
+                      "limit": 2.5,
+                      "debug": "x"
+                    }
+                  }
+                ]
+              },
+              {
+                "toolCalls": [
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "u_4410"
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": []
+                  },
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "react-hooks"
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "u_4410"
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "u_4410"
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "u_4410"
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "chal_ts_042"
+                    }
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "challenge_id": "react-hooks",
+                      "limit": 2,
+                      "debug": "x"
+                    }
+                  }
+                ]
+              },
+              {
+                "toolCall": {
+                  "name": "search_help_articles",
+                  "args": {
+                    "query": "react-hooks",
+                    "include_drafts": false
+                  }
+                }
+              },
+              {
+                "toolCalls": [
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "u_4410"
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "ord_88"
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {
+                      "learner_id": "ord_88"
+                    }
+                  },
+                  {
+                    "name": "get_order",
+                    "args": null
+                  },
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "chal_ts_042"
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "refund",
+                      "include_drafts": false
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "u_4410",
+                      "limit": 1,
+                      "include_drafts": true
+                    }
+                  },
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "ord_88"
+                    }
+                  }
+                ]
+              },
+              {
+                "toolCalls": [
+                  {
+                    "name": "get_order",
+                    "args": []
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": 7,
+                      "limit": 8
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "refund"
+                    }
+                  },
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "ord_88"
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "u_4410",
+                      "debug": "x"
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "u_4410",
+                      "include_drafts": false
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": "x"
+                  },
+                  {
+                    "name": "valueOf",
+                    "args": {}
+                  }
+                ]
+              },
+              {
+                "toolCalls": [
+                  {
+                    "name": "search_help_articles",
+                    "args": []
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "ord_88"
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "u_4410",
+                      "limit": 3,
+                      "include_drafts": false
+                    }
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "challenge_id": "refund"
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "ord_88",
+                      "include_drafts": false
+                    }
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "challenge_id": "refund",
+                      "limit": 6
+                    }
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "challenge_id": "u_4410"
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": 3
+                  }
+                ]
+              },
+              {
+                "toolCalls": [
+                  {
+                    "name": "get_order",
+                    "args": 3
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "challenge_id": 7
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "chal_ts_042"
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "ord_88"
+                    }
+                  },
+                  {
+                    "name": "run_sql",
+                    "args": {
+                      "challenge_id": "ord_88",
+                      "limit": 5
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "refund",
+                      "limit": 7,
+                      "include_drafts": false
+                    }
+                  },
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "refund",
+                      "constructor": "x"
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": null
+                    }
+                  }
+                ]
+              },
+              {
+                "toolCalls": [
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "refund"
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "react-hooks",
+                      "limit": 8
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "react-hooks"
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": 3
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "u_4410"
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "refund",
+                      "limit": "5"
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {}
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": null
+                  }
+                ]
+              },
+              {
+                "toolCalls": [
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "challenge_id": "u_4410"
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": []
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "include_drafts": true
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "u_4410"
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": []
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "challenge_id": "u_4410"
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": null
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "ord_88",
+                      "debug": "x"
+                    }
+                  }
+                ]
+              },
+              {
+                "toolCall": {
+                  "name": "search_help_articles",
+                  "args": {
+                    "query": "ord_88",
+                    "limit": 3
+                  }
+                }
+              },
+              {
+                "toolCalls": [
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "u_4410",
+                      "limit": 6
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": 3
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {
+                      "learner_id": "chal_ts_042"
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "limit": 3
+                    }
+                  },
+                  {
+                    "name": "valueOf",
+                    "args": {
+                      "order_id": "chal_ts_042"
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": null
+                  },
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "react-hooks"
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": []
+                  }
+                ]
+              },
+              {
+                "toolCalls": [
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "challenge_id": "u_4410",
+                      "user_id": "x"
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "react-hooks"
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {
+                      "learner_id": "refund"
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": 7
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "chal_ts_042"
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "refund",
+                      "limit": 2,
+                      "include_drafts": true
+                    }
+                  },
+                  {
+                    "name": "get_order",
+                    "args": {}
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {}
+                  }
+                ]
+              },
+              {
+                "toolCalls": [
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": true
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {
+                      "learner_id": "chal_ts_042"
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "u_4410"
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "u_4410"
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "include_drafts": true
+                    }
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "challenge_id": "u_4410"
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {}
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "u_4410",
+                      "constructor": "x"
+                    }
+                  }
+                ]
+              },
+              {
+                "toolCalls": [
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "refund"
+                    }
+                  },
+                  {
+                    "name": "run_sql",
+                    "args": {
+                      "order_id": "refund"
+                    }
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "challenge_id": "react-hooks"
+                    }
+                  },
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "react-hooks"
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "ord_88"
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "chal_ts_042"
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": 3
+                  },
+                  {
+                    "name": "run_sql",
+                    "args": {
+                      "query": "chal_ts_042",
+                      "include_drafts": true
+                    }
+                  }
+                ]
+              },
+              {
+                "toolCalls": [
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": null
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {
+                      "constructor": "x"
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {}
+                  },
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "refund"
+                    }
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "challenge_id": "react-hooks",
+                      "limit": 3
+                    }
+                  },
+                  {
+                    "name": "get_orders",
+                    "args": {
+                      "course_slug": true
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": 3
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": "x"
+                  }
+                ]
+              },
+              {
+                "toolCalls": [
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "ord_88"
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {
+                      "learner_id": "u_4410"
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {
+                      "constructor": "x"
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "ord_88"
+                    }
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "challenge_id": "chal_ts_042",
+                      "limit": 4,
+                      "constructor": "x"
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {
+                      "learner_id": "react-hooks"
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "refund"
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {
+                      "learner_id": "react-hooks"
+                    }
+                  }
+                ]
+              },
+              {
+                "toolCall": {
+                  "name": "list_submissions",
+                  "args": {
+                    "challenge_id": "chal_ts_042",
+                    "limit": 1
+                  }
+                }
+              },
+              {
+                "toolCalls": [
+                  {
+                    "name": "valueOf",
+                    "args": {
+                      "query": "chal_ts_042",
+                      "limit": 5,
+                      "include_drafts": true
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": true,
+                      "include_drafts": false
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {
+                      "learner_id": "chal_ts_042"
+                    }
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "challenge_id": "refund",
+                      "limit": 2
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {}
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "challenge_id": "ord_88",
+                      "limit": 4
+                    }
+                  },
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "react-hooks"
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": true
+                    }
+                  }
+                ]
+              },
+              {
+                "toolCalls": [
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {}
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "challenge_id": "u_4410",
+                      "limit": "5"
+                    }
+                  },
+                  {
+                    "name": "get_orders",
+                    "args": {
+                      "query": "u_4410",
+                      "include_drafts": true
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "chal_ts_042"
+                    }
+                  },
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "5"
+                    }
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "challenge_id": "u_4410",
+                      "limit": 2
+                    }
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "limit": 2
+                    }
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "challenge_id": "ord_88"
+                    }
+                  }
+                ]
+              },
+              {
+                "toolCalls": [
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "react-hooks"
+                    }
+                  },
+                  {
+                    "name": "get_order",
+                    "args": {}
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "challenge_id": "chal_ts_042",
+                      "limit": 6,
+                      "user_id": "x"
+                    }
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": {}
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "refund",
+                      "include_drafts": 7,
+                      "constructor": "x"
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "u_4410",
+                      "limit": 9
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {
+                      "debug": "x"
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {}
+                  }
+                ]
+              },
+              {
+                "toolCalls": [
+                  {
+                    "name": "list_submissions",
+                    "args": null
+                  },
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "u_4410"
+                    }
+                  },
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "u_4410"
+                    }
+                  },
+                  {
+                    "name": "run_sql",
+                    "args": {
+                      "query": "ord_88",
+                      "include_drafts": false
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {
+                      "learner_id": "refund"
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "react-hooks"
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "react-hooks"
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": "x"
+                  }
+                ]
+              },
+              {
+                "toolCalls": [
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {
+                      "learner_id": "chal_ts_042"
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": 3
+                  },
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "chal_ts_042"
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "u_4410",
+                      "limit": 4,
+                      "include_drafts": false
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": null
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "challenge_id": "u_4410",
+                      "limit": 6
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "u_4410"
+                    }
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "limit": 6
+                    }
+                  }
+                ]
+              },
+              {
+                "toolCalls": [
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "chal_ts_042",
+                      "include_drafts": true
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "ord_88",
+                      "limit": 2.5,
+                      "include_drafts": true
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "refund",
+                      "limit": 7
+                    }
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "challenge_id": "ord_88",
+                      "limit": 4
+                    }
+                  },
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": true
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "ord_88",
+                      "user_id": "x"
+                    }
+                  },
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "react-hooks",
+                      "debug": "x"
+                    }
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "challenge_id": "ord_88"
+                    }
+                  }
+                ]
+              },
+              {
+                "toolCall": {
+                  "name": "search_help_articles",
+                  "args": {
+                    "query": "ord_88",
+                    "limit": 8,
+                    "debug": "x"
+                  }
+                }
+              },
+              {
+                "toolCalls": [
+                  {
+                    "name": "valueOf",
+                    "args": 3
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "ord_88"
+                    }
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "challenge_id": "react-hooks"
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "chal_ts_042",
+                      "limit": 7
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "ord_88",
+                      "include_drafts": false
+                    }
+                  },
+                  {
+                    "name": "run_sql",
+                    "args": {
+                      "query": "u_4410",
+                      "limit": 8
+                    }
+                  },
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "react-hooks"
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {}
+                  }
+                ]
+              },
+              {
+                "toolCalls": [
+                  {
+                    "name": "get_order",
+                    "args": []
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "challenge_id": "u_4410",
+                      "limit": 4
+                    }
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "challenge_id": "refund"
+                    }
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": 2.5
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {}
+                  },
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "ord_88"
+                    }
+                  },
+                  {
+                    "name": "list_submissions",
+                    "args": {
+                      "challenge_id": "ord_88",
+                      "limit": "5"
+                    }
+                  },
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": null
+                    }
+                  }
+                ]
+              },
+              {
+                "toolCalls": [
+                  {
+                    "name": "list_submissions",
+                    "args": []
+                  },
+                  {
+                    "name": "search_help_articles",
+                    "args": {
+                      "query": "refund"
+                    }
+                  },
+                  {
+                    "name": "get_order",
+                    "args": {
+                      "order_id": "u_4410"
+                    }
+                  },
+                  {
+                    "name": "get_sync_job_status",
+                    "args": {
+                      "learner_id": "u_4410"
+                    }
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "ord_88"
+                    }
+                  },
+                  {
+                    "name": "get_order",
+                    "args": 3
+                  },
+                  {
+                    "name": "get_progress",
+                    "args": {
+                      "course_slug": "refund"
+                    }
+                  },
+                  {
+                    "name": "run_sql",
+                    "args": {
+                      "course_slug": "refund"
+                    }
+                  }
+                ]
+              },
+              {
+                "final": "Summary sent to the support lead: 3 duplicate charges, 2 failed syncs, 1 certificate fix."
+              }
+            ],
+            "summary": true
+          },
+          "expected": "transcript: 394 messages, checksum a0544692\nanswer: Summary sent to the support lead: 3 duplicate charges, 2 failed syncs, 1 certificate fix.\nstats: turns 50, calls 343, executed 205, invalid 114, unknown 24, failed 45\nexecutions: get_order 38, get_progress 41, search_help_articles 45, get_sync_job_status 49, list_submissions 32",
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

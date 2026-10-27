@@ -1,0 +1,36 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_aam_521",
+      "name": "multi-agent-assessment-quiz",
+      "type": "quiz",
+      "title": "Assess a multi-agent design",
+      "description": "Two pieces of evidence from support assistant v2: the trace of a conversation a critic approved, and a comparison of two designs on the same scenario set.",
+      "difficulty": "medium",
+      "outcomes": ["when-agents"],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "User u_1934: \"I was charged twice for the Rust course, order ord_8812. Can you check?\"\n\nTrace (assistant v2):\n2  orchestrator  delegate -> billing  task: \"Check order ord_8821 for a duplicate charge\"\n3  billing       model                tool_call get_order {\"orderId\":\"ord_8821\"}\n4  billing       tool get_order       {\"id\":\"ord_8821\",\"userId\":\"u_2207\",\"charges\":[{\"amountVnd\":349000}]}\n5  billing       model                final: \"ord_8821 has one charge. No duplicate.\"\n9  critic        model                input: draft answer + tool results of spans 4-5\n                                      output: \"Answer is consistent with the tool results. APPROVED.\"\n\nStatement: \"The critic's approval shows that the answer about the learner's charges was correct.\"",
+          "explanation": "False. The critic checked the draft against the tool results, and they agree; but the tool results are about ord_8821, an order of another user (u_2207), because the orchestrator's paraphrase swapped two digits of ord_8812. The critic never saw the user's message, so it shares the worker's error instead of catching it. The misconception is that a second model reviewing the first makes the answer reliable: a critic can only catch errors it has the evidence to see. A deterministic check (the order id in every tool call must appear in the user's message, and the tool must check the order belongs to the session user) would have stopped this.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The same 50 support scenarios, real model, run on two designs:\n\n                         A: one agent + new tool get_my_order_charges   B: orchestrator + 4 workers + critic\nscenarios passed         47 / 50                                        45 / 50\ntokens, median           8.1k                                           52k\ntokens, p95              13k                                            96k\nlatency, p95             8 s                                            38 s\n\nget_my_order_charges takes an orderId, checks the order belongs to the session user and returns the captured charges with duplicateCharge computed in code.\n\nStatement: \"On this evidence, design A is the better choice for the support assistant.\"",
+          "explanation": "True. Design A passes more scenarios with about a sixth of the median tokens and less than a quarter of the p95 latency. The multi-agent design adds cost, latency and more places for errors to enter, and on this task it buys nothing measurable; the gain came from a better tool, which moved the charge matching into code and added an ownership check. The misconception is that splitting work across specialised agents makes a system more accurate by default. Multi-agent designs earn their cost on independent subtasks that each need a large context, which a two-lookup support question is not.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        }
+      ]
+    }
+  ]
+}

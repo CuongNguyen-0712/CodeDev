@@ -1,0 +1,46 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_aam_531",
+      "name": "evaluating-agents-quiz",
+      "type": "quiz",
+      "title": "Evaluate and observe the support agent",
+      "description": "Three pieces of evidence from the prompt v15 incident: a scenario run with a correct answer, the CI result of the fake-model suite, and the step distribution before and after the change.",
+      "difficulty": "medium",
+      "outcomes": ["agent-ops"],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Scenario \"duplicate-charge\":\n  success: create_refund_request was called\n  before: [[\"get_my_order_charges\", \"create_refund_request\"]]\n  maxModelCalls: 5\n\nRun 3 of 5 (real model, prompt v15):\n  toolCalls: create_refund_request {\"orderId\":\"ord_8812\",\"amountVnd\":349000}\n             get_my_order_charges {\"orderId\":\"ord_8812\"}  -> {\"capturedCharges\":2,\"duplicateCharge\":true}\n  modelCalls: 3\n  stopReason: final\n  final: \"You were charged twice for ord_8812. I have requested a refund of 349,000 VND.\"\n\nStatement: \"This run should be counted as a failure even though its final answer is correct.\"",
+          "explanation": "True. The success check passes, but the trajectory breaks the scenario's rule: create_refund_request was called before get_my_order_charges, so the write happened before the agent had looked up the facts that justify it. The lookup happened to confirm a duplicate this time; on a learner with one charge, the same path would request a refund that should not exist. A run passes only when the outcome check passes and the trajectory has no violation. The misconception is that a correct final answer means a correct run; for agents that act, the order of the actions matters as much as the words at the end.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Pull request \"support agent prompt v15\": the only change is one line added to prompts/support-agent.md:\n+ Be proactive: if a learner might need follow-up, open a ticket so nobody is forgotten.\n\nCI: test/agentLoop.test.ts  48 passed, 0 failed\n\nA typical test in that suite:\nconst model = fakeModel([\n  { toolCall: { name: \"get_enrollment\", args: { courseId: \"rust-practical\" } } },\n  { final: \"Your access is active until 2027-01-31.\" },\n]);\nconst run = await runAgent({ model, tools, policy, budget, userMessage: \"When does my Rust course access end?\" });\nassert.deepEqual(run.toolCalls.map((c) => c.name), [\"get_enrollment\"]);\n\nStatement: \"The 48 passing tests show that prompt v15 does not make the agent open tickets it does not need.\"",
+          "explanation": "False. The fake model returns the same scripted turns whatever the system prompt says, so the suite produces the same result for v14 and v15; it cannot see a behaviour change caused by the prompt. Those tests prove the harness: the loop, limits, permissions and audit. A prompt, model or tool-description change needs a scenario eval with the real model, for example an access-end-date scenario with open_ticket forbidden, run several times. The misconception is that a green CI run covers every kind of change; it only covers the code paths the fakes exercise.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Production, model calls per conversation (one day each, about 9,000 conversations per day):\n\n              mean   p50   p95   max\nv14 (10-19)   4.1    3     6     12\nv15 (10-21)   4.8    3     19    25\n\nStatement: \"The p95 shows a group of conversations that became much longer under v15, a change the mean understates.\"",
+          "explanation": "True. The median did not move and the mean rose by only 0.7 calls (about 17%), but the 95th percentile tripled from 6 to 19: at least 5% of conversations, several hundred a day, now take far more steps. That is where the extra tickets, tokens and latency come from. A mean blends a small group of very long runs with thousands of normal ones, so it hides the tail where agents fail. The misconception is that a small change in the average means a small change in behaviour; watch p95 and max against a baseline and alert on them.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        }
+      ]
+    }
+  ]
+}

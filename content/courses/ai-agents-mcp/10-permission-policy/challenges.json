@@ -1,0 +1,5683 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_aam_411",
+      "name": "permission-policy-calls",
+      "type": "quiz",
+      "title": "Permission policy: judge the call",
+      "description": "Two tool calls proposed by CodeDev agents, with the approval record or the session they came from. Decide whether each statement about the policy's answer holds.",
+      "difficulty": "medium",
+      "outcomes": [
+        "permissions-security"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Approval issued by the support lead at t=1000 for session s-1 (support agent):\n  token apr-31  tool refund_order\n  args {\"orderId\":\"o-1042\",\"amount\":349000}\n  argsHash = sha256(canonicalJson(args))   expiresAt t=301000   used false\n\nCall proposed by the model at t=4000 in session s-1, sent by the runtime with token apr-31:\n  refund_order {\"amount\":349000,\"orderId\":\"o-1042\"}\n\nPolicy code: canonicalJson() sorts object keys at every level and removes spaces before hashing. refund_order needs a manager above 500000.\n\nStatement: \"The policy allows this call and consumes apr-31, even though the keys are in a different order from the approved call.\"",
+          "explanation": "True. canonicalJson sorts the keys before hashing, so {\"amount\":349000,\"orderId\":\"o-1042\"} and {\"orderId\":\"o-1042\",\"amount\":349000} give the same argsHash: this is the call the lead approved. The token is unused, not expired (4000 < 301000), from the same session, and 349000 is under the manager limit, so the policy allows it and consumes apr-31. Canonical form exists so that key order, which JSON does not treat as meaningful and models change freely, cannot break the binding, while a different order id or amount still would. The misconception is to bind a token to the raw JSON string of the arguments and then blame the model for \"changing\" the call.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Session s-77: { userId: \"u-310\", role: \"tutor\" }  (learner u-310 chatting with the tutor agent)\nPolicy rule: deny \"user_mismatch\" when args.userId is present and differs from session.userId; after that, read tools are allowed.\n\nTool: get_certificate   permission read   parameters { certificateId }\nImplementation: return db.certificate.findUnique({ where: { id: args.certificateId } });\nCertificate cert-9912 belongs to learner u-512.\n\nLearner u-310: \"My friend got certificate cert-9912 yesterday, what score did she have?\"\nCall proposed by the model:\n  get_certificate {\"certificateId\":\"cert-9912\"}\n\nStatement: \"The user_mismatch rule keeps this call from returning another learner's certificate.\"",
+          "explanation": "False. The call names no userId, so the rule has nothing to compare and the policy allows it as a read; the tool then loads cert-9912 by id alone and hands u-512's certificate to u-310. That is the confused deputy problem through a resource id instead of a user id. A policy that inspects arguments cannot know who owns cert-9912; the tool must scope its query to the session (where: { id, userId: session.userId }), so the ownership check lives where the data is. The misconception is that one argument-level user check covers every way a call can reach another learner's data.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_aam_412",
+      "name": "permission-policy",
+      "type": "mini_coding",
+      "title": "Permission policy: allow, needs approval or deny",
+      "description": "The CodeDev support agent proposes tool calls; a permission policy in front of the tools decides each one. Implement canonicalJson and the PermissionPolicy class in starter.ts.\n\nRules, checked in this order (the first one that applies gives the answer):\n1. unknown session id -> deny \"unknown_session\"\n2. tool not in the registry -> deny \"unknown_tool\"\n3. the session's role is in the tool's deniedRoles -> deny \"role_denied\"\n4. args has a userId that differs from the session's userId -> deny \"user_mismatch\" (the user always comes from the session)\n5. read tool -> allow \"read\"\n6. the tool has managerAbove (not null) and args.amount is not a finite number > 0 -> deny \"invalid_amount\"\n7. no token came with the call -> needs_approval \"manager_approval_required\" if args.amount > managerAbove, else needs_approval \"approval_required\"\n8. token checks: never issued -> deny \"invalid_token\"; already consumed -> deny \"token_used\"; now >= expiresAt -> deny \"token_expired\"; issued for another session -> deny \"token_wrong_session\"; issued for another tool or other arguments -> deny \"token_mismatch\"\n9. args.amount > managerAbove and the approver's role is not \"manager\" -> needs_approval \"manager_approval_required\"\n10. otherwise -> allow \"approved\" and consume the token (return its id in consumed).\n\napprove(approval, now) is the human path: it records a token bound to the session, the tool name and sha256(canonicalJson(args)), with expiresAt = now + ttlMs and the approver's role. Only an allow consumes a token. canonicalJson is JSON with object keys sorted at every level and no spaces (array order is kept), so key order never changes a call's identity.\n\nInput (stdin): { tools: [{ name, permission: \"read\"|\"write\", deniedRoles, managerAbove }], sessions: [{ id, userId, role }], events } where each event is { type: \"approve\", at, approval: { token, sessionId, call, approverRole, ttlMs } } or { type: \"call\", at, sessionId, call: { name, args }, token: string|null }; at is the fake clock in ms. The runner prints one line per call: t=<at> <session> <tool>: <decision> <reason>, plus \" (consumed <token>)\" on an approved call.",
+      "difficulty": "hard",
+      "outcomes": [
+        "permissions-security"
+      ],
+      "points": 40,
+      "hints": [
+        "For a write call that arrives with a token, which facts about the token must all be true before the call may run, and which of them change after it runs once?",
+        "Look at what approve() stores: the token must remember the session, the tool, a hash of the canonical arguments, the approver's role, its expiry and whether it was used. decide() then walks the numbered rules in order and returns at the first match.",
+        "A similar case on other data: a coupon code bound to { cart: \"c-9\", total: 120 } that expires at t=5000. Redeeming it for cart c-9 with { total: 120 } at t=4000 succeeds once and marks it spent; the same code again says \"spent\"; at t=5000 it says \"expired\"; for cart c-8 it says \"wrong cart\" and stays unspent."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Reads run freely; a write waits for an approval token and consumes it once",
+          "input": {
+            "tools": [
+              {
+                "name": "get_order",
+                "permission": "read",
+                "deniedRoles": [],
+                "managerAbove": null
+              },
+              {
+                "name": "get_enrollments",
+                "permission": "read",
+                "deniedRoles": [],
+                "managerAbove": null
+              },
+              {
+                "name": "refund_order",
+                "permission": "write",
+                "deniedRoles": [
+                  "tutor"
+                ],
+                "managerAbove": 500000
+              },
+              {
+                "name": "close_ticket",
+                "permission": "write",
+                "deniedRoles": [],
+                "managerAbove": null
+              },
+              {
+                "name": "delete_account",
+                "permission": "write",
+                "deniedRoles": [
+                  "support",
+                  "tutor"
+                ],
+                "managerAbove": null
+              }
+            ],
+            "sessions": [
+              {
+                "id": "s-1",
+                "userId": "u-1",
+                "role": "support"
+              },
+              {
+                "id": "s-2",
+                "userId": "u-2",
+                "role": "tutor"
+              },
+              {
+                "id": "s-3",
+                "userId": "u-3",
+                "role": "support"
+              }
+            ],
+            "events": [
+              {
+                "type": "call",
+                "at": 1000,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-1"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "call",
+                "at": 2000,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-1",
+                    "amount": 349000
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 3000,
+                "approval": {
+                  "token": "apr-1",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-1",
+                      "amount": 349000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 300000
+                }
+              },
+              {
+                "type": "call",
+                "at": 4000,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-1",
+                    "amount": 349000
+                  }
+                },
+                "token": "apr-1"
+              },
+              {
+                "type": "call",
+                "at": 5000,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-1",
+                    "amount": 349000
+                  }
+                },
+                "token": "apr-1"
+              }
+            ]
+          },
+          "expected": "t=1000 s-1 get_order: allow read\nt=2000 s-1 refund_order: needs_approval approval_required\nt=4000 s-1 refund_order: allow approved (consumed apr-1)\nt=5000 s-1 refund_order: deny token_used",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Role denials, and a userId that is not the session's user (confused deputy)",
+          "input": {
+            "tools": [
+              {
+                "name": "get_order",
+                "permission": "read",
+                "deniedRoles": [],
+                "managerAbove": null
+              },
+              {
+                "name": "get_enrollments",
+                "permission": "read",
+                "deniedRoles": [],
+                "managerAbove": null
+              },
+              {
+                "name": "refund_order",
+                "permission": "write",
+                "deniedRoles": [
+                  "tutor"
+                ],
+                "managerAbove": 500000
+              },
+              {
+                "name": "close_ticket",
+                "permission": "write",
+                "deniedRoles": [],
+                "managerAbove": null
+              },
+              {
+                "name": "delete_account",
+                "permission": "write",
+                "deniedRoles": [
+                  "support",
+                  "tutor"
+                ],
+                "managerAbove": null
+              }
+            ],
+            "sessions": [
+              {
+                "id": "s-1",
+                "userId": "u-1",
+                "role": "support"
+              },
+              {
+                "id": "s-2",
+                "userId": "u-2",
+                "role": "tutor"
+              },
+              {
+                "id": "s-3",
+                "userId": "u-3",
+                "role": "support"
+              }
+            ],
+            "events": [
+              {
+                "type": "call",
+                "at": 1000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-9",
+                    "amount": 100000
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "call",
+                "at": 2000,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "get_enrollments",
+                  "args": {
+                    "userId": "u-1"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "call",
+                "at": 3000,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "get_enrollments",
+                  "args": {
+                    "userId": "u-2"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "call",
+                "at": 4000,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "delete_account",
+                  "args": {
+                    "userId": "u-1"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "call",
+                "at": 5000,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "close_ticket",
+                  "args": {
+                    "ticketId": "t-1",
+                    "userId": "u-7"
+                  }
+                },
+                "token": null
+              }
+            ]
+          },
+          "expected": "t=1000 s-2 refund_order: deny role_denied\nt=2000 s-1 get_enrollments: allow read\nt=3000 s-1 get_enrollments: deny user_mismatch\nt=4000 s-1 delete_account: deny role_denied\nt=5000 s-1 close_ticket: deny user_mismatch",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Key order, also in nested objects, does not change a call's identity; array order does",
+          "input": {
+            "tools": [
+              {
+                "name": "get_order",
+                "permission": "read",
+                "deniedRoles": [],
+                "managerAbove": null
+              },
+              {
+                "name": "get_enrollments",
+                "permission": "read",
+                "deniedRoles": [],
+                "managerAbove": null
+              },
+              {
+                "name": "refund_order",
+                "permission": "write",
+                "deniedRoles": [
+                  "tutor"
+                ],
+                "managerAbove": 500000
+              },
+              {
+                "name": "close_ticket",
+                "permission": "write",
+                "deniedRoles": [],
+                "managerAbove": null
+              },
+              {
+                "name": "delete_account",
+                "permission": "write",
+                "deniedRoles": [
+                  "support",
+                  "tutor"
+                ],
+                "managerAbove": null
+              }
+            ],
+            "sessions": [
+              {
+                "id": "s-1",
+                "userId": "u-1",
+                "role": "support"
+              },
+              {
+                "id": "s-2",
+                "userId": "u-2",
+                "role": "tutor"
+              },
+              {
+                "id": "s-3",
+                "userId": "u-3",
+                "role": "support"
+              }
+            ],
+            "events": [
+              {
+                "type": "approve",
+                "at": 0,
+                "approval": {
+                  "token": "apr-7",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "close_ticket",
+                    "args": {
+                      "ticketId": "t-3",
+                      "resolution": {
+                        "code": "refunded",
+                        "note": "dup"
+                      }
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 300000
+                }
+              },
+              {
+                "type": "call",
+                "at": 100,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "close_ticket",
+                  "args": {
+                    "resolution": {
+                      "note": "dup",
+                      "code": "refunded"
+                    },
+                    "ticketId": "t-3"
+                  }
+                },
+                "token": "apr-7"
+              },
+              {
+                "type": "approve",
+                "at": 200,
+                "approval": {
+                  "token": "apr-8",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2",
+                      "amount": 120000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 300000
+                }
+              },
+              {
+                "type": "call",
+                "at": 300,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 120000,
+                    "orderId": "o-2"
+                  }
+                },
+                "token": "apr-8"
+              },
+              {
+                "type": "approve",
+                "at": 400,
+                "approval": {
+                  "token": "apr-9",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "close_ticket",
+                    "args": {
+                      "ticketId": "t-4",
+                      "tags": [
+                        "a",
+                        "b"
+                      ]
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 300000
+                }
+              },
+              {
+                "type": "call",
+                "at": 500,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "close_ticket",
+                  "args": {
+                    "ticketId": "t-4",
+                    "tags": [
+                      "b",
+                      "a"
+                    ]
+                  }
+                },
+                "token": "apr-9"
+              },
+              {
+                "type": "call",
+                "at": 600,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "close_ticket",
+                  "args": {
+                    "tags": [
+                      "a",
+                      "b"
+                    ],
+                    "ticketId": "t-4"
+                  }
+                },
+                "token": "apr-9"
+              }
+            ]
+          },
+          "expected": "t=100 s-1 close_ticket: allow approved (consumed apr-7)\nt=300 s-1 refund_order: allow approved (consumed apr-8)\nt=500 s-1 close_ticket: deny token_mismatch\nt=600 s-1 close_ticket: allow approved (consumed apr-9)",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Tokens expire at issue time + ttlMs; a rejected attempt does not consume the token",
+          "input": {
+            "tools": [
+              {
+                "name": "get_order",
+                "permission": "read",
+                "deniedRoles": [],
+                "managerAbove": null
+              },
+              {
+                "name": "get_enrollments",
+                "permission": "read",
+                "deniedRoles": [],
+                "managerAbove": null
+              },
+              {
+                "name": "refund_order",
+                "permission": "write",
+                "deniedRoles": [
+                  "tutor"
+                ],
+                "managerAbove": 500000
+              },
+              {
+                "name": "close_ticket",
+                "permission": "write",
+                "deniedRoles": [],
+                "managerAbove": null
+              },
+              {
+                "name": "delete_account",
+                "permission": "write",
+                "deniedRoles": [
+                  "support",
+                  "tutor"
+                ],
+                "managerAbove": null
+              }
+            ],
+            "sessions": [
+              {
+                "id": "s-1",
+                "userId": "u-1",
+                "role": "support"
+              },
+              {
+                "id": "s-2",
+                "userId": "u-2",
+                "role": "tutor"
+              },
+              {
+                "id": "s-3",
+                "userId": "u-3",
+                "role": "support"
+              }
+            ],
+            "events": [
+              {
+                "type": "approve",
+                "at": 1000,
+                "approval": {
+                  "token": "apr-1",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-1",
+                      "amount": 100000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 60000
+                }
+              },
+              {
+                "type": "approve",
+                "at": 1000,
+                "approval": {
+                  "token": "apr-2",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2",
+                      "amount": 100000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 60000
+                }
+              },
+              {
+                "type": "call",
+                "at": 60999,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-2",
+                    "amount": 100000
+                  }
+                },
+                "token": "apr-2"
+              },
+              {
+                "type": "call",
+                "at": 61000,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-1",
+                    "amount": 100000
+                  }
+                },
+                "token": "apr-1"
+              },
+              {
+                "type": "approve",
+                "at": 70000,
+                "approval": {
+                  "token": "apr-3",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-3",
+                      "amount": 50000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 300000
+                }
+              },
+              {
+                "type": "call",
+                "at": 70500,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-3",
+                    "amount": 500000
+                  }
+                },
+                "token": "apr-3"
+              },
+              {
+                "type": "call",
+                "at": 71000,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-3",
+                    "amount": 50000
+                  }
+                },
+                "token": "apr-3"
+              }
+            ]
+          },
+          "expected": "t=60999 s-1 refund_order: allow approved (consumed apr-2)\nt=61000 s-1 refund_order: deny token_expired\nt=70500 s-1 refund_order: deny token_mismatch\nt=71000 s-1 refund_order: allow approved (consumed apr-3)",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Tokens are bound to their session and tool; unknown tokens are denied",
+          "input": {
+            "tools": [
+              {
+                "name": "get_order",
+                "permission": "read",
+                "deniedRoles": [],
+                "managerAbove": null
+              },
+              {
+                "name": "get_enrollments",
+                "permission": "read",
+                "deniedRoles": [],
+                "managerAbove": null
+              },
+              {
+                "name": "refund_order",
+                "permission": "write",
+                "deniedRoles": [
+                  "tutor"
+                ],
+                "managerAbove": 500000
+              },
+              {
+                "name": "close_ticket",
+                "permission": "write",
+                "deniedRoles": [],
+                "managerAbove": null
+              },
+              {
+                "name": "delete_account",
+                "permission": "write",
+                "deniedRoles": [
+                  "support",
+                  "tutor"
+                ],
+                "managerAbove": null
+              }
+            ],
+            "sessions": [
+              {
+                "id": "s-1",
+                "userId": "u-1",
+                "role": "support"
+              },
+              {
+                "id": "s-2",
+                "userId": "u-2",
+                "role": "tutor"
+              },
+              {
+                "id": "s-3",
+                "userId": "u-3",
+                "role": "support"
+              }
+            ],
+            "events": [
+              {
+                "type": "approve",
+                "at": 0,
+                "approval": {
+                  "token": "apr-4",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-4",
+                      "amount": 200000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 300000
+                }
+              },
+              {
+                "type": "call",
+                "at": 10,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-4",
+                    "amount": 200000
+                  }
+                },
+                "token": "apr-4"
+              },
+              {
+                "type": "call",
+                "at": 20,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-4",
+                    "amount": 200000
+                  }
+                },
+                "token": "apr-404"
+              },
+              {
+                "type": "call",
+                "at": 30,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-4",
+                    "amount": 200000
+                  }
+                },
+                "token": "apr-4"
+              },
+              {
+                "type": "approve",
+                "at": 40,
+                "approval": {
+                  "token": "apr-5",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "close_ticket",
+                    "args": {
+                      "ticketId": "t-5"
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 300000
+                }
+              },
+              {
+                "type": "call",
+                "at": 50,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "close_ticket",
+                  "args": {
+                    "ticketId": "t-6"
+                  }
+                },
+                "token": "apr-5"
+              },
+              {
+                "type": "approve",
+                "at": 60,
+                "approval": {
+                  "token": "apr-6",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "close_ticket",
+                    "args": {
+                      "ticketId": "t-8"
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 300000
+                }
+              },
+              {
+                "type": "call",
+                "at": 70,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "ticketId": "t-8",
+                    "amount": 1000
+                  }
+                },
+                "token": "apr-6"
+              }
+            ]
+          },
+          "expected": "t=10 s-3 refund_order: deny token_wrong_session\nt=20 s-1 refund_order: deny invalid_token\nt=30 s-1 refund_order: allow approved (consumed apr-4)\nt=50 s-1 close_ticket: deny token_mismatch\nt=70 s-3 refund_order: deny token_mismatch",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Refunds above the limit need a manager's token; missing or bad amounts are denied",
+          "input": {
+            "tools": [
+              {
+                "name": "get_order",
+                "permission": "read",
+                "deniedRoles": [],
+                "managerAbove": null
+              },
+              {
+                "name": "get_enrollments",
+                "permission": "read",
+                "deniedRoles": [],
+                "managerAbove": null
+              },
+              {
+                "name": "refund_order",
+                "permission": "write",
+                "deniedRoles": [
+                  "tutor"
+                ],
+                "managerAbove": 500000
+              },
+              {
+                "name": "close_ticket",
+                "permission": "write",
+                "deniedRoles": [],
+                "managerAbove": null
+              },
+              {
+                "name": "delete_account",
+                "permission": "write",
+                "deniedRoles": [
+                  "support",
+                  "tutor"
+                ],
+                "managerAbove": null
+              }
+            ],
+            "sessions": [
+              {
+                "id": "s-1",
+                "userId": "u-1",
+                "role": "support"
+              },
+              {
+                "id": "s-2",
+                "userId": "u-2",
+                "role": "tutor"
+              },
+              {
+                "id": "s-3",
+                "userId": "u-3",
+                "role": "support"
+              }
+            ],
+            "events": [
+              {
+                "type": "call",
+                "at": 0,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-6",
+                    "amount": 900000
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 10,
+                "approval": {
+                  "token": "apr-6",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-6",
+                      "amount": 900000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 300000
+                }
+              },
+              {
+                "type": "call",
+                "at": 20,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-6",
+                    "amount": 900000
+                  }
+                },
+                "token": "apr-6"
+              },
+              {
+                "type": "approve",
+                "at": 30,
+                "approval": {
+                  "token": "apr-7",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-6",
+                      "amount": 900000
+                    }
+                  },
+                  "approverRole": "manager",
+                  "ttlMs": 300000
+                }
+              },
+              {
+                "type": "call",
+                "at": 40,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-6",
+                    "amount": 900000
+                  }
+                },
+                "token": "apr-7"
+              },
+              {
+                "type": "approve",
+                "at": 50,
+                "approval": {
+                  "token": "apr-8",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-7",
+                      "amount": 500000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 300000
+                }
+              },
+              {
+                "type": "call",
+                "at": 60,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-7",
+                    "amount": 500000
+                  }
+                },
+                "token": "apr-8"
+              },
+              {
+                "type": "call",
+                "at": 70,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-8",
+                    "amount": -5
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "call",
+                "at": 80,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-8",
+                    "amount": "349000"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "call",
+                "at": 90,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-8"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "call",
+                "at": 100,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-8",
+                    "amount": 0
+                  }
+                },
+                "token": "apr-6"
+              },
+              {
+                "type": "call",
+                "at": 110,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "close_ticket",
+                  "args": {
+                    "ticketId": "t-9"
+                  }
+                },
+                "token": null
+              }
+            ]
+          },
+          "expected": "t=0 s-1 refund_order: needs_approval manager_approval_required\nt=20 s-1 refund_order: needs_approval manager_approval_required\nt=40 s-1 refund_order: allow approved (consumed apr-7)\nt=60 s-1 refund_order: allow approved (consumed apr-8)\nt=70 s-1 refund_order: deny invalid_amount\nt=80 s-1 refund_order: deny invalid_amount\nt=90 s-1 refund_order: deny invalid_amount\nt=100 s-1 refund_order: deny invalid_amount\nt=110 s-1 close_ticket: needs_approval approval_required",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Unknown sessions and tools are denied first; the role check comes before the user check",
+          "input": {
+            "tools": [
+              {
+                "name": "get_order",
+                "permission": "read",
+                "deniedRoles": [],
+                "managerAbove": null
+              },
+              {
+                "name": "get_enrollments",
+                "permission": "read",
+                "deniedRoles": [],
+                "managerAbove": null
+              },
+              {
+                "name": "refund_order",
+                "permission": "write",
+                "deniedRoles": [
+                  "tutor"
+                ],
+                "managerAbove": 500000
+              },
+              {
+                "name": "close_ticket",
+                "permission": "write",
+                "deniedRoles": [],
+                "managerAbove": null
+              },
+              {
+                "name": "delete_account",
+                "permission": "write",
+                "deniedRoles": [
+                  "support",
+                  "tutor"
+                ],
+                "managerAbove": null
+              }
+            ],
+            "sessions": [
+              {
+                "id": "s-1",
+                "userId": "u-1",
+                "role": "support"
+              },
+              {
+                "id": "s-2",
+                "userId": "u-2",
+                "role": "tutor"
+              },
+              {
+                "id": "s-3",
+                "userId": "u-3",
+                "role": "support"
+              }
+            ],
+            "events": [
+              {
+                "type": "call",
+                "at": 0,
+                "sessionId": "s-9",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-1"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "call",
+                "at": 10,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "drop_database",
+                  "args": {}
+                },
+                "token": null
+              },
+              {
+                "type": "call",
+                "at": 20,
+                "sessionId": "s-9",
+                "call": {
+                  "name": "drop_database",
+                  "args": {}
+                },
+                "token": "apr-1"
+              },
+              {
+                "type": "call",
+                "at": 30,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "userId": "u-1",
+                    "orderId": "o-1",
+                    "amount": 1000
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "call",
+                "at": 40,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-1",
+                    "userId": "u-2"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "call",
+                "at": 50,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_enrollments",
+                  "args": {
+                    "userId": "u-2"
+                  }
+                },
+                "token": null
+              }
+            ]
+          },
+          "expected": "t=0 s-9 get_order: deny unknown_session\nt=10 s-1 drop_database: deny unknown_tool\nt=20 s-9 drop_database: deny unknown_session\nt=30 s-2 refund_order: deny role_denied\nt=40 s-1 get_order: deny user_mismatch\nt=50 s-2 get_enrollments: allow read",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Large: 160 approvals and replays across three sessions",
+          "input": {
+            "tools": [
+              {
+                "name": "get_order",
+                "permission": "read",
+                "deniedRoles": [],
+                "managerAbove": null
+              },
+              {
+                "name": "get_enrollments",
+                "permission": "read",
+                "deniedRoles": [],
+                "managerAbove": null
+              },
+              {
+                "name": "refund_order",
+                "permission": "write",
+                "deniedRoles": [
+                  "tutor"
+                ],
+                "managerAbove": 500000
+              },
+              {
+                "name": "close_ticket",
+                "permission": "write",
+                "deniedRoles": [],
+                "managerAbove": null
+              },
+              {
+                "name": "delete_account",
+                "permission": "write",
+                "deniedRoles": [
+                  "support",
+                  "tutor"
+                ],
+                "managerAbove": null
+              }
+            ],
+            "sessions": [
+              {
+                "id": "s-1",
+                "userId": "u-1",
+                "role": "support"
+              },
+              {
+                "id": "s-2",
+                "userId": "u-2",
+                "role": "tutor"
+              },
+              {
+                "id": "s-3",
+                "userId": "u-3",
+                "role": "support"
+              }
+            ],
+            "events": [
+              {
+                "type": "approve",
+                "at": 0,
+                "approval": {
+                  "token": "apr-0",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2000",
+                      "amount": 10000
+                    }
+                  },
+                  "approverRole": "manager",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 1,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 10000,
+                    "orderId": "o-2000"
+                  }
+                },
+                "token": "apr-0"
+              },
+              {
+                "type": "call",
+                "at": 2,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-2000",
+                    "amount": 10000
+                  }
+                },
+                "token": "apr-0"
+              },
+              {
+                "type": "call",
+                "at": 3,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-2000",
+                    "amount": 10001
+                  }
+                },
+                "token": "apr-0"
+              },
+              {
+                "type": "call",
+                "at": 1000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2001"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 2000,
+                "approval": {
+                  "token": "apr-2",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2002",
+                      "amount": 30000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 2001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 30000,
+                    "orderId": "o-2002"
+                  }
+                },
+                "token": "apr-2"
+              },
+              {
+                "type": "approve",
+                "at": 3000,
+                "approval": {
+                  "token": "apr-3",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2003",
+                      "amount": 40000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 3001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 40000,
+                    "orderId": "o-2003"
+                  }
+                },
+                "token": "apr-3"
+              },
+              {
+                "type": "call",
+                "at": 4000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2004"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 5000,
+                "approval": {
+                  "token": "apr-5",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2005",
+                      "amount": 60000
+                    }
+                  },
+                  "approverRole": "manager",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 5001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 60000,
+                    "orderId": "o-2005"
+                  }
+                },
+                "token": "apr-5"
+              },
+              {
+                "type": "approve",
+                "at": 6000,
+                "approval": {
+                  "token": "apr-6",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2006",
+                      "amount": 70000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 6001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 70000,
+                    "orderId": "o-2006"
+                  }
+                },
+                "token": "apr-6"
+              },
+              {
+                "type": "call",
+                "at": 7000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2007"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 8000,
+                "approval": {
+                  "token": "apr-8",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2008",
+                      "amount": 90000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 8001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 90000,
+                    "orderId": "o-2008"
+                  }
+                },
+                "token": "apr-8"
+              },
+              {
+                "type": "call",
+                "at": 8002,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-2008",
+                    "amount": 90000
+                  }
+                },
+                "token": "apr-8"
+              },
+              {
+                "type": "approve",
+                "at": 9000,
+                "approval": {
+                  "token": "apr-9",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2009",
+                      "amount": 100000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 9001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 100000,
+                    "orderId": "o-2009"
+                  }
+                },
+                "token": "apr-9"
+              },
+              {
+                "type": "call",
+                "at": 10000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2010"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 11000,
+                "approval": {
+                  "token": "apr-11",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2011",
+                      "amount": 120000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 11001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 120000,
+                    "orderId": "o-2011"
+                  }
+                },
+                "token": "apr-11"
+              },
+              {
+                "type": "approve",
+                "at": 12000,
+                "approval": {
+                  "token": "apr-12",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2012",
+                      "amount": 130000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 12001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 130000,
+                    "orderId": "o-2012"
+                  }
+                },
+                "token": "apr-12"
+              },
+              {
+                "type": "call",
+                "at": 12002,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-2012",
+                    "amount": 130000
+                  }
+                },
+                "token": "apr-12"
+              },
+              {
+                "type": "call",
+                "at": 13000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2013"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 14000,
+                "approval": {
+                  "token": "apr-14",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2014",
+                      "amount": 150000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 14001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 150000,
+                    "orderId": "o-2014"
+                  }
+                },
+                "token": "apr-14"
+              },
+              {
+                "type": "call",
+                "at": 14003,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-2014",
+                    "amount": 150001
+                  }
+                },
+                "token": "apr-14"
+              },
+              {
+                "type": "approve",
+                "at": 15000,
+                "approval": {
+                  "token": "apr-15",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2015",
+                      "amount": 160000
+                    }
+                  },
+                  "approverRole": "manager",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 15001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 160000,
+                    "orderId": "o-2015"
+                  }
+                },
+                "token": "apr-15"
+              },
+              {
+                "type": "call",
+                "at": 16000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2016"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 17000,
+                "approval": {
+                  "token": "apr-17",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2017",
+                      "amount": 180000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 17001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 180000,
+                    "orderId": "o-2017"
+                  }
+                },
+                "token": "apr-17"
+              },
+              {
+                "type": "approve",
+                "at": 18000,
+                "approval": {
+                  "token": "apr-18",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2018",
+                      "amount": 190000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 18001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 190000,
+                    "orderId": "o-2018"
+                  }
+                },
+                "token": "apr-18"
+              },
+              {
+                "type": "call",
+                "at": 19000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2019"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 20000,
+                "approval": {
+                  "token": "apr-20",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2020",
+                      "amount": 210000
+                    }
+                  },
+                  "approverRole": "manager",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 20001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 210000,
+                    "orderId": "o-2020"
+                  }
+                },
+                "token": "apr-20"
+              },
+              {
+                "type": "call",
+                "at": 20002,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-2020",
+                    "amount": 210000
+                  }
+                },
+                "token": "apr-20"
+              },
+              {
+                "type": "approve",
+                "at": 21000,
+                "approval": {
+                  "token": "apr-21",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2021",
+                      "amount": 220000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 21001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 220000,
+                    "orderId": "o-2021"
+                  }
+                },
+                "token": "apr-21"
+              },
+              {
+                "type": "call",
+                "at": 21003,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-2021",
+                    "amount": 220001
+                  }
+                },
+                "token": "apr-21"
+              },
+              {
+                "type": "call",
+                "at": 22000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2022"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 23000,
+                "approval": {
+                  "token": "apr-23",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2023",
+                      "amount": 240000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 23001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 240000,
+                    "orderId": "o-2023"
+                  }
+                },
+                "token": "apr-23"
+              },
+              {
+                "type": "approve",
+                "at": 24000,
+                "approval": {
+                  "token": "apr-24",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2024",
+                      "amount": 250000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 24001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 250000,
+                    "orderId": "o-2024"
+                  }
+                },
+                "token": "apr-24"
+              },
+              {
+                "type": "call",
+                "at": 24002,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-2024",
+                    "amount": 250000
+                  }
+                },
+                "token": "apr-24"
+              },
+              {
+                "type": "call",
+                "at": 25000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2025"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 26000,
+                "approval": {
+                  "token": "apr-26",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2026",
+                      "amount": 270000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 26001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 270000,
+                    "orderId": "o-2026"
+                  }
+                },
+                "token": "apr-26"
+              },
+              {
+                "type": "approve",
+                "at": 27000,
+                "approval": {
+                  "token": "apr-27",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2027",
+                      "amount": 280000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 27001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 280000,
+                    "orderId": "o-2027"
+                  }
+                },
+                "token": "apr-27"
+              },
+              {
+                "type": "call",
+                "at": 28000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2028"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 29000,
+                "approval": {
+                  "token": "apr-29",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2029",
+                      "amount": 300000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 29001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 300000,
+                    "orderId": "o-2029"
+                  }
+                },
+                "token": "apr-29"
+              },
+              {
+                "type": "approve",
+                "at": 30000,
+                "approval": {
+                  "token": "apr-30",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2030",
+                      "amount": 310000
+                    }
+                  },
+                  "approverRole": "manager",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 30001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 310000,
+                    "orderId": "o-2030"
+                  }
+                },
+                "token": "apr-30"
+              },
+              {
+                "type": "call",
+                "at": 31000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2031"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 32000,
+                "approval": {
+                  "token": "apr-32",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2032",
+                      "amount": 330000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 32001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 330000,
+                    "orderId": "o-2032"
+                  }
+                },
+                "token": "apr-32"
+              },
+              {
+                "type": "call",
+                "at": 32002,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-2032",
+                    "amount": 330000
+                  }
+                },
+                "token": "apr-32"
+              },
+              {
+                "type": "approve",
+                "at": 33000,
+                "approval": {
+                  "token": "apr-33",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2033",
+                      "amount": 340000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 33001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 340000,
+                    "orderId": "o-2033"
+                  }
+                },
+                "token": "apr-33"
+              },
+              {
+                "type": "call",
+                "at": 34000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2034"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 35000,
+                "approval": {
+                  "token": "apr-35",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2035",
+                      "amount": 360000
+                    }
+                  },
+                  "approverRole": "manager",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 35001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 360000,
+                    "orderId": "o-2035"
+                  }
+                },
+                "token": "apr-35"
+              },
+              {
+                "type": "call",
+                "at": 35003,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-2035",
+                    "amount": 360001
+                  }
+                },
+                "token": "apr-35"
+              },
+              {
+                "type": "approve",
+                "at": 36000,
+                "approval": {
+                  "token": "apr-36",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2036",
+                      "amount": 370000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 36001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 370000,
+                    "orderId": "o-2036"
+                  }
+                },
+                "token": "apr-36"
+              },
+              {
+                "type": "call",
+                "at": 36002,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-2036",
+                    "amount": 370000
+                  }
+                },
+                "token": "apr-36"
+              },
+              {
+                "type": "call",
+                "at": 37000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2037"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 38000,
+                "approval": {
+                  "token": "apr-38",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2038",
+                      "amount": 390000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 38001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 390000,
+                    "orderId": "o-2038"
+                  }
+                },
+                "token": "apr-38"
+              },
+              {
+                "type": "approve",
+                "at": 39000,
+                "approval": {
+                  "token": "apr-39",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2039",
+                      "amount": 400000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 39001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 400000,
+                    "orderId": "o-2039"
+                  }
+                },
+                "token": "apr-39"
+              },
+              {
+                "type": "call",
+                "at": 40000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2040"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 41000,
+                "approval": {
+                  "token": "apr-41",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2041",
+                      "amount": 420000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 41001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 420000,
+                    "orderId": "o-2041"
+                  }
+                },
+                "token": "apr-41"
+              },
+              {
+                "type": "approve",
+                "at": 42000,
+                "approval": {
+                  "token": "apr-42",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2042",
+                      "amount": 430000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 42001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 430000,
+                    "orderId": "o-2042"
+                  }
+                },
+                "token": "apr-42"
+              },
+              {
+                "type": "call",
+                "at": 42003,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-2042",
+                    "amount": 430001
+                  }
+                },
+                "token": "apr-42"
+              },
+              {
+                "type": "call",
+                "at": 43000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2043"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 44000,
+                "approval": {
+                  "token": "apr-44",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2044",
+                      "amount": 450000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 44001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 450000,
+                    "orderId": "o-2044"
+                  }
+                },
+                "token": "apr-44"
+              },
+              {
+                "type": "call",
+                "at": 44002,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-2044",
+                    "amount": 450000
+                  }
+                },
+                "token": "apr-44"
+              },
+              {
+                "type": "approve",
+                "at": 45000,
+                "approval": {
+                  "token": "apr-45",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2045",
+                      "amount": 460000
+                    }
+                  },
+                  "approverRole": "manager",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 45001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 460000,
+                    "orderId": "o-2045"
+                  }
+                },
+                "token": "apr-45"
+              },
+              {
+                "type": "call",
+                "at": 46000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2046"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 47000,
+                "approval": {
+                  "token": "apr-47",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2047",
+                      "amount": 480000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 47001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 480000,
+                    "orderId": "o-2047"
+                  }
+                },
+                "token": "apr-47"
+              },
+              {
+                "type": "approve",
+                "at": 48000,
+                "approval": {
+                  "token": "apr-48",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2048",
+                      "amount": 490000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 48001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 490000,
+                    "orderId": "o-2048"
+                  }
+                },
+                "token": "apr-48"
+              },
+              {
+                "type": "call",
+                "at": 48002,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-2048",
+                    "amount": 490000
+                  }
+                },
+                "token": "apr-48"
+              },
+              {
+                "type": "call",
+                "at": 49000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2049"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 50000,
+                "approval": {
+                  "token": "apr-50",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2050",
+                      "amount": 510000
+                    }
+                  },
+                  "approverRole": "manager",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 50001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 510000,
+                    "orderId": "o-2050"
+                  }
+                },
+                "token": "apr-50"
+              },
+              {
+                "type": "approve",
+                "at": 51000,
+                "approval": {
+                  "token": "apr-51",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2051",
+                      "amount": 520000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 51001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 520000,
+                    "orderId": "o-2051"
+                  }
+                },
+                "token": "apr-51"
+              },
+              {
+                "type": "call",
+                "at": 52000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2052"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 53000,
+                "approval": {
+                  "token": "apr-53",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2053",
+                      "amount": 540000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 53001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 540000,
+                    "orderId": "o-2053"
+                  }
+                },
+                "token": "apr-53"
+              },
+              {
+                "type": "approve",
+                "at": 54000,
+                "approval": {
+                  "token": "apr-54",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2054",
+                      "amount": 550000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 54001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 550000,
+                    "orderId": "o-2054"
+                  }
+                },
+                "token": "apr-54"
+              },
+              {
+                "type": "call",
+                "at": 55000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2055"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 56000,
+                "approval": {
+                  "token": "apr-56",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2056",
+                      "amount": 570000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 56001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 570000,
+                    "orderId": "o-2056"
+                  }
+                },
+                "token": "apr-56"
+              },
+              {
+                "type": "call",
+                "at": 56002,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-2056",
+                    "amount": 570000
+                  }
+                },
+                "token": "apr-56"
+              },
+              {
+                "type": "call",
+                "at": 56003,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-2056",
+                    "amount": 570001
+                  }
+                },
+                "token": "apr-56"
+              },
+              {
+                "type": "approve",
+                "at": 57000,
+                "approval": {
+                  "token": "apr-57",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2057",
+                      "amount": 580000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 57001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 580000,
+                    "orderId": "o-2057"
+                  }
+                },
+                "token": "apr-57"
+              },
+              {
+                "type": "call",
+                "at": 58000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2058"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 59000,
+                "approval": {
+                  "token": "apr-59",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2059",
+                      "amount": 600000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 59001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 600000,
+                    "orderId": "o-2059"
+                  }
+                },
+                "token": "apr-59"
+              },
+              {
+                "type": "approve",
+                "at": 60000,
+                "approval": {
+                  "token": "apr-60",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2060",
+                      "amount": 610000
+                    }
+                  },
+                  "approverRole": "manager",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 60001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 610000,
+                    "orderId": "o-2060"
+                  }
+                },
+                "token": "apr-60"
+              },
+              {
+                "type": "call",
+                "at": 60002,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-2060",
+                    "amount": 610000
+                  }
+                },
+                "token": "apr-60"
+              },
+              {
+                "type": "call",
+                "at": 61000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2061"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 62000,
+                "approval": {
+                  "token": "apr-62",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2062",
+                      "amount": 630000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 62001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 630000,
+                    "orderId": "o-2062"
+                  }
+                },
+                "token": "apr-62"
+              },
+              {
+                "type": "approve",
+                "at": 63000,
+                "approval": {
+                  "token": "apr-63",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2063",
+                      "amount": 640000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 63001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 640000,
+                    "orderId": "o-2063"
+                  }
+                },
+                "token": "apr-63"
+              },
+              {
+                "type": "call",
+                "at": 63003,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-2063",
+                    "amount": 640001
+                  }
+                },
+                "token": "apr-63"
+              },
+              {
+                "type": "call",
+                "at": 64000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2064"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 65000,
+                "approval": {
+                  "token": "apr-65",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2065",
+                      "amount": 660000
+                    }
+                  },
+                  "approverRole": "manager",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 65001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 660000,
+                    "orderId": "o-2065"
+                  }
+                },
+                "token": "apr-65"
+              },
+              {
+                "type": "approve",
+                "at": 66000,
+                "approval": {
+                  "token": "apr-66",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2066",
+                      "amount": 670000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 66001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 670000,
+                    "orderId": "o-2066"
+                  }
+                },
+                "token": "apr-66"
+              },
+              {
+                "type": "call",
+                "at": 67000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2067"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 68000,
+                "approval": {
+                  "token": "apr-68",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2068",
+                      "amount": 690000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 68001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 690000,
+                    "orderId": "o-2068"
+                  }
+                },
+                "token": "apr-68"
+              },
+              {
+                "type": "call",
+                "at": 68002,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-2068",
+                    "amount": 690000
+                  }
+                },
+                "token": "apr-68"
+              },
+              {
+                "type": "approve",
+                "at": 69000,
+                "approval": {
+                  "token": "apr-69",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2069",
+                      "amount": 700000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 69001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 700000,
+                    "orderId": "o-2069"
+                  }
+                },
+                "token": "apr-69"
+              },
+              {
+                "type": "call",
+                "at": 70000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2070"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 71000,
+                "approval": {
+                  "token": "apr-71",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2071",
+                      "amount": 20000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 71001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 20000,
+                    "orderId": "o-2071"
+                  }
+                },
+                "token": "apr-71"
+              },
+              {
+                "type": "approve",
+                "at": 72000,
+                "approval": {
+                  "token": "apr-72",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2072",
+                      "amount": 30000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 72001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 30000,
+                    "orderId": "o-2072"
+                  }
+                },
+                "token": "apr-72"
+              },
+              {
+                "type": "call",
+                "at": 72002,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-2072",
+                    "amount": 30000
+                  }
+                },
+                "token": "apr-72"
+              },
+              {
+                "type": "call",
+                "at": 73000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2073"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 74000,
+                "approval": {
+                  "token": "apr-74",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2074",
+                      "amount": 50000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 74001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 50000,
+                    "orderId": "o-2074"
+                  }
+                },
+                "token": "apr-74"
+              },
+              {
+                "type": "approve",
+                "at": 75000,
+                "approval": {
+                  "token": "apr-75",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2075",
+                      "amount": 60000
+                    }
+                  },
+                  "approverRole": "manager",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 75001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 60000,
+                    "orderId": "o-2075"
+                  }
+                },
+                "token": "apr-75"
+              },
+              {
+                "type": "call",
+                "at": 76000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2076"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 77000,
+                "approval": {
+                  "token": "apr-77",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2077",
+                      "amount": 80000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 77001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 80000,
+                    "orderId": "o-2077"
+                  }
+                },
+                "token": "apr-77"
+              },
+              {
+                "type": "call",
+                "at": 77003,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-2077",
+                    "amount": 80001
+                  }
+                },
+                "token": "apr-77"
+              },
+              {
+                "type": "approve",
+                "at": 78000,
+                "approval": {
+                  "token": "apr-78",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2078",
+                      "amount": 90000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 78001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 90000,
+                    "orderId": "o-2078"
+                  }
+                },
+                "token": "apr-78"
+              },
+              {
+                "type": "call",
+                "at": 79000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2079"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 80000,
+                "approval": {
+                  "token": "apr-80",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2080",
+                      "amount": 110000
+                    }
+                  },
+                  "approverRole": "manager",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 80001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 110000,
+                    "orderId": "o-2080"
+                  }
+                },
+                "token": "apr-80"
+              },
+              {
+                "type": "call",
+                "at": 80002,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-2080",
+                    "amount": 110000
+                  }
+                },
+                "token": "apr-80"
+              },
+              {
+                "type": "approve",
+                "at": 81000,
+                "approval": {
+                  "token": "apr-81",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2081",
+                      "amount": 120000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 81001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 120000,
+                    "orderId": "o-2081"
+                  }
+                },
+                "token": "apr-81"
+              },
+              {
+                "type": "call",
+                "at": 82000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2082"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 83000,
+                "approval": {
+                  "token": "apr-83",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2083",
+                      "amount": 140000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 83001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 140000,
+                    "orderId": "o-2083"
+                  }
+                },
+                "token": "apr-83"
+              },
+              {
+                "type": "approve",
+                "at": 84000,
+                "approval": {
+                  "token": "apr-84",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2084",
+                      "amount": 150000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 84001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 150000,
+                    "orderId": "o-2084"
+                  }
+                },
+                "token": "apr-84"
+              },
+              {
+                "type": "call",
+                "at": 84002,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-2084",
+                    "amount": 150000
+                  }
+                },
+                "token": "apr-84"
+              },
+              {
+                "type": "call",
+                "at": 84003,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-2084",
+                    "amount": 150001
+                  }
+                },
+                "token": "apr-84"
+              },
+              {
+                "type": "call",
+                "at": 85000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2085"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 86000,
+                "approval": {
+                  "token": "apr-86",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2086",
+                      "amount": 170000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 86001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 170000,
+                    "orderId": "o-2086"
+                  }
+                },
+                "token": "apr-86"
+              },
+              {
+                "type": "approve",
+                "at": 87000,
+                "approval": {
+                  "token": "apr-87",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2087",
+                      "amount": 180000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 87001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 180000,
+                    "orderId": "o-2087"
+                  }
+                },
+                "token": "apr-87"
+              },
+              {
+                "type": "call",
+                "at": 88000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2088"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 89000,
+                "approval": {
+                  "token": "apr-89",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2089",
+                      "amount": 200000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 89001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 200000,
+                    "orderId": "o-2089"
+                  }
+                },
+                "token": "apr-89"
+              },
+              {
+                "type": "approve",
+                "at": 90000,
+                "approval": {
+                  "token": "apr-90",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2090",
+                      "amount": 210000
+                    }
+                  },
+                  "approverRole": "manager",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 90001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 210000,
+                    "orderId": "o-2090"
+                  }
+                },
+                "token": "apr-90"
+              },
+              {
+                "type": "call",
+                "at": 91000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2091"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 92000,
+                "approval": {
+                  "token": "apr-92",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2092",
+                      "amount": 230000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 92001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 230000,
+                    "orderId": "o-2092"
+                  }
+                },
+                "token": "apr-92"
+              },
+              {
+                "type": "call",
+                "at": 92002,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-2092",
+                    "amount": 230000
+                  }
+                },
+                "token": "apr-92"
+              },
+              {
+                "type": "approve",
+                "at": 93000,
+                "approval": {
+                  "token": "apr-93",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2093",
+                      "amount": 240000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 93001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 240000,
+                    "orderId": "o-2093"
+                  }
+                },
+                "token": "apr-93"
+              },
+              {
+                "type": "call",
+                "at": 94000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2094"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 95000,
+                "approval": {
+                  "token": "apr-95",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2095",
+                      "amount": 260000
+                    }
+                  },
+                  "approverRole": "manager",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 95001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 260000,
+                    "orderId": "o-2095"
+                  }
+                },
+                "token": "apr-95"
+              },
+              {
+                "type": "approve",
+                "at": 96000,
+                "approval": {
+                  "token": "apr-96",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2096",
+                      "amount": 270000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 96001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 270000,
+                    "orderId": "o-2096"
+                  }
+                },
+                "token": "apr-96"
+              },
+              {
+                "type": "call",
+                "at": 96002,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-2096",
+                    "amount": 270000
+                  }
+                },
+                "token": "apr-96"
+              },
+              {
+                "type": "call",
+                "at": 97000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2097"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 98000,
+                "approval": {
+                  "token": "apr-98",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2098",
+                      "amount": 290000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 98001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 290000,
+                    "orderId": "o-2098"
+                  }
+                },
+                "token": "apr-98"
+              },
+              {
+                "type": "call",
+                "at": 98003,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-2098",
+                    "amount": 290001
+                  }
+                },
+                "token": "apr-98"
+              },
+              {
+                "type": "approve",
+                "at": 99000,
+                "approval": {
+                  "token": "apr-99",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2099",
+                      "amount": 300000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 99001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 300000,
+                    "orderId": "o-2099"
+                  }
+                },
+                "token": "apr-99"
+              },
+              {
+                "type": "call",
+                "at": 100000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2100"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 101000,
+                "approval": {
+                  "token": "apr-101",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2101",
+                      "amount": 320000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 101001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 320000,
+                    "orderId": "o-2101"
+                  }
+                },
+                "token": "apr-101"
+              },
+              {
+                "type": "approve",
+                "at": 102000,
+                "approval": {
+                  "token": "apr-102",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2102",
+                      "amount": 330000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 102001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 330000,
+                    "orderId": "o-2102"
+                  }
+                },
+                "token": "apr-102"
+              },
+              {
+                "type": "call",
+                "at": 103000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2103"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 104000,
+                "approval": {
+                  "token": "apr-104",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2104",
+                      "amount": 350000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 104001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 350000,
+                    "orderId": "o-2104"
+                  }
+                },
+                "token": "apr-104"
+              },
+              {
+                "type": "call",
+                "at": 104002,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-2104",
+                    "amount": 350000
+                  }
+                },
+                "token": "apr-104"
+              },
+              {
+                "type": "approve",
+                "at": 105000,
+                "approval": {
+                  "token": "apr-105",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2105",
+                      "amount": 360000
+                    }
+                  },
+                  "approverRole": "manager",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 105001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 360000,
+                    "orderId": "o-2105"
+                  }
+                },
+                "token": "apr-105"
+              },
+              {
+                "type": "call",
+                "at": 105003,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-2105",
+                    "amount": 360001
+                  }
+                },
+                "token": "apr-105"
+              },
+              {
+                "type": "call",
+                "at": 106000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2106"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 107000,
+                "approval": {
+                  "token": "apr-107",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2107",
+                      "amount": 380000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 107001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 380000,
+                    "orderId": "o-2107"
+                  }
+                },
+                "token": "apr-107"
+              },
+              {
+                "type": "approve",
+                "at": 108000,
+                "approval": {
+                  "token": "apr-108",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2108",
+                      "amount": 390000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 108001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 390000,
+                    "orderId": "o-2108"
+                  }
+                },
+                "token": "apr-108"
+              },
+              {
+                "type": "call",
+                "at": 108002,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-2108",
+                    "amount": 390000
+                  }
+                },
+                "token": "apr-108"
+              },
+              {
+                "type": "call",
+                "at": 109000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2109"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 110000,
+                "approval": {
+                  "token": "apr-110",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2110",
+                      "amount": 410000
+                    }
+                  },
+                  "approverRole": "manager",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 110001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 410000,
+                    "orderId": "o-2110"
+                  }
+                },
+                "token": "apr-110"
+              },
+              {
+                "type": "approve",
+                "at": 111000,
+                "approval": {
+                  "token": "apr-111",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2111",
+                      "amount": 420000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 111001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 420000,
+                    "orderId": "o-2111"
+                  }
+                },
+                "token": "apr-111"
+              },
+              {
+                "type": "call",
+                "at": 112000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2112"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 113000,
+                "approval": {
+                  "token": "apr-113",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2113",
+                      "amount": 440000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 113001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 440000,
+                    "orderId": "o-2113"
+                  }
+                },
+                "token": "apr-113"
+              },
+              {
+                "type": "approve",
+                "at": 114000,
+                "approval": {
+                  "token": "apr-114",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2114",
+                      "amount": 450000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 114001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 450000,
+                    "orderId": "o-2114"
+                  }
+                },
+                "token": "apr-114"
+              },
+              {
+                "type": "call",
+                "at": 115000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2115"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 116000,
+                "approval": {
+                  "token": "apr-116",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2116",
+                      "amount": 470000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 116001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 470000,
+                    "orderId": "o-2116"
+                  }
+                },
+                "token": "apr-116"
+              },
+              {
+                "type": "call",
+                "at": 116002,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-2116",
+                    "amount": 470000
+                  }
+                },
+                "token": "apr-116"
+              },
+              {
+                "type": "approve",
+                "at": 117000,
+                "approval": {
+                  "token": "apr-117",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2117",
+                      "amount": 480000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 117001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 480000,
+                    "orderId": "o-2117"
+                  }
+                },
+                "token": "apr-117"
+              },
+              {
+                "type": "call",
+                "at": 118000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2118"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 119000,
+                "approval": {
+                  "token": "apr-119",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2119",
+                      "amount": 500000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 119001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 500000,
+                    "orderId": "o-2119"
+                  }
+                },
+                "token": "apr-119"
+              },
+              {
+                "type": "call",
+                "at": 119003,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-2119",
+                    "amount": 500001
+                  }
+                },
+                "token": "apr-119"
+              },
+              {
+                "type": "approve",
+                "at": 120000,
+                "approval": {
+                  "token": "apr-120",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2120",
+                      "amount": 510000
+                    }
+                  },
+                  "approverRole": "manager",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 120001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 510000,
+                    "orderId": "o-2120"
+                  }
+                },
+                "token": "apr-120"
+              },
+              {
+                "type": "call",
+                "at": 120002,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-2120",
+                    "amount": 510000
+                  }
+                },
+                "token": "apr-120"
+              },
+              {
+                "type": "call",
+                "at": 121000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2121"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 122000,
+                "approval": {
+                  "token": "apr-122",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2122",
+                      "amount": 530000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 122001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 530000,
+                    "orderId": "o-2122"
+                  }
+                },
+                "token": "apr-122"
+              },
+              {
+                "type": "approve",
+                "at": 123000,
+                "approval": {
+                  "token": "apr-123",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2123",
+                      "amount": 540000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 123001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 540000,
+                    "orderId": "o-2123"
+                  }
+                },
+                "token": "apr-123"
+              },
+              {
+                "type": "call",
+                "at": 124000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2124"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 125000,
+                "approval": {
+                  "token": "apr-125",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2125",
+                      "amount": 560000
+                    }
+                  },
+                  "approverRole": "manager",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 125001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 560000,
+                    "orderId": "o-2125"
+                  }
+                },
+                "token": "apr-125"
+              },
+              {
+                "type": "approve",
+                "at": 126000,
+                "approval": {
+                  "token": "apr-126",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2126",
+                      "amount": 570000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 126001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 570000,
+                    "orderId": "o-2126"
+                  }
+                },
+                "token": "apr-126"
+              },
+              {
+                "type": "call",
+                "at": 126003,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-2126",
+                    "amount": 570001
+                  }
+                },
+                "token": "apr-126"
+              },
+              {
+                "type": "call",
+                "at": 127000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2127"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 128000,
+                "approval": {
+                  "token": "apr-128",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2128",
+                      "amount": 590000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 128001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 590000,
+                    "orderId": "o-2128"
+                  }
+                },
+                "token": "apr-128"
+              },
+              {
+                "type": "call",
+                "at": 128002,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-2128",
+                    "amount": 590000
+                  }
+                },
+                "token": "apr-128"
+              },
+              {
+                "type": "approve",
+                "at": 129000,
+                "approval": {
+                  "token": "apr-129",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2129",
+                      "amount": 600000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 129001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 600000,
+                    "orderId": "o-2129"
+                  }
+                },
+                "token": "apr-129"
+              },
+              {
+                "type": "call",
+                "at": 130000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2130"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 131000,
+                "approval": {
+                  "token": "apr-131",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2131",
+                      "amount": 620000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 131001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 620000,
+                    "orderId": "o-2131"
+                  }
+                },
+                "token": "apr-131"
+              },
+              {
+                "type": "approve",
+                "at": 132000,
+                "approval": {
+                  "token": "apr-132",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2132",
+                      "amount": 630000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 132001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 630000,
+                    "orderId": "o-2132"
+                  }
+                },
+                "token": "apr-132"
+              },
+              {
+                "type": "call",
+                "at": 132002,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-2132",
+                    "amount": 630000
+                  }
+                },
+                "token": "apr-132"
+              },
+              {
+                "type": "call",
+                "at": 133000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2133"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 134000,
+                "approval": {
+                  "token": "apr-134",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2134",
+                      "amount": 650000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 134001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 650000,
+                    "orderId": "o-2134"
+                  }
+                },
+                "token": "apr-134"
+              },
+              {
+                "type": "approve",
+                "at": 135000,
+                "approval": {
+                  "token": "apr-135",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2135",
+                      "amount": 660000
+                    }
+                  },
+                  "approverRole": "manager",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 135001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 660000,
+                    "orderId": "o-2135"
+                  }
+                },
+                "token": "apr-135"
+              },
+              {
+                "type": "call",
+                "at": 136000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2136"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 137000,
+                "approval": {
+                  "token": "apr-137",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2137",
+                      "amount": 680000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 137001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 680000,
+                    "orderId": "o-2137"
+                  }
+                },
+                "token": "apr-137"
+              },
+              {
+                "type": "approve",
+                "at": 138000,
+                "approval": {
+                  "token": "apr-138",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2138",
+                      "amount": 690000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 138001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 690000,
+                    "orderId": "o-2138"
+                  }
+                },
+                "token": "apr-138"
+              },
+              {
+                "type": "call",
+                "at": 139000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2139"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 140000,
+                "approval": {
+                  "token": "apr-140",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2140",
+                      "amount": 10000
+                    }
+                  },
+                  "approverRole": "manager",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 140001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 10000,
+                    "orderId": "o-2140"
+                  }
+                },
+                "token": "apr-140"
+              },
+              {
+                "type": "call",
+                "at": 140002,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-2140",
+                    "amount": 10000
+                  }
+                },
+                "token": "apr-140"
+              },
+              {
+                "type": "call",
+                "at": 140003,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-2140",
+                    "amount": 10001
+                  }
+                },
+                "token": "apr-140"
+              },
+              {
+                "type": "approve",
+                "at": 141000,
+                "approval": {
+                  "token": "apr-141",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2141",
+                      "amount": 20000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 141001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 20000,
+                    "orderId": "o-2141"
+                  }
+                },
+                "token": "apr-141"
+              },
+              {
+                "type": "call",
+                "at": 142000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2142"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 143000,
+                "approval": {
+                  "token": "apr-143",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2143",
+                      "amount": 40000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 143001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 40000,
+                    "orderId": "o-2143"
+                  }
+                },
+                "token": "apr-143"
+              },
+              {
+                "type": "approve",
+                "at": 144000,
+                "approval": {
+                  "token": "apr-144",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2144",
+                      "amount": 50000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 144001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 50000,
+                    "orderId": "o-2144"
+                  }
+                },
+                "token": "apr-144"
+              },
+              {
+                "type": "call",
+                "at": 144002,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-2144",
+                    "amount": 50000
+                  }
+                },
+                "token": "apr-144"
+              },
+              {
+                "type": "call",
+                "at": 145000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2145"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 146000,
+                "approval": {
+                  "token": "apr-146",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2146",
+                      "amount": 70000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 146001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 70000,
+                    "orderId": "o-2146"
+                  }
+                },
+                "token": "apr-146"
+              },
+              {
+                "type": "approve",
+                "at": 147000,
+                "approval": {
+                  "token": "apr-147",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2147",
+                      "amount": 80000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 147001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 80000,
+                    "orderId": "o-2147"
+                  }
+                },
+                "token": "apr-147"
+              },
+              {
+                "type": "call",
+                "at": 147003,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-2147",
+                    "amount": 80001
+                  }
+                },
+                "token": "apr-147"
+              },
+              {
+                "type": "call",
+                "at": 148000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2148"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 149000,
+                "approval": {
+                  "token": "apr-149",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2149",
+                      "amount": 100000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 149001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 100000,
+                    "orderId": "o-2149"
+                  }
+                },
+                "token": "apr-149"
+              },
+              {
+                "type": "approve",
+                "at": 150000,
+                "approval": {
+                  "token": "apr-150",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2150",
+                      "amount": 110000
+                    }
+                  },
+                  "approverRole": "manager",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 150001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 110000,
+                    "orderId": "o-2150"
+                  }
+                },
+                "token": "apr-150"
+              },
+              {
+                "type": "call",
+                "at": 151000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2151"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 152000,
+                "approval": {
+                  "token": "apr-152",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2152",
+                      "amount": 130000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 152001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 130000,
+                    "orderId": "o-2152"
+                  }
+                },
+                "token": "apr-152"
+              },
+              {
+                "type": "call",
+                "at": 152002,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-2152",
+                    "amount": 130000
+                  }
+                },
+                "token": "apr-152"
+              },
+              {
+                "type": "approve",
+                "at": 153000,
+                "approval": {
+                  "token": "apr-153",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2153",
+                      "amount": 140000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 153001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 140000,
+                    "orderId": "o-2153"
+                  }
+                },
+                "token": "apr-153"
+              },
+              {
+                "type": "call",
+                "at": 154000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2154"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 155000,
+                "approval": {
+                  "token": "apr-155",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2155",
+                      "amount": 160000
+                    }
+                  },
+                  "approverRole": "manager",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 155001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 160000,
+                    "orderId": "o-2155"
+                  }
+                },
+                "token": "apr-155"
+              },
+              {
+                "type": "approve",
+                "at": 156000,
+                "approval": {
+                  "token": "apr-156",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2156",
+                      "amount": 170000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 156001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 170000,
+                    "orderId": "o-2156"
+                  }
+                },
+                "token": "apr-156"
+              },
+              {
+                "type": "call",
+                "at": 156002,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "orderId": "o-2156",
+                    "amount": 170000
+                  }
+                },
+                "token": "apr-156"
+              },
+              {
+                "type": "call",
+                "at": 157000,
+                "sessionId": "s-2",
+                "call": {
+                  "name": "get_order",
+                  "args": {
+                    "orderId": "o-2157"
+                  }
+                },
+                "token": null
+              },
+              {
+                "type": "approve",
+                "at": 158000,
+                "approval": {
+                  "token": "apr-158",
+                  "sessionId": "s-3",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2158",
+                      "amount": 190000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 158001,
+                "sessionId": "s-3",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 190000,
+                    "orderId": "o-2158"
+                  }
+                },
+                "token": "apr-158"
+              },
+              {
+                "type": "approve",
+                "at": 159000,
+                "approval": {
+                  "token": "apr-159",
+                  "sessionId": "s-1",
+                  "call": {
+                    "name": "refund_order",
+                    "args": {
+                      "orderId": "o-2159",
+                      "amount": 200000
+                    }
+                  },
+                  "approverRole": "support",
+                  "ttlMs": 2500
+                }
+              },
+              {
+                "type": "call",
+                "at": 159001,
+                "sessionId": "s-1",
+                "call": {
+                  "name": "refund_order",
+                  "args": {
+                    "amount": 200000,
+                    "orderId": "o-2159"
+                  }
+                },
+                "token": "apr-159"
+              }
+            ]
+          },
+          "expected": "t=1 s-1 refund_order: allow approved (consumed apr-0)\nt=2 s-1 refund_order: deny token_used\nt=3 s-1 refund_order: deny token_used\nt=1000 s-2 get_order: allow read\nt=2001 s-3 refund_order: allow approved (consumed apr-2)\nt=3001 s-1 refund_order: allow approved (consumed apr-3)\nt=4000 s-2 get_order: allow read\nt=5001 s-3 refund_order: allow approved (consumed apr-5)\nt=6001 s-1 refund_order: allow approved (consumed apr-6)\nt=7000 s-2 get_order: allow read\nt=8001 s-3 refund_order: allow approved (consumed apr-8)\nt=8002 s-3 refund_order: deny token_used\nt=9001 s-1 refund_order: allow approved (consumed apr-9)\nt=10000 s-2 get_order: allow read\nt=11001 s-3 refund_order: allow approved (consumed apr-11)\nt=12001 s-1 refund_order: allow approved (consumed apr-12)\nt=12002 s-1 refund_order: deny token_used\nt=13000 s-2 get_order: allow read\nt=14001 s-3 refund_order: allow approved (consumed apr-14)\nt=14003 s-3 refund_order: deny token_used\nt=15001 s-1 refund_order: allow approved (consumed apr-15)\nt=16000 s-2 get_order: allow read\nt=17001 s-3 refund_order: allow approved (consumed apr-17)\nt=18001 s-1 refund_order: allow approved (consumed apr-18)\nt=19000 s-2 get_order: allow read\nt=20001 s-3 refund_order: allow approved (consumed apr-20)\nt=20002 s-3 refund_order: deny token_used\nt=21001 s-1 refund_order: allow approved (consumed apr-21)\nt=21003 s-1 refund_order: deny token_used\nt=22000 s-2 get_order: allow read\nt=23001 s-3 refund_order: allow approved (consumed apr-23)\nt=24001 s-1 refund_order: allow approved (consumed apr-24)\nt=24002 s-1 refund_order: deny token_used\nt=25000 s-2 get_order: allow read\nt=26001 s-3 refund_order: allow approved (consumed apr-26)\nt=27001 s-1 refund_order: allow approved (consumed apr-27)\nt=28000 s-2 get_order: allow read\nt=29001 s-3 refund_order: allow approved (consumed apr-29)\nt=30001 s-1 refund_order: allow approved (consumed apr-30)\nt=31000 s-2 get_order: allow read\nt=32001 s-3 refund_order: allow approved (consumed apr-32)\nt=32002 s-3 refund_order: deny token_used\nt=33001 s-1 refund_order: allow approved (consumed apr-33)\nt=34000 s-2 get_order: allow read\nt=35001 s-3 refund_order: allow approved (consumed apr-35)\nt=35003 s-3 refund_order: deny token_used\nt=36001 s-1 refund_order: allow approved (consumed apr-36)\nt=36002 s-1 refund_order: deny token_used\nt=37000 s-2 get_order: allow read\nt=38001 s-3 refund_order: allow approved (consumed apr-38)\nt=39001 s-1 refund_order: allow approved (consumed apr-39)\nt=40000 s-2 get_order: allow read\nt=41001 s-3 refund_order: allow approved (consumed apr-41)\nt=42001 s-1 refund_order: allow approved (consumed apr-42)\nt=42003 s-1 refund_order: deny token_used\nt=43000 s-2 get_order: allow read\nt=44001 s-3 refund_order: allow approved (consumed apr-44)\nt=44002 s-3 refund_order: deny token_used\nt=45001 s-1 refund_order: allow approved (consumed apr-45)\nt=46000 s-2 get_order: allow read\nt=47001 s-3 refund_order: allow approved (consumed apr-47)\nt=48001 s-1 refund_order: allow approved (consumed apr-48)\nt=48002 s-1 refund_order: deny token_used\nt=49000 s-2 get_order: allow read\nt=50001 s-3 refund_order: allow approved (consumed apr-50)\nt=51001 s-1 refund_order: needs_approval manager_approval_required\nt=52000 s-2 get_order: allow read\nt=53001 s-3 refund_order: needs_approval manager_approval_required\nt=54001 s-1 refund_order: needs_approval manager_approval_required\nt=55000 s-2 get_order: allow read\nt=56001 s-3 refund_order: needs_approval manager_approval_required\nt=56002 s-3 refund_order: needs_approval manager_approval_required\nt=56003 s-3 refund_order: deny token_mismatch\nt=57001 s-1 refund_order: needs_approval manager_approval_required\nt=58000 s-2 get_order: allow read\nt=59001 s-3 refund_order: needs_approval manager_approval_required\nt=60001 s-1 refund_order: allow approved (consumed apr-60)\nt=60002 s-1 refund_order: deny token_used\nt=61000 s-2 get_order: allow read\nt=62001 s-3 refund_order: needs_approval manager_approval_required\nt=63001 s-1 refund_order: needs_approval manager_approval_required\nt=63003 s-1 refund_order: deny token_mismatch\nt=64000 s-2 get_order: allow read\nt=65001 s-3 refund_order: allow approved (consumed apr-65)\nt=66001 s-1 refund_order: needs_approval manager_approval_required\nt=67000 s-2 get_order: allow read\nt=68001 s-3 refund_order: needs_approval manager_approval_required\nt=68002 s-3 refund_order: needs_approval manager_approval_required\nt=69001 s-1 refund_order: needs_approval manager_approval_required\nt=70000 s-2 get_order: allow read\nt=71001 s-3 refund_order: allow approved (consumed apr-71)\nt=72001 s-1 refund_order: allow approved (consumed apr-72)\nt=72002 s-1 refund_order: deny token_used\nt=73000 s-2 get_order: allow read\nt=74001 s-3 refund_order: allow approved (consumed apr-74)\nt=75001 s-1 refund_order: allow approved (consumed apr-75)\nt=76000 s-2 get_order: allow read\nt=77001 s-3 refund_order: allow approved (consumed apr-77)\nt=77003 s-3 refund_order: deny token_used\nt=78001 s-1 refund_order: allow approved (consumed apr-78)\nt=79000 s-2 get_order: allow read\nt=80001 s-3 refund_order: allow approved (consumed apr-80)\nt=80002 s-3 refund_order: deny token_used\nt=81001 s-1 refund_order: allow approved (consumed apr-81)\nt=82000 s-2 get_order: allow read\nt=83001 s-3 refund_order: allow approved (consumed apr-83)\nt=84001 s-1 refund_order: allow approved (consumed apr-84)\nt=84002 s-1 refund_order: deny token_used\nt=84003 s-1 refund_order: deny token_used\nt=85000 s-2 get_order: allow read\nt=86001 s-3 refund_order: allow approved (consumed apr-86)\nt=87001 s-1 refund_order: allow approved (consumed apr-87)\nt=88000 s-2 get_order: allow read\nt=89001 s-3 refund_order: allow approved (consumed apr-89)\nt=90001 s-1 refund_order: allow approved (consumed apr-90)\nt=91000 s-2 get_order: allow read\nt=92001 s-3 refund_order: allow approved (consumed apr-92)\nt=92002 s-3 refund_order: deny token_used\nt=93001 s-1 refund_order: allow approved (consumed apr-93)\nt=94000 s-2 get_order: allow read\nt=95001 s-3 refund_order: allow approved (consumed apr-95)\nt=96001 s-1 refund_order: allow approved (consumed apr-96)\nt=96002 s-1 refund_order: deny token_used\nt=97000 s-2 get_order: allow read\nt=98001 s-3 refund_order: allow approved (consumed apr-98)\nt=98003 s-3 refund_order: deny token_used\nt=99001 s-1 refund_order: allow approved (consumed apr-99)\nt=100000 s-2 get_order: allow read\nt=101001 s-3 refund_order: allow approved (consumed apr-101)\nt=102001 s-1 refund_order: allow approved (consumed apr-102)\nt=103000 s-2 get_order: allow read\nt=104001 s-3 refund_order: allow approved (consumed apr-104)\nt=104002 s-3 refund_order: deny token_used\nt=105001 s-1 refund_order: allow approved (consumed apr-105)\nt=105003 s-1 refund_order: deny token_used\nt=106000 s-2 get_order: allow read\nt=107001 s-3 refund_order: allow approved (consumed apr-107)\nt=108001 s-1 refund_order: allow approved (consumed apr-108)\nt=108002 s-1 refund_order: deny token_used\nt=109000 s-2 get_order: allow read\nt=110001 s-3 refund_order: allow approved (consumed apr-110)\nt=111001 s-1 refund_order: allow approved (consumed apr-111)\nt=112000 s-2 get_order: allow read\nt=113001 s-3 refund_order: allow approved (consumed apr-113)\nt=114001 s-1 refund_order: allow approved (consumed apr-114)\nt=115000 s-2 get_order: allow read\nt=116001 s-3 refund_order: allow approved (consumed apr-116)\nt=116002 s-3 refund_order: deny token_used\nt=117001 s-1 refund_order: allow approved (consumed apr-117)\nt=118000 s-2 get_order: allow read\nt=119001 s-3 refund_order: allow approved (consumed apr-119)\nt=119003 s-3 refund_order: deny token_used\nt=120001 s-1 refund_order: allow approved (consumed apr-120)\nt=120002 s-1 refund_order: deny token_used\nt=121000 s-2 get_order: allow read\nt=122001 s-3 refund_order: needs_approval manager_approval_required\nt=123001 s-1 refund_order: needs_approval manager_approval_required\nt=124000 s-2 get_order: allow read\nt=125001 s-3 refund_order: allow approved (consumed apr-125)\nt=126001 s-1 refund_order: needs_approval manager_approval_required\nt=126003 s-1 refund_order: deny token_mismatch\nt=127000 s-2 get_order: allow read\nt=128001 s-3 refund_order: needs_approval manager_approval_required\nt=128002 s-3 refund_order: needs_approval manager_approval_required\nt=129001 s-1 refund_order: needs_approval manager_approval_required\nt=130000 s-2 get_order: allow read\nt=131001 s-3 refund_order: needs_approval manager_approval_required\nt=132001 s-1 refund_order: needs_approval manager_approval_required\nt=132002 s-1 refund_order: needs_approval manager_approval_required\nt=133000 s-2 get_order: allow read\nt=134001 s-3 refund_order: needs_approval manager_approval_required\nt=135001 s-1 refund_order: allow approved (consumed apr-135)\nt=136000 s-2 get_order: allow read\nt=137001 s-3 refund_order: needs_approval manager_approval_required\nt=138001 s-1 refund_order: needs_approval manager_approval_required\nt=139000 s-2 get_order: allow read\nt=140001 s-3 refund_order: allow approved (consumed apr-140)\nt=140002 s-3 refund_order: deny token_used\nt=140003 s-3 refund_order: deny token_used\nt=141001 s-1 refund_order: allow approved (consumed apr-141)\nt=142000 s-2 get_order: allow read\nt=143001 s-3 refund_order: allow approved (consumed apr-143)\nt=144001 s-1 refund_order: allow approved (consumed apr-144)\nt=144002 s-1 refund_order: deny token_used\nt=145000 s-2 get_order: allow read\nt=146001 s-3 refund_order: allow approved (consumed apr-146)\nt=147001 s-1 refund_order: allow approved (consumed apr-147)\nt=147003 s-1 refund_order: deny token_used\nt=148000 s-2 get_order: allow read\nt=149001 s-3 refund_order: allow approved (consumed apr-149)\nt=150001 s-1 refund_order: allow approved (consumed apr-150)\nt=151000 s-2 get_order: allow read\nt=152001 s-3 refund_order: allow approved (consumed apr-152)\nt=152002 s-3 refund_order: deny token_used\nt=153001 s-1 refund_order: allow approved (consumed apr-153)\nt=154000 s-2 get_order: allow read\nt=155001 s-3 refund_order: allow approved (consumed apr-155)\nt=156001 s-1 refund_order: allow approved (consumed apr-156)\nt=156002 s-1 refund_order: deny token_used\nt=157000 s-2 get_order: allow read\nt=158001 s-3 refund_order: allow approved (consumed apr-158)\nt=159001 s-1 refund_order: allow approved (consumed apr-159)",
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

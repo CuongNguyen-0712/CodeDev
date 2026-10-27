@@ -1,0 +1,214 @@
+{
+  "publicId": "ai-agents-mcp",
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1793062619/codedev/courses/ai-agents-mcp/cover",
+  "title": "AI Agents, Tool Use & MCP: Building Agents That Stay in Their Lane",
+  "concept": "Build agents only where a fixed workflow is not enough, and keep them safe: narrow tools with clear schemas, MCP servers for internal data, an agent loop you can test with a fake model, audit logs, step and budget limits, read-freely-write-with-approval permissions, and tool output treated as data rather than instructions.",
+  "description": "An expert course for engineers putting LLM agents next to real data and real actions. Every lesson starts from an incident on the CodeDev learning platform - a support ticket that told the agent to refund every order and it called the write tool, an agent that looped for 40 minutes on a failing tool, a tool description so vague the model passed a learner's email as a course id, an MCP server that exposed the whole database - and fixes it with code you can test against a scripted fake model: workflow or agent, tool design, the agent loop, MCP basics and an internal-data server, audit logs, step limits, budgets, a Spot the AI Mistake loop that never stops, permission policies, untrusted tool output, The Agent Went Rogue scenario, workflow tools versus code, multi-agent patterns and evaluating agents. 15 lessons with True/False quizzes on real transcripts and tool calls, and TypeScript challenges graded by hidden tests.",
+  "level": "expert",
+  "durationMinutes": 480,
+  "instructor": "CodeDev Engineering Team",
+  "language": "TypeScript",
+  "category": "AI Engineering",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 200,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 1000
+    },
+    {
+      "priceType": "money",
+      "amount": 349000,
+      "currency": "VND"
+    }
+  ],
+  "completionRules": {},
+  "domain": "ai",
+  "learningOutcomes": [
+    {
+      "code": "when-agents",
+      "text": "Decide when an agent is worth it and when a fixed workflow is enough"
+    },
+    {
+      "code": "tool-design",
+      "text": "Design narrow tools and MCP servers with clear schemas and audit every call"
+    },
+    {
+      "code": "limits",
+      "text": "Bound agents with step, token and time limits and stop conditions"
+    },
+    {
+      "code": "permissions-security",
+      "text": "Enforce least privilege: read freely, write with approval, and treat tool output as untrusted data"
+    },
+    {
+      "code": "agent-ops",
+      "text": "Run, observe and evaluate agents with a fake model, audit logs and transcripts"
+    }
+  ],
+  "testedVersions": {
+    "TypeScript": "5.9.3 (tsc --strict in the code runner)",
+    "MCP": "spec 2026-07-28 (lesson examples, check the current spec)"
+  },
+  "lastReviewedAt": "2026-10-26",
+  "sourceLinks": [
+    "https://modelcontextprotocol.io/",
+    "https://owasp.org/www-project-top-10-for-large-language-model-applications/",
+    "https://www.anthropic.com/engineering/building-effective-agents"
+  ],
+  "owner": "CodeDev Engineering Team",
+  "knownIssues": [
+    "No real model is called: challenges use a fake model that follows a script",
+    "Workflow tools (n8n, Make) are compared in lessons but not run"
+  ],
+  "scenario": {
+    "title": "The Agent Went Rogue",
+    "quiz": "chal_quiz_aam_431",
+    "fixBug": "chal_coding_aam_432"
+  },
+  "careerRoles": [
+    "backend_developer",
+    "ml_engineer",
+    "fullstack_developer"
+  ],
+  "skills": {
+    "machine_learning": 4,
+    "typescript": 3,
+    "api_design": 3,
+    "system_design": 3
+  },
+  "goals": [
+    "build_projects",
+    "grow_in_role"
+  ],
+  "prerequisites": [
+    "nodejs-ai-engineering",
+    "llm-evaluation-guardrails",
+    "nodejs-api-security"
+  ],
+  "modules": [
+    {
+      "orderIndex": 1,
+      "title": "Agents or Workflows",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "01-workflow-or-agent",
+          "title": "Workflow or agent? Choosing the simplest thing that works",
+          "sanityId": "lesson-aam-1-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "02-tool-design",
+          "title": "Designing narrow tools with clear descriptions & schemas",
+          "sanityId": "lesson-aam-1-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "03-agent-loop",
+          "title": "The agent loop, tested with a fake model",
+          "sanityId": "lesson-aam-1-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "MCP",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "04-mcp-basics",
+          "title": "MCP: servers, tools, resources & prompts",
+          "sanityId": "lesson-aam-2-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "05-mcp-server-internal-data",
+          "title": "An MCP server for internal data, read-only first",
+          "sanityId": "lesson-aam-2-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "06-audit-log",
+          "title": "Audit every tool call",
+          "sanityId": "lesson-aam-2-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Limits",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "07-step-limits",
+          "title": "Step limits & stop conditions",
+          "sanityId": "lesson-aam-3-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "08-budget-tracker",
+          "title": "Token & time budgets",
+          "sanityId": "lesson-aam-3-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "09-loop-never-stops",
+          "title": "Spot the AI mistake: an agent loop that never stops",
+          "sanityId": "lesson-aam-3-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 4,
+      "title": "Security",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "10-permission-policy",
+          "title": "Permission policy: read freely, write with approval",
+          "sanityId": "lesson-aam-4-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "11-untrusted-tool-output",
+          "title": "Tool output is data, not instructions",
+          "sanityId": "lesson-aam-4-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "12-agent-went-rogue",
+          "title": "The agent went rogue: a ticket that asked for refunds",
+          "sanityId": "lesson-aam-4-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 5,
+      "title": "In Production",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "13-workflow-tools-vs-code",
+          "title": "Workflow tools (n8n, Make) or agents in code?",
+          "sanityId": "lesson-aam-5-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "14-multi-agent",
+          "title": "Multi-agent patterns: orchestrator & workers",
+          "sanityId": "lesson-aam-5-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "15-evaluating-agents",
+          "title": "Evaluating & observing agents in production",
+          "sanityId": "lesson-aam-5-3"
+        }
+      ]
+    }
+  ]
+}

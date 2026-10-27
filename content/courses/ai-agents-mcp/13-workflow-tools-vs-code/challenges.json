@@ -1,0 +1,46 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_aam_511",
+      "name": "workflow-tools-vs-code-quiz",
+      "type": "quiz",
+      "title": "Workflow tool or code: read the evidence",
+      "description": "Three pieces of evidence from the refund triage workflow: an execution list next to the API's own log, a choice between two credentials for the write step, and the version history the team relied on.",
+      "difficulty": "medium",
+      "outcomes": ["when-agents"],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Workflow \"Refund triage\", executions on 2026-10-23 (UTC+7):\n17:02:11  Success  ticket #48213\n17:05:40  Success  ticket #48217\n\nRefund API access log for the same calls (UTC):\n2026-10-23T10:02:12Z POST /admin/refunds 503 caller=token:codedev-admin ticket=48213\n2026-10-23T10:05:41Z POST /admin/refunds 503 caller=token:codedev-admin ticket=48217\n\nWorkflow export (simplified):\n{ \"name\": \"Issue refund\", \"type\": \"http\", \"method\": \"POST\", \"onError\": \"continue\" }\n\nStatement: \"Because the workflow tool marked both runs as Success, the refunds for tickets 48213 and 48217 were created.\"",
+          "explanation": "False. The API answered 503 to both calls, so no refund was created. The run is marked Success because the HTTP step is set to continue on error: the failure is swallowed, the workflow moves on, and the next step can tell the learner the refund was issued. An execution status describes what the workflow engine did with the steps, not whether the system on the other side did the work. The misconception is that the orchestration tool's status is the source of truth for a write; check the API's own log or audit rows for the same caller, and set write steps to stop the run and alert on error.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Two designs for the write step of the same workflow:\n\nA) HTTP step: POST https://api.codedev.test/admin/refunds\n   credential: codedev-admin (admin token, all scopes)\n\nB) HTTP step: POST https://api.codedev.test/support/refund-requests\n   credential: workflow-refund-triage (one scope: refund-requests:create)\n   server side: createRefundRequest() checks the scope, checks the amount against the order, saves the request with status \"pending_approval\" and writes an audit row; a staff member approves it before any money moves.\n\nStatement: \"With design B, a later edit to the workflow's prompt or branches in the visual editor cannot make it issue a refund without staff approval.\"",
+          "explanation": "True. In design B the rule lives in the API, not on the canvas. Whatever the LLM step returns and whatever someone changes in the editor, the workflow's token can only create a pending request; issuing the refund needs a different permission held by staff. That is least privilege applied to a workflow (the opposite of OWASP LLM06 Excessive Agency, which design A shows: a model-driven step holding an admin token). The misconception is that guarding a workflow means reviewing every canvas change; reviews help, but a narrow, scoped API keeps the rule even when a review is missed.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Version history of the production workflow \"Refund triage\":\n\n2026-10-22 17:41  Saved by ops-lan   (step \"Classify ticket\": prompt changed)\n2026-09-30 11:05  Saved by ops-minh  (step \"Reply and close\": template changed)\n\nTeam notes: \"There is no test copy of this workflow; edits are made in the production workflow and take effect when saved. The workflow is not exported anywhere.\"\n\nA team lead says: \"We have version history, so prompt changes are already reviewed like code.\"\n\nStatement: \"This version history gives the team the same protection as a reviewed pull request.\"",
+          "explanation": "False. The history records a change after it is live: it tells you who saved what and when, and may let you roll back. A pull request is reviewed before the change reaches production, and in code it can also be gated by tests or an eval run. Here the prompt edit took effect on save, with no second person and no test, which is exactly how \"Be generous with annual plans\" reached learners. Some workflow tools and plans offer environments or Git-based source control that close this gap; the notes show this team uses neither. The misconception is that an audit trail is the same thing as a review.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        }
+      ]
+    }
+  ]
+}

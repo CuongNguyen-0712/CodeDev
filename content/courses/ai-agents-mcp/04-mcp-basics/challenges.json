@@ -1,0 +1,50 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_aam_211",
+      "name": "mcp-session-quiz",
+      "type": "quiz",
+      "title": "Read an MCP session",
+      "description": "Two excerpts from the codedev-enrollments server's traffic: what an initialize answer allows the client to call next, and how a failed tool call reaches the model.",
+      "difficulty": "medium",
+      "outcomes": [
+        "tool-design"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Session log of the support console's client and the codedev-enrollments server:\n\n-> {\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2026-07-28\",\"capabilities\":{\"elicitation\":{}},\"clientInfo\":{\"name\":\"support-console\",\"version\":\"4.12.0\"}}}\n<- {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"protocolVersion\":\"2026-07-28\",\"capabilities\":{\"tools\":{\"listChanged\":true},\"resources\":{}},\"serverInfo\":{\"name\":\"codedev-enrollments\",\"version\":\"1.0.0\"}}}\n-> {\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}\n\nA teammate wants the console to show the server's prompt templates in its slash-command menu and adds this as the next request:\n-> {\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"prompts/list\"}\n\nStatement: \"The client should not send prompts/list to this server, because the server did not declare the prompts capability in its initialize result.\"",
+          "explanation": "True. Capability negotiation is the contract of the session: the server listed tools and resources in its capabilities and left out prompts, so it has said it offers no prompts. Sending prompts/list anyway relies on behaviour the server never promised; at best it answers with a JSON-RPC error such as -32601 (method not found). The client should check result.capabilities before using a feature and simply not show a prompt menu for this server. The misconception is that every MCP server implements every method and capabilities are informational only.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The model called lookup_enrollment with a wrong course id. The server answered:\n\n<- {\"jsonrpc\":\"2.0\",\"id\":5,\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"Course not found: postgres-perf. Use the course public id, for example postgres-performance.\"}],\"isError\":true}}\n\nA reviewer comments on the pull request: \"This is a bug. A failure must be a JSON-RPC error object, otherwise the model never learns that the call failed.\"\n\nStatement: \"Because the server answered with a result and not a JSON-RPC error, the model is not told that the call failed.\"",
+          "explanation": "False. MCP reports tool execution failures inside a normal result with isError: true, precisely so that the host passes the message to the model as the tool's output. The model reads \"Course not found ... use postgres-performance\" and can retry with a correct id. A JSON-RPC error object is for protocol problems, such as an unknown tool name or a request that is not valid, and hosts usually treat it as a failure of the connection or request rather than as something for the model to fix. The misconception is that only an error object counts as a failure; here it would actually hide the useful message from the model.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

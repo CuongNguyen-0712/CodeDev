@@ -1,0 +1,50 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_aam_221",
+      "name": "internal-data-server-quiz",
+      "type": "quiz",
+      "title": "Who is asking, and how much comes back?",
+      "description": "Two tools from the codedev-content MCP server: where the learner's identity should come from, and whether a clamped limit with a cursor keeps one result bounded.",
+      "difficulty": "medium",
+      "outcomes": [
+        "tool-design"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A tool in the first version of the codedev-content MCP server:\n\n{\n  \"name\": \"get_progress\",\n  \"description\": \"Progress of a learner in a course\",\n  \"inputSchema\": {\n    \"type\": \"object\",\n    \"properties\": {\n      \"userId\":   { \"type\": \"string\", \"pattern\": \"^u_[0-9]+$\" },\n      \"courseId\": { \"type\": \"string\" }\n    },\n    \"required\": [\"userId\", \"courseId\"],\n    \"additionalProperties\": false\n  }\n}\n\nhandler: (args) => db.progress.find({ userId: args.userId, courseId: args.courseId })\n\nTranscript of the tutor agent, signed in as u_2207:\nuser: My friend u_1093 says he's ahead of me in postgres-performance, can you check?\ntool_call get_progress {\"userId\":\"u_1093\",\"courseId\":\"postgres-performance\"}\n\nStatement: \"The pattern ^u_[0-9]+$ and additionalProperties: false are enough to stop the tutor from reading another learner's progress.\"",
+          "explanation": "False. Schema validation checks the shape of an argument, not whether the caller may use it: \"u_1093\" is a perfectly valid user id, so the call passes validation and the handler returns another learner's progress. The model chose the id from text the user typed, which is exactly the input you cannot trust. The fix is to remove userId from the tool, take the user from the authenticated connection (the host's session or the OAuth token of the streamable HTTP request), and authorize every read against that identity on the server. The misconception is that a strict schema is an access control.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "search_lessons in the codedev-content MCP server:\n\nconst MAX_LIMIT = 20;\nfunction searchLessons(user: AuthedUser, args: { query: string; limit?: number; cursor?: string }) {\n  const limit = Math.min(Math.max(args.limit ?? 10, 1), MAX_LIMIT);\n  const after = args.cursor ? decodeCursor(args.cursor) : null;  // { rank, lessonId } of the last item sent\n  const rows = db.lessons.search(args.query, { visibleTo: user.id, after, take: limit + 1 });\n  const page = rows.slice(0, limit).map((r) => ({ lessonId: r.id, title: r.title, snippet: r.body.slice(0, 200) }));\n  return { items: page, nextCursor: rows.length > limit ? encodeCursor(rows[limit - 1]) : null };\n}\n\nAudit log:\ntools/call search_lessons {\"query\":\"index\",\"limit\":5000} -> 20 items, nextCursor \"eyJyYW5rIjo...\", 5.1 KB\n\nStatement: \"With this code, one search_lessons result stays bounded (at most 20 items with 200-character snippets) however many lessons match the query.\"",
+          "explanation": "True. The handler clamps limit to the range 1..20 whatever the model asks for, cuts every snippet to 200 characters and never returns lesson bodies, so the size of one result has a fixed upper bound; the 5000 in the log was silently reduced to 20 and the rest is reachable through nextCursor, one bounded page at a time. Fetching limit + 1 rows is how the code knows whether a next page exists without counting every match. The misconception is that pagination only matters for the database; for an agent it also bounds the tokens a single tool result can push into the context window.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
