@@ -33,7 +33,7 @@ describe("verify lock claim", () => {
     it("keeps `next` on this site", () => {
         expect(safeNextPath("/learning/abc?tab=1")).toBe("/learning/abc?tab=1");
         expect(safeNextPath("/authors")).toBe("/authors");
-        for (const bad of ["//evil.example", "/\\evil.example", "https://evil.example", "/auth/verify-required", "/auth", "/auth?x=1", null]) {
+        for (const bad of ["//evil.example", "/\\evil.example", "/\t/evil.example", "/\n/evil.example", "/a/..\\evil", "https://evil.example", "/auth/verify-required", "/auth", "/auth?x=1", null]) {
             expect(safeNextPath(bad)).toBe("/home");
         }
     });

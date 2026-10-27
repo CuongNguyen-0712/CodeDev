@@ -1,12 +1,14 @@
 import { sql } from "@/lib/db";
 
 export const socialDb = {
-    // Active users the caller has no friendship (pending or otherwise) with.
+    // Active users the caller has no friendship (pending or otherwise) with. Users who turned
+    // "Show my profile" off cannot be found (settings privacy section), so they are not listed.
     getUsersSocial: async ({ userId, search, limit, offset }) => {
         const params = [userId];
         const conditions = [
             `u.id <> me.id`,
             `u.status = 'active'`,
+            `i.show_profile IS TRUE`,
             `f.id IS NULL`,
         ];
 

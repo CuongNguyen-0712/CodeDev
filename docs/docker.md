@@ -12,8 +12,8 @@ data volumes are kept under their old names, so nothing is lost.
 | `minio` | Chainguard MinIO (pinned digest) | `dev` | `127.0.0.1:9000`, `127.0.0.1:9001` | backend | none (image has no shell) |
 | `postgres` | `postgres:18-alpine` | `db` | `127.0.0.1:5433` | backend | `pg_isready` |
 | `sandbox` | **`codedev_sandbox`** (`sandbox/vercel/Dockerfile`, target `docker`: Node 24, Python 3.14, gcc/g++ 15.2, JDK 21, Go 1.26, Rust 1.93) | `dev`, `app` | none | sandbox (internal) | `GET /health` |
-| `sandbox-gateway` | `codedev_sandbox` (`node gateway.mjs`) | `dev` | `127.0.0.1:4100` | sandbox, gateway | `GET /health` (proxied) |
-| `app` | **`codedev_app`** (`Dockerfile`) | `app` | `${APP_PORT:-3000}` | backend, sandbox | `GET /api/health` |
+| `sandbox-gateway` | `codedev_sandbox` (`node gateway.mjs`) | `dev`, `app` | `127.0.0.1:4100` | sandbox, gateway | `GET /health` (proxied) |
+| `app` | **`codedev_app`** (`Dockerfile`) | `app` | `${APP_PORT:-3000}` | backend, gateway | `GET /api/health` |
 
 - Services talk by service name (`redis:6379`, `sandbox:4100`), never `localhost`.
 - Only loopback ports are published, except the app. Redis was previously published on all
@@ -21,6 +21,9 @@ data volumes are kept under their old names, so nothing is lost.
 - `sandbox` is on an `internal` network: no route to the internet, the host or cloud metadata.
   Docker cannot publish ports of an internal-only container, so `next dev` on the host reaches it
   through `sandbox-gateway`, a TCP forwarder that runs no user code.
+- The app reaches the sandbox through `sandbox-gateway:4100` too and never joins the `sandbox`
+  network: Docker networks are not one-way, so learner code there could otherwise call
+  `http://app:3000` past any edge proxy.
 - `container_name` is not set: names are `codedev-<service>-1`, so several projects can coexist.
 - `depends_on` uses `condition: service_healthy`; the app still retries Redis / storage itself.
 

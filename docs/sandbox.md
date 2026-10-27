@@ -24,8 +24,9 @@ browser ──Submit──> codedev_app: startCodingSubmission
                       6. finalize with the server grades (browser results ignored), award points once
 ```
 
-- `CODE_RUNNER_URL` unset: previous behaviour (browser-reported outputs), so deployments without
-  a sandbox (Vercel today) keep working. Set it to enforce server grading.
+- No runner configured (`CODE_RUNNER_URL` and `CODE_RUNNER_PROVIDER` unset): development and
+  tests grade javascript from browser-reported outputs; production (`APP_ENV=production`) refuses
+  coding submissions with 503 (no attempt used), since those outputs can be forged for points.
 - Limits come from `challenge.coding_configs` (`time_limit_ms`, `memory_limit_mb`), never from the
   client; the runner also clamps them (100 ms–10 s, 32–256 MB).
 - A runner outage or full queue returns 503 **before** an attempt is recorded.
@@ -59,7 +60,7 @@ large, 503 + `Retry-After` when `MAX_CONCURRENCY` jobs run and `MAX_QUEUE` wait.
 |---|---|
 | Container (compose `sandbox`) | read-only root, tmpfs `/tmp` `/var/tmp` `/run` `/vercel/jobs` (`noexec`) and `/work` (exec, 768 MB), `no-new-privileges`, `cap_drop: ALL` + `cap_add` SETUID, SETGID, CHOWN, DAC_OVERRIDE, FOWNER, KILL (server.mjs/run-job are root to switch to the slot users), `pids_limit: 256`, 2 GB memory, 2 CPUs, `nofile` 256 |
 | Slot (per job, run-job) | learner code and compilers run as `run01..run0N` (no capabilities, `CapEff` 0), own work dir (0700), `prlimit` (64 processes, 128 files, CPU seconds, address space for C/C++/Rust/Python), wall-clock kill; job file, server environment and other slots unreadable (checked 2026-10-20) |
-| Network | `internal` network: no egress, no host, no metadata endpoint, cannot reach redis/postgres; no published port |
+| Network | `internal` network: no egress, no host, no metadata endpoint, cannot reach redis/postgres or the app (the app talks to it through `sandbox-gateway`, never on this network); no published port |
 | Secrets | the sandbox gets only `CODE_RUNNER_TOKEN`; no database, auth or storage credentials. No Docker socket anywhere |
 | Process (per test) | `node --permission`: no file system access (except reading `runner.cjs`), no child processes, no worker threads, no native addons; empty environment; `--max-old-space-size` = challenge limit; SIGKILL after the time limit + 1 s start-up |
 | Runner | `process.kill`, `process.binding`, `dlopen`... removed before user code (same uid could otherwise signal the server or other runs); result read only from the line carrying a per-run nonce on fd 3 (user output cannot pass for it); logs, output and stderr capped |

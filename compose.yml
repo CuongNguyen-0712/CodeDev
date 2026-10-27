@@ -125,10 +125,13 @@ services:
     networks: [sandbox]
     stop_grace_period: 15s
 
-  # Forwards 127.0.0.1:4100 on the host to sandbox:4100 for `next dev` (CODE_RUNNER_URL=http://127.0.0.1:4100).
+  # Forwards :4100 to sandbox:4100: for `next dev` on the host (CODE_RUNNER_URL=http://127.0.0.1:4100)
+  # and for the app container (http://sandbox-gateway:4100). The app never joins the sandbox
+  # network, so learner code cannot open connections to it; from there it reaches only this
+  # forwarder, which leads back to the sandbox itself.
   sandbox-gateway:
     <<: *hardened
-    profiles: [dev]
+    profiles: [dev, app]
     image: codedev_sandbox
     command: ["node", "/opt/codedev/gateway.mjs"]
     user: ubuntu
@@ -175,7 +178,7 @@ services:
       # Cache in the redis service (overrides an Upstash REST URL/token from the env file).
       REDIS_URL: redis://redis:6379
       REDIS_TOKEN: ""
-      CODE_RUNNER_URL: http://sandbox:4100
+      CODE_RUNNER_URL: http://sandbox-gateway:4100
       CODE_RUNNER_TOKEN: ${CODE_RUNNER_TOKEN:-}
     ports:
       - "${APP_PORT:-3000}:3000"
@@ -184,7 +187,10 @@ services:
         condition: service_healthy
       sandbox:
         condition: service_healthy
-    networks: [backend, sandbox]
+      sandbox-gateway:
+        condition: service_started
+    # Not on `sandbox`: Docker networks are not one-way, and learner code there could call the app.
+    networks: [backend, gateway]
     healthcheck:
       # /api/health is 200 while PostgreSQL answers (cache/storage outages only degrade).
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]

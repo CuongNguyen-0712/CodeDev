@@ -270,7 +270,9 @@ export const authOptions = {
                     throw new Error(`Too many sign-in attempts. Try again in ${ipCheck.retryAfter} seconds.`);
                 }
 
-                const lock = await failureGuards.login.status(username);
+                const pair = `${username}|${ip}`;
+                const [pairLock, accountLock] = await Promise.all([failureGuards.loginIp.status(pair), failureGuards.login.status(username)]);
+                const lock = pairLock.locked ? pairLock : accountLock;
                 if (lock.locked) {
                     auditAuth("login.failed", { ip, reason: "account_locked" });
                     const minutes = Math.ceil(lock.retryAfter / 60);
@@ -285,12 +287,13 @@ export const authOptions = {
                         ip,
                     });
 
-                    await failureGuards.login.reset(username);
+                    // Only this pair: the account backstop decays by itself, so a guesser cannot clear it by signing in elsewhere.
+                    await failureGuards.loginIp.reset(pair);
                     auditAuth("login.succeeded", { userId: user.id, sessionId: user.session.sessionId, ip, provider: "credentials" });
                     return user;
                 } catch (err) {
                     if (err instanceof ApiError && err.status === 401) {
-                        await failureGuards.login.fail(username);
+                        await Promise.all([failureGuards.loginIp.fail(pair), failureGuards.login.fail(username)]);
                         auditAuth("login.failed", { ip, reason: "invalid_credentials" });
                         throw new Error(LOGIN_ERROR.INVALID);
                     }

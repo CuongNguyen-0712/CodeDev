@@ -15,8 +15,9 @@ export async function GET(req) {
 
         const userId = session.user.id;
         const search = searchParams.get('search') || '';
-        const limit = Number(searchParams.get('limit')) || 10;
-        const offset = Number(searchParams.get('offset')) || 0;
+        // Paged: an uncapped limit returned the whole user directory in one call.
+        const limit = Math.min(Math.max(Number.parseInt(searchParams.get('limit'), 10) || 10, 1), 50);
+        const offset = Math.max(Number.parseInt(searchParams.get('offset'), 10) || 0, 0);
 
         const response = await socialService.getUsersSocial({ userId, search, limit, offset });
 

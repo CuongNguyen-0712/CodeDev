@@ -1,10 +1,11 @@
 /**
- * Loopback gateway for `next dev` on the host (compose service `sandbox-gateway`, profile dev).
+ * Gateway to the sandbox (compose service `sandbox-gateway`, profiles dev and app): for `next dev`
+ * on the host (127.0.0.1:4100) and for the app container (sandbox-gateway:4100).
  *
  * The sandbox only joins the `sandbox` network, which is `internal` (no route out of Docker),
  * and Docker cannot publish ports from an internal-only container. This process joins both
- * networks and forwards raw TCP from 127.0.0.1:4100 on the host to sandbox:4100, so the sandbox
- * itself keeps no egress. It runs no user code.
+ * networks and forwards raw TCP to sandbox:4100, so the sandbox itself keeps no egress and the
+ * app stays off the sandbox network (learner code cannot reach it). It runs no user code.
  */
 import net from "node:net";
 
