@@ -5,7 +5,7 @@
   "description": "A hands-on course for developers who ship LLM features and need the answers to be right. Each lesson starts from a production incident in a support assistant - answers cut mid-sentence, three copies of the same paragraph in the context, error codes the vector search cannot find, prompts that overflow the context window - and fixes it with the standard library only: overlapping chunks, shingle-based deduplication, BM25, Reciprocal Rank Fusion, token-budgeted context packing with t-string templates, and recall@k / MRR to prove a change helps before it ships.",
   "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792512269/codedev/courses/python-rag-from-scratch/cover",
   "level": "intermediate",
-  "durationMinutes": 132,
+  "durationMinutes": 182,
   "instructor": "CodeDev Engineering Team",
   "language": "Python",
   "category": "AI Engineering",
@@ -36,7 +36,8 @@
       "title": "Retrieval",
       "lessons": [
         { "orderIndex": 1, "folder": "03-bm25-ranking", "title": "Ranking with BM25", "sanityId": "lesson-py-rag-2-1" },
-        { "orderIndex": 2, "folder": "04-hybrid-search-rrf", "title": "Hybrid search with Reciprocal Rank Fusion", "sanityId": "lesson-py-rag-2-2" }
+        { "orderIndex": 2, "folder": "04-hybrid-search-rrf", "title": "Hybrid search with Reciprocal Rank Fusion", "sanityId": "lesson-py-rag-2-2" },
+        { "orderIndex": 3, "folder": "07-spot-unnormalized-cosine", "title": "Spot the AI mistake: cosine similarity without normalization", "sanityId": "lesson-py-rag-2-3" }
       ]
     },
     {
@@ -44,7 +45,8 @@
       "title": "Answers & Evaluation",
       "lessons": [
         { "orderIndex": 1, "folder": "05-context-packing", "title": "Packing context under a token budget, with citations", "sanityId": "lesson-py-rag-3-1" },
-        { "orderIndex": 2, "folder": "06-retrieval-evaluation", "title": "Measuring retrieval: recall@k & MRR", "sanityId": "lesson-py-rag-3-2" }
+        { "orderIndex": 2, "folder": "06-retrieval-evaluation", "title": "Measuring retrieval: recall@k & MRR", "sanityId": "lesson-py-rag-3-2" },
+        { "orderIndex": 3, "folder": "08-right-docs-wrong-answer", "title": "Right Docs, Wrong Answer? Retrieval or generation", "sanityId": "lesson-py-rag-3-3" }
       ]
     }
   ]

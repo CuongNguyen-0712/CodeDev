@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_fix_py_rag_232",
+      "key": "challenges/python/chal_fix_py_rag_232/starter.py",
+      "contentType": "text/x-python; charset=utf-8",
+      "originalName": "search.py",
+      "size": 2044
+    }
+  ]
+}

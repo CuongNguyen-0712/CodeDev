@@ -1,0 +1,721 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_py_rag_331",
+      "name": "right-docs-wrong-answer-quiz",
+      "type": "quiz",
+      "title": "Retrieval or generation? Read the evidence",
+      "description": "One wrong refund answer, five pieces of evidence (A-E): walk through them in order and decide where the right chunk got lost.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A. Retrieval (hybrid, RRF)\nquery: \"how long does a refund take on an annual plan?\"\nrank  chunk                 rrf     cost\n1     kb-refunds#1          0.0325  13\n2     kb-refunds-annual#1   0.0323  35\n3     kb-cancel#2           0.0317  11\n4     kb-credit#1           0.0161   9\n5     blog-pricing#3        0.0156  41\n\nGolden-set label for this question: relevant = [kb-refunds-annual]\n\nStatement: \"Retrieval did its job for this question: the chunk that answers it is in the top 5, at rank 2.\"",
+          "explanation": "True. kb-refunds-annual#1 is the labelled relevant chunk and it is ranked 2nd, so recall@5 = 1 and the reciprocal rank is 1/2 for this question. The misconception this guards against: a wrong answer means retrieval failed. Check whether the right chunk was retrieved before you touch the retriever.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A. Retrieval (hybrid, RRF)\nquery: \"how long does a refund take on an annual plan?\"\nrank  chunk                 rrf     cost\n1     kb-refunds#1          0.0325  13\n2     kb-refunds-annual#1   0.0323  35\n3     kb-cancel#2           0.0317  11\n4     kb-credit#1           0.0161   9\n5     blog-pricing#3        0.0156  41\n\nE. Evaluation, before and after release 2026.10.20\n                          2026.10.13   2026.10.20\nrecall@5 (212 questions)    0.94         0.94\nMRR@5                       0.81         0.81\ncitation check pass rate    0.97         0.99\nagent review: correct       0.88         0.69\n\nStatement: \"Raising k from 5 to 10 is a reasonable first fix: more candidates make it more likely that the annual-plan chunk reaches the model.\"",
+          "explanation": "False. The chunk is already retrieved at rank 2, and recall@5 did not move with the release. More candidates give the packer more small chunks to prefer, which can push the 35-token annual-plan chunk out completely. Changing retrieval to fix a problem that happens after retrieval adds risk and fixes nothing - the evidence points at the next stage.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "B. Packed context (budget 50 tokens)\n[1] Store credit is issued instantly.\n[2] Cancel any time from Settings > Billing.\n[3] Refunds are processed within 30 days of the request.\n[4] Annual plans are refunded pro rata for the unused months, minus any discount\n\nStatement: \"The packed context contains the sentence the model needed to answer correctly.\"",
+          "explanation": "False. The answer is \"Refunds for annual plans are paid within 14 days of cancellation\", the second sentence of kb-refunds-annual#1. Line [4] stops after \"minus any discount\": the 14 days never reached the model. Read the prompt the model actually received, not the chunk the retriever returned - they are not the same text.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A. Retrieval (hybrid, RRF)\nquery: \"how long does a refund take on an annual plan?\"\nrank  chunk                 rrf     cost\n1     kb-refunds#1          0.0325  13\n2     kb-refunds-annual#1   0.0323  35\n3     kb-cancel#2           0.0317  11\n4     kb-credit#1           0.0161   9\n5     blog-pricing#3        0.0156  41\n\nC. Packer log\npacked  kb-credit#1           9        as [1]\npacked  kb-cancel#2          11        as [2]\npacked  kb-refunds#1         13        as [3]\ncut     kb-refunds-annual#1  35 -> 17  as [4]\ntotal   50/50\n\nStatement: \"The packer changed the order: the chunk ranked 2nd by retrieval became the last line, [4], and was cut at the budget.\"",
+          "explanation": "True. The log packs the chunks cheapest first (9, 11, 13 tokens), not in rank order, then cuts the next one to fill the remaining 17 tokens. The best chunk for the question ends up last and incomplete - a packing failure that recall@k cannot see, because recall is measured before packing.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "B. Packed context (budget 50 tokens)\n[1] Store credit is issued instantly.\n[2] Cancel any time from Settings > Billing.\n[3] Refunds are processed within 30 days of the request.\n[4] Annual plans are refunded pro rata for the unused months, minus any discount\n\nD. Answer and automatic citation check\n\"Annual plans are refunded pro rata for the unused months [4]. The refund arrives within 30 days [4].\"\ncitation check: 2/2 sentences supported\n\nStatement: \"The citation check is right to report that both sentences are supported by source [4].\"",
+          "explanation": "False. The first sentence is supported by [4]. The second claims 30 days and cites [4], but [4] has no number at all: 30 comes from [3], the general refund policy. A citation check that searches the whole context instead of the cited source passes this sentence, which is why its pass rate rose (E) while answers got worse. The model filled the gap with the closest number it had and attached the wrong citation - a generation error the check should have flagged.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A. Retrieval (hybrid, RRF)\nquery: \"how long does a refund take on an annual plan?\"\nrank  chunk                 rrf     cost\n1     kb-refunds#1          0.0325  13\n2     kb-refunds-annual#1   0.0323  35\n3     kb-cancel#2           0.0317  11\n4     kb-credit#1           0.0161   9\n5     blog-pricing#3        0.0156  41\n\nThe packer before release 2026.10.20 (lesson 3.1): rank order, a chunk that does not fit is skipped, never cut.\n\nStatement: \"With the old packer and the same 50-token budget, the full annual-plan chunk would have reached the model.\"",
+          "explanation": "True. In rank order: kb-refunds#1 costs 13, kb-refunds-annual#1 costs 35, 13 + 35 = 48 <= 50, so both fit whole; the next chunks (11, 9, 41) are skipped because they do not fit. That confirms the hypothesis that the release's packer is the root cause and gives the fix: restore rank order and skip instead of cut, then verify on the golden set with answer-level checks, not recall alone.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_fix_py_rag_332",
+      "name": "citation-check",
+      "type": "fix_bug",
+      "title": "Fix the citation check that passed the wrong answer",
+      "description": "check_citations(context, answer) is the guard that runs after every answer of the support assistant. The context is the packed prompt context (lines \"[n] text\", where n is the source's citation number; two chunks of one source share n). In the \"Right Docs, Wrong Answer?\" incident it reported \"2/2 sentences supported\" for \"The refund arrives within 30 days [4].\" although source [4] never mentions 30 days. Support has found more: it accepts \"3 days [1]\" when source 1 says 30 days, and it flags correct sentences when the number is in the first of two chunks from the same source. Fix it so that, for each sentence of the answer (numbered from 1, split by the given split_sentences()), with citations = the [n] markers and facts = the numbers matched by NUMBER in the sentence without its markers: the problem is \"unknown_source\" if a cited n has no line in the context; otherwise \"uncited\" if there are facts but no citation; otherwise \"unsupported\" if a fact is not one of the numbers found in all lines of the cited sources, compared as whole numbers. Return one {\"sentence\", \"problem\"} per sentence with a problem, in sentence order; an empty answer returns [].",
+      "difficulty": "medium",
+      "points": 30,
+      "hints": [
+        "In the incident answer, which source does the sentence with \"30 days\" cite, and in which line of the context does 30 actually appear? Which text does the check search when it decides that a fact is supported?",
+        "Look at three places: what parse_context() keeps when two lines share the same number, which sources the \"unsupported\" branch searches, and how it compares a fact with that text (the `in` operator on a str matches substrings).",
+        "A similar case on different input: context \"[1] Shipping takes 10 days.\\n[2] Returns are free for 1 month.\" and the sentence \"Shipping takes 1 day [1].\" The numbers of the cited source are {\"10\"}. \"1\" is not one of them, so the sentence is unsupported - although the string \"10\" contains \"1\", and although 1 appears in source [2], which the sentence does not cite."
+      ],
+      "coding": {
+        "language": "python",
+        "filePath": "citations.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The incident answer: 30 days cited to a source that never says it",
+          "input": {
+            "context": "[1] Store credit is issued instantly.\n[2] Cancel any time from Settings > Billing.\n[3] Refunds are processed within 30 days of the request.\n[4] Annual plans are refunded pro rata for the unused months, minus any discount",
+            "answer": "Annual plans are refunded pro rata for the unused months [4]. The refund arrives within 30 days [4]."
+          },
+          "expected": [
+            {
+              "sentence": 2,
+              "problem": "unsupported"
+            }
+          ],
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "Every number comes from the source it cites",
+          "input": {
+            "context": "[1] Refunds are processed within 30 days of the request.\n[2] Annual plans are refunded pro rata for the unused months, minus any discount that was applied at checkout. Refunds for annual plans are paid within 14 days of cancellation.",
+            "answer": "Annual plans are refunded pro rata for the unused months [2]. The refund is paid within 14 days of cancellation [2]. Monthly plans are refunded within 30 days [1]."
+          },
+          "expected": [],
+          "hidden": false,
+          "score": 4
+        },
+        {
+          "name": "A source with two chunks: the number is in its first chunk",
+          "input": {
+            "context": "[1] Refunds are processed within 30 days of the request.\n[2] Store credit is issued instantly.\n[1] Partial refunds are possible for annual plans.",
+            "answer": "Refunds take up to 30 days [1]. Annual plans can get a partial refund [1]."
+          },
+          "expected": [],
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "3 days is not 30 days",
+          "input": {
+            "context": "[1] Refunds are processed within 30 days of the request.",
+            "answer": "Refunds are processed within 3 days [1]."
+          },
+          "expected": [
+            {
+              "sentence": 1,
+              "problem": "unsupported"
+            }
+          ],
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Unknown citation numbers and numbers without a citation",
+          "input": {
+            "context": "[1] Store credit is issued instantly.\n[2] Cancel any time from Settings > Billing.",
+            "answer": "Cancel any time from Settings [2]. Bank transfers take 5 to 7 business days. Store credit is issued instantly [3]. You can reach us from the help menu."
+          },
+          "expected": [
+            {
+              "sentence": 2,
+              "problem": "uncited"
+            },
+            {
+              "sentence": 3,
+              "problem": "unknown_source"
+            }
+          ],
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Decimal prices and ranges are compared as whole numbers",
+          "input": {
+            "context": "[1] The Pro plan costs $49.99 per month.\n[2] Bank transfers take 5-7 business days.",
+            "answer": "Pro costs $49.99 a month [1]. Bank transfers take up to 7 business days [2]. Pro costs $49.9 [1]."
+          },
+          "expected": [
+            {
+              "sentence": 3,
+              "problem": "unsupported"
+            }
+          ],
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "An empty answer has nothing to check",
+          "input": {
+            "context": "[1] Store credit is issued instantly.\n[2] Cancel any time from Settings > Billing.\n[3] Refunds are processed within 30 days of the request.\n[4] Annual plans are refunded pro rata for the unused months, minus any discount",
+            "answer": ""
+          },
+          "expected": [],
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Large answer: 400 sentences checked against 40 sources",
+          "input": {
+            "context": "[1] Plan P1 renews every 15 days and costs 71.77 credits.\n[2] Plan P2 renews every 42 days and costs 39.51 credits.\n[3] Plan P3 renews every 10 days and costs 37.43 credits.\n[4] Plan P4 renews every 42 days and costs 13.48 credits.\n[5] Plan P5 renews every 58 days and costs 59.83 credits.\n[6] Plan P6 renews every 10 days and costs 33.72 credits.\n[7] Plan P7 renews every 10 days and costs 39.64 credits.\n[8] Plan P8 renews every 42 days and costs 19.20 credits.\n[9] Plan P9 renews every 74 days and costs 27.16 credits.\n[10] Plan P10 renews every 58 days and costs 7.34 credits.\n[11] Plan P11 renews every 58 days and costs 55.41 credits.\n[12] Plan P12 renews every 74 days and costs 79.93 credits.\n[13] Plan P13 renews every 26 days and costs 17.70 credits.\n[14] Plan P14 renews every 74 days and costs 21.40 credits.\n[15] Plan P15 renews every 83 days and costs 11.32 credits.\n[16] Plan P16 renews every 42 days and costs 11.53 credits.\n[17] Plan P17 renews every 26 days and costs 69.56 credits.\n[18] Plan P18 renews every 10 days and costs 17.65 credits.\n[19] Plan P19 renews every 74 days and costs 57.29 credits.\n[20] Plan P20 renews every 58 days and costs 21.19 credits.\n[21] Plan P21 renews every 10 days and costs 51.97 credits.\n[22] Plan P22 renews every 58 days and costs 47.18 credits.\n[23] Plan P23 renews every 26 days and costs 67.77 credits.\n[24] Plan P24 renews every 42 days and costs 13.38 credits.\n[25] Plan P25 renews every 42 days and costs 51.13 credits.\n[26] Plan P26 renews every 74 days and costs 13.25 credits.\n[27] Plan P27 renews every 26 days and costs 29.38 credits.\n[28] Plan P28 renews every 10 days and costs 33.82 credits.\n[29] Plan P29 renews every 26 days and costs 45.48 credits.\n[30] Plan P30 renews every 10 days and costs 63.28 credits.\n[31] Plan P31 renews every 42 days and costs 39.29 credits.\n[32] Plan P32 renews every 42 days and costs 17.61 credits.\n[33] Plan P33 renews every 74 days and costs 77.93 credits.\n[34] Plan P34 renews every 74 days and costs 39.56 credits.\n[35] Plan P35 renews every 74 days and costs 25.88 credits.\n[36] Plan P36 renews every 58 days and costs 7.85 credits.\n[37] Plan P37 renews every 10 days and costs 75.41 credits.\n[38] Plan P38 renews every 42 days and costs 79.83 credits.\n[39] Plan P39 renews every 74 days and costs 7.14 credits.\n[40] Plan P40 renews every 74 days and costs 33.21 credits.",
+            "answer": "Plan P1 renews every 15 days [1]. Plan P17 costs 69.56 credits [17]. Plan P17 renews every 26 days [17]. Plan P33 costs 77.93 credits [33]. Plan P17 renews every 26 days [17]. Plan P9 costs 27.16 credits [9]. Plan P25 renews every 42 days [26]. Plan P1 costs 71.77 credits [1]. Plan P33 renews every 74 days [33]. Plan P17 costs 69.56 credits [17]. Plan P25 renews every 42 days. Plan P9 costs 27.16 credits [9]. Plan P25 renews every 42 days [46]. Plan P17 costs 69.56 credits [18]. Plan P33 renews every 74 days [33]. Plan P1 costs 71.77 credits [1]. Plan P25 renews every 43 days [25]. Plan P17 costs 69.56 credits [17]. Plan P17 renews every 26 days [17]. Plan P9 costs 27.16 credits [9]. Plan P1 renews every 15 days [2]. Plan P25 costs 51.13 credits. Plan P33 renews every 74 days [33]. Plan P33 costs 77.93 credits [33]. Plan P25 renews every 42 days [25]. Plan P9 costs 27.16 credits [42]. Plan P33 renews every 74 days [33]. Plan P17 costs 69.56 credits [18]. Plan P17 renews every 26 days [17]. Plan P26 costs 13.25 credits [26]. Plan P25 renews every 42 days [25]. Plan P33 costs 77.93 credits [33]. Plan P25 renews every 42 days. Plan P25 costs 51.13 credits [25]. Plan P17 renews every 26 days [18]. Plan P17 costs 69.56 credits [17]. Plan P9 renews every 74 days [9]. Plan P1 costs 71.77 credits [1]. Plan P33 renews every 74 days [47]. Plan P9 costs 27.16 credits [9]. Plan P33 renews every 74 days [33]. Plan P9 costs 27.16 credits [10]. Plan P25 renews every 42 days [25]. Plan P9 costs 27.16 credits. Plan P25 renews every 42 days [25]. Plan P17 costs 69.56 credits [17]. Plan P1 renews every 15 days [1]. Plan P17 costs 69.56 credits [17]. Plan P9 renews every 74 days [10]. Plan P25 costs 51.13 credits [25]. Plan P33 renews every 75 days [33]. Plan P33 costs 77.93 credits [47]. Plan P9 renews every 74 days [9]. Plan P1 costs 71.77 credits [1]. Plan P33 renews every 74 days. Plan P17 costs 69.56 credits [18]. Plan P33 renews every 74 days [33]. Plan P9 costs 27.16 credits [9]. Plan P17 renews every 26 days [17]. Plan P9 costs 27.16 credits [9]. Plan P17 renews every 26 days [17]. Plan P33 costs 77.93 credits [33]. Plan P33 renews every 74 days [34]. Plan P17 costs 69.56 credits [17]. Plan P25 renews every 42 days [47]. Plan P17 costs 69.56 credits. Plan P1 renews every 15 days [1]. Plan P9 costs 27.16 credits [9]. Plan P33 renews every 74 days [33]. Plan P1 costs 71.77 credits [2]. Plan P9 renews every 74 days [9]. Plan P1 costs 71.77 credits [1]. Plan P1 renews every 15 days [1]. Plan P9 costs 27.16 credits [9]. Plan P33 renews every 74 days [33]. Plan P25 costs 51.13 credits [25]. Plan P25 renews every 42 days. Plan P17 costs 69.56 credits [43]. Plan P17 renews every 26 days [17]. Plan P25 costs 51.13 credits [25]. Plan P9 renews every 74 days [9]. Plan P25 costs 51.13 credits [25]. Plan P25 renews every 42 days [25]. Plan P25 costs 51.13 credits [26]. Plan P9 renews every 75 days [9]. Plan P17 costs 69.56 credits [17]. Plan P1 renews every 15 days [1]. Plan P9 costs 27.16 credits. Plan P1 renews every 15 days [1]. Plan P9 costs 27.16 credits [9]. Plan P25 renews every 42 days [49]. Plan P1 costs 71.77 credits [1]. Plan P17 renews every 26 days [17]. Plan P17 costs 69.56 credits [17]. Plan P17 renews every 26 days [17]. Plan P33 costs 77.93 credits [33]. Plan P33 renews every 74 days [33]. Plan P33 costs 77.93 credits [34]. Plan P9 renews every 74 days. Plan P33 costs 77.93 credits [33]. Plan P1 renews every 15 days [1]. Plan P33 costs 77.93 credits [33]. Plan P25 renews every 42 days [25]. Plan P33 costs 77.93 credits [48]. Plan P33 renews every 74 days [34]. Plan P1 costs 71.77 credits [1]. Plan P25 renews every 42 days [25]. Plan P1 costs 71.77 credits [1]. Plan P33 renews every 74 days [33]. Plan P25 costs 51.13 credits. Plan P17 renews every 26 days [17]. Plan P17 costs 69.56 credits [18]. Plan P17 renews every 26 days [17]. Plan P17 costs 69.56 credits [17]. Plan P25 renews every 42 days [25]. Plan P17 costs 69.56 credits [17]. Plan P25 renews every 42 days [46]. Plan P25 costs 51.13 credits [25]. Plan P25 renews every 43 days [26]. Plan P33 costs 77.93 credits [33]. Plan P25 renews every 42 days. Plan P9 costs 27.16 credits [9]. Plan P17 renews every 26 days [17]. Plan P25 costs 51.13 credits [25]. Plan P1 renews every 15 days [1]. Plan P9 costs 27.16 credits [10]. Plan P9 renews every 74 days [9]. Plan P1 costs 71.77 credits [1]. Plan P1 renews every 15 days [1]. Plan P33 costs 77.93 credits [42]. Plan P25 renews every 42 days [25]. Plan P17 costs 69.56 credits. Plan P9 renews every 74 days [10]. Plan P25 costs 51.13 credits [25]. Plan P25 renews every 42 days [25]. Plan P33 costs 77.93 credits [33]. Plan P9 renews every 74 days [9]. Plan P9 costs 27.16 credits [9]. Plan P1 renews every 15 days [1]. Plan P17 costs 69.56 credits [18]. Plan P17 renews every 26 days [17]. Plan P25 costs 51.13 credits [25]. Plan P9 renews every 74 days [49]. Plan P17 costs 69.56 credits [17]. Plan P33 renews every 74 days [33]. Plan P33 costs 77.93 credits [33]. Plan P17 renews every 26 days [18]. Plan P17 costs 69.56 credits [17]. Plan P17 renews every 26 days [17]. Plan P9 costs 27.16 credits [9]. Plan P17 renews every 26 days [17]. Plan P33 costs 77.93 credits [33]. Plan P1 renews every 16 days [1]. Plan P1 costs 71.77 credits. Plan P25 renews every 42 days [25]. Plan P17 costs 69.56 credits [44]. Plan P1 renews every 15 days [1]. Plan P17 costs 69.56 credits [17]. Plan P9 renews every 74 days [9]. Plan P33 costs 77.93 credits [33]. Plan P1 renews every 15 days [2]. Plan P25 costs 51.13 credits [25]. Plan P25 renews every 42 days [25]. Plan P1 costs 71.77 credits [1]. Plan P25 renews every 42 days. Plan P17 costs 69.56 credits [17]. Plan P17 renews every 26 days [17]. Plan P33 costs 77.93 credits [34]. Plan P33 renews every 74 days [42]. Plan P33 costs 77.93 credits [33]. Plan P17 renews every 26 days [17]. Plan P25 costs 51.13 credits [25]. Plan P17 renews every 26 days [17]. Plan P17 costs 69.56 credits [17]. Plan P1 renews every 15 days [2]. Plan P9 costs 27.16 credits. Plan P33 renews every 74 days [33]. Plan P33 costs 77.93 credits [33]. Plan P25 renews every 42 days [25]. Plan P1 costs 71.77 credits [1]. Plan P25 renews every 42 days [25]. Plan P17 costs 69.56 credits [48]. Plan P33 renews every 74 days [33]. Plan P9 costs 27.16 credits [9]. Plan P17 renews every 26 days [17]. Plan P25 costs 51.13 credits [25]. Plan P9 renews every 75 days. Plan P1 costs 71.77 credits [1]. Plan P25 renews every 42 days [26]. Plan P33 costs 77.93 credits [33]. Plan P33 renews every 74 days [33]. Plan P1 costs 71.77 credits [1]. Plan P9 renews every 74 days [9]. Plan P17 costs 69.56 credits [17]. Plan P9 renews every 74 days [48]. Plan P17 costs 69.56 credits [18]. Plan P25 renews every 42 days [25]. Plan P1 costs 71.77 credits. Plan P33 renews every 74 days [33]. Plan P25 costs 51.13 credits [25]. Plan P1 renews every 15 days [1]. Plan P1 costs 71.77 credits [1]. Plan P9 renews every 74 days [10]. Plan P33 costs 77.93 credits [33]. Plan P17 renews every 26 days [17]. Plan P17 costs 69.56 credits [17]. Plan P17 renews every 26 days [17]. Plan P25 costs 51.13 credits [46]. Plan P17 renews every 26 days. Plan P1 costs 71.77 credits [2]. Plan P25 renews every 42 days [25]. Plan P1 costs 71.77 credits [1]. Plan P25 renews every 42 days [25]. Plan P33 costs 77.93 credits [33]. Plan P33 renews every 74 days [33]. Plan P33 costs 77.93 credits [33]. Plan P33 renews every 74 days [34]. Plan P9 costs 27.16 credits [9]. Plan P33 renews every 74 days [33]. Plan P17 costs 69.56 credits. Plan P25 renews every 43 days [46]. Plan P9 costs 27.16 credits [9]. Plan P17 renews every 26 days [17]. Plan P25 costs 51.13 credits [26]. Plan P9 renews every 74 days [9]. Plan P25 costs 51.13 credits [25]. Plan P17 renews every 26 days [17]. Plan P1 costs 71.77 credits [1]. Plan P1 renews every 15 days [1]. Plan P9 costs 27.16 credits [9]. Plan P17 renews every 26 days. Plan P17 costs 69.56 credits [17]. Plan P17 renews every 26 days [17]. Plan P17 costs 69.56 credits [45]. Plan P1 renews every 15 days [1]. Plan P33 costs 77.93 credits [33]. Plan P33 renews every 74 days [33]. Plan P33 costs 77.93 credits [34]. Plan P9 renews every 74 days [9]. Plan P17 costs 69.56 credits [17]. Plan P33 renews every 74 days [33]. Plan P33 costs 77.93 credits. Plan P1 renews every 15 days [1]. Plan P25 costs 51.13 credits [25]. Plan P33 renews every 74 days [34]. Plan P33 costs 77.93 credits [33]. Plan P1 renews every 15 days [45]. Plan P9 costs 27.16 credits [9]. Plan P33 renews every 74 days [33]. Plan P17 costs 69.56 credits [17]. Plan P17 renews every 26 days [17]. Plan P1 costs 71.77 credits [2]. Plan P1 renews every 15 days. Plan P9 costs 27.16 credits [9]. Plan P33 renews every 75 days [33]. Plan P33 costs 77.93 credits [33]. Plan P33 renews every 74 days [33]. Plan P9 costs 27.16 credits [9]. Plan P9 renews every 74 days [10]. Plan P33 costs 77.93 credits [48]. Plan P17 renews every 26 days [17]. Plan P1 costs 71.77 credits [1]. Plan P9 renews every 74 days [9]. Plan P33 costs 77.93 credits. Plan P17 renews every 26 days [17]. Plan P1 costs 71.77 credits [2]. Plan P1 renews every 15 days [1]. Plan P33 costs 77.93 credits [33]. Plan P25 renews every 42 days [25]. Plan P25 costs 51.13 credits [25]. Plan P33 renews every 74 days [33]. Plan P17 costs 69.56 credits [17]. Plan P17 renews every 26 days [47]. Plan P9 costs 27.16 credits [9]. Plan P1 renews every 15 days. Plan P1 costs 71.77 credits [1]. Plan P9 renews every 74 days [9]. Plan P1 costs 71.77 credits [1]. Plan P25 renews every 42 days [25]. Plan P33 costs 77.93 credits [34]. Plan P33 renews every 74 days [33]. Plan P9 costs 27.16 credits [9]. Plan P1 renews every 15 days [1]. Plan P17 costs 69.56 credits [17]. Plan P1 renews every 15 days [1]. Plan P1 costs 71.77 credits [49]. Plan P17 renews every 26 days [18]. Plan P17 costs 69.56 credits [17]. Plan P17 renews every 27 days [17]. Plan P1 costs 71.77 credits [1]. Plan P9 renews every 74 days [9]. Plan P17 costs 69.56 credits [17]. Plan P1 renews every 15 days [1]. Plan P25 costs 51.13 credits [26]. Plan P1 renews every 15 days [1]. Plan P25 costs 51.13 credits [25]. Plan P9 renews every 74 days. Plan P17 costs 69.56 credits [17]. Plan P17 renews every 26 days [44]. Plan P25 costs 51.13 credits [25]. Plan P17 renews every 26 days [18]. Plan P1 costs 71.77 credits [1]. Plan P25 renews every 42 days [25]. Plan P33 costs 77.93 credits [33]. Plan P25 renews every 42 days [25]. Plan P1 costs 71.77 credits [1]. Plan P33 renews every 74 days [33]. Plan P1 costs 71.77 credits. Plan P1 renews every 15 days [1]. Plan P33 costs 77.93 credits [33]. Plan P17 renews every 26 days [17]. Plan P33 costs 77.93 credits [49]. Plan P9 renews every 74 days [9]. Plan P33 costs 77.93 credits [33]. Plan P33 renews every 74 days [34]. Plan P33 costs 77.93 credits [33]. Plan P9 renews every 74 days [9]. Plan P9 costs 27.16 credits [9]. Plan P9 renews every 74 days. Plan P25 costs 51.13 credits [25]. Plan P9 renews every 74 days [9]. Plan P9 costs 27.16 credits [10]. Plan P25 renews every 43 days [25]. Plan P33 costs 77.93 credits [33]. Plan P33 renews every 74 days [45]. Plan P25 costs 51.13 credits [25]. Plan P33 renews every 74 days [33]. Plan P17 costs 69.56 credits [17]. Plan P25 renews every 42 days [26]. Plan P25 costs 51.13 credits. Plan P33 renews every 74 days [33]. Plan P33 costs 77.93 credits [33]. Plan P25 renews every 42 days [25]. Plan P17 costs 69.56 credits [17]. Plan P25 renews every 42 days [25]. Plan P9 costs 27.16 credits [10]. Plan P17 renews every 26 days [17]. Plan P1 costs 71.77 credits [44]. Plan P1 renews every 15 days [1]. Plan P25 costs 51.13 credits [25]. Plan P33 renews every 74 days. Plan P17 costs 69.56 credits [17]. Plan P1 renews every 15 days [2]. Plan P1 costs 71.77 credits [1]. Plan P17 renews every 26 days [17]. Plan P1 costs 71.77 credits [1]. Plan P25 renews every 42 days [25]. Plan P25 costs 51.13 credits [25]. Plan P33 renews every 74 days [33]. Plan P17 costs 69.56 credits [18]. Plan P25 renews every 42 days [41]. Plan P25 costs 51.13 credits. Plan P25 renews every 42 days [25]. Plan P1 costs 71.77 credits [1]. Plan P25 renews every 42 days [25]. Plan P25 costs 51.13 credits [25]. Plan P17 renews every 27 days [18]. Plan P1 costs 71.77 credits [1]. Plan P9 renews every 74 days [9]. Plan P33 costs 77.93 credits [33]. Plan P1 renews every 15 days [1]. Plan P33 costs 77.93 credits [33]. Plan P9 renews every 74 days. Plan P9 costs 27.16 credits [45]. Plan P33 renews every 74 days [33]. Plan P9 costs 27.16 credits [9]. Plan P9 renews every 74 days [9]. Plan P25 costs 51.13 credits [25]. Plan P33 renews every 74 days [33]. Plan P9 costs 27.16 credits [9]. Plan P17 renews every 26 days [18]. Plan P1 costs 71.77 credits [1]. Plan P25 renews every 42 days [25]. Plan P9 costs 27.16 credits. Plan P25 renews every 42 days [25]. Plan P1 costs 71.77 credits [1]. Plan P9 renews every 74 days [49]. Plan P25 costs 51.13 credits [26]. Plan P25 renews every 42 days [25]. Plan P25 costs 51.13 credits [25]. Plan P17 renews every 26 days [17]. Plan P17 costs 69.56 credits [17]. Plan P17 renews every 26 days [17]. Plan P33 costs 77.93 credits [33]. Plan P33 renews every 74 days. Plan P1 costs 71.77 credits [1]. Plan P1 renews every 15 days [1]. Plan P25 costs 51.13 credits [25]. Plan P25 renews every 42 days [25]. Plan P17 costs 69.56 credits [45]. Plan P9 renews every 75 days [9]. Plan P17 costs 69.56 credits [18]. Plan P9 renews every 74 days [9]. Plan P9 costs 27.16 credits [9]. Plan P9 renews every 74 days [9]. Plan P1 costs 71.77 credits. Plan P33 renews every 74 days [33]. Plan P1 costs 71.77 credits [1]. Plan P1 renews every 15 days [2]. Plan P33 costs 77.93 credits [33]."
+          },
+          "expected": [
+            {
+              "sentence": 7,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 11,
+              "problem": "uncited"
+            },
+            {
+              "sentence": 13,
+              "problem": "unknown_source"
+            },
+            {
+              "sentence": 14,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 17,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 21,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 22,
+              "problem": "uncited"
+            },
+            {
+              "sentence": 26,
+              "problem": "unknown_source"
+            },
+            {
+              "sentence": 28,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 33,
+              "problem": "uncited"
+            },
+            {
+              "sentence": 35,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 39,
+              "problem": "unknown_source"
+            },
+            {
+              "sentence": 42,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 44,
+              "problem": "uncited"
+            },
+            {
+              "sentence": 49,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 51,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 52,
+              "problem": "unknown_source"
+            },
+            {
+              "sentence": 55,
+              "problem": "uncited"
+            },
+            {
+              "sentence": 56,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 63,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 65,
+              "problem": "unknown_source"
+            },
+            {
+              "sentence": 66,
+              "problem": "uncited"
+            },
+            {
+              "sentence": 70,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 77,
+              "problem": "uncited"
+            },
+            {
+              "sentence": 78,
+              "problem": "unknown_source"
+            },
+            {
+              "sentence": 84,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 85,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 88,
+              "problem": "uncited"
+            },
+            {
+              "sentence": 91,
+              "problem": "unknown_source"
+            },
+            {
+              "sentence": 98,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 99,
+              "problem": "uncited"
+            },
+            {
+              "sentence": 104,
+              "problem": "unknown_source"
+            },
+            {
+              "sentence": 105,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 110,
+              "problem": "uncited"
+            },
+            {
+              "sentence": 112,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 117,
+              "problem": "unknown_source"
+            },
+            {
+              "sentence": 119,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 121,
+              "problem": "uncited"
+            },
+            {
+              "sentence": 126,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 130,
+              "problem": "unknown_source"
+            },
+            {
+              "sentence": 132,
+              "problem": "uncited"
+            },
+            {
+              "sentence": 133,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 140,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 143,
+              "problem": "unknown_source"
+            },
+            {
+              "sentence": 147,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 153,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 154,
+              "problem": "uncited"
+            },
+            {
+              "sentence": 156,
+              "problem": "unknown_source"
+            },
+            {
+              "sentence": 161,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 165,
+              "problem": "uncited"
+            },
+            {
+              "sentence": 168,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 169,
+              "problem": "unknown_source"
+            },
+            {
+              "sentence": 175,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 176,
+              "problem": "uncited"
+            },
+            {
+              "sentence": 182,
+              "problem": "unknown_source"
+            },
+            {
+              "sentence": 187,
+              "problem": "uncited"
+            },
+            {
+              "sentence": 189,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 195,
+              "problem": "unknown_source"
+            },
+            {
+              "sentence": 196,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 198,
+              "problem": "uncited"
+            },
+            {
+              "sentence": 203,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 208,
+              "problem": "unknown_source"
+            },
+            {
+              "sentence": 209,
+              "problem": "uncited"
+            },
+            {
+              "sentence": 210,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 217,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 220,
+              "problem": "uncited"
+            },
+            {
+              "sentence": 221,
+              "problem": "unknown_source"
+            },
+            {
+              "sentence": 224,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 231,
+              "problem": "uncited"
+            },
+            {
+              "sentence": 234,
+              "problem": "unknown_source"
+            },
+            {
+              "sentence": 238,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 242,
+              "problem": "uncited"
+            },
+            {
+              "sentence": 245,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 247,
+              "problem": "unknown_source"
+            },
+            {
+              "sentence": 252,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 253,
+              "problem": "uncited"
+            },
+            {
+              "sentence": 255,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 259,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 260,
+              "problem": "unknown_source"
+            },
+            {
+              "sentence": 264,
+              "problem": "uncited"
+            },
+            {
+              "sentence": 266,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 273,
+              "problem": "unknown_source"
+            },
+            {
+              "sentence": 275,
+              "problem": "uncited"
+            },
+            {
+              "sentence": 280,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 286,
+              "problem": "unknown_source"
+            },
+            {
+              "sentence": 287,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 289,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 294,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 297,
+              "problem": "uncited"
+            },
+            {
+              "sentence": 299,
+              "problem": "unknown_source"
+            },
+            {
+              "sentence": 301,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 308,
+              "problem": "uncited"
+            },
+            {
+              "sentence": 312,
+              "problem": "unknown_source"
+            },
+            {
+              "sentence": 315,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 319,
+              "problem": "uncited"
+            },
+            {
+              "sentence": 322,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 323,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 325,
+              "problem": "unknown_source"
+            },
+            {
+              "sentence": 329,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 330,
+              "problem": "uncited"
+            },
+            {
+              "sentence": 336,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 338,
+              "problem": "unknown_source"
+            },
+            {
+              "sentence": 341,
+              "problem": "uncited"
+            },
+            {
+              "sentence": 343,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 350,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 351,
+              "problem": "unknown_source"
+            },
+            {
+              "sentence": 352,
+              "problem": "uncited"
+            },
+            {
+              "sentence": 357,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 363,
+              "problem": "uncited"
+            },
+            {
+              "sentence": 364,
+              "problem": "unknown_source"
+            },
+            {
+              "sentence": 371,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 374,
+              "problem": "uncited"
+            },
+            {
+              "sentence": 377,
+              "problem": "unknown_source"
+            },
+            {
+              "sentence": 378,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 385,
+              "problem": "uncited"
+            },
+            {
+              "sentence": 390,
+              "problem": "unknown_source"
+            },
+            {
+              "sentence": 391,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 392,
+              "problem": "unsupported"
+            },
+            {
+              "sentence": 396,
+              "problem": "uncited"
+            },
+            {
+              "sentence": 399,
+              "problem": "unsupported"
+            }
+          ],
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

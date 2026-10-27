@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_fix_py_rag_332",
+      "key": "challenges/python/chal_fix_py_rag_332/starter.py",
+      "contentType": "text/x-python; charset=utf-8",
+      "originalName": "citations.py",
+      "size": 2821
+    }
+  ]
+}
