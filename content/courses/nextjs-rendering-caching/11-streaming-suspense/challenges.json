@@ -1,0 +1,50 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nrc_421",
+      "name": "streaming-suspense-quiz",
+      "type": "quiz",
+      "title": "What reaches the browser first?",
+      "description": "Two pieces of evidence from the slow course page: a Suspense boundary added in a first attempt, and the server log of a component with two loaders.",
+      "difficulty": "medium",
+      "outcomes": [
+        "rendering-choice"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "First attempt at fixing the course page:\n\nexport default async function CoursePage({ params }: { params: Promise<{ slug: string }> }) {\n  const { slug } = await params;\n  const user = await getSessionUser();\n  const course = await getCourse(slug);                 // ~120 ms\n  const progress = await getProgress(user.id, slug);    // ~1,400 ms\n  return (\n    <>\n      <CourseHeader course={course} />\n      <Suspense fallback={<ProgressSkeleton />}>\n        <ProgressPanel progress={progress} />\n      </Suspense>\n    </>\n  );\n}\n\n(ProgressPanel only renders the progress prop it receives; it awaits nothing.)\n\nStatement: \"Because ProgressPanel is wrapped in Suspense, the browser receives the course header after about 120 ms and the progress panel streams in later.\"",
+          "explanation": "False. The page awaits getProgress itself before it returns any JSX, so the server has nothing to send until both loaders are done: the first byte still arrives after about 1.5 s. A Suspense boundary can only stream content that suspends below it; ProgressPanel receives finished data as a prop and never suspends, so the fallback is never even shown. The fix is to move the await into an async ProgressPanel under the boundary (pass slug, not progress). The common misconception is that wrapping a component in Suspense makes its data load later; what matters is where the await runs.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "ModuleList, a server component outside any Suspense boundary:\n\nasync function ModuleList({ slug }: { slug: string }) {\n  const modules = await getModules(slug);\n  const reviews = await getReviewSummary(slug);\n  return <Modules modules={modules} reviews={reviews} />;\n}\n\nServer log for one request:\n+0 ms    getModules        start\n+152 ms  getModules        done\n+152 ms  getReviewSummary  start\n+290 ms  getReviewSummary  done\n\ngetReviewSummary(slug) reads only the slug; it uses nothing returned by getModules.\n\nStatement: \"Starting both loaders together with Promise.all([getModules(slug), getReviewSummary(slug)]) should bring this component's data time to about 150 ms, the time of the slower loader.\"",
+          "explanation": "True. The two loaders are independent: the second one needs only the slug, which is available before either starts. Awaiting them one after the other adds their times (152 + 138 = 290 ms); starting both and awaiting them together costs about the time of the slower one (about 152 ms). This is a waterfall inside a single component, and Suspense does not fix it: Suspense decides what can be sent early, not whether two requests run at the same time. Keep the sequence only when the second call needs a value from the first. The common misconception is that each await only blocks its own line; it blocks everything after it in that function.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

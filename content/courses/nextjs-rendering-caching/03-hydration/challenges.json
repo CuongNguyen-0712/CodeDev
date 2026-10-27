@@ -1,0 +1,46 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nrc_131",
+      "name": "hydration-errors-quiz",
+      "type": "quiz",
+      "title": "Read the hydration error",
+      "description": "Three pieces of evidence from CodeDev pages: the price and date that only broke for Vietnamese learners, a random id on a search field, and a typeof window branch in a client component.",
+      "difficulty": "medium",
+      "outcomes": ["server-client"],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "// components/EnrollmentCard.tsx\n\"use client\";\n...\n<span>{course.priceVnd.toLocaleString()} VND</span>\n<span>Enrolled {new Date(enrolledAt).toLocaleDateString()}</span>\n\nThe web server runs Node in the UTC time zone with the default en-US locale.\nError tracker, last 7 days: 2,340 hydration errors; browser locale vi-VN 97%, en-US 3%.\nDev overlay for a vi-VN browser in Asia/Ho_Chi_Minh:\n+ 149.000 VND          (client)\n- 149,000 VND          (server)\n+ Enrolled 26/10/2026  (client)\n- Enrolled 10/25/2026  (server)\n\nStatement: \"Setting TZ=Asia/Ho_Chi_Minh on the web server fixes the hydration errors for Vietnamese learners.\"",
+          "explanation": "False. The time zone explains only part of the date (25 vs 26 October for a timestamp late in the UTC evening). Both lines also differ in format: the server formats with its default locale en-US (149,000 and month/day/year) and the browser with vi-VN (149.000 and day/month/year), and TZ does not change the locale. A server-wide time zone would also be wrong for every learner outside Vietnam. The fix is to stop relying on defaults: format with an explicit locale and time zone, preferably once on the server, and pass the string to the client component. The misconception is that a mismatch has a single cause; read every line of the diff before choosing a fix.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "// components/SearchField.tsx\n\"use client\";\nexport function SearchField() {\n  const id = `search-${Math.random().toString(36).slice(2, 8)}`;\n  return (\n    <>\n      <label htmlFor={id}>Search courses</label>\n      <input id={id} type=\"search\" />\n    </>\n  );\n}\n\nBrowser console:\nA tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up.\n  <label\n+   htmlFor=\"search-k3f9qa\"\n-   htmlFor=\"search-0x7d2m\"\n\nStatement: \"Replacing the random id with const id = useId() gives the same id on the server and in the browser, so this mismatch goes away and the label still points at its input.\"",
+          "explanation": "True. Math.random() runs once on the server and again in the browser, so the two renders produce different ids, and React does not fix attributes after hydration (\"This won't be patched up\"). useId derives the id from the component's position in the tree, which is the same in both renders, so the label's htmlFor and the input's id match on both sides. The misconception is that any unique value will do; the value must be unique and also identical in both renders, which rules out random numbers, counters in module scope and timestamps.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "// components/ContinueLink.tsx\n\"use client\";\nexport function ContinueLink() {\n  const last = typeof window !== \"undefined\" ? localStorage.getItem(\"lastLesson\") : null;\n  return (\n    <a href={last ?? \"/courses\"}>\n      {last ? \"Continue where you left off\" : \"Browse courses\"}\n    </a>\n  );\n}\n\nStatement: \"Because the file starts with \\\"use client\\\", this component runs only in the browser, so the typeof window branch cannot cause a hydration mismatch.\"",
+          "explanation": "False. A client component is rendered twice: on the server for the first HTML, where window is undefined and last is null (\"Browse courses\"), and in the browser during hydration, where a learner with a saved lesson gets \"Continue where you left off\". The two renders disagree, which is exactly a hydration mismatch. \"use client\" means the code also runs in the browser, not only there. Fix it by rendering the server version first and reading localStorage in an effect after hydration (or with useSyncExternalStore and a server snapshot), or by loading the component on the client only. The misconception is that typeof window protects a render; it guarantees the two renders differ.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        }
+      ]
+    }
+  ]
+}

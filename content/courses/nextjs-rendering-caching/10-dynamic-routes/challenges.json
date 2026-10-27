@@ -1,0 +1,50 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nrc_411",
+      "name": "dynamic-routes-static-params-quiz",
+      "type": "quiz",
+      "title": "Which pages exist after the build?",
+      "description": "Two pieces of evidence from the 40-minute build: the fix that prerenders only the popular courses, and a stricter config that someone proposed in review.",
+      "difficulty": "medium",
+      "outcomes": [
+        "rendering-choice"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "app/courses/[slug]/page.tsx after the fix (no export const dynamicParams anywhere in the route):\n\nexport async function generateStaticParams() {\n  const slugs = await getPopularCourseSlugs(200);\n  return slugs.map((slug) => ({ slug }));\n}\n\nexport default async function CoursePage({ params }: { params: Promise<{ slug: string }> }) {\n  const { slug } = await params;\n  const course = await getCourse(slug);\n  if (!course) notFound();\n  return <CourseView course={course} />;\n}\n\nBuild log: Generating static pages (214/214)\n\"sql-joins-in-practice\" is course number 431 by views and exists in the API.\n\nStatement: \"A request for /courses/sql-joins-in-practice is rendered on demand when it first arrives instead of answering 404, because generateStaticParams only decides which pages are prerendered at build.\"",
+          "explanation": "True. With dynamicParams left at its default (true), a param value that generateStaticParams did not return is rendered when it is first requested, and for an otherwise static route the result is cached for later visitors. generateStaticParams is a list of pages to prepare ahead of time, not a list of pages that are allowed to exist. The page then loads the course, finds it and renders it; only a slug with no course reaches notFound(). The common misconception is that generateStaticParams works as a whitelist; that is only the case when dynamicParams is set to false.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A reviewer proposes this change \"so that bots cannot make us render random slugs\":\n\n// app/courses/[slug]/page.tsx\n+export const dynamicParams = false;\n\n export async function generateStaticParams() {\n   const slugs = await getPopularCourseSlugs(200);\n   return slugs.map((slug) => ({ slug }));\n }\n\n// lib/courses.ts (unchanged)\nfetch(`https://api.codedev.test/v1/courses/${slug}`, { next: { revalidate: 3600, tags: [`course:${slug}`] } })\n\nThe day after the deploy, an instructor publishes the new course \"rust-for-web-devs\". No deploy follows.\n\nStatement: \"/courses/rust-for-web-devs will render on its first request and be cached for an hour, because its data fetch has revalidate: 3600 and a course tag.\"",
+          "explanation": "False. With dynamicParams = false, any slug that generateStaticParams did not return at build time answers 404, whatever the data fetch inside the page would do: the page never runs for that slug. The new course stays a 404 until the next build includes it in the list (and only if it is in the top 200). revalidate and tags control how long the data of pages that do render stays fresh; they do not add new pages to a closed list. The common misconception is that ISR settings on the fetch make new paths appear; that depends on dynamicParams. Rejecting junk slugs is better done with input validation and notFound() for slugs with no course.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

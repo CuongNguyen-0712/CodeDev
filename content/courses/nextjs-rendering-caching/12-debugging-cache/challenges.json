@@ -1,0 +1,66 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nrc_431",
+      "name": "debugging-cache-production-quiz",
+      "type": "quiz",
+      "title": "Which cache answered?",
+      "description": "Three pieces of evidence from the on-call morning: the headers of the course page with the old price, the headers of the dashboard that showed another learner's name, and two build outputs.",
+      "difficulty": "medium",
+      "outcomes": [
+        "cache-keys"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Ticket #5301: the instructor changed the price of React Basics at 08:55. At 09:50:\n\n$ curl -s -D - -o /dev/null https://app.codedev.test/courses/react-basics\nHTTP/2 200\ncache-control: public, max-age=0, s-maxage=3600, stale-while-revalidate=86400\nage: 3420\nx-vercel-cache: HIT\n\nStatement: \"This copy was served by the CDN and was generated about 57 minutes earlier, shortly before the edit, so a stale copy kept by the CDN is enough to explain the old price without any bug in the price query.\"",
+          "explanation": "True. x-vercel-cache: HIT says the CDN answered from its cache, and Age: 3420 says the copy was generated or last revalidated about 3,420 seconds (57 minutes) before 09:50, that is at about 08:53, two minutes before the edit. s-maxage=3600 allows the CDN to keep it for an hour, and stale-while-revalidate allows serving it even longer while it refreshes. Nothing in this evidence requires a wrong query: the next step is to check whether the edit triggered revalidation of this page or tag. The common misconception is to start debugging the database before reading Age and the cache status, which already date the copy.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Ticket #5307, reproduced on staging with two test accounts:\n\n$ curl -s -D - -o /dev/null -b \"session=$SESSION_TEST_B\" https://app.codedev.test/dashboard\nHTTP/2 200\ncache-control: private, no-cache, no-store, max-age=0, must-revalidate\nx-vercel-cache: MISS\n\n$ curl -s -b \"session=$SESSION_TEST_B\" https://app.codedev.test/dashboard | grep -o 'Welcome back, [^<]*'\nWelcome back, Test Learner A\n\nlib/dashboard.ts:\nexport const getDashboardSummary = cached(\n  (userId: string) => loadSummary(userId),\n  { key: \"dashboard\", ttlSeconds: 300 }\n);\n\nStatement: \"These headers rule out caching as the cause, so the next place to look is the SQL query that loads the dashboard summary.\"",
+          "explanation": "False. The headers only show that the HTML response was not stored by the CDN (private, no-store, MISS): it was rendered fresh for user B. They say nothing about caches inside the server. getDashboardSummary is cached under the fixed key \"dashboard\", which does not include userId, so the first user's summary is returned to every user for 5 minutes. Logging calls and misses with their keys would show one shared key. The fix is a key with every input (or no shared cache for per-user data), and the first step is to stop the exposure. The common misconception is that a clean Cache-Control header means no cache is involved; data-layer caches sit behind the HTTP layer.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Route table of the last release and of the release candidate (legend printed by the build: \"○ (Static) prerendered as static content\", \"ƒ (Dynamic) server-rendered on demand\"):\n\nlast release:       ○ /courses\nrelease candidate:  ƒ /courses\n\nThe only change to app/courses/page.tsx in the pull request:\n\n+import { cookies } from \"next/headers\";\n export default async function CatalogPage() {\n+  const theme = (await cookies()).get(\"theme\")?.value ?? \"light\";\n   const courses = await getCatalog();\n\nStatement: \"Reading the cookie in the page explains why the catalog changed from prerendered to rendered on every request.\"",
+          "explanation": "True. cookies() reads per-request data, so Next.js can no longer prerender the page once for everyone: the route becomes dynamic, which is exactly what the legend shows (○ to ƒ). Comparing the route table of two builds finds this before any code reading, and the diff confirms it. A theme preference can be applied on the client or with a CSS media query so the catalog stays prerendered. The common misconception is that reading one small cookie only affects the component that uses it; in a page without other boundaries it changes how the whole route renders.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

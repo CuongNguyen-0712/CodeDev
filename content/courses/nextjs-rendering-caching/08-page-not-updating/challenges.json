@@ -1,0 +1,5230 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nrc_321",
+      "name": "page-not-updating-quiz",
+      "type": "quiz",
+      "title": "Why does the course page keep the old price?",
+      "description": "The AI-generated caching change and the instructor dashboard's server actions: read what a mismatched tag does, and what the instructor sees after revalidateTag and after updateTag.",
+      "difficulty": "medium",
+      "outcomes": [
+        "revalidation"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "// lib/catalog.ts (written by the AI assistant)\nexport async function getCourse(id: string) {\n  \"use cache\";\n  cacheTag(`course:${id}`);\n  cacheLife(\"hours\");\n  return db.course.findUnique({ where: { id } });\n}\n\n// app/instructor/courses/[id]/actions.ts\nexport async function saveCourseDetails(id: string, data: DetailsForm) {\n  await db.course.update({ where: { id }, data });\n  updateTag(`course-${id}`);\n}\n\n$ npm run build\n  Compiled successfully (no errors, no warnings)\n\nStatement: \"If updateTag were given a tag that no cached entry carries, the build or the server log would report it, so the clean build shows the two tags match.\"",
+          "explanation": "False. A tag is an arbitrary string. Nothing compares the strings passed to cacheTag with the strings passed to updateTag or revalidateTag, and expiring a tag that no entry carries is not an error: it simply expires nothing. Here course:42 and course-42 are different strings, so every save leaves the cached course data in place until cacheLife ends it, up to an hour later. The misconception is that tags are checked like identifiers; to catch a mismatch you need one helper that builds the tag for readers and writers, and a test that saves and then reads.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A teammate fixes the action like this:\n\nexport async function changeCoursePrice(id: string, price: number) {\n  await db.course.update({ where: { id }, data: { price } });\n  revalidateTag(courseTag(id), \"max\");      // courseTag(id) === `course:${id}`\n}\n\nThe instructor's browser, Network tab, right after saving:\n09:00:05  POST /instructor/courses/42      200  (server action)\n09:00:07  GET  /course/nextjs-rendering    200  page shows 249000 VND\n09:00:09  GET  /course/nextjs-rendering    200  page shows 199000 VND\n\nStatement: \"The old price at 09:00:07 is how revalidateTag with the \\\"max\\\" profile works, and calling updateTag(courseTag(id)) in this server action instead would show the new price on the first reload.\"",
+          "explanation": "True. In Next.js 16, revalidateTag(tag, \"max\") marks the tagged entries stale: the next request is served the old content while a fresh copy is built in the background, and the request after that gets the fresh copy (stale-while-revalidate). That is right for background events, but an instructor who just saved expects to see the change. updateTag, available only in Server Actions, expires the entries at once, so the next request waits for fresh data. The misconception is that every revalidation function removes the entry immediately; check which one you call, and in which version.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_nrc_322",
+      "name": "spot-the-ai-mistake-course-page-never-updates",
+      "type": "fix_bug",
+      "title": "Spot the AI Mistake: the course page that never updates",
+      "description": "The request sent to an AI coding assistant was: \"Cache the course page so it is fast.\" The assistant cached the course data with getCourse = cached(..., { tags: course:<id>, revalidate: 3600 }) and kept the two server actions of the instructor dashboard, saveCourseDetails and changeCoursePrice. The page is fast and the public tests pass. Since the merge, instructors report that the course page keeps the old title and the old price after they save, for up to an hour, and learners saw 249000 VND on the course page but 199000 VND at checkout. Fix the assistant's code so that after a successful save of a title or a price, the very next read of that course page shows the new value (a MISS that waits for fresh data, not a stale page), while caching keeps working: repeated reads are HITs, other courses stay cached when one course changes, and a rejected action (unknown course, empty title, invalid price) changes nothing and refreshes nothing. The starter contains a model of the Next.js data cache on a fake clock: updateTag(tag) expires entries at once, revalidateTag(tag, \"max\") marks them stale (the next read still returns the old value), and tags are compared as whole strings. The runner reads { courses, steps } where a step is { read }, { edit, title }, { price, amount } or { advance } (seconds), prints one line per step (a read prints the page and MISS, HIT or STALE) and finally the number of database reads. Do not change the database, the mini cache or the runner.",
+      "difficulty": "medium",
+      "outcomes": [
+        "revalidation"
+      ],
+      "points": 30,
+      "hints": [
+        "After saveCourseDetails runs, which cached entry should become out of date, and by what string was that entry labelled when it was stored? Then ask the same question for changeCoursePrice.",
+        "Put the tags side by side: the one in the tags option of getCourse and the one each action passes to the cache. Look at every character. Then check the second action: does it tell the cache anything at all? Finally, choose between the two cache functions by what the instructor must see on the next read.",
+        "A similar case on a different page: getLesson is cached with tags [`lesson:${id}`], and the action saveLessonBody calls updateTag(`lessons/${id}`). Reading lesson 5, saving its body and reading again prints the old body as a HIT. With one helper lessonTag(id) used by both the reader and the action, the read after the save is a MISS with the new body, and the read after that is a HIT; lesson 6, read before the save, is still a HIT."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Reads are cached: three page views of course 42 cost one database read",
+          "input": {
+            "courses": [
+              {
+                "id": "42",
+                "title": "Next.js Rendering & Caching",
+                "price": 249000
+              },
+              {
+                "id": "57",
+                "title": "React Server Components",
+                "price": 199000
+              },
+              {
+                "id": "63",
+                "title": "Node.js Streams",
+                "price": 149000
+              }
+            ],
+            "steps": [
+              {
+                "read": "42"
+              },
+              {
+                "read": "42"
+              },
+              {
+                "advance": 600
+              },
+              {
+                "read": "42"
+              }
+            ]
+          },
+          "expected": "read 42: \"Next.js Rendering & Caching - 249000 VND\" (MISS)\nread 42: \"Next.js Rendering & Caching - 249000 VND\" (HIT)\n+600s\nread 42: \"Next.js Rendering & Caching - 249000 VND\" (HIT)\ndatabase reads: 1",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "After the one-hour lifetime: one stale read, then fresh; courses are cached separately",
+          "input": {
+            "courses": [
+              {
+                "id": "42",
+                "title": "Next.js Rendering & Caching",
+                "price": 249000
+              },
+              {
+                "id": "57",
+                "title": "React Server Components",
+                "price": 199000
+              },
+              {
+                "id": "63",
+                "title": "Node.js Streams",
+                "price": 149000
+              }
+            ],
+            "steps": [
+              {
+                "read": "42"
+              },
+              {
+                "read": "57"
+              },
+              {
+                "advance": 3600
+              },
+              {
+                "read": "42"
+              },
+              {
+                "read": "42"
+              },
+              {
+                "read": "57"
+              }
+            ]
+          },
+          "expected": "read 42: \"Next.js Rendering & Caching - 249000 VND\" (MISS)\nread 57: \"React Server Components - 199000 VND\" (MISS)\n+3600s\nread 42: \"Next.js Rendering & Caching - 249000 VND\" (STALE)\nread 42: \"Next.js Rendering & Caching - 249000 VND\" (HIT)\nread 57: \"React Server Components - 199000 VND\" (STALE)\ndatabase reads: 4",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "The incident: the instructor saves a new title and reads the page right after",
+          "input": {
+            "courses": [
+              {
+                "id": "42",
+                "title": "Next.js Rendering & Caching",
+                "price": 249000
+              },
+              {
+                "id": "57",
+                "title": "React Server Components",
+                "price": 199000
+              },
+              {
+                "id": "63",
+                "title": "Node.js Streams",
+                "price": 149000
+              }
+            ],
+            "steps": [
+              {
+                "read": "42"
+              },
+              {
+                "edit": "42",
+                "title": "Next.js Caching in Practice"
+              },
+              {
+                "read": "42"
+              },
+              {
+                "read": "42"
+              }
+            ]
+          },
+          "expected": "read 42: \"Next.js Rendering & Caching - 249000 VND\" (MISS)\nedit 42: ok\nread 42: \"Next.js Caching in Practice - 249000 VND\" (MISS)\nread 42: \"Next.js Caching in Practice - 249000 VND\" (HIT)\ndatabase reads: 2",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "A price change shows on the next read, then the page is cached again",
+          "input": {
+            "courses": [
+              {
+                "id": "42",
+                "title": "Next.js Rendering & Caching",
+                "price": 249000
+              },
+              {
+                "id": "57",
+                "title": "React Server Components",
+                "price": 199000
+              },
+              {
+                "id": "63",
+                "title": "Node.js Streams",
+                "price": 149000
+              }
+            ],
+            "steps": [
+              {
+                "read": "42"
+              },
+              {
+                "advance": 120
+              },
+              {
+                "price": "42",
+                "amount": 199000
+              },
+              {
+                "read": "42"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "42"
+              }
+            ]
+          },
+          "expected": "read 42: \"Next.js Rendering & Caching - 249000 VND\" (MISS)\n+120s\nprice 42: ok\nread 42: \"Next.js Rendering & Caching - 199000 VND\" (MISS)\n+60s\nread 42: \"Next.js Rendering & Caching - 199000 VND\" (HIT)\ndatabase reads: 2",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Editing course 42 leaves courses 57 and 63 cached",
+          "input": {
+            "courses": [
+              {
+                "id": "42",
+                "title": "Next.js Rendering & Caching",
+                "price": 249000
+              },
+              {
+                "id": "57",
+                "title": "React Server Components",
+                "price": 199000
+              },
+              {
+                "id": "63",
+                "title": "Node.js Streams",
+                "price": 149000
+              }
+            ],
+            "steps": [
+              {
+                "read": "42"
+              },
+              {
+                "read": "57"
+              },
+              {
+                "read": "63"
+              },
+              {
+                "edit": "42",
+                "title": "Caching, Properly"
+              },
+              {
+                "price": "42",
+                "amount": 99000
+              },
+              {
+                "read": "57"
+              },
+              {
+                "read": "63"
+              },
+              {
+                "read": "42"
+              }
+            ]
+          },
+          "expected": "read 42: \"Next.js Rendering & Caching - 249000 VND\" (MISS)\nread 57: \"React Server Components - 199000 VND\" (MISS)\nread 63: \"Node.js Streams - 149000 VND\" (MISS)\nedit 42: ok\nprice 42: ok\nread 57: \"React Server Components - 199000 VND\" (HIT)\nread 63: \"Node.js Streams - 149000 VND\" (HIT)\nread 42: \"Caching, Properly - 99000 VND\" (MISS)\ndatabase reads: 4",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Invalid actions change nothing and refresh nothing; a missing course is a 404",
+          "input": {
+            "courses": [
+              {
+                "id": "42",
+                "title": "Next.js Rendering & Caching",
+                "price": 249000
+              },
+              {
+                "id": "57",
+                "title": "React Server Components",
+                "price": 199000
+              },
+              {
+                "id": "63",
+                "title": "Node.js Streams",
+                "price": 149000
+              }
+            ],
+            "steps": [
+              {
+                "read": "42"
+              },
+              {
+                "edit": "999",
+                "title": "Ghost"
+              },
+              {
+                "price": "42",
+                "amount": -5
+              },
+              {
+                "price": "42",
+                "amount": 1990.5
+              },
+              {
+                "price": "42"
+              },
+              {
+                "edit": "42",
+                "title": "   "
+              },
+              {
+                "read": "42"
+              },
+              {
+                "read": "999"
+              }
+            ]
+          },
+          "expected": "read 42: \"Next.js Rendering & Caching - 249000 VND\" (MISS)\nedit 999: course not found\nprice 42: invalid price\nprice 42: invalid price\nprice 42: invalid price\nedit 42: title is required\nread 42: \"Next.js Rendering & Caching - 249000 VND\" (HIT)\nread 999: \"404 Not Found\" (MISS)\ndatabase reads: 2",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Large input: 20 courses, 1500 steps: reads, edits, price changes and clock moves",
+          "input": {
+            "courses": [
+              {
+                "id": "100",
+                "title": "Course 100",
+                "price": 99000
+              },
+              {
+                "id": "101",
+                "title": "Course 101",
+                "price": 109000
+              },
+              {
+                "id": "102",
+                "title": "Course 102",
+                "price": 119000
+              },
+              {
+                "id": "103",
+                "title": "Course 103",
+                "price": 129000
+              },
+              {
+                "id": "104",
+                "title": "Course 104",
+                "price": 139000
+              },
+              {
+                "id": "105",
+                "title": "Course 105",
+                "price": 149000
+              },
+              {
+                "id": "106",
+                "title": "Course 106",
+                "price": 159000
+              },
+              {
+                "id": "107",
+                "title": "Course 107",
+                "price": 169000
+              },
+              {
+                "id": "108",
+                "title": "Course 108",
+                "price": 179000
+              },
+              {
+                "id": "109",
+                "title": "Course 109",
+                "price": 189000
+              },
+              {
+                "id": "110",
+                "title": "Course 110",
+                "price": 199000
+              },
+              {
+                "id": "111",
+                "title": "Course 111",
+                "price": 209000
+              },
+              {
+                "id": "112",
+                "title": "Course 112",
+                "price": 219000
+              },
+              {
+                "id": "113",
+                "title": "Course 113",
+                "price": 229000
+              },
+              {
+                "id": "114",
+                "title": "Course 114",
+                "price": 239000
+              },
+              {
+                "id": "115",
+                "title": "Course 115",
+                "price": 249000
+              },
+              {
+                "id": "116",
+                "title": "Course 116",
+                "price": 259000
+              },
+              {
+                "id": "117",
+                "title": "Course 117",
+                "price": 269000
+              },
+              {
+                "id": "118",
+                "title": "Course 118",
+                "price": 279000
+              },
+              {
+                "id": "119",
+                "title": "Course 119",
+                "price": 289000
+              }
+            ],
+            "steps": [
+              {
+                "read": "107"
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v1"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "108"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v6"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v8"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v9"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "108"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "108"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v18"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v20"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v26"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v28"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v32"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v47"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v59"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v64"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v66"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v72"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "100"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v75"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "116"
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v78"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v89"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v91"
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v92"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v100"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v111"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v117"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "112"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v132"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "100"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "100"
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v138"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v147"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v149"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v159"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v160"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v172"
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v173"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "116"
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v179"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v182"
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v183"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v186"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v189"
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v190"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v201"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "100"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "108"
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v212"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "112"
+              },
+              {
+                "edit": "117",
+                "title": "Course 117 v219"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "112"
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v227"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v234"
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v235"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v238"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v239"
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v240"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v243"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "116"
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v246"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v260"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "108"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v274"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "100"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v288"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v293"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v314"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "112"
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v322"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "116"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v331"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v335"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v336"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v342"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "100"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "116"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v353"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v354"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "100"
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v362"
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v363"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v366"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v371"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v374"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v377"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v379"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v384"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v389"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v393"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v413"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v418"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "100"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v434"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v437"
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v438"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "112"
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v442"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "108"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "112"
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 w455"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v467"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v471"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v475"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v481"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v487"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v489"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v495"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "104"
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v498"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v503"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v506"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v517"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v519"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v522"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v524"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v529"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "112"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "104"
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v539"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "113"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "108"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v554"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v564"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "100"
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v569"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v571"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "112"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v581"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v583"
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v584"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v586"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "112"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v597"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v604"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v608"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v611"
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v612"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v620"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "108"
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v626"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v629"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v631"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v642"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v646"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v660"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v667"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v669"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v676"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v682"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v683"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v688"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v691"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v697"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v699"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v708"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v712"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v715"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v729"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v732"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v735"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v747"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "100"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "104"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v754"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v756"
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v757"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "112"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v761"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "108"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v788"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "100"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v792"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v800"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "100"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v806"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v814"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "112"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v824"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v826"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v835"
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v836"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v839"
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v840"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "100"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v853"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v855"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v856"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v876"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "104"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v879"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v880"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v882"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v883"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v902"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "108"
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v907"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v911"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v918"
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v919"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v922"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "100"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "112"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v929"
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v930"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "108"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v939"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v946"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v947"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v954"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v956"
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v957"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v962"
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v963"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v967"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v968"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v971"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v979"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v996"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "100"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v1004"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "105"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "104"
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v1020"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v1027"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v1029"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v1030"
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v1031"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v1044"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v1048"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v1053"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "104"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v1060"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v1082"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v1095"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "112"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v1110"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v1127"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v1132"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "108"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v1135"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v1143"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v1146"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "108"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v1156"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "100"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v1179"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "112"
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v1182"
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v1183"
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v1184"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v1193"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v1202"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v1205"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "104"
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v1211"
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v1212"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v1227"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v1229"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v1234"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "108"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v1243"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v1245"
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v1246"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v1249"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v1253"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "112"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v1257"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v1263"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v1264"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v1268"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v1270"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v1272"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v1278"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v1280"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v1282"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v1284"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v1285"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v1286"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "108"
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v1289"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v1299"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v1304"
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v1305"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v1306"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v1317"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v1318"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v1319"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v1323"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v1326"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "100"
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v1332"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v1334"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v1338"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v1341"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "100"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v1358"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v1362"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v1364"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v1366"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v1373"
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v1374"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v1376"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "116"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "100"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v1381"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v1391"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v1398"
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v1399"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v1412"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "108"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "108"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v1422"
+              },
+              {
+                "read": "113"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v1427"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v1452"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v1456"
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v1457"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "100"
+              },
+              {
+                "edit": "112",
+                "title": "Course 112 v1462"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v1464"
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v1465"
+              },
+              {
+                "read": "100"
+              },
+              {
+                "edit": "108",
+                "title": "Course 108 v1467"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v1469"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v1471"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "108"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "100"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v1479"
+              },
+              {
+                "edit": "116",
+                "title": "Course 116 v1480"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "112"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "read": "104"
+              },
+              {
+                "advance": 60
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v1493"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "104"
+              },
+              {
+                "read": "112"
+              },
+              {
+                "read": "116"
+              },
+              {
+                "edit": "100",
+                "title": "Course 100 v1498"
+              },
+              {
+                "edit": "104",
+                "title": "Course 104 v1499"
+              }
+            ]
+          },
+          "expected": "read 107: \"Course 107 - 169000 VND\" (MISS)\nedit 116: ok\nread 108: \"Course 108 - 179000 VND\" (MISS)\nread 104: \"Course 104 - 139000 VND\" (MISS)\n+60s\nread 108: \"Course 108 - 179000 VND\" (HIT)\nedit 108: ok\nread 116: \"Course 116 v1 - 259000 VND\" (MISS)\nedit 100: ok\nedit 112: ok\n+60s\nread 108: \"Course 108 v6 - 179000 VND\" (MISS)\n+60s\nread 108: \"Course 108 v6 - 179000 VND\" (HIT)\n+60s\nread 112: \"Course 112 v9 - 219000 VND\" (MISS)\nread 100: \"Course 100 v8 - 99000 VND\" (MISS)\nread 116: \"Course 116 v1 - 259000 VND\" (HIT)\nedit 108: ok\n+60s\nedit 100: ok\n+60s\nread 100: \"Course 100 v20 - 99000 VND\" (MISS)\nread 104: \"Course 104 - 139000 VND\" (HIT)\n+60s\n+60s\nedit 104: ok\nread 112: \"Course 112 v9 - 219000 VND\" (HIT)\nedit 104: ok\n+60s\nread 108: \"Course 108 v18 - 179000 VND\" (MISS)\nread 108: \"Course 108 v18 - 179000 VND\" (HIT)\nedit 104: ok\nread 116: \"Course 116 v1 - 259000 VND\" (HIT)\nread 104: \"Course 104 v32 - 139000 VND\" (MISS)\nread 116: \"Course 116 v1 - 259000 VND\" (HIT)\nread 100: \"Course 100 v20 - 99000 VND\" (HIT)\nread 104: \"Course 104 v32 - 139000 VND\" (HIT)\nread 104: \"Course 104 v32 - 139000 VND\" (HIT)\nread 116: \"Course 116 v1 - 259000 VND\" (HIT)\nread 108: \"Course 108 v18 - 179000 VND\" (HIT)\nread 116: \"Course 116 v1 - 259000 VND\" (HIT)\nread 112: \"Course 112 v9 - 219000 VND\" (HIT)\n+60s\nread 116: \"Course 116 v1 - 259000 VND\" (HIT)\nread 108: \"Course 108 v18 - 179000 VND\" (HIT)\nread 112: \"Course 112 v9 - 219000 VND\" (HIT)\nedit 104: ok\nread 112: \"Course 112 v9 - 219000 VND\" (HIT)\nread 100: \"Course 100 v20 - 99000 VND\" (HIT)\nread 112: \"Course 112 v9 - 219000 VND\" (HIT)\nread 108: \"Course 108 v18 - 179000 VND\" (HIT)\n+60s\nread 100: \"Course 100 v20 - 99000 VND\" (HIT)\nread 116: \"Course 116 v1 - 259000 VND\" (HIT)\nread 108: \"Course 108 v18 - 179000 VND\" (HIT)\nread 116: \"Course 116 v1 - 259000 VND\" (HIT)\nread 112: \"Course 112 v9 - 219000 VND\" (HIT)\nread 108: \"Course 108 v18 - 179000 VND\" (HIT)\nedit 108: ok\nread 112: \"Course 112 v9 - 219000 VND\" (HIT)\nread 116: \"Course 116 v1 - 259000 VND\" (HIT)\nread 112: \"Course 112 v9 - 219000 VND\" (HIT)\nread 104: \"Course 104 v47 - 139000 VND\" (MISS)\nedit 100: ok\nread 112: \"Course 112 v9 - 219000 VND\" (HIT)\nedit 112: ok\nread 108: \"Course 108 v59 - 179000 VND\" (MISS)\nread 100: \"Course 100 v64 - 99000 VND\" (MISS)\n+60s\nread 112: \"Course 112 v66 - 219000 VND\" (MISS)\nread 104: \"Course 104 v47 - 139000 VND\" (HIT)\nedit 108: ok\n+60s\nread 100: \"Course 100 v64 - 99000 VND\" (HIT)\nedit 108: ok\n+60s\nread 116: \"Course 116 v1 - 259000 VND\" (HIT)\nedit 100: ok\nread 100: \"Course 100 v78 - 99000 VND\" (MISS)\nread 116: \"Course 116 v1 - 259000 VND\" (HIT)\n+60s\nread 108: \"Course 108 v75 - 179000 VND\" (MISS)\nread 112: \"Course 112 v66 - 219000 VND\" (HIT)\n+60s\nread 112: \"Course 112 v66 - 219000 VND\" (HIT)\nread 116: \"Course 116 v1 - 259000 VND\" (HIT)\nread 108: \"Course 108 v75 - 179000 VND\" (HIT)\nread 108: \"Course 108 v75 - 179000 VND\" (HIT)\nedit 116: ok\n+60s\nedit 108: ok\nedit 116: ok\nread 104: \"Course 104 v47 - 139000 VND\" (HIT)\nread 112: \"Course 112 v66 - 219000 VND\" (HIT)\nread 108: \"Course 108 v91 - 179000 VND\" (MISS)\nread 112: \"Course 112 v66 - 219000 VND\" (HIT)\nread 108: \"Course 108 v91 - 179000 VND\" (HIT)\nread 100: \"Course 100 v78 - 99000 VND\" (HIT)\nread 100: \"Course 100 v78 - 99000 VND\" (HIT)\nedit 116: ok\nread 104: \"Course 104 v47 - 139000 VND\" (HIT)\n+60s\n+60s\nread 104: \"Course 104 v47 - 139000 VND\" (HIT)\nread 112: \"Course 112 v66 - 219000 VND\" (HIT)\nread 116: \"Course 116 v100 - 259000 VND\" (MISS)\nread 112: \"Course 112 v66 - 219000 VND\" (HIT)\n+60s\n+60s\n+60s\nedit 112: ok\nread 116: \"Course 116 v100 - 259000 VND\" (HIT)\n+60s\nread 116: \"Course 116 v100 - 259000 VND\" (HIT)\nread 112: \"Course 112 v111 - 219000 VND\" (MISS)\nread 112: \"Course 112 v111 - 219000 VND\" (HIT)\nedit 112: ok\nread 112: \"Course 112 v117 - 219000 VND\" (MISS)\n+60s\nread 112: \"Course 112 v117 - 219000 VND\" (HIT)\n+60s\nread 112: \"Course 112 v117 - 219000 VND\" (HIT)\nread 104: \"Course 104 v47 - 139000 VND\" (HIT)\nread 104: \"Course 104 v47 - 139000 VND\" (HIT)\nread 116: \"Course 116 v100 - 259000 VND\" (HIT)\nread 112: \"Course 112 v117 - 219000 VND\" (HIT)\nread 100: \"Course 100 v78 - 99000 VND\" (HIT)\nread 108: \"Course 108 v91 - 179000 VND\" (HIT)\nread 112: \"Course 112 v117 - 219000 VND\" (HIT)\nread 112: \"Course 112 v117 - 219000 VND\" (HIT)\nread 100: \"Course 100 v78 - 99000 VND\" (HIT)\nedit 100: ok\n+60s\n+60s\nread 100: \"Course 100 v132 - 99000 VND\" (MISS)\n+60s\nread 100: \"Course 100 v132 - 99000 VND\" (HIT)\nedit 104: ok\nread 108: \"Course 108 v91 - 179000 VND\" (HIT)\nread 116: \"Course 116 v100 - 259000 VND\" (HIT)\n+60s\nread 112: \"Course 112 v117 - 219000 VND\" (HIT)\nread 112: \"Course 112 v117 - 219000 VND\" (HIT)\nread 112: \"Course 112 v117 - 219000 VND\" (HIT)\nread 116: \"Course 116 v100 - 259000 VND\" (HIT)\nread 104: \"Course 104 v138 - 139000 VND\" (MISS)\nedit 104: ok\nread 112: \"Course 112 v117 - 219000 VND\" (HIT)\nedit 104: ok\n+60s\nread 108: \"Course 108 v91 - 179000 VND\" (HIT)\nread 104: \"Course 104 v149 - 139000 VND\" (MISS)\nread 112: \"Course 112 v117 - 219000 VND\" (HIT)\n+60s\n+60s\nread 116: \"Course 116 v100 - 259000 VND\" (HIT)\nread 112: \"Course 112 v117 - 219000 VND\" (HIT)\nread 108: \"Course 108 v91 - 179000 VND\" (HIT)\nedit 112: ok\nedit 108: ok\nread 100: \"Course 100 v132 - 99000 VND\" (HIT)\nread 112: \"Course 112 v159 - 219000 VND\" (MISS)\nread 112: \"Course 112 v159 - 219000 VND\" (HIT)\nread 100: \"Course 100 v132 - 99000 VND\" (HIT)\n+60s\nread 104: \"Course 104 v149 - 139000 VND\" (HIT)\nread 100: \"Course 100 v132 - 99000 VND\" (HIT)\nread 112: \"Course 112 v159 - 219000 VND\" (HIT)\nread 100: \"Course 100 v132 - 99000 VND\" (HIT)\nread 100: \"Course 100 v132 - 99000 VND\" (HIT)\nread 116: \"Course 116 v100 - 259000 VND\" (HIT)\nedit 100: ok\nedit 104: ok\nread 116: \"Course 116 v100 - 259000 VND\" (HIT)\nread 100: \"Course 100 v172 - 99000 VND\" (MISS)\nread 116: \"Course 116 v100 - 259000 VND\" (HIT)\n+60s\nread 116: \"Course 116 v100 - 259000 VND\" (HIT)\nedit 104: ok\nread 100: \"Course 100 v172 - 99000 VND\" (HIT)\nread 108: \"Course 108 v160 - 179000 VND\" (MISS)\nedit 108: ok\nedit 104: ok\nread 108: \"Course 108 v182 - 179000 VND\" (MISS)\nread 116: \"Course 116 v100 - 259000 VND\" (HIT)\nedit 100: ok\nread 108: \"Course 108 v182 - 179000 VND\" (HIT)\nread 100: \"Course 100 v186 - 99000 VND\" (MISS)\nedit 108: ok\nedit 104: ok\nread 116: \"Course 116 v100 - 259000 VND\" (HIT)\n+60s\nread 116: \"Course 116 v100 - 259000 VND\" (HIT)\nread 112: \"Course 112 v159 - 219000 VND\" (HIT)\nread 100: \"Course 100 v186 - 99000 VND\" (HIT)\n+60s\nread 108: \"Course 108 v189 - 179000 VND\" (MISS)\nread 108: \"Course 108 v189 - 179000 VND\" (HIT)\nread 108: \"Course 108 v189 - 179000 VND\" (HIT)\nread 100: \"Course 100 v186 - 99000 VND\" (HIT)\nedit 104: ok\nread 104: \"Course 104 v201 - 139000 VND\" (MISS)\nread 104: \"Course 104 v201 - 139000 VND\" (HIT)\nread 104: \"Course 104 v201 - 139000 VND\" (HIT)\n+60s\nread 100: \"Course 100 v186 - 99000 VND\" (HIT)\n+60s\nread 104: \"Course 104 v201 - 139000 VND\" (HIT)\nread 104: \"Course 104 v201 - 139000 VND\" (HIT)\n+60s\nread 108: \"Course 108 v189 - 179000 VND\" (HIT)\nedit 116: ok\nread 104: \"Course 104 v201 - 139000 VND\" (HIT)\n+60s\nread 108: \"Course 108 v189 - 179000 VND\" (HIT)\nread 112: \"Course 112 v159 - 219000 VND\" (HIT)\n+60s\nread 112: \"Course 112 v159 - 219000 VND\" (HIT)\nedit 117: ok\n+60s\nread 116: \"Course 116 v212 - 259000 VND\" (MISS)\nread 108: \"Course 108 v189 - 179000 VND\" (HIT)\nread 112: \"Course 112 v159 - 219000 VND\" (HIT)\n+60s\n+60s\nread 112: \"Course 112 v159 - 219000 VND\" (HIT)\nedit 104: ok\nread 104: \"Course 104 v227 - 139000 VND\" (MISS)\n+60s\n+60s\nread 116: \"Course 116 v212 - 259000 VND\" (HIT)\nread 112: \"Course 112 v159 - 219000 VND\" (HIT)\n+60s\nedit 108: ok\nedit 100: ok\nread 112: \"Course 112 v159 - 219000 VND\" (HIT)\n+60s\nedit 116: ok\nedit 108: ok\nedit 100: ok\nread 104: \"Course 104 v227 - 139000 VND\" (HIT)\n+60s\nedit 104: ok\n+60s\nread 116: \"Course 116 v238 - 259000 VND\" (MISS)\nedit 116: ok\nread 108: \"Course 108 v239 - 179000 VND\" (MISS)\nread 104: \"Course 104 v243 - 139000 VND\" (MISS)\nread 104: \"Course 104 v243 - 139000 VND\" (HIT)\n+60s\nread 104: \"Course 104 v243 - 139000 VND\" (HIT)\n+60s\nread 112: \"Course 112 v159 - 219000 VND\" (HIT)\nread 116: \"Course 116 v246 - 259000 VND\" (MISS)\nread 104: \"Course 104 v243 - 139000 VND\" (HIT)\nread 112: \"Course 112 v159 - 219000 VND\" (HIT)\nread 108: \"Course 108 v239 - 179000 VND\" (HIT)\n+60s\n+60s\nedit 104: ok\nread 104: \"Course 104 v260 - 139000 VND\" (MISS)\nread 112: \"Course 112 v159 - 219000 VND\" (HIT)\nread 116: \"Course 116 v246 - 259000 VND\" (HIT)\nread 116: \"Course 116 v246 - 259000 VND\" (HIT)\nread 112: \"Course 112 v159 - 219000 VND\" (HIT)\n+60s\nread 108: \"Course 108 v239 - 179000 VND\" (HIT)\nread 100: \"Course 100 v240 - 99000 VND\" (MISS)\nread 112: \"Course 112 v159 - 219000 VND\" (HIT)\nread 112: \"Course 112 v159 - 219000 VND\" (HIT)\nread 100: \"Course 100 v240 - 99000 VND\" (HIT)\n+60s\nread 108: \"Course 108 v239 - 179000 VND\" (HIT)\nedit 108: ok\nread 112: \"Course 112 v159 - 219000 VND\" (HIT)\nread 112: \"Course 112 v159 - 219000 VND\" (HIT)\nread 116: \"Course 116 v246 - 259000 VND\" (HIT)\n+60s\n+60s\n+60s\nread 100: \"Course 100 v240 - 99000 VND\" (HIT)\n+60s\n+60s\nread 104: \"Course 104 v260 - 139000 VND\" (HIT)\n+60s\n+60s\n+60s\nedit 100: ok\nread 100: \"Course 100 v288 - 99000 VND\" (MISS)\nread 112: \"Course 112 v159 - 219000 VND\" (HIT)\nread 112: \"Course 112 v159 - 219000 VND\" (HIT)\nread 116: \"Course 116 v246 - 259000 VND\" (HIT)\nedit 116: ok\nread 116: \"Course 116 v293 - 259000 VND\" (MISS)\nread 116: \"Course 116 v293 - 259000 VND\" (HIT)\nread 112: \"Course 112 v159 - 219000 VND\" (HIT)\nread 100: \"Course 100 v288 - 99000 VND\" (HIT)\nread 116: \"Course 116 v293 - 259000 VND\" (HIT)\nread 116: \"Course 116 v293 - 259000 VND\" (HIT)\nread 116: \"Course 116 v293 - 259000 VND\" (HIT)\nread 108: \"Course 108 v274 - 179000 VND\" (MISS)\nread 104: \"Course 104 v260 - 139000 VND\" (HIT)\nread 104: \"Course 104 v260 - 139000 VND\" (HIT)\nread 100: \"Course 100 v288 - 99000 VND\" (HIT)\nread 100: \"Course 100 v288 - 99000 VND\" (HIT)\nread 104: \"Course 104 v260 - 139000 VND\" (HIT)\nread 104: \"Course 104 v260 - 139000 VND\" (HIT)\nread 100: \"Course 100 v288 - 99000 VND\" (HIT)\nread 100: \"Course 100 v288 - 99000 VND\" (HIT)\n+60s\nread 100: \"Course 100 v288 - 99000 VND\" (HIT)\nread 108: \"Course 108 v274 - 179000 VND\" (HIT)\nread 112: \"Course 112 v159 - 219000 VND\" (HIT)\nedit 112: ok\nread 100: \"Course 100 v288 - 99000 VND\" (HIT)\nread 108: \"Course 108 v274 - 179000 VND\" (HIT)\nread 116: \"Course 116 v293 - 259000 VND\" (HIT)\nread 108: \"Course 108 v274 - 179000 VND\" (HIT)\nread 100: \"Course 100 v288 - 99000 VND\" (HIT)\n+60s\nread 112: \"Course 112 v314 - 219000 VND\" (MISS)\nedit 104: ok\nread 108: \"Course 108 v274 - 179000 VND\" (HIT)\nread 104: \"Course 104 v322 - 139000 VND\" (MISS)\nread 104: \"Course 104 v322 - 139000 VND\" (HIT)\nread 116: \"Course 116 v293 - 259000 VND\" (HIT)\nread 112: \"Course 112 v314 - 219000 VND\" (HIT)\n+60s\nread 116: \"Course 116 v293 - 259000 VND\" (HIT)\n+60s\nedit 108: ok\nread 116: \"Course 116 v293 - 259000 VND\" (HIT)\nread 116: \"Course 116 v293 - 259000 VND\" (HIT)\nread 108: \"Course 108 v331 - 179000 VND\" (MISS)\nedit 112: ok\nedit 112: ok\n+60s\n+60s\n+60s\nread 104: \"Course 104 v322 - 139000 VND\" (HIT)\nread 108: \"Course 108 v331 - 179000 VND\" (HIT)\nedit 108: ok\n+60s\nread 100: \"Course 100 v288 - 99000 VND\" (HIT)\n+60s\nread 116: \"Course 116 v293 - 259000 VND\" (HIT)\n+60s\nread 108: \"Course 108 v342 - 179000 VND\" (MISS)\nread 112: \"Course 112 v336 - 219000 VND\" (MISS)\nread 100: \"Course 100 v288 - 99000 VND\" (HIT)\nread 104: \"Course 104 v322 - 139000 VND\" (HIT)\n+60s\nedit 112: ok\nedit 108: ok\n+60s\nread 108: \"Course 108 v354 - 179000 VND\" (MISS)\nread 100: \"Course 100 v288 - 99000 VND\" (HIT)\nread 112: \"Course 112 v353 - 219000 VND\" (MISS)\nread 116: \"Course 116 v293 - 259000 VND\" (HIT)\n+60s\nread 100: \"Course 100 v288 - 99000 VND\" (HIT)\nedit 100: ok\nedit 100: ok\nread 112: \"Course 112 v353 - 219000 VND\" (HIT)\nread 104: \"Course 104 v322 - 139000 VND\" (HIT)\nedit 116: ok\nread 112: \"Course 112 v353 - 219000 VND\" (HIT)\nread 112: \"Course 112 v353 - 219000 VND\" (HIT)\nread 112: \"Course 112 v353 - 219000 VND\" (HIT)\nread 112: \"Course 112 v353 - 219000 VND\" (HIT)\nedit 112: ok\nread 116: \"Course 116 v366 - 259000 VND\" (MISS)\n+60s\nedit 116: ok\nread 108: \"Course 108 v354 - 179000 VND\" (HIT)\n+60s\nedit 116: ok\nread 116: \"Course 116 v377 - 259000 VND\" (MISS)\nedit 112: ok\nread 108: \"Course 108 v354 - 179000 VND\" (HIT)\nread 108: \"Course 108 v354 - 179000 VND\" (HIT)\nread 116: \"Course 116 v377 - 259000 VND\" (HIT)\n+60s\nedit 104: ok\nread 116: \"Course 116 v377 - 259000 VND\" (HIT)\nread 108: \"Course 108 v354 - 179000 VND\" (HIT)\nread 116: \"Course 116 v377 - 259000 VND\" (HIT)\nread 100: \"Course 100 v363 - 99000 VND\" (MISS)\nedit 104: ok\nread 116: \"Course 116 v377 - 259000 VND\" (HIT)\nread 112: \"Course 112 v379 - 219000 VND\" (MISS)\nread 116: \"Course 116 v377 - 259000 VND\" (HIT)\nedit 108: ok\nread 104: \"Course 104 v389 - 139000 VND\" (MISS)\nread 104: \"Course 104 v389 - 139000 VND\" (HIT)\n+60s\nread 108: \"Course 108 v393 - 179000 VND\" (MISS)\nread 100: \"Course 100 v363 - 99000 VND\" (HIT)\nread 112: \"Course 112 v379 - 219000 VND\" (HIT)\nread 116: \"Course 116 v377 - 259000 VND\" (HIT)\nread 100: \"Course 100 v363 - 99000 VND\" (HIT)\nread 108: \"Course 108 v393 - 179000 VND\" (HIT)\nread 104: \"Course 104 v389 - 139000 VND\" (HIT)\n+60s\nread 108: \"Course 108 v393 - 179000 VND\" (HIT)\nread 112: \"Course 112 v379 - 219000 VND\" (HIT)\nread 104: \"Course 104 v389 - 139000 VND\" (HIT)\n+60s\nread 116: \"Course 116 v377 - 259000 VND\" (HIT)\nread 108: \"Course 108 v393 - 179000 VND\" (HIT)\nread 100: \"Course 100 v363 - 99000 VND\" (HIT)\nread 112: \"Course 112 v379 - 219000 VND\" (HIT)\nedit 112: ok\nread 100: \"Course 100 v363 - 99000 VND\" (HIT)\nread 108: \"Course 108 v393 - 179000 VND\" (HIT)\nread 112: \"Course 112 v413 - 219000 VND\" (MISS)\n+60s\nedit 100: ok\n+60s\nread 100: \"Course 100 v418 - 99000 VND\" (MISS)\n+60s\n+60s\nread 100: \"Course 100 v418 - 99000 VND\" (HIT)\nread 100: \"Course 100 v418 - 99000 VND\" (HIT)\nread 100: \"Course 100 v418 - 99000 VND\" (HIT)\nread 100: \"Course 100 v418 - 99000 VND\" (HIT)\nread 108: \"Course 108 v393 - 179000 VND\" (HIT)\nread 100: \"Course 100 v418 - 99000 VND\" (HIT)\n+60s\nread 104: \"Course 104 v389 - 139000 VND\" (HIT)\n+60s\nread 116: \"Course 116 v377 - 259000 VND\" (HIT)\nread 100: \"Course 100 v418 - 99000 VND\" (HIT)\nedit 112: ok\nread 104: \"Course 104 v389 - 139000 VND\" (HIT)\n+60s\nedit 112: ok\nedit 100: ok\nread 116: \"Course 116 v377 - 259000 VND\" (HIT)\n+60s\nread 112: \"Course 112 v437 - 219000 VND\" (MISS)\nedit 104: ok\nread 116: \"Course 116 v377 - 259000 VND\" (HIT)\n+60s\nread 108: \"Course 108 v393 - 179000 VND\" (HIT)\n+60s\nread 108: \"Course 108 v393 - 179000 VND\" (HIT)\nread 108: \"Course 108 v393 - 179000 VND\" (HIT)\nread 116: \"Course 116 v377 - 259000 VND\" (HIT)\nread 100: \"Course 100 v438 - 99000 VND\" (MISS)\nread 116: \"Course 116 v377 - 259000 VND\" (HIT)\nread 112: \"Course 112 v437 - 219000 VND\" (HIT)\n+60s\nread 112: \"Course 112 v437 - 219000 VND\" (HIT)\nedit 116: ok\nread 100: \"Course 100 v438 - 99000 VND\" (HIT)\n+60s\nread 100: \"Course 100 v438 - 99000 VND\" (HIT)\nread 104: \"Course 104 v442 - 139000 VND\" (MISS)\nread 116: \"Course 116 w455 - 259000 VND\" (MISS)\nread 108: \"Course 108 v393 - 179000 VND\" (HIT)\nread 116: \"Course 116 w455 - 259000 VND\" (HIT)\n+60s\nread 104: \"Course 104 v442 - 139000 VND\" (HIT)\nread 104: \"Course 104 v442 - 139000 VND\" (HIT)\nread 100: \"Course 100 v438 - 99000 VND\" (HIT)\nedit 104: ok\nread 116: \"Course 116 w455 - 259000 VND\" (HIT)\nread 116: \"Course 116 w455 - 259000 VND\" (HIT)\nread 108: \"Course 108 v393 - 179000 VND\" (HIT)\nedit 112: ok\nread 112: \"Course 112 v471 - 219000 VND\" (MISS)\nread 108: \"Course 108 v393 - 179000 VND\" (HIT)\nread 116: \"Course 116 w455 - 259000 VND\" (HIT)\nedit 116: ok\nread 104: \"Course 104 v467 - 139000 VND\" (MISS)\nread 112: \"Course 112 v471 - 219000 VND\" (HIT)\nread 100: \"Course 100 v438 - 99000 VND\" (HIT)\nread 116: \"Course 116 v475 - 259000 VND\" (MISS)\n+60s\nedit 104: ok\nread 104: \"Course 104 v481 - 139000 VND\" (MISS)\n+60s\nread 112: \"Course 112 v471 - 219000 VND\" (HIT)\nread 112: \"Course 112 v471 - 219000 VND\" (HIT)\nread 112: \"Course 112 v471 - 219000 VND\" (HIT)\nedit 104: ok\nread 108: \"Course 108 v393 - 179000 VND\" (HIT)\nedit 104: ok\n+60s\nread 108: \"Course 108 v393 - 179000 VND\" (HIT)\nread 100: \"Course 100 v438 - 99000 VND\" (HIT)\nread 116: \"Course 116 v475 - 259000 VND\" (HIT)\nread 112: \"Course 112 v471 - 219000 VND\" (HIT)\nedit 100: ok\n+60s\nread 104: \"Course 104 v489 - 139000 VND\" (MISS)\nedit 116: ok\n+60s\nread 112: \"Course 112 v471 - 219000 VND\" (HIT)\nread 100: \"Course 100 v495 - 99000 VND\" (MISS)\n+60s\nedit 116: ok\nread 116: \"Course 116 v503 - 259000 VND\" (MISS)\nread 112: \"Course 112 v471 - 219000 VND\" (HIT)\nedit 108: ok\nread 112: \"Course 112 v471 - 219000 VND\" (HIT)\nread 112: \"Course 112 v471 - 219000 VND\" (HIT)\nread 100: \"Course 100 v495 - 99000 VND\" (HIT)\nread 112: \"Course 112 v471 - 219000 VND\" (HIT)\nread 108: \"Course 108 v506 - 179000 VND\" (MISS)\nread 104: \"Course 104 v489 - 139000 VND\" (HIT)\nread 100: \"Course 100 v495 - 99000 VND\" (HIT)\nread 116: \"Course 116 v503 - 259000 VND\" (HIT)\nread 100: \"Course 100 v495 - 99000 VND\" (HIT)\nread 108: \"Course 108 v506 - 179000 VND\" (HIT)\nedit 116: ok\nread 116: \"Course 116 v517 - 259000 VND\" (MISS)\nedit 112: ok\nread 100: \"Course 100 v495 - 99000 VND\" (HIT)\nread 104: \"Course 104 v489 - 139000 VND\" (HIT)\nedit 104: ok\nread 116: \"Course 116 v517 - 259000 VND\" (HIT)\nedit 112: ok\n+60s\n+60s\nread 104: \"Course 104 v522 - 139000 VND\" (MISS)\nread 116: \"Course 116 v517 - 259000 VND\" (HIT)\nedit 100: ok\nread 100: \"Course 100 v529 - 99000 VND\" (MISS)\nread 108: \"Course 108 v506 - 179000 VND\" (HIT)\nread 100: \"Course 100 v529 - 99000 VND\" (HIT)\n+60s\nread 104: \"Course 104 v522 - 139000 VND\" (HIT)\n+60s\nread 112: \"Course 112 v524 - 219000 VND\" (MISS)\n+60s\nread 104: \"Course 104 v522 - 139000 VND\" (HIT)\nedit 116: ok\nread 112: \"Course 112 v524 - 219000 VND\" (HIT)\nread 112: \"Course 112 v524 - 219000 VND\" (HIT)\n+60s\nread 100: \"Course 100 v529 - 99000 VND\" (HIT)\nread 113: \"Course 113 - 229000 VND\" (MISS)\nread 104: \"Course 104 v522 - 139000 VND\" (HIT)\n+60s\n+60s\nread 108: \"Course 108 v506 - 179000 VND\" (HIT)\n+60s\n+60s\nread 104: \"Course 104 v522 - 139000 VND\" (HIT)\nread 108: \"Course 108 v506 - 179000 VND\" (HIT)\nread 116: \"Course 116 v539 - 259000 VND\" (MISS)\nedit 112: ok\nread 104: \"Course 104 v522 - 139000 VND\" (HIT)\nread 100: \"Course 100 v529 - 99000 VND\" (HIT)\nread 104: \"Course 104 v522 - 139000 VND\" (HIT)\nread 116: \"Course 116 v539 - 259000 VND\" (HIT)\n+60s\nread 108: \"Course 108 v506 - 179000 VND\" (HIT)\nread 100: \"Course 100 v529 - 99000 VND\" (HIT)\nread 104: \"Course 104 v522 - 139000 VND\" (HIT)\nread 116: \"Course 116 v539 - 259000 VND\" (HIT)\nedit 116: ok\nread 112: \"Course 112 v554 - 219000 VND\" (MISS)\n+60s\n+60s\nread 100: \"Course 100 v529 - 99000 VND\" (HIT)\nedit 100: ok\nread 100: \"Course 100 v569 - 99000 VND\" (MISS)\nedit 108: ok\nread 108: \"Course 108 v571 - 179000 VND\" (MISS)\nread 104: \"Course 104 v522 - 139000 VND\" (HIT)\n+60s\nread 112: \"Course 112 v554 - 219000 VND\" (HIT)\n+60s\nread 104: \"Course 104 v522 - 139000 VND\" (HIT)\n+60s\nread 104: \"Course 104 v522 - 139000 VND\" (HIT)\nread 112: \"Course 112 v554 - 219000 VND\" (HIT)\nedit 104: ok\nread 104: \"Course 104 v581 - 139000 VND\" (MISS)\nedit 112: ok\nedit 100: ok\n+60s\nedit 116: ok\nread 108: \"Course 108 v571 - 179000 VND\" (HIT)\nread 116: \"Course 116 v586 - 259000 VND\" (MISS)\nread 108: \"Course 108 v571 - 179000 VND\" (HIT)\nread 100: \"Course 100 v584 - 99000 VND\" (MISS)\n+60s\nread 108: \"Course 108 v571 - 179000 VND\" (HIT)\nread 116: \"Course 116 v586 - 259000 VND\" (HIT)\nread 112: \"Course 112 v583 - 219000 VND\" (MISS)\n+60s\nread 112: \"Course 112 v583 - 219000 VND\" (HIT)\nedit 108: ok\n+60s\nread 108: \"Course 108 v597 - 179000 VND\" (MISS)\nread 112: \"Course 112 v583 - 219000 VND\" (HIT)\nread 104: \"Course 104 v581 - 139000 VND\" (HIT)\nread 108: \"Course 108 v597 - 179000 VND\" (HIT)\n+60s\nedit 116: ok\n+60s\nread 116: \"Course 116 v604 - 259000 VND\" (MISS)\nread 104: \"Course 104 v581 - 139000 VND\" (HIT)\nedit 100: ok\nread 112: \"Course 112 v583 - 219000 VND\" (HIT)\nread 100: \"Course 100 v608 - 99000 VND\" (MISS)\nedit 100: ok\nedit 116: ok\nread 100: \"Course 100 v611 - 99000 VND\" (MISS)\n+60s\n+60s\nread 104: \"Course 104 v581 - 139000 VND\" (HIT)\n+60s\nread 116: \"Course 116 v612 - 259000 VND\" (MISS)\nread 100: \"Course 100 v611 - 99000 VND\" (HIT)\nedit 116: ok\nread 104: \"Course 104 v581 - 139000 VND\" (HIT)\nread 116: \"Course 116 v620 - 259000 VND\" (MISS)\nread 116: \"Course 116 v620 - 259000 VND\" (HIT)\n+60s\nread 108: \"Course 108 v597 - 179000 VND\" (HIT)\nedit 100: ok\nread 100: \"Course 100 v626 - 99000 VND\" (MISS)\nread 116: \"Course 116 v620 - 259000 VND\" (HIT)\nedit 100: ok\nread 116: \"Course 116 v620 - 259000 VND\" (HIT)\nedit 112: ok\n+60s\n+60s\nread 100: \"Course 100 v629 - 99000 VND\" (MISS)\nread 100: \"Course 100 v629 - 99000 VND\" (HIT)\nread 112: \"Course 112 v631 - 219000 VND\" (MISS)\nread 116: \"Course 116 v620 - 259000 VND\" (HIT)\nread 108: \"Course 108 v597 - 179000 VND\" (HIT)\nread 108: \"Course 108 v597 - 179000 VND\" (HIT)\nread 108: \"Course 108 v597 - 179000 VND\" (HIT)\nread 108: \"Course 108 v597 - 179000 VND\" (HIT)\nedit 112: ok\nread 108: \"Course 108 v597 - 179000 VND\" (HIT)\nread 112: \"Course 112 v642 - 219000 VND\" (MISS)\nread 104: \"Course 104 v581 - 139000 VND\" (HIT)\nedit 104: ok\nread 104: \"Course 104 v646 - 139000 VND\" (MISS)\nread 104: \"Course 104 v646 - 139000 VND\" (HIT)\nread 112: \"Course 112 v642 - 219000 VND\" (HIT)\nread 112: \"Course 112 v642 - 219000 VND\" (HIT)\nread 100: \"Course 100 v629 - 99000 VND\" (HIT)\n+60s\nread 100: \"Course 100 v629 - 99000 VND\" (HIT)\nread 112: \"Course 112 v642 - 219000 VND\" (HIT)\n+60s\nread 108: \"Course 108 v597 - 179000 VND\" (HIT)\nread 104: \"Course 104 v646 - 139000 VND\" (HIT)\nread 116: \"Course 116 v620 - 259000 VND\" (HIT)\nread 116: \"Course 116 v620 - 259000 VND\" (HIT)\nedit 116: ok\nread 112: \"Course 112 v642 - 219000 VND\" (HIT)\nread 100: \"Course 100 v629 - 99000 VND\" (HIT)\nread 100: \"Course 100 v629 - 99000 VND\" (HIT)\nread 112: \"Course 112 v642 - 219000 VND\" (HIT)\nread 104: \"Course 104 v646 - 139000 VND\" (HIT)\nread 108: \"Course 108 v597 - 179000 VND\" (HIT)\nedit 116: ok\n+60s\nedit 116: ok\nread 100: \"Course 100 v629 - 99000 VND\" (HIT)\nread 108: \"Course 108 v597 - 179000 VND\" (HIT)\n+60s\nread 112: \"Course 112 v642 - 219000 VND\" (HIT)\nread 112: \"Course 112 v642 - 219000 VND\" (HIT)\nread 100: \"Course 100 v629 - 99000 VND\" (HIT)\nedit 112: ok\nread 108: \"Course 108 v597 - 179000 VND\" (HIT)\nread 116: \"Course 116 v669 - 259000 VND\" (MISS)\nread 100: \"Course 100 v629 - 99000 VND\" (HIT)\nread 100: \"Course 100 v629 - 99000 VND\" (HIT)\nread 100: \"Course 100 v629 - 99000 VND\" (HIT)\nedit 100: ok\nedit 108: ok\nread 100: \"Course 100 v682 - 99000 VND\" (MISS)\nread 104: \"Course 104 v646 - 139000 VND\" (HIT)\nread 104: \"Course 104 v646 - 139000 VND\" (HIT)\nread 100: \"Course 100 v682 - 99000 VND\" (HIT)\nedit 104: ok\nread 116: \"Course 116 v669 - 259000 VND\" (HIT)\nread 108: \"Course 108 v683 - 179000 VND\" (MISS)\nedit 108: ok\nread 100: \"Course 100 v682 - 99000 VND\" (HIT)\nread 104: \"Course 104 v688 - 139000 VND\" (MISS)\n+60s\nread 112: \"Course 112 v676 - 219000 VND\" (MISS)\nread 104: \"Course 104 v688 - 139000 VND\" (HIT)\nedit 100: ok\nread 108: \"Course 108 v691 - 179000 VND\" (MISS)\nedit 112: ok\nread 112: \"Course 112 v699 - 219000 VND\" (MISS)\nread 100: \"Course 100 v697 - 99000 VND\" (MISS)\nread 104: \"Course 104 v688 - 139000 VND\" (HIT)\nread 100: \"Course 100 v697 - 99000 VND\" (HIT)\nread 116: \"Course 116 v669 - 259000 VND\" (HIT)\nread 116: \"Course 116 v669 - 259000 VND\" (HIT)\nread 108: \"Course 108 v691 - 179000 VND\" (HIT)\n+60s\nedit 112: ok\nread 104: \"Course 104 v688 - 139000 VND\" (HIT)\nread 104: \"Course 104 v688 - 139000 VND\" (HIT)\nread 116: \"Course 116 v669 - 259000 VND\" (HIT)\nedit 108: ok\nread 108: \"Course 108 v712 - 179000 VND\" (MISS)\nread 108: \"Course 108 v712 - 179000 VND\" (HIT)\nedit 100: ok\nread 100: \"Course 100 v715 - 99000 VND\" (MISS)\nread 112: \"Course 112 v708 - 219000 VND\" (MISS)\nread 112: \"Course 112 v708 - 219000 VND\" (HIT)\nread 100: \"Course 100 v715 - 99000 VND\" (HIT)\nread 108: \"Course 108 v712 - 179000 VND\" (HIT)\nread 100: \"Course 100 v715 - 99000 VND\" (HIT)\nread 104: \"Course 104 v688 - 139000 VND\" (HIT)\nread 108: \"Course 108 v712 - 179000 VND\" (HIT)\nread 100: \"Course 100 v715 - 99000 VND\" (HIT)\nread 116: \"Course 116 v669 - 259000 VND\" (HIT)\nread 104: \"Course 104 v688 - 139000 VND\" (HIT)\nread 104: \"Course 104 v688 - 139000 VND\" (HIT)\nread 108: \"Course 108 v712 - 179000 VND\" (HIT)\nedit 116: ok\nread 112: \"Course 112 v708 - 219000 VND\" (HIT)\nread 100: \"Course 100 v715 - 99000 VND\" (HIT)\nedit 108: ok\nread 112: \"Course 112 v708 - 219000 VND\" (HIT)\nread 100: \"Course 100 v715 - 99000 VND\" (HIT)\nedit 108: ok\n+60s\nread 116: \"Course 116 v729 - 259000 VND\" (MISS)\nread 104: \"Course 104 v688 - 139000 VND\" (HIT)\nread 112: \"Course 112 v708 - 219000 VND\" (HIT)\nread 104: \"Course 104 v688 - 139000 VND\" (HIT)\nread 116: \"Course 116 v729 - 259000 VND\" (HIT)\nread 100: \"Course 100 v715 - 99000 VND\" (HIT)\nread 104: \"Course 104 v688 - 139000 VND\" (HIT)\n+60s\nread 112: \"Course 112 v708 - 219000 VND\" (HIT)\nread 100: \"Course 100 v715 - 99000 VND\" (HIT)\nedit 100: ok\nread 108: \"Course 108 v735 - 179000 VND\" (MISS)\n+60s\n+60s\nread 100: \"Course 100 v747 - 99000 VND\" (MISS)\n+60s\nread 104: \"Course 104 v688 - 139000 VND\" (HIT)\nedit 112: ok\n+60s\nedit 116: ok\nedit 100: ok\n+60s\nread 112: \"Course 112 v754 - 219000 VND\" (MISS)\n+60s\nedit 108: ok\n+60s\nread 104: \"Course 104 v688 - 139000 VND\" (HIT)\n+60s\nread 112: \"Course 112 v754 - 219000 VND\" (HIT)\nread 104: \"Course 104 v688 - 139000 VND\" (HIT)\n+60s\nread 100: \"Course 100 v757 - 99000 VND\" (MISS)\nread 100: \"Course 100 v757 - 99000 VND\" (HIT)\nread 112: \"Course 112 v754 - 219000 VND\" (HIT)\nread 100: \"Course 100 v757 - 99000 VND\" (HIT)\nread 108: \"Course 108 v761 - 179000 VND\" (MISS)\nread 108: \"Course 108 v761 - 179000 VND\" (HIT)\nread 100: \"Course 100 v757 - 99000 VND\" (HIT)\nread 116: \"Course 116 v756 - 259000 VND\" (MISS)\n+60s\nread 100: \"Course 100 v757 - 99000 VND\" (HIT)\nread 100: \"Course 100 v757 - 99000 VND\" (HIT)\nread 100: \"Course 100 v757 - 99000 VND\" (HIT)\nread 112: \"Course 112 v754 - 219000 VND\" (HIT)\nread 100: \"Course 100 v757 - 99000 VND\" (HIT)\nread 108: \"Course 108 v761 - 179000 VND\" (HIT)\nread 104: \"Course 104 v688 - 139000 VND\" (HIT)\nread 108: \"Course 108 v761 - 179000 VND\" (HIT)\n+60s\n+60s\nread 108: \"Course 108 v761 - 179000 VND\" (HIT)\nedit 108: ok\n+60s\nread 100: \"Course 100 v757 - 99000 VND\" (HIT)\n+60s\nedit 116: ok\nread 104: \"Course 104 v688 - 139000 VND\" (HIT)\n+60s\n+60s\nread 116: \"Course 116 v792 - 259000 VND\" (MISS)\nread 116: \"Course 116 v792 - 259000 VND\" (HIT)\nread 116: \"Course 116 v792 - 259000 VND\" (HIT)\nread 104: \"Course 104 v688 - 139000 VND\" (HIT)\nedit 112: ok\nread 100: \"Course 100 v757 - 99000 VND\" (HIT)\n+60s\nread 104: \"Course 104 v688 - 139000 VND\" (HIT)\n+60s\nread 100: \"Course 100 v757 - 99000 VND\" (HIT)\nedit 108: ok\nread 112: \"Course 112 v800 - 219000 VND\" (MISS)\n+60s\nread 108: \"Course 108 v806 - 179000 VND\" (MISS)\nread 100: \"Course 100 v757 - 99000 VND\" (HIT)\nread 100: \"Course 100 v757 - 99000 VND\" (HIT)\nread 112: \"Course 112 v800 - 219000 VND\" (HIT)\nread 104: \"Course 104 v688 - 139000 VND\" (HIT)\nedit 108: ok\nread 116: \"Course 116 v792 - 259000 VND\" (HIT)\nread 116: \"Course 116 v792 - 259000 VND\" (HIT)\nread 116: \"Course 116 v792 - 259000 VND\" (HIT)\nread 108: \"Course 108 v814 - 179000 VND\" (MISS)\nread 100: \"Course 100 v757 - 99000 VND\" (HIT)\n+60s\nread 112: \"Course 112 v800 - 219000 VND\" (HIT)\n+60s\n+60s\nedit 108: ok\n+60s\nedit 108: ok\nread 100: \"Course 100 v757 - 99000 VND\" (HIT)\nread 104: \"Course 104 v688 - 139000 VND\" (HIT)\nread 116: \"Course 116 v792 - 259000 VND\" (HIT)\n+60s\nread 100: \"Course 100 v757 - 99000 VND\" (HIT)\nread 100: \"Course 100 v757 - 99000 VND\" (HIT)\nread 100: \"Course 100 v757 - 99000 VND\" (HIT)\n+60s\nedit 108: ok\nedit 104: ok\nread 100: \"Course 100 v757 - 99000 VND\" (HIT)\nread 112: \"Course 112 v800 - 219000 VND\" (HIT)\nedit 112: ok\nedit 116: ok\nread 108: \"Course 108 v835 - 179000 VND\" (MISS)\nread 104: \"Course 104 v836 - 139000 VND\" (MISS)\n+60s\nread 116: \"Course 116 v840 - 259000 VND\" (MISS)\nread 100: \"Course 100 v757 - 99000 VND\" (HIT)\nread 112: \"Course 112 v839 - 219000 VND\" (MISS)\nread 116: \"Course 116 v840 - 259000 VND\" (HIT)\nread 108: \"Course 108 v835 - 179000 VND\" (HIT)\nread 108: \"Course 108 v835 - 179000 VND\" (HIT)\nread 108: \"Course 108 v835 - 179000 VND\" (HIT)\n+60s\nread 100: \"Course 100 v757 - 99000 VND\" (HIT)\nedit 112: ok\nread 108: \"Course 108 v835 - 179000 VND\" (HIT)\nedit 104: ok\nedit 108: ok\nread 108: \"Course 108 v856 - 179000 VND\" (MISS)\nread 100: \"Course 100 v757 - 99000 VND\" (HIT)\nread 108: \"Course 108 v856 - 179000 VND\" (HIT)\n+60s\nread 116: \"Course 116 v840 - 259000 VND\" (HIT)\nread 116: \"Course 116 v840 - 259000 VND\" (HIT)\nread 100: \"Course 100 v757 - 99000 VND\" (HIT)\n+60s\nread 104: \"Course 104 v855 - 139000 VND\" (MISS)\nread 116: \"Course 116 v840 - 259000 VND\" (HIT)\nread 112: \"Course 112 v853 - 219000 VND\" (MISS)\n+60s\n+60s\nread 112: \"Course 112 v853 - 219000 VND\" (HIT)\nread 108: \"Course 108 v856 - 179000 VND\" (HIT)\n+60s\nread 100: \"Course 100 v757 - 99000 VND\" (HIT)\nread 112: \"Course 112 v853 - 219000 VND\" (HIT)\nread 112: \"Course 112 v853 - 219000 VND\" (HIT)\nedit 100: ok\n+60s\nread 104: \"Course 104 v855 - 139000 VND\" (HIT)\nedit 112: ok\nedit 108: ok\nread 104: \"Course 104 v855 - 139000 VND\" (HIT)\nedit 112: ok\nedit 108: ok\nread 100: \"Course 100 v876 - 99000 VND\" (MISS)\nread 100: \"Course 100 v876 - 99000 VND\" (HIT)\nread 112: \"Course 112 v882 - 219000 VND\" (MISS)\nread 100: \"Course 100 v876 - 99000 VND\" (HIT)\nread 100: \"Course 100 v876 - 99000 VND\" (HIT)\nread 108: \"Course 108 v883 - 179000 VND\" (MISS)\nread 116: \"Course 116 v840 - 259000 VND\" (HIT)\nread 104: \"Course 104 v855 - 139000 VND\" (HIT)\nread 112: \"Course 112 v882 - 219000 VND\" (HIT)\nread 112: \"Course 112 v882 - 219000 VND\" (HIT)\nread 100: \"Course 100 v876 - 99000 VND\" (HIT)\nread 108: \"Course 108 v883 - 179000 VND\" (HIT)\nread 112: \"Course 112 v882 - 219000 VND\" (HIT)\nread 108: \"Course 108 v883 - 179000 VND\" (HIT)\nread 100: \"Course 100 v876 - 99000 VND\" (HIT)\nread 108: \"Course 108 v883 - 179000 VND\" (HIT)\nread 116: \"Course 116 v840 - 259000 VND\" (HIT)\nread 100: \"Course 100 v876 - 99000 VND\" (HIT)\nedit 108: ok\nread 116: \"Course 116 v840 - 259000 VND\" (HIT)\nread 108: \"Course 108 v902 - 179000 VND\" (MISS)\n+60s\nread 108: \"Course 108 v902 - 179000 VND\" (HIT)\nedit 104: ok\nread 116: \"Course 116 v840 - 259000 VND\" (HIT)\nread 112: \"Course 112 v882 - 219000 VND\" (HIT)\nread 100: \"Course 100 v876 - 99000 VND\" (HIT)\nedit 108: ok\nread 112: \"Course 112 v882 - 219000 VND\" (HIT)\nread 104: \"Course 104 v907 - 139000 VND\" (MISS)\nread 104: \"Course 104 v907 - 139000 VND\" (HIT)\nread 108: \"Course 108 v911 - 179000 VND\" (MISS)\nread 116: \"Course 116 v840 - 259000 VND\" (HIT)\nread 100: \"Course 100 v876 - 99000 VND\" (HIT)\nedit 112: ok\nedit 116: ok\nread 100: \"Course 100 v876 - 99000 VND\" (HIT)\nread 116: \"Course 116 v919 - 259000 VND\" (MISS)\nedit 108: ok\nread 116: \"Course 116 v919 - 259000 VND\" (HIT)\n+60s\nread 100: \"Course 100 v876 - 99000 VND\" (HIT)\n+60s\n+60s\nread 112: \"Course 112 v918 - 219000 VND\" (MISS)\nedit 112: ok\nedit 104: ok\nread 100: \"Course 100 v876 - 99000 VND\" (HIT)\nread 100: \"Course 100 v876 - 99000 VND\" (HIT)\nread 116: \"Course 116 v919 - 259000 VND\" (HIT)\nread 108: \"Course 108 v922 - 179000 VND\" (MISS)\nread 100: \"Course 100 v876 - 99000 VND\" (HIT)\n+60s\n+60s\nread 108: \"Course 108 v922 - 179000 VND\" (HIT)\nedit 108: ok\nread 116: \"Course 116 v919 - 259000 VND\" (HIT)\nread 100: \"Course 100 v876 - 99000 VND\" (HIT)\n+60s\nread 112: \"Course 112 v929 - 219000 VND\" (MISS)\nread 112: \"Course 112 v929 - 219000 VND\" (HIT)\nread 108: \"Course 108 v939 - 179000 VND\" (MISS)\nedit 104: ok\nedit 108: ok\nread 104: \"Course 104 v946 - 139000 VND\" (MISS)\nread 108: \"Course 108 v947 - 179000 VND\" (MISS)\nread 104: \"Course 104 v946 - 139000 VND\" (HIT)\nread 108: \"Course 108 v947 - 179000 VND\" (HIT)\nread 116: \"Course 116 v919 - 259000 VND\" (HIT)\nread 108: \"Course 108 v947 - 179000 VND\" (HIT)\nedit 108: ok\nread 116: \"Course 116 v919 - 259000 VND\" (HIT)\nedit 108: ok\nedit 100: ok\nread 108: \"Course 108 v956 - 179000 VND\" (MISS)\n+60s\n+60s\n+60s\nedit 116: ok\nedit 104: ok\nread 116: \"Course 116 v962 - 259000 VND\" (MISS)\nread 116: \"Course 116 v962 - 259000 VND\" (HIT)\nread 108: \"Course 108 v956 - 179000 VND\" (HIT)\nedit 100: ok\nedit 112: ok\nread 104: \"Course 104 v963 - 139000 VND\" (MISS)\n+60s\nedit 116: ok\nread 108: \"Course 108 v956 - 179000 VND\" (HIT)\nread 100: \"Course 100 v967 - 99000 VND\" (MISS)\nread 100: \"Course 100 v967 - 99000 VND\" (HIT)\nread 108: \"Course 108 v956 - 179000 VND\" (HIT)\n+60s\nread 112: \"Course 112 v968 - 219000 VND\" (MISS)\nread 100: \"Course 100 v967 - 99000 VND\" (HIT)\nedit 112: ok\nread 116: \"Course 116 v971 - 259000 VND\" (MISS)\nread 108: \"Course 108 v956 - 179000 VND\" (HIT)\n+60s\nread 112: \"Course 112 v979 - 219000 VND\" (MISS)\nread 104: \"Course 104 v963 - 139000 VND\" (HIT)\nread 108: \"Course 108 v956 - 179000 VND\" (HIT)\nread 104: \"Course 104 v963 - 139000 VND\" (HIT)\nread 100: \"Course 100 v967 - 99000 VND\" (HIT)\nread 104: \"Course 104 v963 - 139000 VND\" (HIT)\nread 104: \"Course 104 v963 - 139000 VND\" (HIT)\n+60s\n+60s\nread 112: \"Course 112 v979 - 219000 VND\" (HIT)\nread 104: \"Course 104 v963 - 139000 VND\" (HIT)\nread 116: \"Course 116 v971 - 259000 VND\" (HIT)\nread 104: \"Course 104 v963 - 139000 VND\" (HIT)\nedit 104: ok\nread 108: \"Course 108 v956 - 179000 VND\" (HIT)\nread 108: \"Course 108 v956 - 179000 VND\" (HIT)\n+60s\nread 100: \"Course 100 v967 - 99000 VND\" (HIT)\n+60s\nread 116: \"Course 116 v971 - 259000 VND\" (HIT)\nread 104: \"Course 104 v996 - 139000 VND\" (MISS)\nedit 100: ok\nread 112: \"Course 112 v979 - 219000 VND\" (HIT)\nread 116: \"Course 116 v971 - 259000 VND\" (HIT)\nread 104: \"Course 104 v996 - 139000 VND\" (HIT)\n+60s\n+60s\nread 108: \"Course 108 v956 - 179000 VND\" (HIT)\nread 105: \"Course 105 - 149000 VND\" (MISS)\n+60s\nread 104: \"Course 104 v996 - 139000 VND\" (HIT)\n+60s\nread 108: \"Course 108 v956 - 179000 VND\" (HIT)\nread 100: \"Course 100 v1004 - 99000 VND\" (MISS)\n+60s\n+60s\nread 104: \"Course 104 v996 - 139000 VND\" (HIT)\nedit 116: ok\nread 108: \"Course 108 v956 - 179000 VND\" (HIT)\nread 108: \"Course 108 v956 - 179000 VND\" (HIT)\n+60s\nread 116: \"Course 116 v1020 - 259000 VND\" (MISS)\nread 100: \"Course 100 v1004 - 99000 VND\" (HIT)\nread 112: \"Course 112 v979 - 219000 VND\" (HIT)\nedit 100: ok\nread 116: \"Course 116 v1020 - 259000 VND\" (HIT)\nedit 100: ok\nedit 108: ok\nedit 116: ok\n+60s\n+60s\n+60s\nread 100: \"Course 100 v1029 - 99000 VND\" (MISS)\nread 100: \"Course 100 v1029 - 99000 VND\" (HIT)\nread 116: \"Course 116 v1031 - 259000 VND\" (MISS)\n+60s\nread 116: \"Course 116 v1031 - 259000 VND\" (HIT)\nread 108: \"Course 108 v1030 - 179000 VND\" (MISS)\n+60s\nread 100: \"Course 100 v1029 - 99000 VND\" (HIT)\nread 116: \"Course 116 v1031 - 259000 VND\" (HIT)\nedit 116: ok\n+60s\nread 108: \"Course 108 v1030 - 179000 VND\" (HIT)\nread 100: \"Course 100 v1029 - 99000 VND\" (HIT)\nedit 100: ok\nread 104: \"Course 104 v996 - 139000 VND\" (HIT)\nread 116: \"Course 116 v1044 - 259000 VND\" (MISS)\nread 104: \"Course 104 v996 - 139000 VND\" (HIT)\n+60s\nedit 100: ok\nread 116: \"Course 116 v1044 - 259000 VND\" (HIT)\nread 112: \"Course 112 v979 - 219000 VND\" (HIT)\n+60s\n+60s\n+60s\nread 104: \"Course 104 v996 - 139000 VND\" (HIT)\nedit 108: ok\nread 100: \"Course 100 v1053 - 99000 VND\" (MISS)\nread 116: \"Course 116 v1044 - 259000 VND\" (HIT)\nread 116: \"Course 116 v1044 - 259000 VND\" (HIT)\nread 112: \"Course 112 v979 - 219000 VND\" (HIT)\n+60s\n+60s\nread 112: \"Course 112 v979 - 219000 VND\" (HIT)\nread 116: \"Course 116 v1044 - 259000 VND\" (HIT)\nread 112: \"Course 112 v979 - 219000 VND\" (HIT)\n+60s\nread 104: \"Course 104 v996 - 139000 VND\" (HIT)\nread 116: \"Course 116 v1044 - 259000 VND\" (HIT)\nread 108: \"Course 108 v1060 - 179000 VND\" (MISS)\nread 108: \"Course 108 v1060 - 179000 VND\" (HIT)\nread 116: \"Course 116 v1044 - 259000 VND\" (HIT)\n+60s\n+60s\nread 108: \"Course 108 v1060 - 179000 VND\" (HIT)\nread 116: \"Course 116 v1044 - 259000 VND\" (HIT)\nread 100: \"Course 100 v1053 - 99000 VND\" (HIT)\nread 116: \"Course 116 v1044 - 259000 VND\" (HIT)\nedit 104: ok\nread 116: \"Course 116 v1044 - 259000 VND\" (HIT)\nread 104: \"Course 104 v1082 - 139000 VND\" (MISS)\n+60s\nread 108: \"Course 108 v1060 - 179000 VND\" (HIT)\nread 116: \"Course 116 v1044 - 259000 VND\" (HIT)\n+60s\nread 100: \"Course 100 v1053 - 99000 VND\" (HIT)\nread 112: \"Course 112 v979 - 219000 VND\" (HIT)\nread 104: \"Course 104 v1082 - 139000 VND\" (HIT)\nread 108: \"Course 108 v1060 - 179000 VND\" (HIT)\nread 108: \"Course 108 v1060 - 179000 VND\" (HIT)\n+60s\nedit 100: ok\nread 100: \"Course 100 v1095 - 99000 VND\" (MISS)\nread 112: \"Course 112 v979 - 219000 VND\" (HIT)\nread 104: \"Course 104 v1082 - 139000 VND\" (HIT)\nread 104: \"Course 104 v1082 - 139000 VND\" (HIT)\nread 116: \"Course 116 v1044 - 259000 VND\" (HIT)\nread 104: \"Course 104 v1082 - 139000 VND\" (HIT)\nread 104: \"Course 104 v1082 - 139000 VND\" (HIT)\nread 116: \"Course 116 v1044 - 259000 VND\" (HIT)\nread 104: \"Course 104 v1082 - 139000 VND\" (HIT)\n+60s\nread 100: \"Course 100 v1095 - 99000 VND\" (HIT)\nread 100: \"Course 100 v1095 - 99000 VND\" (HIT)\n+60s\nread 112: \"Course 112 v979 - 219000 VND\" (HIT)\nedit 108: ok\nread 108: \"Course 108 v1110 - 179000 VND\" (MISS)\n+60s\nread 100: \"Course 100 v1095 - 99000 VND\" (HIT)\nread 112: \"Course 112 v979 - 219000 VND\" (HIT)\n+60s\nread 108: \"Course 108 v1110 - 179000 VND\" (HIT)\nread 108: \"Course 108 v1110 - 179000 VND\" (HIT)\n+60s\nread 112: \"Course 112 v979 - 219000 VND\" (HIT)\nread 100: \"Course 100 v1095 - 99000 VND\" (HIT)\n+60s\n+60s\n+60s\nread 100: \"Course 100 v1095 - 99000 VND\" (HIT)\nread 112: \"Course 112 v979 - 219000 VND\" (HIT)\nread 100: \"Course 100 v1095 - 99000 VND\" (HIT)\nedit 112: ok\nread 112: \"Course 112 v1127 - 219000 VND\" (MISS)\nread 108: \"Course 108 v1110 - 179000 VND\" (HIT)\nread 112: \"Course 112 v1127 - 219000 VND\" (HIT)\nread 112: \"Course 112 v1127 - 219000 VND\" (HIT)\nedit 112: ok\n+60s\nread 108: \"Course 108 v1110 - 179000 VND\" (HIT)\nedit 108: ok\n+60s\nread 104: \"Course 104 v1082 - 139000 VND\" (HIT)\nread 116: \"Course 116 v1044 - 259000 VND\" (HIT)\nread 108: \"Course 108 v1135 - 179000 VND\" (MISS)\nread 104: \"Course 104 v1082 - 139000 VND\" (HIT)\nread 100: \"Course 100 v1095 - 99000 VND\" (HIT)\nread 116: \"Course 116 v1044 - 259000 VND\" (HIT)\nedit 112: ok\nread 104: \"Course 104 v1082 - 139000 VND\" (HIT)\n+60s\nedit 116: ok\nread 104: \"Course 104 v1082 - 139000 VND\" (HIT)\nread 108: \"Course 108 v1135 - 179000 VND\" (HIT)\nread 104: \"Course 104 v1082 - 139000 VND\" (HIT)\nread 108: \"Course 108 v1135 - 179000 VND\" (HIT)\nread 100: \"Course 100 v1095 - 99000 VND\" (HIT)\nread 108: \"Course 108 v1135 - 179000 VND\" (HIT)\n+60s\n+60s\nread 108: \"Course 108 v1135 - 179000 VND\" (HIT)\nedit 108: ok\n+60s\nread 104: \"Course 104 v1082 - 139000 VND\" (HIT)\nread 100: \"Course 100 v1095 - 99000 VND\" (HIT)\nread 104: \"Course 104 v1082 - 139000 VND\" (HIT)\nread 112: \"Course 112 v1143 - 219000 VND\" (MISS)\nread 112: \"Course 112 v1143 - 219000 VND\" (HIT)\nread 116: \"Course 116 v1146 - 259000 VND\" (MISS)\nread 104: \"Course 104 v1082 - 139000 VND\" (HIT)\n+60s\nread 104: \"Course 104 v1082 - 139000 VND\" (HIT)\nread 108: \"Course 108 v1156 - 179000 VND\" (MISS)\nread 104: \"Course 104 v1082 - 139000 VND\" (HIT)\nread 116: \"Course 116 v1146 - 259000 VND\" (HIT)\nread 116: \"Course 116 v1146 - 259000 VND\" (HIT)\nread 116: \"Course 116 v1146 - 259000 VND\" (HIT)\nread 112: \"Course 112 v1143 - 219000 VND\" (HIT)\nread 108: \"Course 108 v1156 - 179000 VND\" (HIT)\n+60s\nread 108: \"Course 108 v1156 - 179000 VND\" (HIT)\nread 108: \"Course 108 v1156 - 179000 VND\" (HIT)\n+60s\nread 100: \"Course 100 v1095 - 99000 VND\" (HIT)\nedit 112: ok\n+60s\nread 112: \"Course 112 v1179 - 219000 VND\" (MISS)\nedit 104: ok\nedit 104: ok\nedit 116: ok\n+60s\n+60s\nread 116: \"Course 116 v1184 - 259000 VND\" (MISS)\nread 116: \"Course 116 v1184 - 259000 VND\" (HIT)\nread 108: \"Course 108 v1156 - 179000 VND\" (HIT)\n+60s\nread 116: \"Course 116 v1184 - 259000 VND\" (HIT)\nread 104: \"Course 104 v1183 - 139000 VND\" (MISS)\nedit 100: ok\nread 112: \"Course 112 v1179 - 219000 VND\" (HIT)\n+60s\nread 100: \"Course 100 v1193 - 99000 VND\" (MISS)\nread 104: \"Course 104 v1183 - 139000 VND\" (HIT)\nread 108: \"Course 108 v1156 - 179000 VND\" (HIT)\nread 108: \"Course 108 v1156 - 179000 VND\" (HIT)\nread 104: \"Course 104 v1183 - 139000 VND\" (HIT)\nread 112: \"Course 112 v1179 - 219000 VND\" (HIT)\nedit 116: ok\nread 112: \"Course 112 v1179 - 219000 VND\" (HIT)\nread 108: \"Course 108 v1156 - 179000 VND\" (HIT)\nedit 112: ok\nread 108: \"Course 108 v1156 - 179000 VND\" (HIT)\nread 116: \"Course 116 v1202 - 259000 VND\" (MISS)\n+60s\n+60s\nread 104: \"Course 104 v1183 - 139000 VND\" (HIT)\nedit 116: ok\nedit 104: ok\nread 116: \"Course 116 v1211 - 259000 VND\" (MISS)\nread 116: \"Course 116 v1211 - 259000 VND\" (HIT)\nread 112: \"Course 112 v1205 - 219000 VND\" (MISS)\nread 104: \"Course 104 v1212 - 139000 VND\" (MISS)\nread 100: \"Course 100 v1193 - 99000 VND\" (HIT)\n+60s\nread 112: \"Course 112 v1205 - 219000 VND\" (HIT)\nread 108: \"Course 108 v1156 - 179000 VND\" (HIT)\nread 104: \"Course 104 v1212 - 139000 VND\" (HIT)\nread 112: \"Course 112 v1205 - 219000 VND\" (HIT)\nread 112: \"Course 112 v1205 - 219000 VND\" (HIT)\nread 112: \"Course 112 v1205 - 219000 VND\" (HIT)\nread 112: \"Course 112 v1205 - 219000 VND\" (HIT)\n+60s\nedit 112: ok\nread 116: \"Course 116 v1211 - 259000 VND\" (HIT)\nedit 116: ok\nread 104: \"Course 104 v1212 - 139000 VND\" (HIT)\nread 112: \"Course 112 v1227 - 219000 VND\" (MISS)\nread 108: \"Course 108 v1156 - 179000 VND\" (HIT)\nread 100: \"Course 100 v1193 - 99000 VND\" (HIT)\nedit 108: ok\nread 104: \"Course 104 v1212 - 139000 VND\" (HIT)\n+60s\nread 116: \"Course 116 v1229 - 259000 VND\" (MISS)\nread 108: \"Course 108 v1234 - 179000 VND\" (MISS)\n+60s\nread 108: \"Course 108 v1234 - 179000 VND\" (HIT)\n+60s\n+60s\nedit 108: ok\nread 100: \"Course 100 v1193 - 99000 VND\" (HIT)\nedit 112: ok\nedit 100: ok\n+60s\n+60s\nedit 108: ok\nread 100: \"Course 100 v1246 - 99000 VND\" (MISS)\nread 108: \"Course 108 v1249 - 179000 VND\" (MISS)\nread 112: \"Course 112 v1245 - 219000 VND\" (MISS)\nedit 100: ok\n+60s\nread 112: \"Course 112 v1245 - 219000 VND\" (HIT)\n+60s\nedit 108: ok\nread 104: \"Course 104 v1212 - 139000 VND\" (HIT)\nread 108: \"Course 108 v1257 - 179000 VND\" (MISS)\nread 104: \"Course 104 v1212 - 139000 VND\" (HIT)\nread 100: \"Course 100 v1253 - 99000 VND\" (MISS)\nread 100: \"Course 100 v1253 - 99000 VND\" (HIT)\nedit 116: ok\nedit 112: ok\nread 108: \"Course 108 v1257 - 179000 VND\" (HIT)\nread 108: \"Course 108 v1257 - 179000 VND\" (HIT)\n+60s\nedit 112: ok\nread 112: \"Course 112 v1268 - 219000 VND\" (MISS)\nedit 116: ok\nread 112: \"Course 112 v1268 - 219000 VND\" (HIT)\nedit 104: ok\nread 100: \"Course 100 v1253 - 99000 VND\" (HIT)\nread 116: \"Course 116 v1270 - 259000 VND\" (MISS)\n+60s\nread 112: \"Course 112 v1268 - 219000 VND\" (HIT)\nread 100: \"Course 100 v1253 - 99000 VND\" (HIT)\nedit 100: ok\nread 100: \"Course 100 v1278 - 99000 VND\" (MISS)\nedit 100: ok\n+60s\nedit 104: ok\n+60s\nedit 116: ok\nedit 108: ok\nedit 108: ok\n+60s\nread 108: \"Course 108 v1286 - 179000 VND\" (MISS)\nedit 104: ok\n+60s\nread 116: \"Course 116 v1284 - 259000 VND\" (MISS)\nread 104: \"Course 104 v1289 - 139000 VND\" (MISS)\nread 104: \"Course 104 v1289 - 139000 VND\" (HIT)\nread 112: \"Course 112 v1268 - 219000 VND\" (HIT)\nread 108: \"Course 108 v1286 - 179000 VND\" (HIT)\n+60s\nread 108: \"Course 108 v1286 - 179000 VND\" (HIT)\nread 116: \"Course 116 v1284 - 259000 VND\" (HIT)\nedit 112: ok\n+60s\nread 108: \"Course 108 v1286 - 179000 VND\" (HIT)\nread 116: \"Course 116 v1284 - 259000 VND\" (HIT)\nread 116: \"Course 116 v1284 - 259000 VND\" (HIT)\nedit 104: ok\nedit 116: ok\nedit 112: ok\n+60s\nread 104: \"Course 104 v1304 - 139000 VND\" (MISS)\n+60s\n+60s\nread 116: \"Course 116 v1305 - 259000 VND\" (MISS)\nread 116: \"Course 116 v1305 - 259000 VND\" (HIT)\nread 116: \"Course 116 v1305 - 259000 VND\" (HIT)\nread 104: \"Course 104 v1304 - 139000 VND\" (HIT)\nread 116: \"Course 116 v1305 - 259000 VND\" (HIT)\nread 116: \"Course 116 v1305 - 259000 VND\" (HIT)\nedit 116: ok\nedit 112: ok\nedit 112: ok\nread 112: \"Course 112 v1319 - 219000 VND\" (MISS)\nread 112: \"Course 112 v1319 - 219000 VND\" (HIT)\nread 116: \"Course 116 v1317 - 259000 VND\" (MISS)\nedit 100: ok\nread 108: \"Course 108 v1286 - 179000 VND\" (HIT)\n+60s\nedit 112: ok\nread 100: \"Course 100 v1323 - 99000 VND\" (MISS)\nread 116: \"Course 116 v1317 - 259000 VND\" (HIT)\nread 104: \"Course 104 v1304 - 139000 VND\" (HIT)\n+60s\nread 100: \"Course 100 v1323 - 99000 VND\" (HIT)\nedit 116: ok\nread 112: \"Course 112 v1326 - 219000 VND\" (MISS)\nedit 108: ok\nread 116: \"Course 116 v1332 - 259000 VND\" (MISS)\nread 116: \"Course 116 v1332 - 259000 VND\" (HIT)\nread 116: \"Course 116 v1332 - 259000 VND\" (HIT)\nedit 108: ok\nread 112: \"Course 112 v1326 - 219000 VND\" (HIT)\nread 116: \"Course 116 v1332 - 259000 VND\" (HIT)\nedit 100: ok\n+60s\nread 108: \"Course 108 v1338 - 179000 VND\" (MISS)\nread 100: \"Course 100 v1341 - 99000 VND\" (MISS)\n+60s\nread 100: \"Course 100 v1341 - 99000 VND\" (HIT)\n+60s\nread 100: \"Course 100 v1341 - 99000 VND\" (HIT)\nread 112: \"Course 112 v1326 - 219000 VND\" (HIT)\nread 104: \"Course 104 v1304 - 139000 VND\" (HIT)\nread 112: \"Course 112 v1326 - 219000 VND\" (HIT)\nread 112: \"Course 112 v1326 - 219000 VND\" (HIT)\n+60s\n+60s\nread 104: \"Course 104 v1304 - 139000 VND\" (HIT)\nread 100: \"Course 100 v1341 - 99000 VND\" (HIT)\nread 112: \"Course 112 v1326 - 219000 VND\" (HIT)\nedit 112: ok\n+60s\nread 104: \"Course 104 v1304 - 139000 VND\" (HIT)\n+60s\nedit 112: ok\nread 104: \"Course 104 v1304 - 139000 VND\" (HIT)\nedit 100: ok\n+60s\nedit 100: ok\nread 104: \"Course 104 v1304 - 139000 VND\" (HIT)\nread 112: \"Course 112 v1362 - 219000 VND\" (MISS)\nread 104: \"Course 104 v1304 - 139000 VND\" (HIT)\nread 116: \"Course 116 v1332 - 259000 VND\" (HIT)\nread 116: \"Course 116 v1332 - 259000 VND\" (HIT)\nread 112: \"Course 112 v1362 - 219000 VND\" (HIT)\nedit 104: ok\nedit 104: ok\n+60s\nedit 108: ok\n+60s\nread 116: \"Course 116 v1332 - 259000 VND\" (HIT)\n+60s\nread 100: \"Course 100 v1366 - 99000 VND\" (MISS)\nedit 112: ok\nread 116: \"Course 116 v1332 - 259000 VND\" (HIT)\nread 104: \"Course 104 v1374 - 139000 VND\" (MISS)\nread 100: \"Course 100 v1366 - 99000 VND\" (HIT)\nread 116: \"Course 116 v1332 - 259000 VND\" (HIT)\n+60s\nread 112: \"Course 112 v1381 - 219000 VND\" (MISS)\nread 104: \"Course 104 v1374 - 139000 VND\" (HIT)\nread 112: \"Course 112 v1381 - 219000 VND\" (HIT)\n+60s\nedit 100: ok\nread 108: \"Course 108 v1376 - 179000 VND\" (MISS)\n+60s\nread 100: \"Course 100 v1391 - 99000 VND\" (MISS)\nread 116: \"Course 116 v1332 - 259000 VND\" (HIT)\nread 116: \"Course 116 v1332 - 259000 VND\" (HIT)\n+60s\nedit 116: ok\nedit 100: ok\nread 116: \"Course 116 v1398 - 259000 VND\" (MISS)\nread 100: \"Course 100 v1399 - 99000 VND\" (MISS)\nread 116: \"Course 116 v1398 - 259000 VND\" (HIT)\nread 104: \"Course 104 v1374 - 139000 VND\" (HIT)\nread 112: \"Course 112 v1381 - 219000 VND\" (HIT)\nread 100: \"Course 100 v1399 - 99000 VND\" (HIT)\nread 104: \"Course 104 v1374 - 139000 VND\" (HIT)\nread 112: \"Course 112 v1381 - 219000 VND\" (HIT)\nread 100: \"Course 100 v1399 - 99000 VND\" (HIT)\n+60s\nread 104: \"Course 104 v1374 - 139000 VND\" (HIT)\nread 116: \"Course 116 v1398 - 259000 VND\" (HIT)\nedit 108: ok\nread 100: \"Course 100 v1399 - 99000 VND\" (HIT)\nread 108: \"Course 108 v1412 - 179000 VND\" (MISS)\nread 104: \"Course 104 v1374 - 139000 VND\" (HIT)\nread 112: \"Course 112 v1381 - 219000 VND\" (HIT)\n+60s\n+60s\nread 108: \"Course 108 v1412 - 179000 VND\" (HIT)\n+60s\nread 108: \"Course 108 v1412 - 179000 VND\" (HIT)\nedit 112: ok\nread 113: \"Course 113 - 229000 VND\" (STALE)\nread 116: \"Course 116 v1398 - 259000 VND\" (HIT)\n+60s\n+60s\nedit 108: ok\nread 116: \"Course 116 v1398 - 259000 VND\" (HIT)\n+60s\n+60s\n+60s\nread 108: \"Course 108 v1427 - 179000 VND\" (MISS)\nread 112: \"Course 112 v1422 - 219000 VND\" (MISS)\nread 108: \"Course 108 v1427 - 179000 VND\" (HIT)\n+60s\n+60s\nread 100: \"Course 100 v1399 - 99000 VND\" (HIT)\nread 116: \"Course 116 v1398 - 259000 VND\" (HIT)\nread 100: \"Course 100 v1399 - 99000 VND\" (HIT)\nread 104: \"Course 104 v1374 - 139000 VND\" (HIT)\nread 112: \"Course 112 v1422 - 219000 VND\" (HIT)\n+60s\nread 100: \"Course 100 v1399 - 99000 VND\" (HIT)\nread 116: \"Course 116 v1398 - 259000 VND\" (HIT)\nread 108: \"Course 108 v1427 - 179000 VND\" (HIT)\nread 116: \"Course 116 v1398 - 259000 VND\" (HIT)\nread 112: \"Course 112 v1422 - 219000 VND\" (HIT)\nread 100: \"Course 100 v1399 - 99000 VND\" (HIT)\nread 116: \"Course 116 v1398 - 259000 VND\" (HIT)\nread 100: \"Course 100 v1399 - 99000 VND\" (HIT)\nread 112: \"Course 112 v1422 - 219000 VND\" (HIT)\nedit 108: ok\nread 104: \"Course 104 v1374 - 139000 VND\" (HIT)\nread 108: \"Course 108 v1452 - 179000 VND\" (MISS)\nread 108: \"Course 108 v1452 - 179000 VND\" (HIT)\nedit 112: ok\nedit 116: ok\nread 104: \"Course 104 v1374 - 139000 VND\" (HIT)\n+60s\n+60s\nread 100: \"Course 100 v1399 - 99000 VND\" (HIT)\nedit 112: ok\nread 104: \"Course 104 v1374 - 139000 VND\" (HIT)\nedit 108: ok\nedit 100: ok\nread 100: \"Course 100 v1465 - 99000 VND\" (MISS)\nedit 108: ok\nread 108: \"Course 108 v1467 - 179000 VND\" (MISS)\nedit 104: ok\nread 108: \"Course 108 v1467 - 179000 VND\" (HIT)\nedit 104: ok\nread 112: \"Course 112 v1462 - 219000 VND\" (MISS)\nread 104: \"Course 104 v1471 - 139000 VND\" (MISS)\nread 108: \"Course 108 v1467 - 179000 VND\" (HIT)\nread 116: \"Course 116 v1457 - 259000 VND\" (MISS)\n+60s\nread 100: \"Course 100 v1465 - 99000 VND\" (HIT)\nread 112: \"Course 112 v1462 - 219000 VND\" (HIT)\nedit 100: ok\nedit 116: ok\nread 116: \"Course 116 v1480 - 259000 VND\" (MISS)\n+60s\n+60s\nread 104: \"Course 104 v1471 - 139000 VND\" (HIT)\nread 104: \"Course 104 v1471 - 139000 VND\" (HIT)\nread 104: \"Course 104 v1471 - 139000 VND\" (HIT)\nread 104: \"Course 104 v1471 - 139000 VND\" (HIT)\n+60s\nread 112: \"Course 112 v1462 - 219000 VND\" (HIT)\n+60s\nread 104: \"Course 104 v1471 - 139000 VND\" (HIT)\n+60s\nedit 100: ok\nread 112: \"Course 112 v1462 - 219000 VND\" (HIT)\nread 104: \"Course 104 v1471 - 139000 VND\" (HIT)\nread 112: \"Course 112 v1462 - 219000 VND\" (HIT)\nread 116: \"Course 116 v1480 - 259000 VND\" (HIT)\nedit 100: ok\nedit 104: ok\ndatabase reads: 209",
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

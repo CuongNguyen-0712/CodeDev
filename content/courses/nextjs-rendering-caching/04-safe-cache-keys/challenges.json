@@ -1,0 +1,2850 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nrc_211",
+      "name": "safe-cache-keys-evidence",
+      "type": "quiz",
+      "title": "Safe cache keys: read the key and the headers",
+      "description": "Two statements on the catalog cache incident: a data function whose key leaves out an input, and a public response whose result depends on a request header.",
+      "difficulty": "medium",
+      "outcomes": [
+        "cache-keys"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "lib/catalog.ts:\nexport async function getCourses(query: CourseQuery, locale: string) {\n  return cached(`courses:${query.category}`, 300, () => db.listCourses(query, locale));\n}\n\nServer log:\n09:14:02 cache MISS key=courses:react inputs={category:react, level:beginner} locale=vi\n09:14:05 cache HIT  key=courses:react inputs={category:react, level:advanced} locale=vi\n\nStatement: \"Because the course list is public data, this key is safe; leaving level and locale out of it only lowers the hit rate.\"",
+          "explanation": "False. The key leaves out inputs that change the result: level and locale are passed to db.listCourses, so the request for advanced courses at 09:14:05 is answered with the beginner list stored at 09:14:02. That is a correctness bug, not a hit-rate problem. \"Public\" only says the result does not depend on who asks; it still depends on every other input. The misconception mixes up the two failures of a key: a missing input gives wrong answers, an extra input (such as utm_source or the user id on public data) lowers the hit rate.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "app/api/courses/route.ts:\nconst locale = request.headers.get(\"accept-language\")?.slice(0, 2) ?? \"en\";\nconst courses = await getCourses(query, locale);   // titles are translated\nreturn Response.json(courses, { headers: { \"Cache-Control\": \"public, s-maxage=300\" } });\n\nResponse headers of GET /api/courses?category=react (no Vary header):\ncache-control: public, s-maxage=300\nage: 41\nx-cache: HIT\n\nStatement: \"For up to 300 seconds the CDN can serve the Vietnamese titles to a browser that sent Accept-Language: en, because the language changes the result but is neither in the URL nor named in a Vary header.\"",
+          "explanation": "True. A shared cache builds its key from the URL plus the request headers listed in Vary. Here the URL is the same for both languages and there is no Vary, so the first response stored (Vietnamese, if a Vietnamese browser asked first) is served to everyone for up to s-maxage=300 seconds. The fix is to make the locale part of the URL (/vi/api/courses) or to send Vary: Accept-Language and check your CDN supports it. The misconception is that the server cache key is the only key: every cache on the way builds its own.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_nrc_212",
+      "name": "safe-cache-keys",
+      "type": "mini_coding",
+      "title": "Build safe cache keys",
+      "description": "Every data request of app.codedev.test goes through cachePolicy(request), which returns the key of the server data cache (null = do not cache) and the Cache-Control header of the response. The old code cached the course list under \"courses:<category>\": advanced filters got the beginner list, Vietnamese learners got English titles and every newsletter link created a new entry. RESOURCES in the starter lists each resource with its classification (public, per-user, private-no-store), its route params, the query params the API understands with their defaults, whether it is localized, and sMaxAge.\n\nRules, in this order. (1) A resource that is not an own key of RESOURCES (for example \"courses\" or \"toString\") -> throw Error(\"unknown resource: <name>\"). A route param of the resource that is missing or empty after trimming -> throw Error(\"missing param: <name>\") for the first such param in RESOURCES order; extra params are ignored. Per-user or private-no-store data with a userId that is missing, null or empty after trimming -> throw Error(\"personal data needs a signed-in user\").\n\n(2) private-no-store -> { key: null, cacheControl: \"private, no-store\" }.\n\n(3) The key is the resource name, then \"/\" + each route param value (trimmed) in RESOURCES order, then, only if the resource has query params, \"?\" + every known query param in alphabetical order as name=value joined by \"&\", then \"|locale=<locale>\" if the resource is localized, then \"|user=<userId>\" (trimmed) if it is per-user. A query value is the first one if the param is repeated (an array), trimmed and lower-cased; missing or empty means the default. Unknown query params are dropped. The locale is trimmed, lower-cased and cut at the first \"-\" (\"vi-VN\" -> \"vi\"); a language not in LOCALES, or no locale, becomes \"en\". Every param value, query value and user id put in the key goes through encodeURIComponent. Public keys never contain the user, even when one is signed in; non-localized keys never contain the locale.\n\n(4) Cache-Control: public -> \"public, max-age=0, s-maxage=<sMaxAge>\", per-user -> \"private, no-cache\".\n\nInput: { \"requests\": [{ resource, params?, query?, locale?, userId? }, ...] }. The runner prints \"<key> | <cacheControl>\" per request (\"(not cached)\" for a null key) or \"error: <message>\", then \"<n> requests, <m> cache entries\" (distinct keys).",
+      "difficulty": "medium",
+      "outcomes": [
+        "cache-keys"
+      ],
+      "points": 30,
+      "hints": [
+        "For each part of a request, ask: if only this part changed, would the API return a different result? If yes it belongs in the key, if no it must not be there. Which classification decides whether the user is such a part?",
+        "Look at the spec of the resource first: its query object gives you both the list of params to keep (its keys, to sort) and the value to use when one is missing or empty. Check the user rule before building anything, and remember that RESOURCES[\"toString\"] is not undefined on a plain object.",
+        "A similar key for a different resource: a forum thread list with query defaults { order: \"latest\", page: \"1\" }, not localized, public. The request ?page=2&order=&ref=mail normalizes to order=latest (empty -> default) and page=2, ref is dropped, giving \"threads?order=latest&page=2\"; the same thread list for a signed-in user gives the same key, because the list does not depend on who reads it."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The incident: level and locale change the course list, so they are part of its key",
+          "input": {
+            "requests": [
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "react",
+                  "level": "advanced"
+                },
+                "locale": "vi"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "react",
+                  "level": "beginner"
+                },
+                "locale": "vi"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "react",
+                  "level": "advanced"
+                },
+                "locale": "en"
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "nextjs-rendering-caching"
+                },
+                "locale": "vi"
+              }
+            ]
+          },
+          "expected": "course-list?category=react&level=advanced&page=1&sort=popular|locale=vi | public, max-age=0, s-maxage=300\ncourse-list?category=react&level=beginner&page=1&sort=popular|locale=vi | public, max-age=0, s-maxage=300\ncourse-list?category=react&level=advanced&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\ncourse-detail/nextjs-rendering-caching|locale=vi | public, max-age=0, s-maxage=3600\n4 requests, 4 cache entries",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "One request, one key: order, defaults, case, spaces and utm params do not matter",
+          "input": {
+            "requests": [
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "react"
+                },
+                "locale": "en"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "page": "1",
+                  "category": "react"
+                },
+                "locale": "en"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": " React ",
+                  "sort": "popular",
+                  "utm_source": "newsletter"
+                },
+                "locale": "en"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "react",
+                  "level": "",
+                  "page": "2"
+                },
+                "locale": "en"
+              }
+            ]
+          },
+          "expected": "course-list?category=react&level=all&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\ncourse-list?category=react&level=all&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\ncourse-list?category=react&level=all&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\ncourse-list?category=react&level=all&page=2&sort=popular|locale=en | public, max-age=0, s-maxage=300\n4 requests, 2 cache entries",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Per-user data is keyed by user; public data never is, even for a signed-in learner",
+          "input": {
+            "requests": [
+              {
+                "resource": "dashboard",
+                "locale": "vi",
+                "userId": "u_2041"
+              },
+              {
+                "resource": "dashboard",
+                "query": {
+                  "tab": "overview"
+                },
+                "locale": "vi",
+                "userId": "u_3307"
+              },
+              {
+                "resource": "lesson-progress",
+                "params": {
+                  "courseId": "c_12"
+                },
+                "locale": "vi",
+                "userId": "u_2041"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "sql"
+                },
+                "locale": "vi",
+                "userId": "u_2041"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "sql"
+                },
+                "locale": "vi",
+                "userId": "u_3307"
+              },
+              {
+                "resource": "leaderboard",
+                "query": {
+                  "period": "weekly"
+                },
+                "userId": "u_2041"
+              }
+            ]
+          },
+          "expected": "dashboard?tab=overview|locale=vi|user=u_2041 | private, no-cache\ndashboard?tab=overview|locale=vi|user=u_3307 | private, no-cache\nlesson-progress/c_12|user=u_2041 | private, no-cache\ncourse-list?category=sql&level=all&page=1&sort=popular|locale=vi | public, max-age=0, s-maxage=300\ncourse-list?category=sql&level=all&page=1&sort=popular|locale=vi | public, max-age=0, s-maxage=300\nleaderboard?page=1&period=weekly | public, max-age=0, s-maxage=60\n6 requests, 5 cache entries",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Private data is never cached; personal data without a user and unknown resources fail",
+          "input": {
+            "requests": [
+              {
+                "resource": "billing",
+                "userId": "u_2041"
+              },
+              {
+                "resource": "billing",
+                "userId": null
+              },
+              {
+                "resource": "dashboard",
+                "locale": "en"
+              },
+              {
+                "resource": "lesson-progress",
+                "params": {
+                  "courseId": "c_12"
+                },
+                "userId": "   "
+              },
+              {
+                "resource": "courses",
+                "query": {
+                  "category": "react"
+                }
+              },
+              {
+                "resource": "toString"
+              }
+            ]
+          },
+          "expected": "(not cached) | private, no-store\nerror: personal data needs a signed-in user\nerror: personal data needs a signed-in user\nerror: personal data needs a signed-in user\nerror: unknown resource: courses\nerror: unknown resource: toString\n6 requests, 0 cache entries",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Locales: vi-VN, upper case and spaces map to vi; fr and none to en; leaderboard has no locale",
+          "input": {
+            "requests": [
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "sql-basics"
+                },
+                "locale": "vi-VN"
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "sql-basics"
+                },
+                "locale": " VI "
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "sql-basics"
+                },
+                "locale": "fr"
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "sql-basics"
+                }
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "sql-basics"
+                },
+                "locale": "en-US"
+              },
+              {
+                "resource": "leaderboard",
+                "locale": "vi"
+              },
+              {
+                "resource": "leaderboard",
+                "query": {
+                  "page": "1"
+                },
+                "locale": "en"
+              }
+            ]
+          },
+          "expected": "course-detail/sql-basics|locale=vi | public, max-age=0, s-maxage=3600\ncourse-detail/sql-basics|locale=vi | public, max-age=0, s-maxage=3600\ncourse-detail/sql-basics|locale=en | public, max-age=0, s-maxage=3600\ncourse-detail/sql-basics|locale=en | public, max-age=0, s-maxage=3600\ncourse-detail/sql-basics|locale=en | public, max-age=0, s-maxage=3600\nleaderboard?page=1&period=weekly | public, max-age=0, s-maxage=60\nleaderboard?page=1&period=weekly | public, max-age=0, s-maxage=60\n7 requests, 3 cache entries",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Values with & = | / cannot forge another key; repeated params use the first; missing slug fails",
+          "input": {
+            "requests": [
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "react&level=advanced"
+                },
+                "locale": "en"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "react",
+                  "level": "advanced"
+                },
+                "locale": "en"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": [
+                    "node",
+                    "sql"
+                  ],
+                  "page": [
+                    "3",
+                    "1"
+                  ]
+                },
+                "locale": "en"
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "sql/basics"
+                },
+                "locale": "en"
+              },
+              {
+                "resource": "dashboard",
+                "locale": "en",
+                "userId": "u_1|locale=vi"
+              },
+              {
+                "resource": "course-detail",
+                "params": {},
+                "locale": "en"
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "  "
+                },
+                "locale": "en"
+              },
+              {
+                "resource": "lesson-progress",
+                "params": {
+                  "slug": "c_12"
+                },
+                "userId": "u_2041"
+              }
+            ]
+          },
+          "expected": "course-list?category=react%26level%3Dadvanced&level=all&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\ncourse-list?category=react&level=advanced&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\ncourse-list?category=node&level=all&page=3&sort=popular|locale=en | public, max-age=0, s-maxage=300\ncourse-detail/sql%2Fbasics|locale=en | public, max-age=0, s-maxage=3600\ndashboard?tab=overview|locale=en|user=u_1%7Clocale%3Dvi | private, no-cache\nerror: missing param: slug\nerror: missing param: slug\nerror: missing param: courseId\n8 requests, 5 cache entries",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Large: 320 requests of catalog, dashboard and billing traffic, signed in and anonymous",
+          "input": {
+            "requests": [
+              {
+                "resource": "course-list",
+                "query": {},
+                "locale": " vi ",
+                "userId": null
+              },
+              {
+                "resource": "courses",
+                "locale": "fr",
+                "userId": "u_3000"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "",
+                  "page": "1"
+                },
+                "locale": "vi",
+                "userId": null
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "react-hooks"
+                },
+                "query": {},
+                "locale": "fr",
+                "userId": null
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "nextjs-rendering-caching"
+                },
+                "query": {
+                  "ref": "home"
+                },
+                "locale": " vi ",
+                "userId": null
+              },
+              {
+                "resource": "leaderboard",
+                "query": {
+                  "period": "monthly",
+                  "page": "1"
+                },
+                "locale": "vi",
+                "userId": null
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "sql",
+                  "level": "ADVANCED"
+                },
+                "locale": "EN",
+                "userId": null
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "sort": "popular"
+                },
+                "locale": "vi-VN",
+                "userId": "u_3021"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "react"
+                },
+                "locale": "EN",
+                "userId": "u_3000"
+              },
+              {
+                "resource": "leaderboard",
+                "query": {
+                  "period": "monthly",
+                  "page": "2"
+                },
+                "locale": "en-US",
+                "userId": "u_3035"
+              },
+              {
+                "resource": "dashboard",
+                "query": {},
+                "locale": "en",
+                "userId": "u_3028"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "React"
+                },
+                "locale": "EN",
+                "userId": "u_3021"
+              },
+              {
+                "resource": "courses",
+                "locale": "EN",
+                "userId": "u_3000"
+              },
+              {
+                "resource": "admin-stats",
+                "locale": "fr",
+                "userId": "u_3000"
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "react-hooks"
+                },
+                "query": {},
+                "locale": "en-US",
+                "userId": null
+              },
+              {
+                "resource": "lesson-progress",
+                "params": {
+                  "courseId": "c_12"
+                },
+                "locale": "vi",
+                "userId": null
+              },
+              {
+                "resource": "__proto__",
+                "locale": "vi-VN",
+                "userId": null
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "React",
+                  "level": "beginner",
+                  "utm_source": "facebook"
+                },
+                "locale": "vi",
+                "userId": null
+              },
+              {
+                "resource": "billing",
+                "locale": "en",
+                "userId": "u_3063"
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "nextjs-rendering-caching"
+                },
+                "query": {
+                  "ref": "home"
+                },
+                "locale": "vi",
+                "userId": "u_3014"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "React",
+                  "page": "3",
+                  "sort": "popular"
+                },
+                "userId": "u_3021"
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "react-hooks"
+                },
+                "query": {},
+                "userId": "u_3056"
+              },
+              {
+                "resource": "admin-stats",
+                "locale": "en",
+                "userId": "u_3021"
+              },
+              {
+                "resource": "admin-stats",
+                "locale": "en-US",
+                "userId": "u_3049"
+              },
+              {
+                "resource": "__proto__",
+                "locale": "vi-VN",
+                "userId": null
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": " node ",
+                  "level": "beginner",
+                  "page": "1",
+                  "sort": "rating",
+                  "utm_source": "facebook"
+                },
+                "locale": "en",
+                "userId": null
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "React",
+                  "page": "3",
+                  "sort": "popular",
+                  "utm_source": "newsletter"
+                },
+                "locale": "EN",
+                "userId": "u_3021"
+              },
+              {
+                "resource": "billing",
+                "locale": "EN",
+                "userId": "u_3049"
+              },
+              {
+                "resource": "dashboard",
+                "query": {
+                  "tab": ""
+                },
+                "locale": "fr",
+                "userId": "u_3000"
+              },
+              {
+                "resource": "leaderboard",
+                "query": {
+                  "period": "monthly",
+                  "page": "2"
+                },
+                "locale": "fr",
+                "userId": "u_3070"
+              },
+              {
+                "resource": "leaderboard",
+                "query": {
+                  "period": "WEEKLY",
+                  "page": "2"
+                },
+                "locale": "fr",
+                "userId": "u_3063"
+              },
+              {
+                "resource": "leaderboard",
+                "query": {
+                  "period": "weekly",
+                  "page": "2"
+                },
+                "locale": "fr",
+                "userId": null
+              },
+              {
+                "resource": "course-list",
+                "query": {},
+                "locale": " vi ",
+                "userId": null
+              },
+              {
+                "resource": "lesson-progress",
+                "params": {
+                  "courseId": "c_7"
+                },
+                "locale": "vi",
+                "userId": null
+              },
+              {
+                "resource": "billing",
+                "locale": " vi ",
+                "userId": "u_3028"
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "sql-basics"
+                },
+                "query": {},
+                "locale": "en",
+                "userId": null
+              },
+              {
+                "resource": "billing",
+                "locale": "en",
+                "userId": "u_3077"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "sql",
+                  "utm_source": "facebook",
+                  "fbclid": "IwAR588032"
+                },
+                "locale": " vi ",
+                "userId": "u_3063"
+              },
+              {
+                "resource": "dashboard",
+                "query": {
+                  "tab": ""
+                },
+                "locale": "en",
+                "userId": "u_3070"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "React",
+                  "page": "1",
+                  "sort": "popular"
+                },
+                "userId": "u_3035"
+              },
+              {
+                "resource": "dashboard",
+                "query": {
+                  "tab": "streaks"
+                },
+                "locale": "vi-VN",
+                "userId": null
+              },
+              {
+                "resource": "__proto__",
+                "locale": "en",
+                "userId": "u_3021"
+              },
+              {
+                "resource": "lesson-progress",
+                "params": {
+                  "courseId": "c_12"
+                },
+                "locale": "EN",
+                "userId": "u_3056"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "React",
+                  "level": "advanced"
+                },
+                "userId": null
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "sql",
+                  "fbclid": "IwAR973345"
+                },
+                "userId": null
+              },
+              {
+                "resource": "leaderboard",
+                "query": {
+                  "period": "",
+                  "page": ""
+                },
+                "locale": " vi ",
+                "userId": null
+              },
+              {
+                "resource": "dashboard",
+                "query": {},
+                "locale": "en",
+                "userId": "u_3007"
+              },
+              {
+                "resource": "dashboard",
+                "query": {},
+                "userId": null
+              },
+              {
+                "resource": "billing",
+                "locale": " vi ",
+                "userId": "u_3049"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "sql",
+                  "level": "beginner",
+                  "page": " 2"
+                },
+                "locale": "en-US",
+                "userId": "u_3028"
+              },
+              {
+                "resource": "leaderboard",
+                "query": {
+                  "period": "weekly",
+                  "page": "1"
+                },
+                "locale": " vi ",
+                "userId": "u_3007"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": " node ",
+                  "utm_source": "zalo"
+                },
+                "locale": " vi ",
+                "userId": "u_3049"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "all",
+                  "page": "1"
+                },
+                "locale": "EN",
+                "userId": "u_3000"
+              },
+              {
+                "resource": "__proto__",
+                "locale": " vi ",
+                "userId": "u_3056"
+              },
+              {
+                "resource": "dashboard",
+                "query": {
+                  "tab": ""
+                },
+                "locale": "vi-VN",
+                "userId": "u_3049"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "react",
+                  "page": "1",
+                  "fbclid": "IwAR563662"
+                },
+                "locale": "en",
+                "userId": null
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "",
+                  "level": "ADVANCED",
+                  "utm_source": "facebook",
+                  "fbclid": "IwAR150157"
+                },
+                "locale": "vi-VN",
+                "userId": "u_3063"
+              },
+              {
+                "resource": "dashboard",
+                "query": {
+                  "tab": "overview"
+                },
+                "locale": "en",
+                "userId": null
+              },
+              {
+                "resource": "dashboard",
+                "query": {
+                  "tab": ""
+                },
+                "locale": "vi-VN",
+                "userId": null
+              },
+              {
+                "resource": "admin-stats",
+                "locale": "en",
+                "userId": "u_3028"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "all",
+                  "page": "1"
+                },
+                "locale": "fr",
+                "userId": null
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": " node ",
+                  "utm_source": "newsletter"
+                },
+                "locale": " vi ",
+                "userId": "u_3014"
+              },
+              {
+                "resource": "leaderboard",
+                "query": {
+                  "period": "WEEKLY",
+                  "page": "1"
+                },
+                "locale": "EN",
+                "userId": "u_3000"
+              },
+              {
+                "resource": "__proto__",
+                "locale": "en",
+                "userId": "u_3021"
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "nextjs-rendering-caching"
+                },
+                "query": {
+                  "ref": "home"
+                },
+                "locale": "EN",
+                "userId": "u_3014"
+              },
+              {
+                "resource": "billing",
+                "locale": "fr",
+                "userId": "u_3014"
+              },
+              {
+                "resource": "lesson-progress",
+                "params": {
+                  "courseId": "c_7"
+                },
+                "locale": "vi",
+                "userId": "u_3014"
+              },
+              {
+                "resource": "admin-stats",
+                "locale": "vi-VN",
+                "userId": null
+              },
+              {
+                "resource": "lesson-progress",
+                "params": {
+                  "courseId": "c_7"
+                },
+                "locale": "fr",
+                "userId": "u_3063"
+              },
+              {
+                "resource": "lesson-progress",
+                "params": {
+                  "courseId": ""
+                },
+                "locale": "fr",
+                "userId": null
+              },
+              {
+                "resource": "dashboard",
+                "query": {},
+                "locale": "fr",
+                "userId": "u_3021"
+              },
+              {
+                "resource": "leaderboard",
+                "query": {
+                  "period": "weekly",
+                  "page": "2"
+                },
+                "locale": "EN",
+                "userId": null
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "all",
+                  "page": " 2"
+                },
+                "locale": "vi",
+                "userId": null
+              },
+              {
+                "resource": "leaderboard",
+                "query": {
+                  "period": "WEEKLY",
+                  "page": ""
+                },
+                "locale": "EN",
+                "userId": null
+              },
+              {
+                "resource": "courses",
+                "locale": "fr",
+                "userId": "u_3042"
+              },
+              {
+                "resource": "leaderboard",
+                "query": {
+                  "period": "",
+                  "page": "2"
+                },
+                "locale": "en",
+                "userId": "u_3035"
+              },
+              {
+                "resource": "admin-stats",
+                "userId": null
+              },
+              {
+                "resource": "dashboard",
+                "query": {},
+                "locale": " vi ",
+                "userId": null
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": " node ",
+                  "page": "3"
+                },
+                "locale": "en-US",
+                "userId": "u_3014"
+              },
+              {
+                "resource": "lesson-progress",
+                "params": {
+                  "courseId": "c_12"
+                },
+                "locale": "vi",
+                "userId": "u_3070"
+              },
+              {
+                "resource": "dashboard",
+                "query": {
+                  "tab": "streaks"
+                },
+                "locale": "vi",
+                "userId": "u_3028"
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "sql-basics"
+                },
+                "query": {},
+                "locale": "en-US",
+                "userId": "u_3035"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "all",
+                  "level": ""
+                },
+                "userId": "u_3056"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": " node ",
+                  "level": "",
+                  "page": "2",
+                  "sort": "popular"
+                },
+                "userId": null
+              },
+              {
+                "resource": "admin-stats",
+                "locale": "vi",
+                "userId": null
+              },
+              {
+                "resource": "lesson-progress",
+                "params": {
+                  "courseId": ""
+                },
+                "locale": "EN",
+                "userId": null
+              },
+              {
+                "resource": "admin-stats",
+                "locale": " vi ",
+                "userId": "u_3035"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "React",
+                  "level": "beginner",
+                  "sort": "popular"
+                },
+                "locale": "vi",
+                "userId": "u_3021"
+              },
+              {
+                "resource": "leaderboard",
+                "query": {
+                  "period": "",
+                  "page": "2"
+                },
+                "locale": " vi ",
+                "userId": "u_3042"
+              },
+              {
+                "resource": "dashboard",
+                "query": {
+                  "tab": "streaks"
+                },
+                "locale": "vi-VN",
+                "userId": null
+              },
+              {
+                "resource": "billing",
+                "userId": "u_3035"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": " node ",
+                  "level": "advanced",
+                  "utm_source": "facebook"
+                },
+                "locale": "en-US",
+                "userId": null
+              },
+              {
+                "resource": "billing",
+                "locale": "vi-VN",
+                "userId": "u_3042"
+              },
+              {
+                "resource": "dashboard",
+                "query": {
+                  "tab": ""
+                },
+                "locale": "EN",
+                "userId": null
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "sql-basics"
+                },
+                "query": {
+                  "ref": "home"
+                },
+                "locale": "fr",
+                "userId": "u_3049"
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "sql-basics"
+                },
+                "query": {
+                  "ref": "home"
+                },
+                "locale": "vi",
+                "userId": "u_3014"
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "sql-basics"
+                },
+                "query": {},
+                "locale": " vi ",
+                "userId": "u_3042"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "React",
+                  "page": "2",
+                  "sort": "popular",
+                  "fbclid": "IwAR522248"
+                },
+                "locale": "en",
+                "userId": "u_3042"
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "react-hooks"
+                },
+                "query": {},
+                "locale": "en-US",
+                "userId": null
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "sql-basics"
+                },
+                "query": {
+                  "ref": "home"
+                },
+                "locale": " vi ",
+                "userId": null
+              },
+              {
+                "resource": "lesson-progress",
+                "params": {
+                  "courseId": "c_12"
+                },
+                "locale": "en-US",
+                "userId": "u_3077"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": " node ",
+                  "level": "beginner"
+                },
+                "locale": "en",
+                "userId": null
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "",
+                  "level": "advanced",
+                  "page": " 2"
+                },
+                "locale": "vi",
+                "userId": "u_3063"
+              },
+              {
+                "resource": "dashboard",
+                "query": {},
+                "userId": null
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "",
+                  "fbclid": "IwAR612297"
+                },
+                "locale": "EN",
+                "userId": "u_3056"
+              },
+              {
+                "resource": "dashboard",
+                "query": {
+                  "tab": "overview"
+                },
+                "locale": "en",
+                "userId": null
+              },
+              {
+                "resource": "courses",
+                "locale": " vi ",
+                "userId": null
+              },
+              {
+                "resource": "billing",
+                "locale": "vi",
+                "userId": null
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "sql",
+                  "level": ""
+                },
+                "locale": " vi ",
+                "userId": "u_3077"
+              },
+              {
+                "resource": "admin-stats",
+                "locale": "vi-VN",
+                "userId": "u_3035"
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "nextjs-rendering-caching"
+                },
+                "query": {},
+                "locale": "fr",
+                "userId": "u_3000"
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "sql-basics"
+                },
+                "query": {
+                  "ref": "home"
+                },
+                "locale": "vi-VN",
+                "userId": "u_3035"
+              },
+              {
+                "resource": "billing",
+                "locale": "en",
+                "userId": null
+              },
+              {
+                "resource": "leaderboard",
+                "query": {
+                  "period": "weekly",
+                  "page": "2"
+                },
+                "locale": "en-US",
+                "userId": null
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "sql",
+                  "sort": "rating",
+                  "utm_source": "zalo"
+                },
+                "locale": "en-US",
+                "userId": null
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "all",
+                  "level": "ADVANCED"
+                },
+                "locale": "en",
+                "userId": "u_3007"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": ""
+                },
+                "locale": " vi ",
+                "userId": "u_3007"
+              },
+              {
+                "resource": "dashboard",
+                "query": {
+                  "tab": "overview"
+                },
+                "locale": "EN",
+                "userId": null
+              },
+              {
+                "resource": "dashboard",
+                "query": {},
+                "locale": "EN",
+                "userId": "u_3049"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "sql"
+                },
+                "locale": "en",
+                "userId": "u_3077"
+              },
+              {
+                "resource": "billing",
+                "userId": null
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": " node ",
+                  "page": " 2"
+                },
+                "locale": "fr",
+                "userId": "u_3028"
+              },
+              {
+                "resource": "courses",
+                "locale": "EN",
+                "userId": null
+              },
+              {
+                "resource": "__proto__",
+                "locale": "EN",
+                "userId": null
+              },
+              {
+                "resource": "leaderboard",
+                "query": {
+                  "period": "",
+                  "page": "1"
+                },
+                "locale": "fr",
+                "userId": null
+              },
+              {
+                "resource": "billing",
+                "locale": "vi-VN",
+                "userId": null
+              },
+              {
+                "resource": "dashboard",
+                "query": {
+                  "tab": "overview"
+                },
+                "locale": "en",
+                "userId": null
+              },
+              {
+                "resource": "dashboard",
+                "query": {
+                  "tab": "streaks"
+                },
+                "locale": "vi-VN",
+                "userId": null
+              },
+              {
+                "resource": "admin-stats",
+                "locale": "EN",
+                "userId": "u_3049"
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "react-hooks"
+                },
+                "query": {},
+                "locale": "fr",
+                "userId": "u_3000"
+              },
+              {
+                "resource": "admin-stats",
+                "locale": "en-US",
+                "userId": "u_3007"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "all",
+                  "level": "",
+                  "page": "2",
+                  "utm_source": "facebook"
+                },
+                "locale": "en-US",
+                "userId": null
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "react",
+                  "utm_source": "facebook"
+                },
+                "locale": "en-US",
+                "userId": "u_3042"
+              },
+              {
+                "resource": "dashboard",
+                "query": {
+                  "tab": "overview"
+                },
+                "locale": "vi",
+                "userId": "u_3014"
+              },
+              {
+                "resource": "__proto__",
+                "locale": "en-US",
+                "userId": null
+              },
+              {
+                "resource": "dashboard",
+                "query": {},
+                "locale": "vi-VN",
+                "userId": "u_3028"
+              },
+              {
+                "resource": "billing",
+                "locale": "en-US",
+                "userId": null
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "",
+                  "page": "3",
+                  "sort": "popular"
+                },
+                "locale": "fr",
+                "userId": "u_3000"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "utm_source": "zalo"
+                },
+                "locale": "EN",
+                "userId": null
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "react-hooks"
+                },
+                "query": {},
+                "locale": "EN",
+                "userId": "u_3077"
+              },
+              {
+                "resource": "admin-stats",
+                "locale": "fr",
+                "userId": "u_3035"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": " node "
+                },
+                "locale": "en",
+                "userId": null
+              },
+              {
+                "resource": "lesson-progress",
+                "params": {
+                  "courseId": "c_12"
+                },
+                "locale": "vi",
+                "userId": "u_3000"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": ""
+                },
+                "locale": "fr",
+                "userId": "u_3035"
+              },
+              {
+                "resource": "dashboard",
+                "query": {},
+                "userId": null
+              },
+              {
+                "resource": "billing",
+                "locale": "en",
+                "userId": null
+              },
+              {
+                "resource": "leaderboard",
+                "query": {
+                  "period": "monthly",
+                  "page": ""
+                },
+                "locale": "EN",
+                "userId": "u_3077"
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "react-hooks"
+                },
+                "query": {
+                  "ref": "home"
+                },
+                "locale": " vi ",
+                "userId": "u_3021"
+              },
+              {
+                "resource": "billing",
+                "locale": "EN",
+                "userId": null
+              },
+              {
+                "resource": "lesson-progress",
+                "params": {
+                  "courseId": "c_7"
+                },
+                "locale": "vi",
+                "userId": "u_3070"
+              },
+              {
+                "resource": "lesson-progress",
+                "params": {
+                  "courseId": "c_7"
+                },
+                "locale": " vi ",
+                "userId": null
+              },
+              {
+                "resource": "billing",
+                "locale": " vi ",
+                "userId": "u_3007"
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "nextjs-rendering-caching"
+                },
+                "query": {},
+                "locale": "en",
+                "userId": null
+              },
+              {
+                "resource": "admin-stats",
+                "userId": "u_3035"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "page": "3",
+                  "sort": "popular",
+                  "utm_source": "newsletter"
+                },
+                "locale": "fr",
+                "userId": "u_3070"
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "sql-basics"
+                },
+                "query": {},
+                "locale": "en-US",
+                "userId": "u_3028"
+              },
+              {
+                "resource": "dashboard",
+                "query": {
+                  "tab": ""
+                },
+                "locale": "EN",
+                "userId": "u_3035"
+              },
+              {
+                "resource": "dashboard",
+                "query": {
+                  "tab": ""
+                },
+                "locale": "EN",
+                "userId": "u_3042"
+              },
+              {
+                "resource": "course-list",
+                "query": {},
+                "locale": "EN",
+                "userId": "u_3007"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "sql",
+                  "level": "",
+                  "page": "2"
+                },
+                "locale": "vi-VN",
+                "userId": "u_3014"
+              },
+              {
+                "resource": "billing",
+                "locale": "vi-VN",
+                "userId": null
+              },
+              {
+                "resource": "admin-stats",
+                "locale": "EN",
+                "userId": "u_3063"
+              },
+              {
+                "resource": "admin-stats",
+                "locale": "en-US",
+                "userId": "u_3042"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "React",
+                  "utm_source": "zalo"
+                },
+                "locale": "en-US",
+                "userId": "u_3007"
+              },
+              {
+                "resource": "billing",
+                "locale": "en-US",
+                "userId": "u_3021"
+              },
+              {
+                "resource": "leaderboard",
+                "query": {
+                  "period": "WEEKLY",
+                  "page": "2"
+                },
+                "locale": "vi",
+                "userId": "u_3028"
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "react-hooks"
+                },
+                "query": {},
+                "locale": "fr",
+                "userId": "u_3014"
+              },
+              {
+                "resource": "leaderboard",
+                "query": {
+                  "period": "WEEKLY",
+                  "page": "1"
+                },
+                "userId": "u_3063"
+              },
+              {
+                "resource": "__proto__",
+                "locale": "en-US",
+                "userId": "u_3042"
+              },
+              {
+                "resource": "leaderboard",
+                "query": {
+                  "period": "WEEKLY",
+                  "page": "1"
+                },
+                "locale": "vi",
+                "userId": null
+              },
+              {
+                "resource": "leaderboard",
+                "query": {
+                  "period": "weekly",
+                  "page": "1"
+                },
+                "locale": " vi ",
+                "userId": null
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "react-hooks"
+                },
+                "query": {},
+                "locale": "en-US",
+                "userId": null
+              },
+              {
+                "resource": "courses",
+                "locale": " vi ",
+                "userId": null
+              },
+              {
+                "resource": "courses",
+                "locale": "EN",
+                "userId": null
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": ""
+                },
+                "locale": "en-US",
+                "userId": null
+              },
+              {
+                "resource": "dashboard",
+                "query": {},
+                "locale": "vi",
+                "userId": "u_3000"
+              },
+              {
+                "resource": "__proto__",
+                "locale": "en-US",
+                "userId": "u_3070"
+              },
+              {
+                "resource": "dashboard",
+                "query": {
+                  "tab": ""
+                },
+                "locale": "EN",
+                "userId": "u_3021"
+              },
+              {
+                "resource": "leaderboard",
+                "query": {
+                  "period": "weekly",
+                  "page": "2"
+                },
+                "locale": "en",
+                "userId": null
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": " node ",
+                  "level": "beginner"
+                },
+                "locale": "en-US",
+                "userId": "u_3035"
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "react-hooks"
+                },
+                "query": {},
+                "locale": "EN",
+                "userId": null
+              },
+              {
+                "resource": "lesson-progress",
+                "params": {
+                  "courseId": ""
+                },
+                "locale": " vi ",
+                "userId": "u_3063"
+              },
+              {
+                "resource": "billing",
+                "locale": "EN",
+                "userId": "u_3007"
+              },
+              {
+                "resource": "admin-stats",
+                "locale": "vi-VN",
+                "userId": "u_3042"
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "sql-basics"
+                },
+                "query": {},
+                "locale": "EN",
+                "userId": null
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "react",
+                  "level": "",
+                  "utm_source": "newsletter"
+                },
+                "locale": "EN",
+                "userId": "u_3063"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": " node ",
+                  "level": "advanced",
+                  "page": "3"
+                },
+                "locale": "fr",
+                "userId": null
+              },
+              {
+                "resource": "leaderboard",
+                "query": {
+                  "period": "monthly",
+                  "page": "2"
+                },
+                "locale": "EN",
+                "userId": null
+              },
+              {
+                "resource": "__proto__",
+                "locale": "vi",
+                "userId": "u_3070"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "React",
+                  "level": "beginner",
+                  "sort": "newest",
+                  "utm_source": "zalo"
+                },
+                "locale": "en",
+                "userId": null
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "react",
+                  "level": "advanced",
+                  "utm_source": "zalo"
+                },
+                "locale": "vi",
+                "userId": null
+              },
+              {
+                "resource": "admin-stats",
+                "locale": "vi",
+                "userId": null
+              },
+              {
+                "resource": "leaderboard",
+                "query": {
+                  "period": "",
+                  "page": "2"
+                },
+                "locale": "EN",
+                "userId": null
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "level": "",
+                  "page": "2"
+                },
+                "locale": "vi-VN",
+                "userId": "u_3056"
+              },
+              {
+                "resource": "course-list",
+                "query": {},
+                "locale": "en-US",
+                "userId": null
+              },
+              {
+                "resource": "lesson-progress",
+                "params": {
+                  "courseId": "c_7"
+                },
+                "locale": "fr",
+                "userId": "u_3021"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "sort": "rating"
+                },
+                "userId": "u_3035"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "React",
+                  "level": "beginner",
+                  "sort": "popular",
+                  "utm_source": "newsletter"
+                },
+                "userId": null
+              },
+              {
+                "resource": "dashboard",
+                "query": {},
+                "userId": "u_3063"
+              },
+              {
+                "resource": "__proto__",
+                "locale": "en",
+                "userId": null
+              },
+              {
+                "resource": "billing",
+                "locale": "fr",
+                "userId": "u_3000"
+              },
+              {
+                "resource": "billing",
+                "userId": "u_3000"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "level": "advanced",
+                  "page": "2"
+                },
+                "locale": "en",
+                "userId": null
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "",
+                  "level": "",
+                  "sort": "rating"
+                },
+                "locale": "vi-VN",
+                "userId": "u_3021"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "all",
+                  "page": "1",
+                  "sort": "rating"
+                },
+                "locale": " vi ",
+                "userId": null
+              },
+              {
+                "resource": "lesson-progress",
+                "params": {
+                  "courseId": "c_7"
+                },
+                "userId": "u_3063"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "react",
+                  "sort": "rating",
+                  "utm_source": "newsletter"
+                },
+                "locale": "en",
+                "userId": "u_3021"
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "nextjs-rendering-caching"
+                },
+                "query": {},
+                "locale": "en-US",
+                "userId": "u_3042"
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "nextjs-rendering-caching"
+                },
+                "query": {},
+                "locale": "en",
+                "userId": "u_3063"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "fbclid": "IwAR29965"
+                },
+                "userId": "u_3070"
+              },
+              {
+                "resource": "dashboard",
+                "query": {},
+                "userId": "u_3063"
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "sql-basics"
+                },
+                "query": {},
+                "locale": "EN",
+                "userId": null
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "React"
+                },
+                "locale": "vi",
+                "userId": "u_3028"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "",
+                  "level": ""
+                },
+                "userId": "u_3063"
+              },
+              {
+                "resource": "__proto__",
+                "locale": "en",
+                "userId": "u_3028"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "",
+                  "level": "",
+                  "page": " 2",
+                  "utm_source": "facebook"
+                },
+                "locale": " vi ",
+                "userId": null
+              },
+              {
+                "resource": "lesson-progress",
+                "params": {
+                  "courseId": "c_12"
+                },
+                "userId": "u_3049"
+              },
+              {
+                "resource": "billing",
+                "locale": "EN",
+                "userId": null
+              },
+              {
+                "resource": "dashboard",
+                "query": {},
+                "locale": "en",
+                "userId": null
+              },
+              {
+                "resource": "lesson-progress",
+                "params": {
+                  "courseId": "c_12"
+                },
+                "locale": "EN",
+                "userId": "u_3035"
+              },
+              {
+                "resource": "__proto__",
+                "locale": "fr",
+                "userId": "u_3056"
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "nextjs-rendering-caching"
+                },
+                "query": {
+                  "ref": "home"
+                },
+                "locale": "fr",
+                "userId": "u_3063"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": " node ",
+                  "level": "ADVANCED"
+                },
+                "locale": "EN",
+                "userId": "u_3000"
+              },
+              {
+                "resource": "billing",
+                "locale": "en",
+                "userId": null
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": " node ",
+                  "sort": "popular",
+                  "utm_source": "facebook"
+                },
+                "locale": "fr",
+                "userId": null
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "sql",
+                  "level": "beginner"
+                },
+                "userId": null
+              },
+              {
+                "resource": "courses",
+                "locale": "vi",
+                "userId": "u_3042"
+              },
+              {
+                "resource": "courses",
+                "locale": "en",
+                "userId": null
+              },
+              {
+                "resource": "leaderboard",
+                "query": {
+                  "period": "WEEKLY",
+                  "page": "1"
+                },
+                "locale": "en",
+                "userId": "u_3035"
+              },
+              {
+                "resource": "lesson-progress",
+                "params": {
+                  "courseId": ""
+                },
+                "userId": null
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "nextjs-rendering-caching"
+                },
+                "query": {
+                  "ref": "home"
+                },
+                "locale": "en",
+                "userId": "u_3042"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "react",
+                  "page": "3"
+                },
+                "locale": "EN",
+                "userId": "u_3070"
+              },
+              {
+                "resource": "leaderboard",
+                "query": {
+                  "period": "",
+                  "page": "2"
+                },
+                "locale": "vi-VN",
+                "userId": "u_3021"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "page": "2"
+                },
+                "locale": "EN",
+                "userId": null
+              },
+              {
+                "resource": "leaderboard",
+                "query": {
+                  "period": "monthly",
+                  "page": "1"
+                },
+                "locale": "en",
+                "userId": "u_3028"
+              },
+              {
+                "resource": "billing",
+                "locale": "vi",
+                "userId": "u_3000"
+              },
+              {
+                "resource": "courses",
+                "locale": "fr",
+                "userId": "u_3028"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "all"
+                },
+                "locale": "EN",
+                "userId": "u_3021"
+              },
+              {
+                "resource": "lesson-progress",
+                "params": {
+                  "courseId": "c_7"
+                },
+                "locale": "en",
+                "userId": null
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "sql-basics"
+                },
+                "query": {},
+                "locale": "vi-VN",
+                "userId": "u_3028"
+              },
+              {
+                "resource": "dashboard",
+                "query": {
+                  "tab": "overview"
+                },
+                "locale": "EN",
+                "userId": null
+              },
+              {
+                "resource": "dashboard",
+                "query": {},
+                "locale": "fr",
+                "userId": "u_3077"
+              },
+              {
+                "resource": "courses",
+                "locale": "fr",
+                "userId": null
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "",
+                  "level": "beginner",
+                  "page": "3",
+                  "fbclid": "IwAR420401"
+                },
+                "locale": "vi-VN",
+                "userId": "u_3042"
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "nextjs-rendering-caching"
+                },
+                "query": {},
+                "locale": "en-US",
+                "userId": "u_3056"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "",
+                  "sort": "newest",
+                  "utm_source": "newsletter"
+                },
+                "locale": "en-US",
+                "userId": null
+              },
+              {
+                "resource": "billing",
+                "userId": null
+              },
+              {
+                "resource": "__proto__",
+                "userId": "u_3014"
+              },
+              {
+                "resource": "admin-stats",
+                "locale": " vi ",
+                "userId": null
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "level": "beginner",
+                  "page": "3"
+                },
+                "userId": null
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "sql-basics"
+                },
+                "query": {
+                  "ref": "home"
+                },
+                "userId": null
+              },
+              {
+                "resource": "leaderboard",
+                "query": {
+                  "period": "monthly",
+                  "page": "2"
+                },
+                "locale": "EN",
+                "userId": null
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "sql-basics"
+                },
+                "query": {},
+                "locale": " vi ",
+                "userId": null
+              },
+              {
+                "resource": "leaderboard",
+                "query": {
+                  "period": "weekly",
+                  "page": "2"
+                },
+                "locale": "fr",
+                "userId": "u_3028"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "all",
+                  "level": "ADVANCED",
+                  "utm_source": "facebook"
+                },
+                "locale": "EN",
+                "userId": "u_3000"
+              },
+              {
+                "resource": "admin-stats",
+                "userId": "u_3063"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "react"
+                },
+                "locale": "fr",
+                "userId": "u_3042"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "React",
+                  "utm_source": "facebook"
+                },
+                "locale": "en-US",
+                "userId": null
+              },
+              {
+                "resource": "leaderboard",
+                "query": {
+                  "period": "",
+                  "page": "2"
+                },
+                "locale": "en",
+                "userId": null
+              },
+              {
+                "resource": "dashboard",
+                "query": {},
+                "locale": " vi ",
+                "userId": null
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "react-hooks"
+                },
+                "query": {},
+                "userId": "u_3028"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "level": "beginner",
+                  "utm_source": "zalo"
+                },
+                "locale": "en-US",
+                "userId": "u_3007"
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "sql-basics"
+                },
+                "query": {
+                  "ref": "home"
+                },
+                "locale": "en",
+                "userId": "u_3035"
+              },
+              {
+                "resource": "lesson-progress",
+                "params": {
+                  "courseId": ""
+                },
+                "locale": "en-US",
+                "userId": "u_3014"
+              },
+              {
+                "resource": "admin-stats",
+                "locale": "vi-VN",
+                "userId": "u_3021"
+              },
+              {
+                "resource": "billing",
+                "locale": "vi",
+                "userId": null
+              },
+              {
+                "resource": "lesson-progress",
+                "params": {
+                  "courseId": "c_7"
+                },
+                "locale": "EN",
+                "userId": "u_3014"
+              },
+              {
+                "resource": "dashboard",
+                "query": {
+                  "tab": "overview"
+                },
+                "locale": "en",
+                "userId": null
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": " node ",
+                  "level": "ADVANCED"
+                },
+                "userId": "u_3042"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "level": "ADVANCED",
+                  "page": "1"
+                },
+                "locale": "vi-VN",
+                "userId": "u_3014"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": " node "
+                },
+                "locale": "EN",
+                "userId": null
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "all",
+                  "utm_source": "facebook"
+                },
+                "locale": "en",
+                "userId": "u_3014"
+              },
+              {
+                "resource": "dashboard",
+                "query": {
+                  "tab": "overview"
+                },
+                "locale": "vi",
+                "userId": "u_3021"
+              },
+              {
+                "resource": "lesson-progress",
+                "params": {
+                  "courseId": "c_7"
+                },
+                "locale": "vi",
+                "userId": null
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "react",
+                  "level": "beginner",
+                  "page": " 2"
+                },
+                "locale": "fr",
+                "userId": "u_3035"
+              },
+              {
+                "resource": "billing",
+                "locale": "EN",
+                "userId": null
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "sort": "rating"
+                },
+                "locale": "vi",
+                "userId": "u_3007"
+              },
+              {
+                "resource": "courses",
+                "userId": "u_3063"
+              },
+              {
+                "resource": "billing",
+                "locale": "fr",
+                "userId": null
+              },
+              {
+                "resource": "dashboard",
+                "query": {
+                  "tab": "streaks"
+                },
+                "locale": "vi",
+                "userId": null
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "level": "advanced",
+                  "page": "2",
+                  "sort": "popular"
+                },
+                "locale": "fr",
+                "userId": "u_3056"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "",
+                  "sort": "rating"
+                },
+                "locale": "vi",
+                "userId": "u_3000"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "level": "advanced",
+                  "sort": "rating"
+                },
+                "locale": "EN",
+                "userId": null
+              },
+              {
+                "resource": "leaderboard",
+                "query": {
+                  "period": "",
+                  "page": "1"
+                },
+                "locale": "en-US",
+                "userId": "u_3035"
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "nextjs-rendering-caching"
+                },
+                "query": {},
+                "locale": "fr",
+                "userId": null
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "level": "ADVANCED",
+                  "page": "1"
+                },
+                "locale": "en-US",
+                "userId": "u_3049"
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "react-hooks"
+                },
+                "query": {},
+                "userId": "u_3021"
+              },
+              {
+                "resource": "billing",
+                "locale": " vi ",
+                "userId": "u_3056"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "sql"
+                },
+                "locale": "EN",
+                "userId": null
+              },
+              {
+                "resource": "lesson-progress",
+                "params": {
+                  "courseId": "c_7"
+                },
+                "locale": "vi",
+                "userId": null
+              },
+              {
+                "resource": "billing",
+                "userId": null
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "sql-basics"
+                },
+                "query": {
+                  "ref": "home"
+                },
+                "locale": "vi-VN",
+                "userId": "u_3042"
+              },
+              {
+                "resource": "admin-stats",
+                "locale": "en",
+                "userId": "u_3028"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "sql",
+                  "page": "1",
+                  "utm_source": "newsletter"
+                },
+                "locale": "vi-VN",
+                "userId": "u_3007"
+              },
+              {
+                "resource": "admin-stats",
+                "userId": "u_3035"
+              },
+              {
+                "resource": "lesson-progress",
+                "params": {
+                  "courseId": "c_12"
+                },
+                "locale": "EN",
+                "userId": "u_3070"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": " node ",
+                  "page": " 2",
+                  "sort": "popular"
+                },
+                "locale": "fr",
+                "userId": "u_3021"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "react",
+                  "level": "beginner",
+                  "page": "1",
+                  "sort": "newest",
+                  "utm_source": "zalo"
+                },
+                "locale": "EN",
+                "userId": "u_3000"
+              },
+              {
+                "resource": "dashboard",
+                "query": {},
+                "locale": "vi-VN",
+                "userId": null
+              },
+              {
+                "resource": "dashboard",
+                "query": {},
+                "userId": "u_3049"
+              },
+              {
+                "resource": "lesson-progress",
+                "params": {
+                  "courseId": ""
+                },
+                "locale": " vi ",
+                "userId": null
+              },
+              {
+                "resource": "dashboard",
+                "query": {},
+                "locale": "fr",
+                "userId": "u_3049"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": ""
+                },
+                "locale": " vi ",
+                "userId": null
+              },
+              {
+                "resource": "courses",
+                "locale": "EN",
+                "userId": "u_3007"
+              },
+              {
+                "resource": "dashboard",
+                "query": {},
+                "locale": "vi-VN",
+                "userId": "u_3021"
+              },
+              {
+                "resource": "billing",
+                "locale": "EN",
+                "userId": null
+              },
+              {
+                "resource": "admin-stats",
+                "locale": "EN",
+                "userId": null
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "all",
+                  "level": "beginner",
+                  "sort": "newest",
+                  "utm_source": "zalo"
+                },
+                "locale": "en",
+                "userId": null
+              },
+              {
+                "resource": "lesson-progress",
+                "params": {
+                  "courseId": "c_12"
+                },
+                "locale": "fr",
+                "userId": "u_3000"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": " node ",
+                  "page": "2",
+                  "utm_source": "newsletter"
+                },
+                "locale": "en-US",
+                "userId": "u_3049"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "level": "beginner",
+                  "sort": "newest"
+                },
+                "locale": "en-US",
+                "userId": null
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "sort": "newest",
+                  "utm_source": "facebook"
+                },
+                "locale": " vi ",
+                "userId": null
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "sql-basics"
+                },
+                "query": {},
+                "locale": "EN",
+                "userId": null
+              },
+              {
+                "resource": "leaderboard",
+                "query": {
+                  "period": "weekly",
+                  "page": "1"
+                },
+                "userId": "u_3049"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "react",
+                  "level": "ADVANCED"
+                },
+                "locale": "vi",
+                "userId": "u_3042"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "",
+                  "level": "",
+                  "fbclid": "IwAR107233"
+                },
+                "locale": "EN",
+                "userId": "u_3028"
+              },
+              {
+                "resource": "billing",
+                "locale": "en-US",
+                "userId": "u_3063"
+              },
+              {
+                "resource": "course-list",
+                "query": {
+                  "category": "all",
+                  "page": "2",
+                  "fbclid": "IwAR728342"
+                },
+                "locale": "en-US",
+                "userId": null
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "react-hooks"
+                },
+                "query": {},
+                "locale": " vi ",
+                "userId": null
+              },
+              {
+                "resource": "course-detail",
+                "params": {
+                  "slug": "sql-basics"
+                },
+                "query": {
+                  "ref": "home"
+                },
+                "locale": "EN",
+                "userId": null
+              }
+            ]
+          },
+          "expected": "course-list?category=all&level=all&page=1&sort=popular|locale=vi | public, max-age=0, s-maxage=300\nerror: unknown resource: courses\ncourse-list?category=all&level=all&page=1&sort=popular|locale=vi | public, max-age=0, s-maxage=300\ncourse-detail/react-hooks|locale=en | public, max-age=0, s-maxage=3600\ncourse-detail/nextjs-rendering-caching|locale=vi | public, max-age=0, s-maxage=3600\nleaderboard?page=1&period=monthly | public, max-age=0, s-maxage=60\ncourse-list?category=sql&level=advanced&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\ncourse-list?category=all&level=all&page=1&sort=popular|locale=vi | public, max-age=0, s-maxage=300\ncourse-list?category=react&level=all&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\nleaderboard?page=2&period=monthly | public, max-age=0, s-maxage=60\ndashboard?tab=overview|locale=en|user=u_3028 | private, no-cache\ncourse-list?category=react&level=all&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\nerror: unknown resource: courses\nerror: unknown resource: admin-stats\ncourse-detail/react-hooks|locale=en | public, max-age=0, s-maxage=3600\nerror: personal data needs a signed-in user\nerror: unknown resource: __proto__\ncourse-list?category=react&level=beginner&page=1&sort=popular|locale=vi | public, max-age=0, s-maxage=300\n(not cached) | private, no-store\ncourse-detail/nextjs-rendering-caching|locale=vi | public, max-age=0, s-maxage=3600\ncourse-list?category=react&level=all&page=3&sort=popular|locale=en | public, max-age=0, s-maxage=300\ncourse-detail/react-hooks|locale=en | public, max-age=0, s-maxage=3600\nerror: unknown resource: admin-stats\nerror: unknown resource: admin-stats\nerror: unknown resource: __proto__\ncourse-list?category=node&level=beginner&page=1&sort=rating|locale=en | public, max-age=0, s-maxage=300\ncourse-list?category=react&level=all&page=3&sort=popular|locale=en | public, max-age=0, s-maxage=300\n(not cached) | private, no-store\ndashboard?tab=overview|locale=en|user=u_3000 | private, no-cache\nleaderboard?page=2&period=monthly | public, max-age=0, s-maxage=60\nleaderboard?page=2&period=weekly | public, max-age=0, s-maxage=60\nleaderboard?page=2&period=weekly | public, max-age=0, s-maxage=60\ncourse-list?category=all&level=all&page=1&sort=popular|locale=vi | public, max-age=0, s-maxage=300\nerror: personal data needs a signed-in user\n(not cached) | private, no-store\ncourse-detail/sql-basics|locale=en | public, max-age=0, s-maxage=3600\n(not cached) | private, no-store\ncourse-list?category=sql&level=all&page=1&sort=popular|locale=vi | public, max-age=0, s-maxage=300\ndashboard?tab=overview|locale=en|user=u_3070 | private, no-cache\ncourse-list?category=react&level=all&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\nerror: personal data needs a signed-in user\nerror: unknown resource: __proto__\nlesson-progress/c_12|user=u_3056 | private, no-cache\ncourse-list?category=react&level=advanced&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\ncourse-list?category=sql&level=all&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\nleaderboard?page=1&period=weekly | public, max-age=0, s-maxage=60\ndashboard?tab=overview|locale=en|user=u_3007 | private, no-cache\nerror: personal data needs a signed-in user\n(not cached) | private, no-store\ncourse-list?category=sql&level=beginner&page=2&sort=popular|locale=en | public, max-age=0, s-maxage=300\nleaderboard?page=1&period=weekly | public, max-age=0, s-maxage=60\ncourse-list?category=node&level=all&page=1&sort=popular|locale=vi | public, max-age=0, s-maxage=300\ncourse-list?category=all&level=all&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\nerror: unknown resource: __proto__\ndashboard?tab=overview|locale=vi|user=u_3049 | private, no-cache\ncourse-list?category=react&level=all&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\ncourse-list?category=all&level=advanced&page=1&sort=popular|locale=vi | public, max-age=0, s-maxage=300\nerror: personal data needs a signed-in user\nerror: personal data needs a signed-in user\nerror: unknown resource: admin-stats\ncourse-list?category=all&level=all&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\ncourse-list?category=node&level=all&page=1&sort=popular|locale=vi | public, max-age=0, s-maxage=300\nleaderboard?page=1&period=weekly | public, max-age=0, s-maxage=60\nerror: unknown resource: __proto__\ncourse-detail/nextjs-rendering-caching|locale=en | public, max-age=0, s-maxage=3600\n(not cached) | private, no-store\nlesson-progress/c_7|user=u_3014 | private, no-cache\nerror: unknown resource: admin-stats\nlesson-progress/c_7|user=u_3063 | private, no-cache\nerror: missing param: courseId\ndashboard?tab=overview|locale=en|user=u_3021 | private, no-cache\nleaderboard?page=2&period=weekly | public, max-age=0, s-maxage=60\ncourse-list?category=all&level=all&page=2&sort=popular|locale=vi | public, max-age=0, s-maxage=300\nleaderboard?page=1&period=weekly | public, max-age=0, s-maxage=60\nerror: unknown resource: courses\nleaderboard?page=2&period=weekly | public, max-age=0, s-maxage=60\nerror: unknown resource: admin-stats\nerror: personal data needs a signed-in user\ncourse-list?category=node&level=all&page=3&sort=popular|locale=en | public, max-age=0, s-maxage=300\nlesson-progress/c_12|user=u_3070 | private, no-cache\ndashboard?tab=streaks|locale=vi|user=u_3028 | private, no-cache\ncourse-detail/sql-basics|locale=en | public, max-age=0, s-maxage=3600\ncourse-list?category=all&level=all&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\ncourse-list?category=node&level=all&page=2&sort=popular|locale=en | public, max-age=0, s-maxage=300\nerror: unknown resource: admin-stats\nerror: missing param: courseId\nerror: unknown resource: admin-stats\ncourse-list?category=react&level=beginner&page=1&sort=popular|locale=vi | public, max-age=0, s-maxage=300\nleaderboard?page=2&period=weekly | public, max-age=0, s-maxage=60\nerror: personal data needs a signed-in user\n(not cached) | private, no-store\ncourse-list?category=node&level=advanced&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\n(not cached) | private, no-store\nerror: personal data needs a signed-in user\ncourse-detail/sql-basics|locale=en | public, max-age=0, s-maxage=3600\ncourse-detail/sql-basics|locale=vi | public, max-age=0, s-maxage=3600\ncourse-detail/sql-basics|locale=vi | public, max-age=0, s-maxage=3600\ncourse-list?category=react&level=all&page=2&sort=popular|locale=en | public, max-age=0, s-maxage=300\ncourse-detail/react-hooks|locale=en | public, max-age=0, s-maxage=3600\ncourse-detail/sql-basics|locale=vi | public, max-age=0, s-maxage=3600\nlesson-progress/c_12|user=u_3077 | private, no-cache\ncourse-list?category=node&level=beginner&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\ncourse-list?category=all&level=advanced&page=2&sort=popular|locale=vi | public, max-age=0, s-maxage=300\nerror: personal data needs a signed-in user\ncourse-list?category=all&level=all&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\nerror: personal data needs a signed-in user\nerror: unknown resource: courses\nerror: personal data needs a signed-in user\ncourse-list?category=sql&level=all&page=1&sort=popular|locale=vi | public, max-age=0, s-maxage=300\nerror: unknown resource: admin-stats\ncourse-detail/nextjs-rendering-caching|locale=en | public, max-age=0, s-maxage=3600\ncourse-detail/sql-basics|locale=vi | public, max-age=0, s-maxage=3600\nerror: personal data needs a signed-in user\nleaderboard?page=2&period=weekly | public, max-age=0, s-maxage=60\ncourse-list?category=sql&level=all&page=1&sort=rating|locale=en | public, max-age=0, s-maxage=300\ncourse-list?category=all&level=advanced&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\ncourse-list?category=all&level=all&page=1&sort=popular|locale=vi | public, max-age=0, s-maxage=300\nerror: personal data needs a signed-in user\ndashboard?tab=overview|locale=en|user=u_3049 | private, no-cache\ncourse-list?category=sql&level=all&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\nerror: personal data needs a signed-in user\ncourse-list?category=node&level=all&page=2&sort=popular|locale=en | public, max-age=0, s-maxage=300\nerror: unknown resource: courses\nerror: unknown resource: __proto__\nleaderboard?page=1&period=weekly | public, max-age=0, s-maxage=60\nerror: personal data needs a signed-in user\nerror: personal data needs a signed-in user\nerror: personal data needs a signed-in user\nerror: unknown resource: admin-stats\ncourse-detail/react-hooks|locale=en | public, max-age=0, s-maxage=3600\nerror: unknown resource: admin-stats\ncourse-list?category=all&level=all&page=2&sort=popular|locale=en | public, max-age=0, s-maxage=300\ncourse-list?category=react&level=all&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\ndashboard?tab=overview|locale=vi|user=u_3014 | private, no-cache\nerror: unknown resource: __proto__\ndashboard?tab=overview|locale=vi|user=u_3028 | private, no-cache\nerror: personal data needs a signed-in user\ncourse-list?category=all&level=all&page=3&sort=popular|locale=en | public, max-age=0, s-maxage=300\ncourse-list?category=all&level=all&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\ncourse-detail/react-hooks|locale=en | public, max-age=0, s-maxage=3600\nerror: unknown resource: admin-stats\ncourse-list?category=node&level=all&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\nlesson-progress/c_12|user=u_3000 | private, no-cache\ncourse-list?category=all&level=all&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\nerror: personal data needs a signed-in user\nerror: personal data needs a signed-in user\nleaderboard?page=1&period=monthly | public, max-age=0, s-maxage=60\ncourse-detail/react-hooks|locale=vi | public, max-age=0, s-maxage=3600\nerror: personal data needs a signed-in user\nlesson-progress/c_7|user=u_3070 | private, no-cache\nerror: personal data needs a signed-in user\n(not cached) | private, no-store\ncourse-detail/nextjs-rendering-caching|locale=en | public, max-age=0, s-maxage=3600\nerror: unknown resource: admin-stats\ncourse-list?category=all&level=all&page=3&sort=popular|locale=en | public, max-age=0, s-maxage=300\ncourse-detail/sql-basics|locale=en | public, max-age=0, s-maxage=3600\ndashboard?tab=overview|locale=en|user=u_3035 | private, no-cache\ndashboard?tab=overview|locale=en|user=u_3042 | private, no-cache\ncourse-list?category=all&level=all&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\ncourse-list?category=sql&level=all&page=2&sort=popular|locale=vi | public, max-age=0, s-maxage=300\nerror: personal data needs a signed-in user\nerror: unknown resource: admin-stats\nerror: unknown resource: admin-stats\ncourse-list?category=react&level=all&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\n(not cached) | private, no-store\nleaderboard?page=2&period=weekly | public, max-age=0, s-maxage=60\ncourse-detail/react-hooks|locale=en | public, max-age=0, s-maxage=3600\nleaderboard?page=1&period=weekly | public, max-age=0, s-maxage=60\nerror: unknown resource: __proto__\nleaderboard?page=1&period=weekly | public, max-age=0, s-maxage=60\nleaderboard?page=1&period=weekly | public, max-age=0, s-maxage=60\ncourse-detail/react-hooks|locale=en | public, max-age=0, s-maxage=3600\nerror: unknown resource: courses\nerror: unknown resource: courses\ncourse-list?category=all&level=all&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\ndashboard?tab=overview|locale=vi|user=u_3000 | private, no-cache\nerror: unknown resource: __proto__\ndashboard?tab=overview|locale=en|user=u_3021 | private, no-cache\nleaderboard?page=2&period=weekly | public, max-age=0, s-maxage=60\ncourse-list?category=node&level=beginner&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\ncourse-detail/react-hooks|locale=en | public, max-age=0, s-maxage=3600\nerror: missing param: courseId\n(not cached) | private, no-store\nerror: unknown resource: admin-stats\ncourse-detail/sql-basics|locale=en | public, max-age=0, s-maxage=3600\ncourse-list?category=react&level=all&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\ncourse-list?category=node&level=advanced&page=3&sort=popular|locale=en | public, max-age=0, s-maxage=300\nleaderboard?page=2&period=monthly | public, max-age=0, s-maxage=60\nerror: unknown resource: __proto__\ncourse-list?category=react&level=beginner&page=1&sort=newest|locale=en | public, max-age=0, s-maxage=300\ncourse-list?category=react&level=advanced&page=1&sort=popular|locale=vi | public, max-age=0, s-maxage=300\nerror: unknown resource: admin-stats\nleaderboard?page=2&period=weekly | public, max-age=0, s-maxage=60\ncourse-list?category=all&level=all&page=2&sort=popular|locale=vi | public, max-age=0, s-maxage=300\ncourse-list?category=all&level=all&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\nlesson-progress/c_7|user=u_3021 | private, no-cache\ncourse-list?category=all&level=all&page=1&sort=rating|locale=en | public, max-age=0, s-maxage=300\ncourse-list?category=react&level=beginner&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\ndashboard?tab=overview|locale=en|user=u_3063 | private, no-cache\nerror: unknown resource: __proto__\n(not cached) | private, no-store\n(not cached) | private, no-store\ncourse-list?category=all&level=advanced&page=2&sort=popular|locale=en | public, max-age=0, s-maxage=300\ncourse-list?category=all&level=all&page=1&sort=rating|locale=vi | public, max-age=0, s-maxage=300\ncourse-list?category=all&level=all&page=1&sort=rating|locale=vi | public, max-age=0, s-maxage=300\nlesson-progress/c_7|user=u_3063 | private, no-cache\ncourse-list?category=react&level=all&page=1&sort=rating|locale=en | public, max-age=0, s-maxage=300\ncourse-detail/nextjs-rendering-caching|locale=en | public, max-age=0, s-maxage=3600\ncourse-detail/nextjs-rendering-caching|locale=en | public, max-age=0, s-maxage=3600\ncourse-list?category=all&level=all&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\ndashboard?tab=overview|locale=en|user=u_3063 | private, no-cache\ncourse-detail/sql-basics|locale=en | public, max-age=0, s-maxage=3600\ncourse-list?category=react&level=all&page=1&sort=popular|locale=vi | public, max-age=0, s-maxage=300\ncourse-list?category=all&level=all&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\nerror: unknown resource: __proto__\ncourse-list?category=all&level=all&page=2&sort=popular|locale=vi | public, max-age=0, s-maxage=300\nlesson-progress/c_12|user=u_3049 | private, no-cache\nerror: personal data needs a signed-in user\nerror: personal data needs a signed-in user\nlesson-progress/c_12|user=u_3035 | private, no-cache\nerror: unknown resource: __proto__\ncourse-detail/nextjs-rendering-caching|locale=en | public, max-age=0, s-maxage=3600\ncourse-list?category=node&level=advanced&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\nerror: personal data needs a signed-in user\ncourse-list?category=node&level=all&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\ncourse-list?category=sql&level=beginner&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\nerror: unknown resource: courses\nerror: unknown resource: courses\nleaderboard?page=1&period=weekly | public, max-age=0, s-maxage=60\nerror: missing param: courseId\ncourse-detail/nextjs-rendering-caching|locale=en | public, max-age=0, s-maxage=3600\ncourse-list?category=react&level=all&page=3&sort=popular|locale=en | public, max-age=0, s-maxage=300\nleaderboard?page=2&period=weekly | public, max-age=0, s-maxage=60\ncourse-list?category=all&level=all&page=2&sort=popular|locale=en | public, max-age=0, s-maxage=300\nleaderboard?page=1&period=monthly | public, max-age=0, s-maxage=60\n(not cached) | private, no-store\nerror: unknown resource: courses\ncourse-list?category=all&level=all&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\nerror: personal data needs a signed-in user\ncourse-detail/sql-basics|locale=vi | public, max-age=0, s-maxage=3600\nerror: personal data needs a signed-in user\ndashboard?tab=overview|locale=en|user=u_3077 | private, no-cache\nerror: unknown resource: courses\ncourse-list?category=all&level=beginner&page=3&sort=popular|locale=vi | public, max-age=0, s-maxage=300\ncourse-detail/nextjs-rendering-caching|locale=en | public, max-age=0, s-maxage=3600\ncourse-list?category=all&level=all&page=1&sort=newest|locale=en | public, max-age=0, s-maxage=300\nerror: personal data needs a signed-in user\nerror: unknown resource: __proto__\nerror: unknown resource: admin-stats\ncourse-list?category=all&level=beginner&page=3&sort=popular|locale=en | public, max-age=0, s-maxage=300\ncourse-detail/sql-basics|locale=en | public, max-age=0, s-maxage=3600\nleaderboard?page=2&period=monthly | public, max-age=0, s-maxage=60\ncourse-detail/sql-basics|locale=vi | public, max-age=0, s-maxage=3600\nleaderboard?page=2&period=weekly | public, max-age=0, s-maxage=60\ncourse-list?category=all&level=advanced&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\nerror: unknown resource: admin-stats\ncourse-list?category=react&level=all&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\ncourse-list?category=react&level=all&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\nleaderboard?page=2&period=weekly | public, max-age=0, s-maxage=60\nerror: personal data needs a signed-in user\ncourse-detail/react-hooks|locale=en | public, max-age=0, s-maxage=3600\ncourse-list?category=all&level=beginner&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\ncourse-detail/sql-basics|locale=en | public, max-age=0, s-maxage=3600\nerror: missing param: courseId\nerror: unknown resource: admin-stats\nerror: personal data needs a signed-in user\nlesson-progress/c_7|user=u_3014 | private, no-cache\nerror: personal data needs a signed-in user\ncourse-list?category=node&level=advanced&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\ncourse-list?category=all&level=advanced&page=1&sort=popular|locale=vi | public, max-age=0, s-maxage=300\ncourse-list?category=node&level=all&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\ncourse-list?category=all&level=all&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\ndashboard?tab=overview|locale=vi|user=u_3021 | private, no-cache\nerror: personal data needs a signed-in user\ncourse-list?category=react&level=beginner&page=2&sort=popular|locale=en | public, max-age=0, s-maxage=300\nerror: personal data needs a signed-in user\ncourse-list?category=all&level=all&page=1&sort=rating|locale=vi | public, max-age=0, s-maxage=300\nerror: unknown resource: courses\nerror: personal data needs a signed-in user\nerror: personal data needs a signed-in user\ncourse-list?category=all&level=advanced&page=2&sort=popular|locale=en | public, max-age=0, s-maxage=300\ncourse-list?category=all&level=all&page=1&sort=rating|locale=vi | public, max-age=0, s-maxage=300\ncourse-list?category=all&level=advanced&page=1&sort=rating|locale=en | public, max-age=0, s-maxage=300\nleaderboard?page=1&period=weekly | public, max-age=0, s-maxage=60\ncourse-detail/nextjs-rendering-caching|locale=en | public, max-age=0, s-maxage=3600\ncourse-list?category=all&level=advanced&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\ncourse-detail/react-hooks|locale=en | public, max-age=0, s-maxage=3600\n(not cached) | private, no-store\ncourse-list?category=sql&level=all&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\nerror: personal data needs a signed-in user\nerror: personal data needs a signed-in user\ncourse-detail/sql-basics|locale=vi | public, max-age=0, s-maxage=3600\nerror: unknown resource: admin-stats\ncourse-list?category=sql&level=all&page=1&sort=popular|locale=vi | public, max-age=0, s-maxage=300\nerror: unknown resource: admin-stats\nlesson-progress/c_12|user=u_3070 | private, no-cache\ncourse-list?category=node&level=all&page=2&sort=popular|locale=en | public, max-age=0, s-maxage=300\ncourse-list?category=react&level=beginner&page=1&sort=newest|locale=en | public, max-age=0, s-maxage=300\nerror: personal data needs a signed-in user\ndashboard?tab=overview|locale=en|user=u_3049 | private, no-cache\nerror: missing param: courseId\ndashboard?tab=overview|locale=en|user=u_3049 | private, no-cache\ncourse-list?category=all&level=all&page=1&sort=popular|locale=vi | public, max-age=0, s-maxage=300\nerror: unknown resource: courses\ndashboard?tab=overview|locale=vi|user=u_3021 | private, no-cache\nerror: personal data needs a signed-in user\nerror: unknown resource: admin-stats\ncourse-list?category=all&level=beginner&page=1&sort=newest|locale=en | public, max-age=0, s-maxage=300\nlesson-progress/c_12|user=u_3000 | private, no-cache\ncourse-list?category=node&level=all&page=2&sort=popular|locale=en | public, max-age=0, s-maxage=300\ncourse-list?category=all&level=beginner&page=1&sort=newest|locale=en | public, max-age=0, s-maxage=300\ncourse-list?category=all&level=all&page=1&sort=newest|locale=vi | public, max-age=0, s-maxage=300\ncourse-detail/sql-basics|locale=en | public, max-age=0, s-maxage=3600\nleaderboard?page=1&period=weekly | public, max-age=0, s-maxage=60\ncourse-list?category=react&level=advanced&page=1&sort=popular|locale=vi | public, max-age=0, s-maxage=300\ncourse-list?category=all&level=all&page=1&sort=popular|locale=en | public, max-age=0, s-maxage=300\n(not cached) | private, no-store\ncourse-list?category=all&level=all&page=2&sort=popular|locale=en | public, max-age=0, s-maxage=300\ncourse-detail/react-hooks|locale=vi | public, max-age=0, s-maxage=3600\ncourse-detail/sql-basics|locale=en | public, max-age=0, s-maxage=3600\n320 requests, 80 cache entries",
+          "hidden": true,
+          "score": 2
+        }
+      ]
+    }
+  ]
+}

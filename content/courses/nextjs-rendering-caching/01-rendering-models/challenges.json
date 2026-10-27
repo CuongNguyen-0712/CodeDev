@@ -1,0 +1,4930 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nrc_111",
+      "name": "rendering-models-quiz",
+      "type": "quiz",
+      "title": "Why did the catalog go dynamic?",
+      "description": "Two pieces of evidence from the catalog incident: the layout and build output before the fix, and the response header after it.",
+      "difficulty": "medium",
+      "outcomes": [
+        "rendering-choice"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "// app/layout.tsx\nimport { cookies } from \"next/headers\";\n\nexport default async function RootLayout({ children }: { children: React.ReactNode }) {\n  const theme = (await cookies()).get(\"theme\")?.value ?? \"light\";\n  return <html lang=\"en\" data-theme={theme}><body>{children}</body></html>;\n}\n\n// app/courses/page.tsx\nexport const revalidate = 300;\nexport default async function CatalogPage() {\n  const courses = await getPublishedCourses();\n  return <CourseGrid courses={courses} />;\n}\n\n$ next build\nRoute (app)\n...\n├ ƒ /courses\n...\nƒ  (Dynamic)  server-rendered on demand\n\nStatement: \"Because the page exports revalidate = 300, the catalog HTML is still rendered at most once every 5 minutes and served from the cache in between.\"",
+          "explanation": "False. The build output marks /courses as ƒ, rendered on demand: a route is rendered for each request as soon as anything in its tree (the page or any layout above it) reads a request-time API such as cookies(), headers() or searchParams. The root layout reads cookies() for the theme, so every route below it, the catalog included, is rendered per request and revalidate = 300 cannot cache the HTML (depending on your Next.js version it may still affect how the data fetches inside are cached, but not the page). The misconception is that revalidate is a setting of the page alone; the whole tree decides, and one cookie read in a shared layout outranks it. The fix is to stop reading the cookie on the server, then confirm in the build output that the route is no longer ƒ.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The fix that shipped. The root layout no longer imports next/headers:\n\n// app/layout.tsx\nexport default function RootLayout({ children }: { children: React.ReactNode }) {\n  return (\n    <html lang=\"en\" suppressHydrationWarning>\n      <head>\n        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />\n      </head>\n      <body>{children}</body>\n    </html>\n  );\n}\n// THEME_SCRIPT reads the theme cookie in the browser and sets data-theme on <html> before the first paint.\n\n$ curl -sI https://app.codedev.test/courses | grep -i x-nextjs-cache\nx-nextjs-cache: HIT\n\nStatement: \"Now that the catalog HTML comes from a shared cache, the server sends the same HTML to every visitor, so the theme has to be applied in the browser instead of being chosen by the server.\"",
+          "explanation": "True. x-nextjs-cache: HIT means this response was served from the Next.js cache, which is one copy of the HTML for everyone; nothing in it can depend on who asked. A per-visitor detail like the theme therefore moves to the browser: the inline script reads the cookie and sets data-theme before the page is painted, which avoids a flash of the wrong theme. suppressHydrationWarning on <html> is needed because the script changes that attribute before React hydrates. The misconception is that you can keep a cached page and still personalise its HTML on the server; you can personalise it in the browser, or render that part per request, but not both cache and vary the same HTML.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_nrc_112",
+      "name": "choose-rendering-strategy",
+      "type": "mini_coding",
+      "title": "Choose a rendering strategy for every route",
+      "description": "After the catalog incident (GET /courses was rendered on every request because the root layout read cookies() for the theme, and TTFB tripled under load), the CodeDev team runs the traits of every route through one function before each release. Write chooseRendering(page), which returns { route, strategy, reason } for a page { route, freshnessSeconds, perUserData, reads, pageCount, dataAtBuild, seo }. freshnessSeconds is how old the HTML may be (null = it changes only with a deploy, 0 = it must be fresh on every request); reads lists the request-time APIs read by the page or any layout above it; pageCount is how many pages the route produces; dataAtBuild says whether the data source can be reached during next build. Apply the rules in this order: (1) invalid traits give strategy \"invalid\" and reason \"invalid traits\": freshnessSeconds that is not null and not a whole number >= 0, pageCount that is not a whole number >= 1, or reads that is not an array or contains anything other than \"cookies\", \"headers\", \"searchParams\". (2) perUserData true: \"dynamic\", reason \"per-user data\". (3) reads not empty: \"dynamic\", reason \"reads \" followed by the distinct names it contains in the fixed order cookies, headers, searchParams, joined with \", \" (for example \"reads cookies, searchParams\"). (4) freshnessSeconds 0: \"dynamic\", reason \"must be fresh on every request\". (5) The HTML is \"prerendered at build\" when dataAtBuild is true and pageCount is at most 1000, otherwise it is \"rendered on first request\". (6) freshnessSeconds null: \"static\", reason = the text from rule 5. (7) freshnessSeconds above 0: strategy \"isr:<seconds>\" (for example \"isr:300\"), reason = the text from rule 5 + \", revalidated every <seconds> s\". seo never changes the strategy: static, ISR and dynamic pages all send complete HTML to crawlers. The test runner reads a list of pages as JSON and prints one decision per page.",
+      "difficulty": "easy",
+      "outcomes": [
+        "rendering-choice"
+      ],
+      "points": 20,
+      "hints": [
+        "Which traits make the HTML depend on the request itself, and should they be checked before or after the freshness window? A page cannot be cached for 5 minutes if its HTML depends on who is asking.",
+        "Follow the rule order in the starter comment: validity, perUserData, reads, then freshnessSeconds. Filtering the fixed list [\"cookies\", \"headers\", \"searchParams\"] by what the page reads gives the names in the right order with no duplicates. Watch out: 0 and null are both falsy in JavaScript, but here they mean opposite things.",
+        "A trace on a route that is not in the tests: /instructors/[id] with freshnessSeconds 600, pageCount 2000, dataAtBuild true, reads [] and perUserData false passes rules 1 to 4; 2000 is above the build limit, so the HTML is rendered on first request, and the strategy is isr:600 with the reason \"rendered on first request, revalidated every 600 s\". With reads [\"headers\", \"cookies\", \"headers\"] it stops at rule 3: dynamic, \"reads cookies, headers\"."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The incident: the catalog with revalidate 300 is dynamic while a layout reads cookies",
+          "input": [
+            {
+              "route": "/courses",
+              "freshnessSeconds": 300,
+              "perUserData": false,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/courses",
+              "freshnessSeconds": 300,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            }
+          ],
+          "expected": [
+            {
+              "route": "/courses",
+              "strategy": "dynamic",
+              "reason": "reads cookies"
+            },
+            {
+              "route": "/courses",
+              "strategy": "isr:300",
+              "reason": "prerendered at build, revalidated every 300 s"
+            }
+          ],
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "About page, 400 course pages, the learner dashboard and the search page",
+          "input": [
+            {
+              "route": "/about",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/courses/[slug]",
+              "freshnessSeconds": 3600,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 400,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/dashboard",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/courses/search",
+              "freshnessSeconds": 300,
+              "perUserData": false,
+              "reads": [
+                "searchParams"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            }
+          ],
+          "expected": [
+            {
+              "route": "/about",
+              "strategy": "static",
+              "reason": "prerendered at build"
+            },
+            {
+              "route": "/courses/[slug]",
+              "strategy": "isr:3600",
+              "reason": "prerendered at build, revalidated every 3600 s"
+            },
+            {
+              "route": "/dashboard",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/courses/search",
+              "strategy": "dynamic",
+              "reason": "reads searchParams"
+            }
+          ],
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "freshnessSeconds 0 means fresh on every request, not the same as null",
+          "input": [
+            {
+              "route": "/leaderboard/live",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/leaderboard/weekly",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/changelog",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            }
+          ],
+          "expected": [
+            {
+              "route": "/leaderboard/live",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            },
+            {
+              "route": "/leaderboard/weekly",
+              "strategy": "isr:60",
+              "reason": "prerendered at build, revalidated every 60 s"
+            },
+            {
+              "route": "/changelog",
+              "strategy": "static",
+              "reason": "prerendered at build"
+            }
+          ],
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "SEO never forces dynamic rendering",
+          "input": [
+            {
+              "route": "/roadmaps/frontend",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/roadmaps/backend",
+              "freshnessSeconds": 86400,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/certificates/[id]",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 25000,
+              "dataAtBuild": true,
+              "seo": true
+            }
+          ],
+          "expected": [
+            {
+              "route": "/roadmaps/frontend",
+              "strategy": "static",
+              "reason": "prerendered at build"
+            },
+            {
+              "route": "/roadmaps/backend",
+              "strategy": "isr:86400",
+              "reason": "prerendered at build, revalidated every 86400 s"
+            },
+            {
+              "route": "/certificates/[id]",
+              "strategy": "static",
+              "reason": "rendered on first request"
+            }
+          ],
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Build limit: 1000 pages prerender, 1001 pages or unreachable data render on first request",
+          "input": [
+            {
+              "route": "/blog/[slug]",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1000,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/blog/[slug]",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1001,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/instructors/[id]",
+              "freshnessSeconds": 600,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 20,
+              "dataAtBuild": false,
+              "seo": true
+            },
+            {
+              "route": "/instructors/[id]",
+              "freshnessSeconds": 600,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1000,
+              "dataAtBuild": true,
+              "seo": true
+            }
+          ],
+          "expected": [
+            {
+              "route": "/blog/[slug]",
+              "strategy": "static",
+              "reason": "prerendered at build"
+            },
+            {
+              "route": "/blog/[slug]",
+              "strategy": "static",
+              "reason": "rendered on first request"
+            },
+            {
+              "route": "/instructors/[id]",
+              "strategy": "isr:600",
+              "reason": "rendered on first request, revalidated every 600 s"
+            },
+            {
+              "route": "/instructors/[id]",
+              "strategy": "isr:600",
+              "reason": "prerendered at build, revalidated every 600 s"
+            }
+          ],
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Request reads listed once each in fixed order; per-user data is checked first",
+          "input": [
+            {
+              "route": "/courses",
+              "freshnessSeconds": 300,
+              "perUserData": false,
+              "reads": [
+                "searchParams",
+                "cookies",
+                "searchParams"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/api-docs",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [
+                "headers"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/settings",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "headers",
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/courses/[slug]/reviews",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 400,
+              "dataAtBuild": true,
+              "seo": true
+            }
+          ],
+          "expected": [
+            {
+              "route": "/courses",
+              "strategy": "dynamic",
+              "reason": "reads cookies, searchParams"
+            },
+            {
+              "route": "/api-docs",
+              "strategy": "dynamic",
+              "reason": "reads headers"
+            },
+            {
+              "route": "/settings",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/courses/[slug]/reviews",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            }
+          ],
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Invalid traits: negative, fractional or text freshness, pageCount 0, unknown request API",
+          "input": [
+            {
+              "route": "/a",
+              "freshnessSeconds": -60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/b",
+              "freshnessSeconds": 2.5,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/c",
+              "freshnessSeconds": "300",
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/d",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 0,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/e",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [
+                "cookies",
+                "localStorage"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/f",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": "cookies",
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/g",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [],
+              "pageCount": 1.5,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/h",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            }
+          ],
+          "expected": [
+            {
+              "route": "/a",
+              "strategy": "invalid",
+              "reason": "invalid traits"
+            },
+            {
+              "route": "/b",
+              "strategy": "invalid",
+              "reason": "invalid traits"
+            },
+            {
+              "route": "/c",
+              "strategy": "invalid",
+              "reason": "invalid traits"
+            },
+            {
+              "route": "/d",
+              "strategy": "invalid",
+              "reason": "invalid traits"
+            },
+            {
+              "route": "/e",
+              "strategy": "invalid",
+              "reason": "invalid traits"
+            },
+            {
+              "route": "/f",
+              "strategy": "invalid",
+              "reason": "invalid traits"
+            },
+            {
+              "route": "/g",
+              "strategy": "invalid",
+              "reason": "invalid traits"
+            },
+            {
+              "route": "/h",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            }
+          ],
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Large site map: 300 routes of every kind",
+          "input": [
+            {
+              "route": "/search/s-0",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [
+                "searchParams",
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/learn/l-1",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/u/p-2",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": false,
+              "seo": true
+            },
+            {
+              "route": "/blog/b-3",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1000,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/u/p-4",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/courses/c-5",
+              "freshnessSeconds": 600,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1200,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/live/v-6",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/live/v-7",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/u/p-8",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/live/v-9",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/courses/c-10",
+              "freshnessSeconds": 600,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/search/s-11",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [
+                "searchParams"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/u/p-12",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/learn/l-13",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/live/v-14",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/live/v-15",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/learn/l-16",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/docs/d-17",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/blog/b-18",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1000,
+              "dataAtBuild": false,
+              "seo": true
+            },
+            {
+              "route": "/docs/d-19",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/courses/c-20",
+              "freshnessSeconds": 600,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1200,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/blog/b-21",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1001,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/u/p-22",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": false,
+              "seo": true
+            },
+            {
+              "route": "/courses/c-23",
+              "freshnessSeconds": 3600,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/learn/l-24",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/blog/b-25",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1001,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/courses/c-26",
+              "freshnessSeconds": 300,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/u/p-27",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/live/v-28",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/live/v-29",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/courses/c-30",
+              "freshnessSeconds": 300,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 400,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/u/p-31",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/docs/d-32",
+              "freshnessSeconds": 86400,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/live/v-33",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/courses/c-34",
+              "freshnessSeconds": 3600,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1200,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/blog/b-35",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1001,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/courses/c-36",
+              "freshnessSeconds": 600,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 400,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/courses/c-37",
+              "freshnessSeconds": 3600,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/blog/b-38",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1001,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/u/p-39",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": false,
+              "seo": true
+            },
+            {
+              "route": "/docs/d-40",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/search/s-41",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [
+                "searchParams"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/u/p-42",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/learn/l-43",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/learn/l-44",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/u/p-45",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": false,
+              "seo": true
+            },
+            {
+              "route": "/blog/b-46",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1000,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/learn/l-47",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/u/p-48",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": false,
+              "seo": true
+            },
+            {
+              "route": "/u/p-49",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/live/v-50",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/blog/b-51",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1001,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/courses/c-52",
+              "freshnessSeconds": 300,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1200,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/search/s-53",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [
+                "headers",
+                "searchParams"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/live/v-54",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/courses/c-55",
+              "freshnessSeconds": 300,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1200,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/search/s-56",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [
+                "searchParams",
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/blog/b-57",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 10,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/learn/l-58",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/u/p-59",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/courses/c-60",
+              "freshnessSeconds": 600,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 400,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/docs/d-61",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/blog/b-62",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1001,
+              "dataAtBuild": false,
+              "seo": true
+            },
+            {
+              "route": "/blog/b-63",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1001,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/u/p-64",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": false,
+              "seo": true
+            },
+            {
+              "route": "/docs/d-65",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/search/s-66",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [
+                "searchParams"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/search/s-67",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [
+                "searchParams"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/learn/l-68",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/courses/c-69",
+              "freshnessSeconds": 3600,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1200,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/courses/c-70",
+              "freshnessSeconds": 600,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/u/p-71",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/live/v-72",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/live/v-73",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/blog/b-74",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 10,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/learn/l-75",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/docs/d-76",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/search/s-77",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [
+                "searchParams"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/courses/c-78",
+              "freshnessSeconds": 300,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/docs/d-79",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/u/p-80",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/u/p-81",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": false,
+              "seo": true
+            },
+            {
+              "route": "/docs/d-82",
+              "freshnessSeconds": 86400,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/live/v-83",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/search/s-84",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [
+                "headers",
+                "searchParams"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/u/p-85",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": false,
+              "seo": true
+            },
+            {
+              "route": "/docs/d-86",
+              "freshnessSeconds": 86400,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/live/v-87",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/learn/l-88",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/search/s-89",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [
+                "headers",
+                "searchParams"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/search/s-90",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [
+                "searchParams"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/courses/c-91",
+              "freshnessSeconds": 600,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/live/v-92",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/docs/d-93",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/blog/b-94",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1000,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/courses/c-95",
+              "freshnessSeconds": 600,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/u/p-96",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": false,
+              "seo": true
+            },
+            {
+              "route": "/courses/c-97",
+              "freshnessSeconds": 600,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1200,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/courses/c-98",
+              "freshnessSeconds": 300,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1200,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/u/p-99",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/blog/b-100",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1000,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/docs/d-101",
+              "freshnessSeconds": 86400,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/courses/c-102",
+              "freshnessSeconds": 300,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 400,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/search/s-103",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [
+                "searchParams"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/blog/b-104",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1001,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/docs/d-105",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/blog/b-106",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1000,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/live/v-107",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/u/p-108",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/learn/l-109",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/courses/c-110",
+              "freshnessSeconds": 3600,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/search/s-111",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [
+                "searchParams"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/docs/d-112",
+              "freshnessSeconds": 86400,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/u/p-113",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": false,
+              "seo": true
+            },
+            {
+              "route": "/courses/c-114",
+              "freshnessSeconds": 300,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/learn/l-115",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/live/v-116",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/u/p-117",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/live/v-118",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/courses/c-119",
+              "freshnessSeconds": 600,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 400,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/docs/d-120",
+              "freshnessSeconds": 86400,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/u/p-121",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/learn/l-122",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/learn/l-123",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/docs/d-124",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/docs/d-125",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/courses/c-126",
+              "freshnessSeconds": 300,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 400,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/u/p-127",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/u/p-128",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/courses/c-129",
+              "freshnessSeconds": 600,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1200,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/blog/b-130",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1000,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/live/v-131",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/search/s-132",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [
+                "searchParams"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/courses/c-133",
+              "freshnessSeconds": 600,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 400,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/u/p-134",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/live/v-135",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/learn/l-136",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/learn/l-137",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/learn/l-138",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/courses/c-139",
+              "freshnessSeconds": 300,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/learn/l-140",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/live/v-141",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/courses/c-142",
+              "freshnessSeconds": 3600,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 400,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/live/v-143",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/u/p-144",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": false,
+              "seo": true
+            },
+            {
+              "route": "/courses/c-145",
+              "freshnessSeconds": 300,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1200,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/live/v-146",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/learn/l-147",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/docs/d-148",
+              "freshnessSeconds": 86400,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/learn/l-149",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/search/s-150",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [
+                "headers",
+                "searchParams"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/blog/b-151",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1000,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/search/s-152",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [
+                "searchParams"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/learn/l-153",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/docs/d-154",
+              "freshnessSeconds": 86400,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/blog/b-155",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 10,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/learn/l-156",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/courses/c-157",
+              "freshnessSeconds": 300,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/search/s-158",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [
+                "headers",
+                "searchParams"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/blog/b-159",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1001,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/blog/b-160",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1000,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/u/p-161",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/u/p-162",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": false,
+              "seo": true
+            },
+            {
+              "route": "/learn/l-163",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/blog/b-164",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1000,
+              "dataAtBuild": false,
+              "seo": true
+            },
+            {
+              "route": "/search/s-165",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [
+                "headers",
+                "searchParams"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/live/v-166",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/courses/c-167",
+              "freshnessSeconds": 600,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 400,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/learn/l-168",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/docs/d-169",
+              "freshnessSeconds": 86400,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/courses/c-170",
+              "freshnessSeconds": 300,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 400,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/u/p-171",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/u/p-172",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": false,
+              "seo": true
+            },
+            {
+              "route": "/learn/l-173",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/courses/c-174",
+              "freshnessSeconds": 300,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1200,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/live/v-175",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/live/v-176",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/live/v-177",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/courses/c-178",
+              "freshnessSeconds": 3600,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/docs/d-179",
+              "freshnessSeconds": 86400,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/docs/d-180",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/blog/b-181",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1000,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/search/s-182",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [
+                "headers",
+                "searchParams"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/docs/d-183",
+              "freshnessSeconds": 86400,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/live/v-184",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/search/s-185",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [
+                "searchParams"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/search/s-186",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [
+                "searchParams"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/blog/b-187",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1000,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/blog/b-188",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1001,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/live/v-189",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/search/s-190",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [
+                "headers",
+                "searchParams"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/learn/l-191",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/live/v-192",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/docs/d-193",
+              "freshnessSeconds": 86400,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/docs/d-194",
+              "freshnessSeconds": 86400,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/learn/l-195",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/blog/b-196",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1001,
+              "dataAtBuild": false,
+              "seo": true
+            },
+            {
+              "route": "/learn/l-197",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/learn/l-198",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/docs/d-199",
+              "freshnessSeconds": 86400,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/learn/l-200",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/learn/l-201",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/search/s-202",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [
+                "headers",
+                "searchParams"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/docs/d-203",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/learn/l-204",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/blog/b-205",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1001,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/u/p-206",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": false,
+              "seo": true
+            },
+            {
+              "route": "/docs/d-207",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/search/s-208",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [
+                "searchParams",
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/search/s-209",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [
+                "searchParams",
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/live/v-210",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/blog/b-211",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 10,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/u/p-212",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": false,
+              "seo": true
+            },
+            {
+              "route": "/u/p-213",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/courses/c-214",
+              "freshnessSeconds": 3600,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1200,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/u/p-215",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": false,
+              "seo": true
+            },
+            {
+              "route": "/docs/d-216",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/learn/l-217",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/live/v-218",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/docs/d-219",
+              "freshnessSeconds": 86400,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/live/v-220",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/live/v-221",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/docs/d-222",
+              "freshnessSeconds": 86400,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/courses/c-223",
+              "freshnessSeconds": 600,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 400,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/learn/l-224",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/blog/b-225",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 10,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/docs/d-226",
+              "freshnessSeconds": 86400,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/live/v-227",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/courses/c-228",
+              "freshnessSeconds": 3600,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/search/s-229",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [
+                "headers",
+                "searchParams"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/live/v-230",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/blog/b-231",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1000,
+              "dataAtBuild": false,
+              "seo": true
+            },
+            {
+              "route": "/u/p-232",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": false,
+              "seo": true
+            },
+            {
+              "route": "/docs/d-233",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/u/p-234",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": false,
+              "seo": true
+            },
+            {
+              "route": "/u/p-235",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/docs/d-236",
+              "freshnessSeconds": 86400,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/live/v-237",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/courses/c-238",
+              "freshnessSeconds": 3600,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 400,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/u/p-239",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/live/v-240",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/docs/d-241",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/learn/l-242",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/search/s-243",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [
+                "headers",
+                "searchParams"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/docs/d-244",
+              "freshnessSeconds": 86400,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/search/s-245",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [
+                "searchParams"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/blog/b-246",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1001,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/blog/b-247",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1001,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/learn/l-248",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/search/s-249",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [
+                "searchParams"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/u/p-250",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": false,
+              "seo": true
+            },
+            {
+              "route": "/learn/l-251",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/docs/d-252",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/learn/l-253",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/courses/c-254",
+              "freshnessSeconds": 600,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/u/p-255",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/learn/l-256",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/blog/b-257",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1000,
+              "dataAtBuild": false,
+              "seo": true
+            },
+            {
+              "route": "/docs/d-258",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/u/p-259",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/blog/b-260",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 10,
+              "dataAtBuild": false,
+              "seo": true
+            },
+            {
+              "route": "/courses/c-261",
+              "freshnessSeconds": 3600,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/learn/l-262",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/docs/d-263",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/docs/d-264",
+              "freshnessSeconds": 86400,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/docs/d-265",
+              "freshnessSeconds": 86400,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/learn/l-266",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/docs/d-267",
+              "freshnessSeconds": 86400,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/docs/d-268",
+              "freshnessSeconds": 86400,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/u/p-269",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": false,
+              "seo": true
+            },
+            {
+              "route": "/learn/l-270",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/courses/c-271",
+              "freshnessSeconds": 600,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/courses/c-272",
+              "freshnessSeconds": 3600,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/docs/d-273",
+              "freshnessSeconds": 86400,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/blog/b-274",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1000,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/live/v-275",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/blog/b-276",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1000,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/live/v-277",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/courses/c-278",
+              "freshnessSeconds": 300,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1200,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/learn/l-279",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/courses/c-280",
+              "freshnessSeconds": 600,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 400,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/blog/b-281",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1000,
+              "dataAtBuild": false,
+              "seo": true
+            },
+            {
+              "route": "/u/p-282",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/docs/d-283",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/live/v-284",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/courses/c-285",
+              "freshnessSeconds": 300,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/live/v-286",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/search/s-287",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [
+                "headers",
+                "searchParams"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/docs/d-288",
+              "freshnessSeconds": 86400,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/courses/c-289",
+              "freshnessSeconds": 300,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 400,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/learn/l-290",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/learn/l-291",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/docs/d-292",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/u/p-293",
+              "freshnessSeconds": 60,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 50000,
+              "dataAtBuild": false,
+              "seo": true
+            },
+            {
+              "route": "/courses/c-294",
+              "freshnessSeconds": 600,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 400,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/courses/c-295",
+              "freshnessSeconds": 300,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/learn/l-296",
+              "freshnessSeconds": null,
+              "perUserData": true,
+              "reads": [
+                "cookies"
+              ],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/blog/b-297",
+              "freshnessSeconds": null,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 10,
+              "dataAtBuild": true,
+              "seo": true
+            },
+            {
+              "route": "/live/v-298",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            },
+            {
+              "route": "/live/v-299",
+              "freshnessSeconds": 0,
+              "perUserData": false,
+              "reads": [],
+              "pageCount": 1,
+              "dataAtBuild": true,
+              "seo": false
+            }
+          ],
+          "expected": [
+            {
+              "route": "/search/s-0",
+              "strategy": "dynamic",
+              "reason": "reads cookies, searchParams"
+            },
+            {
+              "route": "/learn/l-1",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/u/p-2",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/blog/b-3",
+              "strategy": "static",
+              "reason": "prerendered at build"
+            },
+            {
+              "route": "/u/p-4",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/courses/c-5",
+              "strategy": "isr:600",
+              "reason": "rendered on first request, revalidated every 600 s"
+            },
+            {
+              "route": "/live/v-6",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            },
+            {
+              "route": "/live/v-7",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            },
+            {
+              "route": "/u/p-8",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/live/v-9",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            },
+            {
+              "route": "/courses/c-10",
+              "strategy": "isr:600",
+              "reason": "prerendered at build, revalidated every 600 s"
+            },
+            {
+              "route": "/search/s-11",
+              "strategy": "dynamic",
+              "reason": "reads searchParams"
+            },
+            {
+              "route": "/u/p-12",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/learn/l-13",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/live/v-14",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            },
+            {
+              "route": "/live/v-15",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            },
+            {
+              "route": "/learn/l-16",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/docs/d-17",
+              "strategy": "static",
+              "reason": "prerendered at build"
+            },
+            {
+              "route": "/blog/b-18",
+              "strategy": "static",
+              "reason": "rendered on first request"
+            },
+            {
+              "route": "/docs/d-19",
+              "strategy": "static",
+              "reason": "prerendered at build"
+            },
+            {
+              "route": "/courses/c-20",
+              "strategy": "isr:600",
+              "reason": "rendered on first request, revalidated every 600 s"
+            },
+            {
+              "route": "/blog/b-21",
+              "strategy": "static",
+              "reason": "rendered on first request"
+            },
+            {
+              "route": "/u/p-22",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/courses/c-23",
+              "strategy": "isr:3600",
+              "reason": "prerendered at build, revalidated every 3600 s"
+            },
+            {
+              "route": "/learn/l-24",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/blog/b-25",
+              "strategy": "static",
+              "reason": "rendered on first request"
+            },
+            {
+              "route": "/courses/c-26",
+              "strategy": "isr:300",
+              "reason": "prerendered at build, revalidated every 300 s"
+            },
+            {
+              "route": "/u/p-27",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/live/v-28",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            },
+            {
+              "route": "/live/v-29",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            },
+            {
+              "route": "/courses/c-30",
+              "strategy": "isr:300",
+              "reason": "prerendered at build, revalidated every 300 s"
+            },
+            {
+              "route": "/u/p-31",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/docs/d-32",
+              "strategy": "isr:86400",
+              "reason": "prerendered at build, revalidated every 86400 s"
+            },
+            {
+              "route": "/live/v-33",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            },
+            {
+              "route": "/courses/c-34",
+              "strategy": "isr:3600",
+              "reason": "rendered on first request, revalidated every 3600 s"
+            },
+            {
+              "route": "/blog/b-35",
+              "strategy": "static",
+              "reason": "rendered on first request"
+            },
+            {
+              "route": "/courses/c-36",
+              "strategy": "isr:600",
+              "reason": "prerendered at build, revalidated every 600 s"
+            },
+            {
+              "route": "/courses/c-37",
+              "strategy": "isr:3600",
+              "reason": "prerendered at build, revalidated every 3600 s"
+            },
+            {
+              "route": "/blog/b-38",
+              "strategy": "static",
+              "reason": "rendered on first request"
+            },
+            {
+              "route": "/u/p-39",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/docs/d-40",
+              "strategy": "static",
+              "reason": "prerendered at build"
+            },
+            {
+              "route": "/search/s-41",
+              "strategy": "dynamic",
+              "reason": "reads searchParams"
+            },
+            {
+              "route": "/u/p-42",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/learn/l-43",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/learn/l-44",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/u/p-45",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/blog/b-46",
+              "strategy": "static",
+              "reason": "prerendered at build"
+            },
+            {
+              "route": "/learn/l-47",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/u/p-48",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/u/p-49",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/live/v-50",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            },
+            {
+              "route": "/blog/b-51",
+              "strategy": "static",
+              "reason": "rendered on first request"
+            },
+            {
+              "route": "/courses/c-52",
+              "strategy": "isr:300",
+              "reason": "rendered on first request, revalidated every 300 s"
+            },
+            {
+              "route": "/search/s-53",
+              "strategy": "dynamic",
+              "reason": "reads headers, searchParams"
+            },
+            {
+              "route": "/live/v-54",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            },
+            {
+              "route": "/courses/c-55",
+              "strategy": "isr:300",
+              "reason": "rendered on first request, revalidated every 300 s"
+            },
+            {
+              "route": "/search/s-56",
+              "strategy": "dynamic",
+              "reason": "reads cookies, searchParams"
+            },
+            {
+              "route": "/blog/b-57",
+              "strategy": "static",
+              "reason": "prerendered at build"
+            },
+            {
+              "route": "/learn/l-58",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/u/p-59",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/courses/c-60",
+              "strategy": "isr:600",
+              "reason": "prerendered at build, revalidated every 600 s"
+            },
+            {
+              "route": "/docs/d-61",
+              "strategy": "static",
+              "reason": "prerendered at build"
+            },
+            {
+              "route": "/blog/b-62",
+              "strategy": "static",
+              "reason": "rendered on first request"
+            },
+            {
+              "route": "/blog/b-63",
+              "strategy": "static",
+              "reason": "rendered on first request"
+            },
+            {
+              "route": "/u/p-64",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/docs/d-65",
+              "strategy": "static",
+              "reason": "prerendered at build"
+            },
+            {
+              "route": "/search/s-66",
+              "strategy": "dynamic",
+              "reason": "reads searchParams"
+            },
+            {
+              "route": "/search/s-67",
+              "strategy": "dynamic",
+              "reason": "reads searchParams"
+            },
+            {
+              "route": "/learn/l-68",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/courses/c-69",
+              "strategy": "isr:3600",
+              "reason": "rendered on first request, revalidated every 3600 s"
+            },
+            {
+              "route": "/courses/c-70",
+              "strategy": "isr:600",
+              "reason": "prerendered at build, revalidated every 600 s"
+            },
+            {
+              "route": "/u/p-71",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/live/v-72",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            },
+            {
+              "route": "/live/v-73",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            },
+            {
+              "route": "/blog/b-74",
+              "strategy": "static",
+              "reason": "prerendered at build"
+            },
+            {
+              "route": "/learn/l-75",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/docs/d-76",
+              "strategy": "static",
+              "reason": "prerendered at build"
+            },
+            {
+              "route": "/search/s-77",
+              "strategy": "dynamic",
+              "reason": "reads searchParams"
+            },
+            {
+              "route": "/courses/c-78",
+              "strategy": "isr:300",
+              "reason": "prerendered at build, revalidated every 300 s"
+            },
+            {
+              "route": "/docs/d-79",
+              "strategy": "static",
+              "reason": "prerendered at build"
+            },
+            {
+              "route": "/u/p-80",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/u/p-81",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/docs/d-82",
+              "strategy": "isr:86400",
+              "reason": "prerendered at build, revalidated every 86400 s"
+            },
+            {
+              "route": "/live/v-83",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            },
+            {
+              "route": "/search/s-84",
+              "strategy": "dynamic",
+              "reason": "reads headers, searchParams"
+            },
+            {
+              "route": "/u/p-85",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/docs/d-86",
+              "strategy": "isr:86400",
+              "reason": "prerendered at build, revalidated every 86400 s"
+            },
+            {
+              "route": "/live/v-87",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            },
+            {
+              "route": "/learn/l-88",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/search/s-89",
+              "strategy": "dynamic",
+              "reason": "reads headers, searchParams"
+            },
+            {
+              "route": "/search/s-90",
+              "strategy": "dynamic",
+              "reason": "reads searchParams"
+            },
+            {
+              "route": "/courses/c-91",
+              "strategy": "isr:600",
+              "reason": "prerendered at build, revalidated every 600 s"
+            },
+            {
+              "route": "/live/v-92",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            },
+            {
+              "route": "/docs/d-93",
+              "strategy": "static",
+              "reason": "prerendered at build"
+            },
+            {
+              "route": "/blog/b-94",
+              "strategy": "static",
+              "reason": "prerendered at build"
+            },
+            {
+              "route": "/courses/c-95",
+              "strategy": "isr:600",
+              "reason": "prerendered at build, revalidated every 600 s"
+            },
+            {
+              "route": "/u/p-96",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/courses/c-97",
+              "strategy": "isr:600",
+              "reason": "rendered on first request, revalidated every 600 s"
+            },
+            {
+              "route": "/courses/c-98",
+              "strategy": "isr:300",
+              "reason": "rendered on first request, revalidated every 300 s"
+            },
+            {
+              "route": "/u/p-99",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/blog/b-100",
+              "strategy": "static",
+              "reason": "prerendered at build"
+            },
+            {
+              "route": "/docs/d-101",
+              "strategy": "isr:86400",
+              "reason": "prerendered at build, revalidated every 86400 s"
+            },
+            {
+              "route": "/courses/c-102",
+              "strategy": "isr:300",
+              "reason": "prerendered at build, revalidated every 300 s"
+            },
+            {
+              "route": "/search/s-103",
+              "strategy": "dynamic",
+              "reason": "reads searchParams"
+            },
+            {
+              "route": "/blog/b-104",
+              "strategy": "static",
+              "reason": "rendered on first request"
+            },
+            {
+              "route": "/docs/d-105",
+              "strategy": "static",
+              "reason": "prerendered at build"
+            },
+            {
+              "route": "/blog/b-106",
+              "strategy": "static",
+              "reason": "prerendered at build"
+            },
+            {
+              "route": "/live/v-107",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            },
+            {
+              "route": "/u/p-108",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/learn/l-109",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/courses/c-110",
+              "strategy": "isr:3600",
+              "reason": "prerendered at build, revalidated every 3600 s"
+            },
+            {
+              "route": "/search/s-111",
+              "strategy": "dynamic",
+              "reason": "reads searchParams"
+            },
+            {
+              "route": "/docs/d-112",
+              "strategy": "isr:86400",
+              "reason": "prerendered at build, revalidated every 86400 s"
+            },
+            {
+              "route": "/u/p-113",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/courses/c-114",
+              "strategy": "isr:300",
+              "reason": "prerendered at build, revalidated every 300 s"
+            },
+            {
+              "route": "/learn/l-115",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/live/v-116",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            },
+            {
+              "route": "/u/p-117",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/live/v-118",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            },
+            {
+              "route": "/courses/c-119",
+              "strategy": "isr:600",
+              "reason": "prerendered at build, revalidated every 600 s"
+            },
+            {
+              "route": "/docs/d-120",
+              "strategy": "isr:86400",
+              "reason": "prerendered at build, revalidated every 86400 s"
+            },
+            {
+              "route": "/u/p-121",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/learn/l-122",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/learn/l-123",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/docs/d-124",
+              "strategy": "static",
+              "reason": "prerendered at build"
+            },
+            {
+              "route": "/docs/d-125",
+              "strategy": "static",
+              "reason": "prerendered at build"
+            },
+            {
+              "route": "/courses/c-126",
+              "strategy": "isr:300",
+              "reason": "prerendered at build, revalidated every 300 s"
+            },
+            {
+              "route": "/u/p-127",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/u/p-128",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/courses/c-129",
+              "strategy": "isr:600",
+              "reason": "rendered on first request, revalidated every 600 s"
+            },
+            {
+              "route": "/blog/b-130",
+              "strategy": "static",
+              "reason": "prerendered at build"
+            },
+            {
+              "route": "/live/v-131",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            },
+            {
+              "route": "/search/s-132",
+              "strategy": "dynamic",
+              "reason": "reads searchParams"
+            },
+            {
+              "route": "/courses/c-133",
+              "strategy": "isr:600",
+              "reason": "prerendered at build, revalidated every 600 s"
+            },
+            {
+              "route": "/u/p-134",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/live/v-135",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            },
+            {
+              "route": "/learn/l-136",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/learn/l-137",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/learn/l-138",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/courses/c-139",
+              "strategy": "isr:300",
+              "reason": "prerendered at build, revalidated every 300 s"
+            },
+            {
+              "route": "/learn/l-140",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/live/v-141",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            },
+            {
+              "route": "/courses/c-142",
+              "strategy": "isr:3600",
+              "reason": "prerendered at build, revalidated every 3600 s"
+            },
+            {
+              "route": "/live/v-143",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            },
+            {
+              "route": "/u/p-144",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/courses/c-145",
+              "strategy": "isr:300",
+              "reason": "rendered on first request, revalidated every 300 s"
+            },
+            {
+              "route": "/live/v-146",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            },
+            {
+              "route": "/learn/l-147",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/docs/d-148",
+              "strategy": "isr:86400",
+              "reason": "prerendered at build, revalidated every 86400 s"
+            },
+            {
+              "route": "/learn/l-149",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/search/s-150",
+              "strategy": "dynamic",
+              "reason": "reads headers, searchParams"
+            },
+            {
+              "route": "/blog/b-151",
+              "strategy": "static",
+              "reason": "prerendered at build"
+            },
+            {
+              "route": "/search/s-152",
+              "strategy": "dynamic",
+              "reason": "reads searchParams"
+            },
+            {
+              "route": "/learn/l-153",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/docs/d-154",
+              "strategy": "isr:86400",
+              "reason": "prerendered at build, revalidated every 86400 s"
+            },
+            {
+              "route": "/blog/b-155",
+              "strategy": "static",
+              "reason": "prerendered at build"
+            },
+            {
+              "route": "/learn/l-156",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/courses/c-157",
+              "strategy": "isr:300",
+              "reason": "prerendered at build, revalidated every 300 s"
+            },
+            {
+              "route": "/search/s-158",
+              "strategy": "dynamic",
+              "reason": "reads headers, searchParams"
+            },
+            {
+              "route": "/blog/b-159",
+              "strategy": "static",
+              "reason": "rendered on first request"
+            },
+            {
+              "route": "/blog/b-160",
+              "strategy": "static",
+              "reason": "prerendered at build"
+            },
+            {
+              "route": "/u/p-161",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/u/p-162",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/learn/l-163",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/blog/b-164",
+              "strategy": "static",
+              "reason": "rendered on first request"
+            },
+            {
+              "route": "/search/s-165",
+              "strategy": "dynamic",
+              "reason": "reads headers, searchParams"
+            },
+            {
+              "route": "/live/v-166",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            },
+            {
+              "route": "/courses/c-167",
+              "strategy": "isr:600",
+              "reason": "prerendered at build, revalidated every 600 s"
+            },
+            {
+              "route": "/learn/l-168",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/docs/d-169",
+              "strategy": "isr:86400",
+              "reason": "prerendered at build, revalidated every 86400 s"
+            },
+            {
+              "route": "/courses/c-170",
+              "strategy": "isr:300",
+              "reason": "prerendered at build, revalidated every 300 s"
+            },
+            {
+              "route": "/u/p-171",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/u/p-172",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/learn/l-173",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/courses/c-174",
+              "strategy": "isr:300",
+              "reason": "rendered on first request, revalidated every 300 s"
+            },
+            {
+              "route": "/live/v-175",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            },
+            {
+              "route": "/live/v-176",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            },
+            {
+              "route": "/live/v-177",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            },
+            {
+              "route": "/courses/c-178",
+              "strategy": "isr:3600",
+              "reason": "prerendered at build, revalidated every 3600 s"
+            },
+            {
+              "route": "/docs/d-179",
+              "strategy": "isr:86400",
+              "reason": "prerendered at build, revalidated every 86400 s"
+            },
+            {
+              "route": "/docs/d-180",
+              "strategy": "static",
+              "reason": "prerendered at build"
+            },
+            {
+              "route": "/blog/b-181",
+              "strategy": "static",
+              "reason": "prerendered at build"
+            },
+            {
+              "route": "/search/s-182",
+              "strategy": "dynamic",
+              "reason": "reads headers, searchParams"
+            },
+            {
+              "route": "/docs/d-183",
+              "strategy": "isr:86400",
+              "reason": "prerendered at build, revalidated every 86400 s"
+            },
+            {
+              "route": "/live/v-184",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            },
+            {
+              "route": "/search/s-185",
+              "strategy": "dynamic",
+              "reason": "reads searchParams"
+            },
+            {
+              "route": "/search/s-186",
+              "strategy": "dynamic",
+              "reason": "reads searchParams"
+            },
+            {
+              "route": "/blog/b-187",
+              "strategy": "static",
+              "reason": "prerendered at build"
+            },
+            {
+              "route": "/blog/b-188",
+              "strategy": "static",
+              "reason": "rendered on first request"
+            },
+            {
+              "route": "/live/v-189",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            },
+            {
+              "route": "/search/s-190",
+              "strategy": "dynamic",
+              "reason": "reads headers, searchParams"
+            },
+            {
+              "route": "/learn/l-191",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/live/v-192",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            },
+            {
+              "route": "/docs/d-193",
+              "strategy": "isr:86400",
+              "reason": "prerendered at build, revalidated every 86400 s"
+            },
+            {
+              "route": "/docs/d-194",
+              "strategy": "isr:86400",
+              "reason": "prerendered at build, revalidated every 86400 s"
+            },
+            {
+              "route": "/learn/l-195",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/blog/b-196",
+              "strategy": "static",
+              "reason": "rendered on first request"
+            },
+            {
+              "route": "/learn/l-197",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/learn/l-198",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/docs/d-199",
+              "strategy": "isr:86400",
+              "reason": "prerendered at build, revalidated every 86400 s"
+            },
+            {
+              "route": "/learn/l-200",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/learn/l-201",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/search/s-202",
+              "strategy": "dynamic",
+              "reason": "reads headers, searchParams"
+            },
+            {
+              "route": "/docs/d-203",
+              "strategy": "static",
+              "reason": "prerendered at build"
+            },
+            {
+              "route": "/learn/l-204",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/blog/b-205",
+              "strategy": "static",
+              "reason": "rendered on first request"
+            },
+            {
+              "route": "/u/p-206",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/docs/d-207",
+              "strategy": "static",
+              "reason": "prerendered at build"
+            },
+            {
+              "route": "/search/s-208",
+              "strategy": "dynamic",
+              "reason": "reads cookies, searchParams"
+            },
+            {
+              "route": "/search/s-209",
+              "strategy": "dynamic",
+              "reason": "reads cookies, searchParams"
+            },
+            {
+              "route": "/live/v-210",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            },
+            {
+              "route": "/blog/b-211",
+              "strategy": "static",
+              "reason": "prerendered at build"
+            },
+            {
+              "route": "/u/p-212",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/u/p-213",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/courses/c-214",
+              "strategy": "isr:3600",
+              "reason": "rendered on first request, revalidated every 3600 s"
+            },
+            {
+              "route": "/u/p-215",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/docs/d-216",
+              "strategy": "static",
+              "reason": "prerendered at build"
+            },
+            {
+              "route": "/learn/l-217",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/live/v-218",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            },
+            {
+              "route": "/docs/d-219",
+              "strategy": "isr:86400",
+              "reason": "prerendered at build, revalidated every 86400 s"
+            },
+            {
+              "route": "/live/v-220",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            },
+            {
+              "route": "/live/v-221",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            },
+            {
+              "route": "/docs/d-222",
+              "strategy": "isr:86400",
+              "reason": "prerendered at build, revalidated every 86400 s"
+            },
+            {
+              "route": "/courses/c-223",
+              "strategy": "isr:600",
+              "reason": "prerendered at build, revalidated every 600 s"
+            },
+            {
+              "route": "/learn/l-224",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/blog/b-225",
+              "strategy": "static",
+              "reason": "prerendered at build"
+            },
+            {
+              "route": "/docs/d-226",
+              "strategy": "isr:86400",
+              "reason": "prerendered at build, revalidated every 86400 s"
+            },
+            {
+              "route": "/live/v-227",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            },
+            {
+              "route": "/courses/c-228",
+              "strategy": "isr:3600",
+              "reason": "prerendered at build, revalidated every 3600 s"
+            },
+            {
+              "route": "/search/s-229",
+              "strategy": "dynamic",
+              "reason": "reads headers, searchParams"
+            },
+            {
+              "route": "/live/v-230",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            },
+            {
+              "route": "/blog/b-231",
+              "strategy": "static",
+              "reason": "rendered on first request"
+            },
+            {
+              "route": "/u/p-232",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/docs/d-233",
+              "strategy": "static",
+              "reason": "prerendered at build"
+            },
+            {
+              "route": "/u/p-234",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/u/p-235",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/docs/d-236",
+              "strategy": "isr:86400",
+              "reason": "prerendered at build, revalidated every 86400 s"
+            },
+            {
+              "route": "/live/v-237",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            },
+            {
+              "route": "/courses/c-238",
+              "strategy": "isr:3600",
+              "reason": "prerendered at build, revalidated every 3600 s"
+            },
+            {
+              "route": "/u/p-239",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/live/v-240",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            },
+            {
+              "route": "/docs/d-241",
+              "strategy": "static",
+              "reason": "prerendered at build"
+            },
+            {
+              "route": "/learn/l-242",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/search/s-243",
+              "strategy": "dynamic",
+              "reason": "reads headers, searchParams"
+            },
+            {
+              "route": "/docs/d-244",
+              "strategy": "isr:86400",
+              "reason": "prerendered at build, revalidated every 86400 s"
+            },
+            {
+              "route": "/search/s-245",
+              "strategy": "dynamic",
+              "reason": "reads searchParams"
+            },
+            {
+              "route": "/blog/b-246",
+              "strategy": "static",
+              "reason": "rendered on first request"
+            },
+            {
+              "route": "/blog/b-247",
+              "strategy": "static",
+              "reason": "rendered on first request"
+            },
+            {
+              "route": "/learn/l-248",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/search/s-249",
+              "strategy": "dynamic",
+              "reason": "reads searchParams"
+            },
+            {
+              "route": "/u/p-250",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/learn/l-251",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/docs/d-252",
+              "strategy": "static",
+              "reason": "prerendered at build"
+            },
+            {
+              "route": "/learn/l-253",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/courses/c-254",
+              "strategy": "isr:600",
+              "reason": "prerendered at build, revalidated every 600 s"
+            },
+            {
+              "route": "/u/p-255",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/learn/l-256",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/blog/b-257",
+              "strategy": "static",
+              "reason": "rendered on first request"
+            },
+            {
+              "route": "/docs/d-258",
+              "strategy": "static",
+              "reason": "prerendered at build"
+            },
+            {
+              "route": "/u/p-259",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/blog/b-260",
+              "strategy": "static",
+              "reason": "rendered on first request"
+            },
+            {
+              "route": "/courses/c-261",
+              "strategy": "isr:3600",
+              "reason": "prerendered at build, revalidated every 3600 s"
+            },
+            {
+              "route": "/learn/l-262",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/docs/d-263",
+              "strategy": "static",
+              "reason": "prerendered at build"
+            },
+            {
+              "route": "/docs/d-264",
+              "strategy": "isr:86400",
+              "reason": "prerendered at build, revalidated every 86400 s"
+            },
+            {
+              "route": "/docs/d-265",
+              "strategy": "isr:86400",
+              "reason": "prerendered at build, revalidated every 86400 s"
+            },
+            {
+              "route": "/learn/l-266",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/docs/d-267",
+              "strategy": "isr:86400",
+              "reason": "prerendered at build, revalidated every 86400 s"
+            },
+            {
+              "route": "/docs/d-268",
+              "strategy": "isr:86400",
+              "reason": "prerendered at build, revalidated every 86400 s"
+            },
+            {
+              "route": "/u/p-269",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/learn/l-270",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/courses/c-271",
+              "strategy": "isr:600",
+              "reason": "prerendered at build, revalidated every 600 s"
+            },
+            {
+              "route": "/courses/c-272",
+              "strategy": "isr:3600",
+              "reason": "prerendered at build, revalidated every 3600 s"
+            },
+            {
+              "route": "/docs/d-273",
+              "strategy": "isr:86400",
+              "reason": "prerendered at build, revalidated every 86400 s"
+            },
+            {
+              "route": "/blog/b-274",
+              "strategy": "static",
+              "reason": "prerendered at build"
+            },
+            {
+              "route": "/live/v-275",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            },
+            {
+              "route": "/blog/b-276",
+              "strategy": "static",
+              "reason": "prerendered at build"
+            },
+            {
+              "route": "/live/v-277",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            },
+            {
+              "route": "/courses/c-278",
+              "strategy": "isr:300",
+              "reason": "rendered on first request, revalidated every 300 s"
+            },
+            {
+              "route": "/learn/l-279",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/courses/c-280",
+              "strategy": "isr:600",
+              "reason": "prerendered at build, revalidated every 600 s"
+            },
+            {
+              "route": "/blog/b-281",
+              "strategy": "static",
+              "reason": "rendered on first request"
+            },
+            {
+              "route": "/u/p-282",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/docs/d-283",
+              "strategy": "static",
+              "reason": "prerendered at build"
+            },
+            {
+              "route": "/live/v-284",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            },
+            {
+              "route": "/courses/c-285",
+              "strategy": "isr:300",
+              "reason": "prerendered at build, revalidated every 300 s"
+            },
+            {
+              "route": "/live/v-286",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            },
+            {
+              "route": "/search/s-287",
+              "strategy": "dynamic",
+              "reason": "reads headers, searchParams"
+            },
+            {
+              "route": "/docs/d-288",
+              "strategy": "isr:86400",
+              "reason": "prerendered at build, revalidated every 86400 s"
+            },
+            {
+              "route": "/courses/c-289",
+              "strategy": "isr:300",
+              "reason": "prerendered at build, revalidated every 300 s"
+            },
+            {
+              "route": "/learn/l-290",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/learn/l-291",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/docs/d-292",
+              "strategy": "static",
+              "reason": "prerendered at build"
+            },
+            {
+              "route": "/u/p-293",
+              "strategy": "isr:60",
+              "reason": "rendered on first request, revalidated every 60 s"
+            },
+            {
+              "route": "/courses/c-294",
+              "strategy": "isr:600",
+              "reason": "prerendered at build, revalidated every 600 s"
+            },
+            {
+              "route": "/courses/c-295",
+              "strategy": "isr:300",
+              "reason": "prerendered at build, revalidated every 300 s"
+            },
+            {
+              "route": "/learn/l-296",
+              "strategy": "dynamic",
+              "reason": "per-user data"
+            },
+            {
+              "route": "/blog/b-297",
+              "strategy": "static",
+              "reason": "prerendered at build"
+            },
+            {
+              "route": "/live/v-298",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            },
+            {
+              "route": "/live/v-299",
+              "strategy": "dynamic",
+              "reason": "must be fresh on every request"
+            }
+          ],
+          "hidden": true,
+          "score": 2
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,3811 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nrc_231",
+      "name": "ttl-swr-evidence",
+      "type": "quiz",
+      "title": "TTL & stale-while-revalidate: read the headers and the log",
+      "description": "Two statements on the leaderboard cache: what a CDN does with a stale response inside its stale-while-revalidate window, and what a stale-while-revalidate patch without single flight does to the database.",
+      "difficulty": "medium",
+      "outcomes": [
+        "revalidation"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Response of GET https://app.codedev.test/api/leaderboard, stored by the CDN at 10:00:00:\ncache-control: public, max-age=0, s-maxage=60, stale-while-revalidate=300\n\nThe origin is healthy and the CDN supports stale-while-revalidate. A learner requests the same URL at 10:03:00.\n\nStatement: \"The CDN answers at once with the stored response, now 180 seconds old, and fetches a fresh copy from the origin in the background.\"",
+          "explanation": "True. For a shared cache the freshness lifetime is s-maxage=60, so at 180 seconds the response is stale, but it is still inside the stale-while-revalidate window (60 + 300 = 360 seconds). Inside that window the cache may answer with the stale response immediately and revalidate it in the background; the next request after the refresh gets the new copy. At 10:06:00 or later the response would be beyond the window and the request would wait for the origin. max-age=0 only concerns the browser. The misconception is that a response past its max-age always means waiting for the origin; that is the plain-TTL cliff the extension exists to avoid.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "lib/cache.ts (second patch):\nif (entry && age >= maxAge && age < maxAge + staleWhileRevalidate) {\n  refresh(key);          // starts db.weeklyLeaderboard() in the background\n  return entry.value;\n}\n\nServer log at the 09:00 peak:\n09:01:00.004  cache STALE leaderboard:weekly age=60.00s -> background refresh started\n09:01:00.051  cache STALE leaderboard:weekly age=60.05s -> background refresh started\n...\n09:01:01.962  cache STALE leaderboard:weekly age=61.96s -> background refresh started   (40 in total)\n\nStatement: \"Because all 40 requests were answered at once with the stale value, the database received a single leaderboard query at 09:01.\"",
+          "explanation": "False. Answering at once is about latency; the log shows the load: each of the 40 stale requests started its own background refresh, because the code never checks whether a refresh for the key is already running. The database still runs 40 copies of the 2-second query, just without anyone waiting for them. The fix is single flight: remember the running fetch per key, let stale requests skip starting another, and let waiting requests join it. The misconception is that stale-while-revalidate by itself protects the origin; it removes waiting, not load.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_nrc_232",
+      "name": "ttl-stale-while-revalidate",
+      "type": "mini_coding",
+      "title": "TTL and stale-while-revalidate",
+      "description": "The CodeDev weekly leaderboard query takes about 2 seconds. With a plain 60-second TTL, the first request after each expiry waits for it, and at the 09:00 peak forty requests arrive in that window and start forty identical queries. Write SwrCache, a cache with maxAge and staleWhileRevalidate on a fake clock (seconds), that serves stale values while it revalidates, starts at most one fetch per key, and keeps serving the stale value when a revalidation fails.\n\nnew SwrCache(maxAge, staleWhileRevalidate, clock, origin): throw Error(\"invalid cache config\") if either number is negative or not finite. get(key) returns a Promise<Served> with { status, value, error, fetchesStarted }. The age of a stored value is clock.now() minus the time its fetch completed. (1) age < maxAge: HIT, the stored value, no fetch. (2) maxAge <= age < maxAge + staleWhileRevalidate: STALE, the stored value at once, and start a background revalidation unless a fetch for this key is already running (fetchesStarted 1 if this request started it, else 0). (3) No stored value, or age >= maxAge + staleWhileRevalidate: MISS, wait for a fetch: join the fetch already running for the key (fetchesStarted 0), or start one (1). There is never more than one fetch per key at a time.\n\nA successful fetch stores its value, dated at its completion time, and every MISS waiting on it gets that value. A failed fetch stores nothing and keeps the old value (stale-if-error until the stale window ends): later STALE requests keep getting the old value and the next one starts a new revalidation. A MISS waiting on a failed fetch gets { status: \"MISS\", value: null, error: <the error message> }. A failed background revalidation must not reject anything that nobody awaits. Keys are independent.\n\nThe runner: the n-th fetch of a key gets the n-th scripted answer of that key ({ value, takes } or { error, takes }) takes seconds after it starts; fetches that complete at time t are processed before requests that arrive at time t. Input: { \"maxAge\": s, \"staleWhileRevalidate\": s, \"origin\": { \"<key>\": [answers] }, \"requests\": [{ \"at\": s, \"key\": \"<key>\" }, ...] }. Output, per request: t=<at> <key>: <status> \"<value>\" or error \"<message>\", fetches=<n> answered t=<time>; then the number of fetches per key, or \"error: <message>\" if the constructor throws.",
+      "difficulty": "medium",
+      "outcomes": [
+        "revalidation"
+      ],
+      "points": 30,
+      "hints": [
+        "A request can find a key in four situations: nothing stored, fresh, stale, expired; and independently, a fetch for that key may already be running. Which of these combinations start a new fetch, and which ones must wait for one?",
+        "Look at what you need to remember per key besides the value: the time its fetch completed (not started), and the promise of the fetch that is running right now, if any. Remove that promise when the fetch settles, on success and on failure, and decide what happens to the stored value in each case.",
+        "A similar timeline with maxAge 10 and a stale window of 20, where a fetch takes 3 s: t=0 MISS starts a fetch and is answered at t=3; t=12 is a HIT (age 9); t=14 is STALE and starts a refresh that completes at t=17; t=15 is STALE with no new fetch; t=18 is a HIT on the new value (age 1). Had the refresh failed at t=17, t=18 would still be STALE on the old value and would start the next refresh."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Fresh hit, stale answer with one background refresh, then the refreshed value",
+          "input": {
+            "maxAge": 60,
+            "staleWhileRevalidate": 120,
+            "origin": {
+              "leaderboard": [
+                {
+                  "value": "week-v1",
+                  "takes": 2
+                },
+                {
+                  "value": "week-v2",
+                  "takes": 3
+                }
+              ]
+            },
+            "requests": [
+              {
+                "at": 0,
+                "key": "leaderboard"
+              },
+              {
+                "at": 30,
+                "key": "leaderboard"
+              },
+              {
+                "at": 61,
+                "key": "leaderboard"
+              },
+              {
+                "at": 70,
+                "key": "leaderboard"
+              },
+              {
+                "at": 72,
+                "key": "leaderboard"
+              },
+              {
+                "at": 75,
+                "key": "leaderboard"
+              }
+            ]
+          },
+          "expected": "t=0 leaderboard: MISS \"week-v1\" fetches=1 answered t=2\nt=30 leaderboard: HIT \"week-v1\" fetches=0 answered t=30\nt=61 leaderboard: HIT \"week-v1\" fetches=0 answered t=61\nt=70 leaderboard: STALE \"week-v1\" fetches=1 answered t=70\nt=72 leaderboard: STALE \"week-v1\" fetches=0 answered t=72\nt=75 leaderboard: HIT \"week-v2\" fetches=0 answered t=75\norigin fetches: leaderboard=2",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Forty stale requests at the 09:00 peak start one background refresh, not forty",
+          "input": {
+            "maxAge": 60,
+            "staleWhileRevalidate": 300,
+            "origin": {
+              "leaderboard": [
+                {
+                  "value": "week-v1",
+                  "takes": 2
+                },
+                {
+                  "value": "week-v2",
+                  "takes": 2
+                }
+              ]
+            },
+            "requests": [
+              {
+                "at": 0,
+                "key": "leaderboard"
+              },
+              {
+                "at": 100,
+                "key": "leaderboard"
+              },
+              {
+                "at": 100,
+                "key": "leaderboard"
+              },
+              {
+                "at": 100,
+                "key": "leaderboard"
+              },
+              {
+                "at": 100,
+                "key": "leaderboard"
+              },
+              {
+                "at": 100,
+                "key": "leaderboard"
+              },
+              {
+                "at": 100,
+                "key": "leaderboard"
+              },
+              {
+                "at": 100,
+                "key": "leaderboard"
+              },
+              {
+                "at": 100,
+                "key": "leaderboard"
+              },
+              {
+                "at": 100,
+                "key": "leaderboard"
+              },
+              {
+                "at": 100,
+                "key": "leaderboard"
+              },
+              {
+                "at": 100,
+                "key": "leaderboard"
+              },
+              {
+                "at": 100,
+                "key": "leaderboard"
+              },
+              {
+                "at": 100,
+                "key": "leaderboard"
+              },
+              {
+                "at": 100,
+                "key": "leaderboard"
+              },
+              {
+                "at": 100,
+                "key": "leaderboard"
+              },
+              {
+                "at": 100,
+                "key": "leaderboard"
+              },
+              {
+                "at": 100,
+                "key": "leaderboard"
+              },
+              {
+                "at": 100,
+                "key": "leaderboard"
+              },
+              {
+                "at": 100,
+                "key": "leaderboard"
+              },
+              {
+                "at": 100,
+                "key": "leaderboard"
+              },
+              {
+                "at": 101,
+                "key": "leaderboard"
+              },
+              {
+                "at": 101,
+                "key": "leaderboard"
+              },
+              {
+                "at": 101,
+                "key": "leaderboard"
+              },
+              {
+                "at": 101,
+                "key": "leaderboard"
+              },
+              {
+                "at": 101,
+                "key": "leaderboard"
+              },
+              {
+                "at": 101,
+                "key": "leaderboard"
+              },
+              {
+                "at": 101,
+                "key": "leaderboard"
+              },
+              {
+                "at": 101,
+                "key": "leaderboard"
+              },
+              {
+                "at": 101,
+                "key": "leaderboard"
+              },
+              {
+                "at": 101,
+                "key": "leaderboard"
+              },
+              {
+                "at": 101,
+                "key": "leaderboard"
+              },
+              {
+                "at": 101,
+                "key": "leaderboard"
+              },
+              {
+                "at": 101,
+                "key": "leaderboard"
+              },
+              {
+                "at": 101,
+                "key": "leaderboard"
+              },
+              {
+                "at": 101,
+                "key": "leaderboard"
+              },
+              {
+                "at": 101,
+                "key": "leaderboard"
+              },
+              {
+                "at": 101,
+                "key": "leaderboard"
+              },
+              {
+                "at": 101,
+                "key": "leaderboard"
+              },
+              {
+                "at": 101,
+                "key": "leaderboard"
+              },
+              {
+                "at": 101,
+                "key": "leaderboard"
+              },
+              {
+                "at": 103,
+                "key": "leaderboard"
+              }
+            ]
+          },
+          "expected": "t=0 leaderboard: MISS \"week-v1\" fetches=1 answered t=2\nt=100 leaderboard: STALE \"week-v1\" fetches=1 answered t=100\nt=100 leaderboard: STALE \"week-v1\" fetches=0 answered t=100\nt=100 leaderboard: STALE \"week-v1\" fetches=0 answered t=100\nt=100 leaderboard: STALE \"week-v1\" fetches=0 answered t=100\nt=100 leaderboard: STALE \"week-v1\" fetches=0 answered t=100\nt=100 leaderboard: STALE \"week-v1\" fetches=0 answered t=100\nt=100 leaderboard: STALE \"week-v1\" fetches=0 answered t=100\nt=100 leaderboard: STALE \"week-v1\" fetches=0 answered t=100\nt=100 leaderboard: STALE \"week-v1\" fetches=0 answered t=100\nt=100 leaderboard: STALE \"week-v1\" fetches=0 answered t=100\nt=100 leaderboard: STALE \"week-v1\" fetches=0 answered t=100\nt=100 leaderboard: STALE \"week-v1\" fetches=0 answered t=100\nt=100 leaderboard: STALE \"week-v1\" fetches=0 answered t=100\nt=100 leaderboard: STALE \"week-v1\" fetches=0 answered t=100\nt=100 leaderboard: STALE \"week-v1\" fetches=0 answered t=100\nt=100 leaderboard: STALE \"week-v1\" fetches=0 answered t=100\nt=100 leaderboard: STALE \"week-v1\" fetches=0 answered t=100\nt=100 leaderboard: STALE \"week-v1\" fetches=0 answered t=100\nt=100 leaderboard: STALE \"week-v1\" fetches=0 answered t=100\nt=100 leaderboard: STALE \"week-v1\" fetches=0 answered t=100\nt=101 leaderboard: STALE \"week-v1\" fetches=0 answered t=101\nt=101 leaderboard: STALE \"week-v1\" fetches=0 answered t=101\nt=101 leaderboard: STALE \"week-v1\" fetches=0 answered t=101\nt=101 leaderboard: STALE \"week-v1\" fetches=0 answered t=101\nt=101 leaderboard: STALE \"week-v1\" fetches=0 answered t=101\nt=101 leaderboard: STALE \"week-v1\" fetches=0 answered t=101\nt=101 leaderboard: STALE \"week-v1\" fetches=0 answered t=101\nt=101 leaderboard: STALE \"week-v1\" fetches=0 answered t=101\nt=101 leaderboard: STALE \"week-v1\" fetches=0 answered t=101\nt=101 leaderboard: STALE \"week-v1\" fetches=0 answered t=101\nt=101 leaderboard: STALE \"week-v1\" fetches=0 answered t=101\nt=101 leaderboard: STALE \"week-v1\" fetches=0 answered t=101\nt=101 leaderboard: STALE \"week-v1\" fetches=0 answered t=101\nt=101 leaderboard: STALE \"week-v1\" fetches=0 answered t=101\nt=101 leaderboard: STALE \"week-v1\" fetches=0 answered t=101\nt=101 leaderboard: STALE \"week-v1\" fetches=0 answered t=101\nt=101 leaderboard: STALE \"week-v1\" fetches=0 answered t=101\nt=101 leaderboard: STALE \"week-v1\" fetches=0 answered t=101\nt=101 leaderboard: STALE \"week-v1\" fetches=0 answered t=101\nt=101 leaderboard: STALE \"week-v1\" fetches=0 answered t=101\nt=103 leaderboard: HIT \"week-v2\" fetches=0 answered t=103\norigin fetches: leaderboard=2",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Boundaries: age = maxAge is stale, age = maxAge + window is a MISS that waits; MISSes join",
+          "input": {
+            "maxAge": 60,
+            "staleWhileRevalidate": 120,
+            "origin": {
+              "a": [
+                {
+                  "value": "a1",
+                  "takes": 0
+                },
+                {
+                  "value": "a2",
+                  "takes": 5
+                }
+              ],
+              "b": [
+                {
+                  "value": "b1",
+                  "takes": 0
+                },
+                {
+                  "value": "b2",
+                  "takes": 4
+                }
+              ]
+            },
+            "requests": [
+              {
+                "at": 0,
+                "key": "a"
+              },
+              {
+                "at": 0,
+                "key": "b"
+              },
+              {
+                "at": 59,
+                "key": "a"
+              },
+              {
+                "at": 60,
+                "key": "a"
+              },
+              {
+                "at": 65,
+                "key": "a"
+              },
+              {
+                "at": 180,
+                "key": "b"
+              },
+              {
+                "at": 183,
+                "key": "b"
+              },
+              {
+                "at": 184,
+                "key": "b"
+              }
+            ]
+          },
+          "expected": "t=0 a: MISS \"a1\" fetches=1 answered t=0\nt=0 b: MISS \"b1\" fetches=1 answered t=0\nt=59 a: HIT \"a1\" fetches=0 answered t=59\nt=60 a: STALE \"a1\" fetches=1 answered t=60\nt=65 a: HIT \"a2\" fetches=0 answered t=65\nt=180 b: MISS \"b2\" fetches=1 answered t=184\nt=183 b: MISS \"b2\" fetches=0 answered t=184\nt=184 b: HIT \"b2\" fetches=0 answered t=184\norigin fetches: a=2 b=2",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Failed refreshes keep serving stale until the window ends, then the error reaches the caller",
+          "input": {
+            "maxAge": 60,
+            "staleWhileRevalidate": 120,
+            "origin": {
+              "leaderboard": [
+                {
+                  "value": "week-v1",
+                  "takes": 1
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 5
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 5
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 2
+                },
+                {
+                  "value": "week-v2",
+                  "takes": 1
+                }
+              ]
+            },
+            "requests": [
+              {
+                "at": 0,
+                "key": "leaderboard"
+              },
+              {
+                "at": 61,
+                "key": "leaderboard"
+              },
+              {
+                "at": 64,
+                "key": "leaderboard"
+              },
+              {
+                "at": 70,
+                "key": "leaderboard"
+              },
+              {
+                "at": 180,
+                "key": "leaderboard"
+              },
+              {
+                "at": 181,
+                "key": "leaderboard"
+              },
+              {
+                "at": 183,
+                "key": "leaderboard"
+              },
+              {
+                "at": 190,
+                "key": "leaderboard"
+              }
+            ]
+          },
+          "expected": "t=0 leaderboard: MISS \"week-v1\" fetches=1 answered t=1\nt=61 leaderboard: STALE \"week-v1\" fetches=1 answered t=61\nt=64 leaderboard: STALE \"week-v1\" fetches=0 answered t=64\nt=70 leaderboard: STALE \"week-v1\" fetches=1 answered t=70\nt=180 leaderboard: STALE \"week-v1\" fetches=1 answered t=180\nt=181 leaderboard: MISS error \"db timeout\" fetches=0 answered t=182\nt=183 leaderboard: MISS \"week-v2\" fetches=1 answered t=184\nt=190 leaderboard: HIT \"week-v2\" fetches=0 answered t=190\norigin fetches: leaderboard=5",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "The entry expires while its refresh is running: later requests join it; keys are separate",
+          "input": {
+            "maxAge": 10,
+            "staleWhileRevalidate": 5,
+            "origin": {
+              "k": [
+                {
+                  "value": "k1",
+                  "takes": 0
+                },
+                {
+                  "value": "k2",
+                  "takes": 20
+                }
+              ],
+              "p": [
+                {
+                  "value": "p1",
+                  "takes": 3
+                }
+              ]
+            },
+            "requests": [
+              {
+                "at": 0,
+                "key": "k"
+              },
+              {
+                "at": 12,
+                "key": "k"
+              },
+              {
+                "at": 15,
+                "key": "k"
+              },
+              {
+                "at": 16,
+                "key": "k"
+              },
+              {
+                "at": 33,
+                "key": "k"
+              },
+              {
+                "at": 40,
+                "key": "p"
+              },
+              {
+                "at": 40,
+                "key": "p"
+              },
+              {
+                "at": 40,
+                "key": "p"
+              },
+              {
+                "at": 44,
+                "key": "p"
+              }
+            ]
+          },
+          "expected": "t=0 k: MISS \"k1\" fetches=1 answered t=0\nt=12 k: STALE \"k1\" fetches=1 answered t=12\nt=15 k: MISS \"k2\" fetches=0 answered t=32\nt=16 k: MISS \"k2\" fetches=0 answered t=32\nt=33 k: HIT \"k2\" fetches=0 answered t=33\nt=40 p: MISS \"p1\" fetches=1 answered t=43\nt=40 p: MISS \"p1\" fetches=0 answered t=43\nt=40 p: MISS \"p1\" fetches=0 answered t=43\nt=44 p: HIT \"p1\" fetches=0 answered t=44\norigin fetches: k=2 p=1",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "staleWhileRevalidate 0 is a plain TTL; a failed first fetch is an error, the next one retries",
+          "input": {
+            "maxAge": 30,
+            "staleWhileRevalidate": 0,
+            "origin": {
+              "stats": [
+                {
+                  "error": "upstream 503",
+                  "takes": 2
+                },
+                {
+                  "value": "s1",
+                  "takes": 1
+                },
+                {
+                  "value": "s2",
+                  "takes": 1
+                }
+              ]
+            },
+            "requests": [
+              {
+                "at": 0,
+                "key": "stats"
+              },
+              {
+                "at": 1,
+                "key": "stats"
+              },
+              {
+                "at": 5,
+                "key": "stats"
+              },
+              {
+                "at": 35,
+                "key": "stats"
+              },
+              {
+                "at": 36,
+                "key": "stats"
+              },
+              {
+                "at": 37,
+                "key": "stats"
+              }
+            ]
+          },
+          "expected": "t=0 stats: MISS error \"upstream 503\" fetches=1 answered t=2\nt=1 stats: MISS error \"upstream 503\" fetches=0 answered t=2\nt=5 stats: MISS \"s1\" fetches=1 answered t=6\nt=35 stats: HIT \"s1\" fetches=0 answered t=35\nt=36 stats: MISS \"s2\" fetches=1 answered t=37\nt=37 stats: HIT \"s2\" fetches=0 answered t=37\norigin fetches: stats=3",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Invalid config: a negative maxAge is rejected",
+          "input": {
+            "maxAge": -60,
+            "staleWhileRevalidate": 120,
+            "origin": {},
+            "requests": [
+              {
+                "at": 0,
+                "key": "leaderboard"
+              }
+            ]
+          },
+          "expected": "error: invalid cache config",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Large: 500 requests on 5 keys with slow and failing fetches",
+          "input": {
+            "maxAge": 30,
+            "staleWhileRevalidate": 90,
+            "origin": {
+              "leaderboard:weekly": [
+                {
+                  "error": "db timeout",
+                  "takes": 4
+                },
+                {
+                  "value": "weekly-v2",
+                  "takes": 2
+                },
+                {
+                  "value": "weekly-v3",
+                  "takes": 2
+                },
+                {
+                  "value": "weekly-v4",
+                  "takes": 3
+                },
+                {
+                  "value": "weekly-v5",
+                  "takes": 0
+                },
+                {
+                  "value": "weekly-v6",
+                  "takes": 2
+                },
+                {
+                  "value": "weekly-v7",
+                  "takes": 3
+                },
+                {
+                  "value": "weekly-v8",
+                  "takes": 1
+                },
+                {
+                  "value": "weekly-v9",
+                  "takes": 2
+                },
+                {
+                  "value": "weekly-v10",
+                  "takes": 2
+                },
+                {
+                  "value": "weekly-v11",
+                  "takes": 3
+                },
+                {
+                  "value": "weekly-v12",
+                  "takes": 3
+                },
+                {
+                  "value": "weekly-v13",
+                  "takes": 2
+                },
+                {
+                  "value": "weekly-v14",
+                  "takes": 2
+                },
+                {
+                  "value": "weekly-v15",
+                  "takes": 0
+                },
+                {
+                  "value": "weekly-v16",
+                  "takes": 1
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 1
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 1
+                },
+                {
+                  "value": "weekly-v19",
+                  "takes": 2
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 4
+                },
+                {
+                  "value": "weekly-v21",
+                  "takes": 2
+                },
+                {
+                  "value": "weekly-v22",
+                  "takes": 2
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 1
+                },
+                {
+                  "value": "weekly-v24",
+                  "takes": 3
+                },
+                {
+                  "value": "weekly-v25",
+                  "takes": 0
+                },
+                {
+                  "value": "weekly-v26",
+                  "takes": 2
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 1
+                },
+                {
+                  "value": "weekly-v28",
+                  "takes": 2
+                },
+                {
+                  "value": "weekly-v29",
+                  "takes": 3
+                },
+                {
+                  "value": "weekly-v30",
+                  "takes": 0
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 3
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 2
+                },
+                {
+                  "value": "weekly-v33",
+                  "takes": 1
+                },
+                {
+                  "value": "weekly-v34",
+                  "takes": 2
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 2
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 2
+                },
+                {
+                  "value": "weekly-v37",
+                  "takes": 3
+                },
+                {
+                  "value": "weekly-v38",
+                  "takes": 3
+                },
+                {
+                  "value": "weekly-v39",
+                  "takes": 3
+                },
+                {
+                  "value": "weekly-v40",
+                  "takes": 1
+                },
+                {
+                  "value": "weekly-v41",
+                  "takes": 0
+                },
+                {
+                  "value": "weekly-v42",
+                  "takes": 1
+                },
+                {
+                  "value": "weekly-v43",
+                  "takes": 0
+                },
+                {
+                  "value": "weekly-v44",
+                  "takes": 3
+                },
+                {
+                  "value": "weekly-v45",
+                  "takes": 3
+                },
+                {
+                  "value": "weekly-v46",
+                  "takes": 0
+                },
+                {
+                  "value": "weekly-v47",
+                  "takes": 1
+                },
+                {
+                  "value": "weekly-v48",
+                  "takes": 2
+                },
+                {
+                  "value": "weekly-v49",
+                  "takes": 3
+                },
+                {
+                  "value": "weekly-v50",
+                  "takes": 1
+                },
+                {
+                  "value": "weekly-v51",
+                  "takes": 1
+                },
+                {
+                  "value": "weekly-v52",
+                  "takes": 3
+                },
+                {
+                  "value": "weekly-v53",
+                  "takes": 1
+                },
+                {
+                  "value": "weekly-v54",
+                  "takes": 1
+                },
+                {
+                  "value": "weekly-v55",
+                  "takes": 0
+                },
+                {
+                  "value": "weekly-v56",
+                  "takes": 3
+                },
+                {
+                  "value": "weekly-v57",
+                  "takes": 1
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 1
+                },
+                {
+                  "value": "weekly-v59",
+                  "takes": 1
+                },
+                {
+                  "value": "weekly-v60",
+                  "takes": 0
+                }
+              ],
+              "leaderboard:monthly": [
+                {
+                  "value": "monthly-v1",
+                  "takes": 1
+                },
+                {
+                  "value": "monthly-v2",
+                  "takes": 3
+                },
+                {
+                  "value": "monthly-v3",
+                  "takes": 2
+                },
+                {
+                  "value": "monthly-v4",
+                  "takes": 1
+                },
+                {
+                  "value": "monthly-v5",
+                  "takes": 3
+                },
+                {
+                  "value": "monthly-v6",
+                  "takes": 0
+                },
+                {
+                  "value": "monthly-v7",
+                  "takes": 0
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 3
+                },
+                {
+                  "value": "monthly-v9",
+                  "takes": 3
+                },
+                {
+                  "value": "monthly-v10",
+                  "takes": 3
+                },
+                {
+                  "value": "monthly-v11",
+                  "takes": 3
+                },
+                {
+                  "value": "monthly-v12",
+                  "takes": 1
+                },
+                {
+                  "value": "monthly-v13",
+                  "takes": 1
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 2
+                },
+                {
+                  "value": "monthly-v15",
+                  "takes": 0
+                },
+                {
+                  "value": "monthly-v16",
+                  "takes": 1
+                },
+                {
+                  "value": "monthly-v17",
+                  "takes": 3
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 2
+                },
+                {
+                  "value": "monthly-v19",
+                  "takes": 2
+                },
+                {
+                  "value": "monthly-v20",
+                  "takes": 1
+                },
+                {
+                  "value": "monthly-v21",
+                  "takes": 1
+                },
+                {
+                  "value": "monthly-v22",
+                  "takes": 2
+                },
+                {
+                  "value": "monthly-v23",
+                  "takes": 3
+                },
+                {
+                  "value": "monthly-v24",
+                  "takes": 2
+                },
+                {
+                  "value": "monthly-v25",
+                  "takes": 2
+                },
+                {
+                  "value": "monthly-v26",
+                  "takes": 0
+                },
+                {
+                  "value": "monthly-v27",
+                  "takes": 1
+                },
+                {
+                  "value": "monthly-v28",
+                  "takes": 1
+                },
+                {
+                  "value": "monthly-v29",
+                  "takes": 2
+                },
+                {
+                  "value": "monthly-v30",
+                  "takes": 1
+                },
+                {
+                  "value": "monthly-v31",
+                  "takes": 1
+                },
+                {
+                  "value": "monthly-v32",
+                  "takes": 2
+                },
+                {
+                  "value": "monthly-v33",
+                  "takes": 2
+                },
+                {
+                  "value": "monthly-v34",
+                  "takes": 1
+                },
+                {
+                  "value": "monthly-v35",
+                  "takes": 1
+                },
+                {
+                  "value": "monthly-v36",
+                  "takes": 1
+                },
+                {
+                  "value": "monthly-v37",
+                  "takes": 0
+                },
+                {
+                  "value": "monthly-v38",
+                  "takes": 1
+                },
+                {
+                  "value": "monthly-v39",
+                  "takes": 0
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 3
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 3
+                },
+                {
+                  "value": "monthly-v42",
+                  "takes": 2
+                },
+                {
+                  "value": "monthly-v43",
+                  "takes": 2
+                },
+                {
+                  "value": "monthly-v44",
+                  "takes": 3
+                },
+                {
+                  "value": "monthly-v45",
+                  "takes": 1
+                },
+                {
+                  "value": "monthly-v46",
+                  "takes": 2
+                },
+                {
+                  "value": "monthly-v47",
+                  "takes": 0
+                },
+                {
+                  "value": "monthly-v48",
+                  "takes": 0
+                },
+                {
+                  "value": "monthly-v49",
+                  "takes": 0
+                },
+                {
+                  "value": "monthly-v50",
+                  "takes": 1
+                },
+                {
+                  "value": "monthly-v51",
+                  "takes": 0
+                },
+                {
+                  "value": "monthly-v52",
+                  "takes": 2
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 3
+                },
+                {
+                  "value": "monthly-v54",
+                  "takes": 2
+                },
+                {
+                  "value": "monthly-v55",
+                  "takes": 0
+                },
+                {
+                  "value": "monthly-v56",
+                  "takes": 2
+                },
+                {
+                  "value": "monthly-v57",
+                  "takes": 1
+                },
+                {
+                  "value": "monthly-v58",
+                  "takes": 1
+                },
+                {
+                  "value": "monthly-v59",
+                  "takes": 3
+                },
+                {
+                  "value": "monthly-v60",
+                  "takes": 3
+                }
+              ],
+              "course-list:react": [
+                {
+                  "value": "react-v1",
+                  "takes": 1
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 4
+                },
+                {
+                  "value": "react-v3",
+                  "takes": 1
+                },
+                {
+                  "value": "react-v4",
+                  "takes": 2
+                },
+                {
+                  "value": "react-v5",
+                  "takes": 3
+                },
+                {
+                  "value": "react-v6",
+                  "takes": 2
+                },
+                {
+                  "value": "react-v7",
+                  "takes": 2
+                },
+                {
+                  "value": "react-v8",
+                  "takes": 2
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 3
+                },
+                {
+                  "value": "react-v10",
+                  "takes": 1
+                },
+                {
+                  "value": "react-v11",
+                  "takes": 2
+                },
+                {
+                  "value": "react-v12",
+                  "takes": 3
+                },
+                {
+                  "value": "react-v13",
+                  "takes": 1
+                },
+                {
+                  "value": "react-v14",
+                  "takes": 2
+                },
+                {
+                  "value": "react-v15",
+                  "takes": 1
+                },
+                {
+                  "value": "react-v16",
+                  "takes": 3
+                },
+                {
+                  "value": "react-v17",
+                  "takes": 2
+                },
+                {
+                  "value": "react-v18",
+                  "takes": 0
+                },
+                {
+                  "value": "react-v19",
+                  "takes": 3
+                },
+                {
+                  "value": "react-v20",
+                  "takes": 0
+                },
+                {
+                  "value": "react-v21",
+                  "takes": 3
+                },
+                {
+                  "value": "react-v22",
+                  "takes": 2
+                },
+                {
+                  "value": "react-v23",
+                  "takes": 2
+                },
+                {
+                  "value": "react-v24",
+                  "takes": 3
+                },
+                {
+                  "value": "react-v25",
+                  "takes": 0
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 3
+                },
+                {
+                  "value": "react-v27",
+                  "takes": 3
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 1
+                },
+                {
+                  "value": "react-v29",
+                  "takes": 3
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 4
+                },
+                {
+                  "value": "react-v31",
+                  "takes": 2
+                },
+                {
+                  "value": "react-v32",
+                  "takes": 0
+                },
+                {
+                  "value": "react-v33",
+                  "takes": 3
+                },
+                {
+                  "value": "react-v34",
+                  "takes": 1
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 1
+                },
+                {
+                  "value": "react-v36",
+                  "takes": 2
+                },
+                {
+                  "value": "react-v37",
+                  "takes": 0
+                },
+                {
+                  "value": "react-v38",
+                  "takes": 3
+                },
+                {
+                  "value": "react-v39",
+                  "takes": 0
+                },
+                {
+                  "value": "react-v40",
+                  "takes": 3
+                },
+                {
+                  "value": "react-v41",
+                  "takes": 3
+                },
+                {
+                  "value": "react-v42",
+                  "takes": 1
+                },
+                {
+                  "value": "react-v43",
+                  "takes": 3
+                },
+                {
+                  "value": "react-v44",
+                  "takes": 3
+                },
+                {
+                  "value": "react-v45",
+                  "takes": 3
+                },
+                {
+                  "value": "react-v46",
+                  "takes": 3
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 4
+                },
+                {
+                  "value": "react-v48",
+                  "takes": 1
+                },
+                {
+                  "value": "react-v49",
+                  "takes": 0
+                },
+                {
+                  "value": "react-v50",
+                  "takes": 1
+                },
+                {
+                  "value": "react-v51",
+                  "takes": 3
+                },
+                {
+                  "value": "react-v52",
+                  "takes": 2
+                },
+                {
+                  "value": "react-v53",
+                  "takes": 1
+                },
+                {
+                  "value": "react-v54",
+                  "takes": 1
+                },
+                {
+                  "value": "react-v55",
+                  "takes": 2
+                },
+                {
+                  "value": "react-v56",
+                  "takes": 0
+                },
+                {
+                  "value": "react-v57",
+                  "takes": 0
+                },
+                {
+                  "value": "react-v58",
+                  "takes": 1
+                },
+                {
+                  "value": "react-v59",
+                  "takes": 3
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 3
+                }
+              ],
+              "course-list:sql": [
+                {
+                  "value": "sql-v1",
+                  "takes": 1
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 4
+                },
+                {
+                  "value": "sql-v3",
+                  "takes": 3
+                },
+                {
+                  "value": "sql-v4",
+                  "takes": 1
+                },
+                {
+                  "value": "sql-v5",
+                  "takes": 3
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 3
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 3
+                },
+                {
+                  "value": "sql-v8",
+                  "takes": 2
+                },
+                {
+                  "value": "sql-v9",
+                  "takes": 3
+                },
+                {
+                  "value": "sql-v10",
+                  "takes": 0
+                },
+                {
+                  "value": "sql-v11",
+                  "takes": 0
+                },
+                {
+                  "value": "sql-v12",
+                  "takes": 0
+                },
+                {
+                  "value": "sql-v13",
+                  "takes": 0
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 4
+                },
+                {
+                  "value": "sql-v15",
+                  "takes": 3
+                },
+                {
+                  "value": "sql-v16",
+                  "takes": 3
+                },
+                {
+                  "value": "sql-v17",
+                  "takes": 0
+                },
+                {
+                  "value": "sql-v18",
+                  "takes": 2
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 3
+                },
+                {
+                  "value": "sql-v20",
+                  "takes": 0
+                },
+                {
+                  "value": "sql-v21",
+                  "takes": 1
+                },
+                {
+                  "value": "sql-v22",
+                  "takes": 1
+                },
+                {
+                  "value": "sql-v23",
+                  "takes": 1
+                },
+                {
+                  "value": "sql-v24",
+                  "takes": 3
+                },
+                {
+                  "value": "sql-v25",
+                  "takes": 0
+                },
+                {
+                  "value": "sql-v26",
+                  "takes": 1
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 4
+                },
+                {
+                  "value": "sql-v28",
+                  "takes": 0
+                },
+                {
+                  "value": "sql-v29",
+                  "takes": 1
+                },
+                {
+                  "value": "sql-v30",
+                  "takes": 0
+                },
+                {
+                  "value": "sql-v31",
+                  "takes": 2
+                },
+                {
+                  "value": "sql-v32",
+                  "takes": 1
+                },
+                {
+                  "value": "sql-v33",
+                  "takes": 1
+                },
+                {
+                  "value": "sql-v34",
+                  "takes": 3
+                },
+                {
+                  "value": "sql-v35",
+                  "takes": 3
+                },
+                {
+                  "value": "sql-v36",
+                  "takes": 0
+                },
+                {
+                  "value": "sql-v37",
+                  "takes": 3
+                },
+                {
+                  "value": "sql-v38",
+                  "takes": 3
+                },
+                {
+                  "value": "sql-v39",
+                  "takes": 2
+                },
+                {
+                  "value": "sql-v40",
+                  "takes": 2
+                },
+                {
+                  "value": "sql-v41",
+                  "takes": 1
+                },
+                {
+                  "value": "sql-v42",
+                  "takes": 1
+                },
+                {
+                  "value": "sql-v43",
+                  "takes": 1
+                },
+                {
+                  "value": "sql-v44",
+                  "takes": 0
+                },
+                {
+                  "value": "sql-v45",
+                  "takes": 2
+                },
+                {
+                  "value": "sql-v46",
+                  "takes": 3
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 4
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 2
+                },
+                {
+                  "value": "sql-v49",
+                  "takes": 1
+                },
+                {
+                  "value": "sql-v50",
+                  "takes": 2
+                },
+                {
+                  "value": "sql-v51",
+                  "takes": 2
+                },
+                {
+                  "value": "sql-v52",
+                  "takes": 1
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 2
+                },
+                {
+                  "value": "sql-v54",
+                  "takes": 3
+                },
+                {
+                  "value": "sql-v55",
+                  "takes": 1
+                },
+                {
+                  "value": "sql-v56",
+                  "takes": 3
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 3
+                },
+                {
+                  "value": "sql-v58",
+                  "takes": 1
+                },
+                {
+                  "value": "sql-v59",
+                  "takes": 0
+                },
+                {
+                  "value": "sql-v60",
+                  "takes": 1
+                }
+              ],
+              "stats:home": [
+                {
+                  "value": "home-v1",
+                  "takes": 1
+                },
+                {
+                  "value": "home-v2",
+                  "takes": 0
+                },
+                {
+                  "value": "home-v3",
+                  "takes": 2
+                },
+                {
+                  "value": "home-v4",
+                  "takes": 0
+                },
+                {
+                  "value": "home-v5",
+                  "takes": 3
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 4
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 1
+                },
+                {
+                  "value": "home-v8",
+                  "takes": 2
+                },
+                {
+                  "value": "home-v9",
+                  "takes": 1
+                },
+                {
+                  "value": "home-v10",
+                  "takes": 3
+                },
+                {
+                  "value": "home-v11",
+                  "takes": 0
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 4
+                },
+                {
+                  "value": "home-v13",
+                  "takes": 1
+                },
+                {
+                  "value": "home-v14",
+                  "takes": 0
+                },
+                {
+                  "value": "home-v15",
+                  "takes": 3
+                },
+                {
+                  "value": "home-v16",
+                  "takes": 2
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 3
+                },
+                {
+                  "value": "home-v18",
+                  "takes": 3
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 3
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 4
+                },
+                {
+                  "value": "home-v21",
+                  "takes": 3
+                },
+                {
+                  "value": "home-v22",
+                  "takes": 3
+                },
+                {
+                  "value": "home-v23",
+                  "takes": 0
+                },
+                {
+                  "value": "home-v24",
+                  "takes": 3
+                },
+                {
+                  "value": "home-v25",
+                  "takes": 0
+                },
+                {
+                  "value": "home-v26",
+                  "takes": 0
+                },
+                {
+                  "value": "home-v27",
+                  "takes": 3
+                },
+                {
+                  "value": "home-v28",
+                  "takes": 2
+                },
+                {
+                  "value": "home-v29",
+                  "takes": 1
+                },
+                {
+                  "value": "home-v30",
+                  "takes": 3
+                },
+                {
+                  "value": "home-v31",
+                  "takes": 0
+                },
+                {
+                  "value": "home-v32",
+                  "takes": 0
+                },
+                {
+                  "value": "home-v33",
+                  "takes": 0
+                },
+                {
+                  "value": "home-v34",
+                  "takes": 3
+                },
+                {
+                  "value": "home-v35",
+                  "takes": 0
+                },
+                {
+                  "value": "home-v36",
+                  "takes": 0
+                },
+                {
+                  "value": "home-v37",
+                  "takes": 2
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 2
+                },
+                {
+                  "value": "home-v39",
+                  "takes": 3
+                },
+                {
+                  "value": "home-v40",
+                  "takes": 2
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 2
+                },
+                {
+                  "value": "home-v42",
+                  "takes": 0
+                },
+                {
+                  "value": "home-v43",
+                  "takes": 0
+                },
+                {
+                  "value": "home-v44",
+                  "takes": 0
+                },
+                {
+                  "value": "home-v45",
+                  "takes": 3
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 2
+                },
+                {
+                  "value": "home-v47",
+                  "takes": 0
+                },
+                {
+                  "value": "home-v48",
+                  "takes": 0
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 2
+                },
+                {
+                  "value": "home-v50",
+                  "takes": 3
+                },
+                {
+                  "value": "home-v51",
+                  "takes": 0
+                },
+                {
+                  "value": "home-v52",
+                  "takes": 3
+                },
+                {
+                  "value": "home-v53",
+                  "takes": 3
+                },
+                {
+                  "value": "home-v54",
+                  "takes": 0
+                },
+                {
+                  "value": "home-v55",
+                  "takes": 3
+                },
+                {
+                  "value": "home-v56",
+                  "takes": 3
+                },
+                {
+                  "value": "home-v57",
+                  "takes": 2
+                },
+                {
+                  "value": "home-v58",
+                  "takes": 0
+                },
+                {
+                  "value": "home-v59",
+                  "takes": 0
+                },
+                {
+                  "error": "db timeout",
+                  "takes": 1
+                }
+              ]
+            },
+            "requests": [
+              {
+                "at": 1,
+                "key": "stats:home"
+              },
+              {
+                "at": 8,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 12,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 12,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 13,
+                "key": "course-list:react"
+              },
+              {
+                "at": 13,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 13,
+                "key": "course-list:react"
+              },
+              {
+                "at": 16,
+                "key": "course-list:react"
+              },
+              {
+                "at": 23,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 24,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 24,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 31,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 31,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 39,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 39,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 41,
+                "key": "course-list:react"
+              },
+              {
+                "at": 41,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 41,
+                "key": "course-list:react"
+              },
+              {
+                "at": 41,
+                "key": "stats:home"
+              },
+              {
+                "at": 43,
+                "key": "course-list:react"
+              },
+              {
+                "at": 43,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 47,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 47,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 47,
+                "key": "course-list:react"
+              },
+              {
+                "at": 47,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 47,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 49,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 51,
+                "key": "stats:home"
+              },
+              {
+                "at": 51,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 51,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 51,
+                "key": "stats:home"
+              },
+              {
+                "at": 51,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 58,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 58,
+                "key": "course-list:react"
+              },
+              {
+                "at": 65,
+                "key": "course-list:react"
+              },
+              {
+                "at": 73,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 73,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 73,
+                "key": "course-list:react"
+              },
+              {
+                "at": 73,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 73,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 73,
+                "key": "stats:home"
+              },
+              {
+                "at": 74,
+                "key": "stats:home"
+              },
+              {
+                "at": 79,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 79,
+                "key": "course-list:react"
+              },
+              {
+                "at": 79,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 82,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 82,
+                "key": "stats:home"
+              },
+              {
+                "at": 84,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 84,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 84,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 90,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 90,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 90,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 97,
+                "key": "stats:home"
+              },
+              {
+                "at": 103,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 103,
+                "key": "course-list:react"
+              },
+              {
+                "at": 103,
+                "key": "course-list:react"
+              },
+              {
+                "at": 103,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 103,
+                "key": "stats:home"
+              },
+              {
+                "at": 104,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 104,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 112,
+                "key": "stats:home"
+              },
+              {
+                "at": 112,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 116,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 119,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 119,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 121,
+                "key": "stats:home"
+              },
+              {
+                "at": 121,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 121,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 121,
+                "key": "stats:home"
+              },
+              {
+                "at": 124,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 128,
+                "key": "course-list:react"
+              },
+              {
+                "at": 128,
+                "key": "stats:home"
+              },
+              {
+                "at": 128,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 134,
+                "key": "stats:home"
+              },
+              {
+                "at": 140,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 141,
+                "key": "course-list:react"
+              },
+              {
+                "at": 141,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 141,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 147,
+                "key": "course-list:react"
+              },
+              {
+                "at": 153,
+                "key": "course-list:react"
+              },
+              {
+                "at": 155,
+                "key": "stats:home"
+              },
+              {
+                "at": 162,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 168,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 168,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 174,
+                "key": "course-list:react"
+              },
+              {
+                "at": 181,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 181,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 183,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 188,
+                "key": "course-list:react"
+              },
+              {
+                "at": 188,
+                "key": "course-list:react"
+              },
+              {
+                "at": 195,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 195,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 196,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 196,
+                "key": "course-list:react"
+              },
+              {
+                "at": 198,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 200,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 201,
+                "key": "course-list:react"
+              },
+              {
+                "at": 201,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 201,
+                "key": "course-list:react"
+              },
+              {
+                "at": 201,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 203,
+                "key": "stats:home"
+              },
+              {
+                "at": 211,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 218,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 224,
+                "key": "course-list:react"
+              },
+              {
+                "at": 232,
+                "key": "stats:home"
+              },
+              {
+                "at": 232,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 234,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 234,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 234,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 235,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 235,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 235,
+                "key": "course-list:react"
+              },
+              {
+                "at": 235,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 235,
+                "key": "course-list:react"
+              },
+              {
+                "at": 235,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 235,
+                "key": "stats:home"
+              },
+              {
+                "at": 235,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 235,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 237,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 240,
+                "key": "stats:home"
+              },
+              {
+                "at": 240,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 245,
+                "key": "stats:home"
+              },
+              {
+                "at": 250,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 251,
+                "key": "course-list:react"
+              },
+              {
+                "at": 251,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 251,
+                "key": "course-list:react"
+              },
+              {
+                "at": 258,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 258,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 258,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 260,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 262,
+                "key": "course-list:react"
+              },
+              {
+                "at": 262,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 262,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 270,
+                "key": "course-list:react"
+              },
+              {
+                "at": 270,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 270,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 270,
+                "key": "stats:home"
+              },
+              {
+                "at": 276,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 276,
+                "key": "course-list:react"
+              },
+              {
+                "at": 276,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 282,
+                "key": "course-list:react"
+              },
+              {
+                "at": 286,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 287,
+                "key": "course-list:react"
+              },
+              {
+                "at": 287,
+                "key": "stats:home"
+              },
+              {
+                "at": 287,
+                "key": "stats:home"
+              },
+              {
+                "at": 291,
+                "key": "course-list:react"
+              },
+              {
+                "at": 298,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 298,
+                "key": "course-list:react"
+              },
+              {
+                "at": 298,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 298,
+                "key": "stats:home"
+              },
+              {
+                "at": 303,
+                "key": "stats:home"
+              },
+              {
+                "at": 303,
+                "key": "course-list:react"
+              },
+              {
+                "at": 307,
+                "key": "course-list:react"
+              },
+              {
+                "at": 307,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 312,
+                "key": "stats:home"
+              },
+              {
+                "at": 312,
+                "key": "course-list:react"
+              },
+              {
+                "at": 314,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 314,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 314,
+                "key": "course-list:react"
+              },
+              {
+                "at": 321,
+                "key": "stats:home"
+              },
+              {
+                "at": 321,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 322,
+                "key": "course-list:react"
+              },
+              {
+                "at": 330,
+                "key": "stats:home"
+              },
+              {
+                "at": 330,
+                "key": "course-list:react"
+              },
+              {
+                "at": 335,
+                "key": "course-list:react"
+              },
+              {
+                "at": 339,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 339,
+                "key": "stats:home"
+              },
+              {
+                "at": 339,
+                "key": "course-list:react"
+              },
+              {
+                "at": 344,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 347,
+                "key": "stats:home"
+              },
+              {
+                "at": 347,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 347,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 347,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 354,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 360,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 360,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 361,
+                "key": "stats:home"
+              },
+              {
+                "at": 361,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 361,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 367,
+                "key": "course-list:react"
+              },
+              {
+                "at": 372,
+                "key": "course-list:react"
+              },
+              {
+                "at": 375,
+                "key": "stats:home"
+              },
+              {
+                "at": 379,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 385,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 385,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 385,
+                "key": "stats:home"
+              },
+              {
+                "at": 385,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 385,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 389,
+                "key": "stats:home"
+              },
+              {
+                "at": 392,
+                "key": "stats:home"
+              },
+              {
+                "at": 393,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 393,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 393,
+                "key": "course-list:react"
+              },
+              {
+                "at": 393,
+                "key": "course-list:react"
+              },
+              {
+                "at": 397,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 397,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 403,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 409,
+                "key": "course-list:react"
+              },
+              {
+                "at": 409,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 409,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 409,
+                "key": "course-list:react"
+              },
+              {
+                "at": 409,
+                "key": "stats:home"
+              },
+              {
+                "at": 409,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 409,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 414,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 417,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 417,
+                "key": "course-list:react"
+              },
+              {
+                "at": 422,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 422,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 422,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 422,
+                "key": "course-list:react"
+              },
+              {
+                "at": 426,
+                "key": "course-list:react"
+              },
+              {
+                "at": 426,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 426,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 426,
+                "key": "course-list:react"
+              },
+              {
+                "at": 426,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 431,
+                "key": "stats:home"
+              },
+              {
+                "at": 435,
+                "key": "course-list:react"
+              },
+              {
+                "at": 435,
+                "key": "stats:home"
+              },
+              {
+                "at": 442,
+                "key": "stats:home"
+              },
+              {
+                "at": 450,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 458,
+                "key": "course-list:react"
+              },
+              {
+                "at": 458,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 462,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 462,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 469,
+                "key": "course-list:react"
+              },
+              {
+                "at": 469,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 469,
+                "key": "stats:home"
+              },
+              {
+                "at": 477,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 477,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 477,
+                "key": "stats:home"
+              },
+              {
+                "at": 477,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 485,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 487,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 487,
+                "key": "stats:home"
+              },
+              {
+                "at": 495,
+                "key": "stats:home"
+              },
+              {
+                "at": 495,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 497,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 497,
+                "key": "stats:home"
+              },
+              {
+                "at": 497,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 497,
+                "key": "course-list:react"
+              },
+              {
+                "at": 497,
+                "key": "stats:home"
+              },
+              {
+                "at": 497,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 497,
+                "key": "stats:home"
+              },
+              {
+                "at": 503,
+                "key": "course-list:react"
+              },
+              {
+                "at": 503,
+                "key": "stats:home"
+              },
+              {
+                "at": 508,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 514,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 514,
+                "key": "stats:home"
+              },
+              {
+                "at": 517,
+                "key": "course-list:react"
+              },
+              {
+                "at": 517,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 518,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 518,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 518,
+                "key": "course-list:react"
+              },
+              {
+                "at": 525,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 533,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 536,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 536,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 536,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 537,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 541,
+                "key": "stats:home"
+              },
+              {
+                "at": 541,
+                "key": "stats:home"
+              },
+              {
+                "at": 546,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 554,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 554,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 557,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 557,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 563,
+                "key": "stats:home"
+              },
+              {
+                "at": 563,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 563,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 565,
+                "key": "course-list:react"
+              },
+              {
+                "at": 565,
+                "key": "stats:home"
+              },
+              {
+                "at": 568,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 568,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 575,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 581,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 585,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 585,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 586,
+                "key": "stats:home"
+              },
+              {
+                "at": 590,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 597,
+                "key": "stats:home"
+              },
+              {
+                "at": 597,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 597,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 605,
+                "key": "stats:home"
+              },
+              {
+                "at": 608,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 608,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 615,
+                "key": "stats:home"
+              },
+              {
+                "at": 615,
+                "key": "course-list:react"
+              },
+              {
+                "at": 615,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 615,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 615,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 615,
+                "key": "stats:home"
+              },
+              {
+                "at": 618,
+                "key": "stats:home"
+              },
+              {
+                "at": 618,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 618,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 619,
+                "key": "stats:home"
+              },
+              {
+                "at": 625,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 628,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 632,
+                "key": "course-list:react"
+              },
+              {
+                "at": 632,
+                "key": "course-list:react"
+              },
+              {
+                "at": 632,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 632,
+                "key": "course-list:react"
+              },
+              {
+                "at": 633,
+                "key": "course-list:react"
+              },
+              {
+                "at": 637,
+                "key": "stats:home"
+              },
+              {
+                "at": 637,
+                "key": "stats:home"
+              },
+              {
+                "at": 643,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 643,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 643,
+                "key": "course-list:react"
+              },
+              {
+                "at": 643,
+                "key": "course-list:react"
+              },
+              {
+                "at": 644,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 644,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 644,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 644,
+                "key": "stats:home"
+              },
+              {
+                "at": 646,
+                "key": "course-list:react"
+              },
+              {
+                "at": 646,
+                "key": "stats:home"
+              },
+              {
+                "at": 652,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 652,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 658,
+                "key": "course-list:react"
+              },
+              {
+                "at": 658,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 658,
+                "key": "stats:home"
+              },
+              {
+                "at": 658,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 665,
+                "key": "course-list:react"
+              },
+              {
+                "at": 667,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 667,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 667,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 668,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 671,
+                "key": "course-list:react"
+              },
+              {
+                "at": 671,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 677,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 683,
+                "key": "stats:home"
+              },
+              {
+                "at": 690,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 690,
+                "key": "course-list:react"
+              },
+              {
+                "at": 690,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 690,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 690,
+                "key": "stats:home"
+              },
+              {
+                "at": 697,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 697,
+                "key": "stats:home"
+              },
+              {
+                "at": 697,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 699,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 701,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 701,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 701,
+                "key": "stats:home"
+              },
+              {
+                "at": 705,
+                "key": "stats:home"
+              },
+              {
+                "at": 709,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 715,
+                "key": "stats:home"
+              },
+              {
+                "at": 715,
+                "key": "stats:home"
+              },
+              {
+                "at": 715,
+                "key": "course-list:react"
+              },
+              {
+                "at": 720,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 720,
+                "key": "stats:home"
+              },
+              {
+                "at": 720,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 724,
+                "key": "course-list:react"
+              },
+              {
+                "at": 724,
+                "key": "stats:home"
+              },
+              {
+                "at": 726,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 728,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 732,
+                "key": "stats:home"
+              },
+              {
+                "at": 732,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 737,
+                "key": "course-list:react"
+              },
+              {
+                "at": 737,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 742,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 745,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 745,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 747,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 754,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 754,
+                "key": "course-list:react"
+              },
+              {
+                "at": 754,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 754,
+                "key": "course-list:react"
+              },
+              {
+                "at": 754,
+                "key": "stats:home"
+              },
+              {
+                "at": 754,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 754,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 761,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 765,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 772,
+                "key": "stats:home"
+              },
+              {
+                "at": 772,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 772,
+                "key": "stats:home"
+              },
+              {
+                "at": 772,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 772,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 772,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 778,
+                "key": "stats:home"
+              },
+              {
+                "at": 783,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 790,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 790,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 790,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 790,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 791,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 791,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 794,
+                "key": "course-list:react"
+              },
+              {
+                "at": 801,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 801,
+                "key": "stats:home"
+              },
+              {
+                "at": 801,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 804,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 804,
+                "key": "course-list:react"
+              },
+              {
+                "at": 812,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 812,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 814,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 814,
+                "key": "course-list:react"
+              },
+              {
+                "at": 814,
+                "key": "course-list:react"
+              },
+              {
+                "at": 821,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 821,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 821,
+                "key": "stats:home"
+              },
+              {
+                "at": 821,
+                "key": "course-list:react"
+              },
+              {
+                "at": 828,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 828,
+                "key": "course-list:react"
+              },
+              {
+                "at": 836,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 836,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 836,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 836,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 836,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 836,
+                "key": "course-list:react"
+              },
+              {
+                "at": 839,
+                "key": "stats:home"
+              },
+              {
+                "at": 839,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 839,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 845,
+                "key": "stats:home"
+              },
+              {
+                "at": 845,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 846,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 851,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 851,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 855,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 862,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 867,
+                "key": "course-list:react"
+              },
+              {
+                "at": 867,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 867,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 871,
+                "key": "stats:home"
+              },
+              {
+                "at": 875,
+                "key": "stats:home"
+              },
+              {
+                "at": 875,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 883,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 886,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 889,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 889,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 889,
+                "key": "stats:home"
+              },
+              {
+                "at": 889,
+                "key": "stats:home"
+              },
+              {
+                "at": 889,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 889,
+                "key": "course-list:react"
+              },
+              {
+                "at": 889,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 893,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 901,
+                "key": "course-list:react"
+              },
+              {
+                "at": 901,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 901,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 901,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 904,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 907,
+                "key": "course-list:react"
+              },
+              {
+                "at": 914,
+                "key": "course-list:react"
+              },
+              {
+                "at": 914,
+                "key": "stats:home"
+              },
+              {
+                "at": 916,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 920,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 920,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 926,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 926,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 926,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 926,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 926,
+                "key": "course-list:react"
+              },
+              {
+                "at": 929,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 933,
+                "key": "course-list:react"
+              },
+              {
+                "at": 941,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 941,
+                "key": "stats:home"
+              },
+              {
+                "at": 941,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 941,
+                "key": "course-list:react"
+              },
+              {
+                "at": 941,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 944,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 944,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 944,
+                "key": "course-list:react"
+              },
+              {
+                "at": 952,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 958,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 958,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 958,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 966,
+                "key": "course-list:react"
+              },
+              {
+                "at": 966,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 966,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 966,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 966,
+                "key": "stats:home"
+              },
+              {
+                "at": 973,
+                "key": "course-list:react"
+              },
+              {
+                "at": 973,
+                "key": "course-list:react"
+              },
+              {
+                "at": 973,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 977,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 977,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 980,
+                "key": "stats:home"
+              },
+              {
+                "at": 980,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 980,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 985,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 985,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 989,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 995,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 1002,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 1005,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 1005,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 1005,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 1010,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 1010,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 1016,
+                "key": "course-list:react"
+              },
+              {
+                "at": 1016,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 1016,
+                "key": "leaderboard:weekly"
+              },
+              {
+                "at": 1016,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 1020,
+                "key": "course-list:react"
+              },
+              {
+                "at": 1028,
+                "key": "course-list:react"
+              },
+              {
+                "at": 1028,
+                "key": "course-list:react"
+              },
+              {
+                "at": 1028,
+                "key": "stats:home"
+              },
+              {
+                "at": 1028,
+                "key": "stats:home"
+              },
+              {
+                "at": 1028,
+                "key": "leaderboard:monthly"
+              },
+              {
+                "at": 1028,
+                "key": "course-list:sql"
+              },
+              {
+                "at": 1028,
+                "key": "course-list:sql"
+              }
+            ]
+          },
+          "expected": "t=1 stats:home: MISS \"home-v1\" fetches=1 answered t=2\nt=8 leaderboard:weekly: MISS error \"db timeout\" fetches=1 answered t=12\nt=12 leaderboard:weekly: MISS \"weekly-v2\" fetches=1 answered t=14\nt=12 course-list:sql: MISS \"sql-v1\" fetches=1 answered t=13\nt=13 course-list:react: MISS \"react-v1\" fetches=1 answered t=14\nt=13 course-list:sql: HIT \"sql-v1\" fetches=0 answered t=13\nt=13 course-list:react: MISS \"react-v1\" fetches=0 answered t=14\nt=16 course-list:react: HIT \"react-v1\" fetches=0 answered t=16\nt=23 course-list:sql: HIT \"sql-v1\" fetches=0 answered t=23\nt=24 course-list:sql: HIT \"sql-v1\" fetches=0 answered t=24\nt=24 course-list:sql: HIT \"sql-v1\" fetches=0 answered t=24\nt=31 leaderboard:monthly: MISS \"monthly-v1\" fetches=1 answered t=32\nt=31 leaderboard:monthly: MISS \"monthly-v1\" fetches=0 answered t=32\nt=39 leaderboard:weekly: HIT \"weekly-v2\" fetches=0 answered t=39\nt=39 leaderboard:monthly: HIT \"monthly-v1\" fetches=0 answered t=39\nt=41 course-list:react: HIT \"react-v1\" fetches=0 answered t=41\nt=41 course-list:sql: HIT \"sql-v1\" fetches=0 answered t=41\nt=41 course-list:react: HIT \"react-v1\" fetches=0 answered t=41\nt=41 stats:home: STALE \"home-v1\" fetches=1 answered t=41\nt=43 course-list:react: HIT \"react-v1\" fetches=0 answered t=43\nt=43 leaderboard:monthly: HIT \"monthly-v1\" fetches=0 answered t=43\nt=47 leaderboard:monthly: HIT \"monthly-v1\" fetches=0 answered t=47\nt=47 leaderboard:monthly: HIT \"monthly-v1\" fetches=0 answered t=47\nt=47 course-list:react: STALE \"react-v1\" fetches=1 answered t=47\nt=47 course-list:sql: STALE \"sql-v1\" fetches=1 answered t=47\nt=47 leaderboard:monthly: HIT \"monthly-v1\" fetches=0 answered t=47\nt=49 leaderboard:weekly: STALE \"weekly-v2\" fetches=1 answered t=49\nt=51 stats:home: HIT \"home-v2\" fetches=0 answered t=51\nt=51 course-list:sql: STALE \"sql-v1\" fetches=1 answered t=51\nt=51 leaderboard:weekly: HIT \"weekly-v3\" fetches=0 answered t=51\nt=51 stats:home: HIT \"home-v2\" fetches=0 answered t=51\nt=51 leaderboard:weekly: HIT \"weekly-v3\" fetches=0 answered t=51\nt=58 leaderboard:weekly: HIT \"weekly-v3\" fetches=0 answered t=58\nt=58 course-list:react: STALE \"react-v1\" fetches=1 answered t=58\nt=65 course-list:react: HIT \"react-v3\" fetches=0 answered t=65\nt=73 leaderboard:monthly: STALE \"monthly-v1\" fetches=1 answered t=73\nt=73 leaderboard:monthly: STALE \"monthly-v1\" fetches=0 answered t=73\nt=73 course-list:react: HIT \"react-v3\" fetches=0 answered t=73\nt=73 course-list:sql: HIT \"sql-v3\" fetches=0 answered t=73\nt=73 leaderboard:weekly: HIT \"weekly-v3\" fetches=0 answered t=73\nt=73 stats:home: STALE \"home-v2\" fetches=1 answered t=73\nt=74 stats:home: STALE \"home-v2\" fetches=0 answered t=74\nt=79 leaderboard:monthly: HIT \"monthly-v2\" fetches=0 answered t=79\nt=79 course-list:react: HIT \"react-v3\" fetches=0 answered t=79\nt=79 leaderboard:monthly: HIT \"monthly-v2\" fetches=0 answered t=79\nt=82 leaderboard:weekly: STALE \"weekly-v3\" fetches=1 answered t=82\nt=82 stats:home: HIT \"home-v3\" fetches=0 answered t=82\nt=84 leaderboard:weekly: STALE \"weekly-v3\" fetches=0 answered t=84\nt=84 leaderboard:monthly: HIT \"monthly-v2\" fetches=0 answered t=84\nt=84 leaderboard:weekly: STALE \"weekly-v3\" fetches=0 answered t=84\nt=90 leaderboard:weekly: HIT \"weekly-v4\" fetches=0 answered t=90\nt=90 leaderboard:monthly: HIT \"monthly-v2\" fetches=0 answered t=90\nt=90 course-list:sql: STALE \"sql-v3\" fetches=1 answered t=90\nt=97 stats:home: HIT \"home-v3\" fetches=0 answered t=97\nt=103 course-list:sql: HIT \"sql-v4\" fetches=0 answered t=103\nt=103 course-list:react: STALE \"react-v3\" fetches=1 answered t=103\nt=103 course-list:react: STALE \"react-v3\" fetches=0 answered t=103\nt=103 course-list:sql: HIT \"sql-v4\" fetches=0 answered t=103\nt=103 stats:home: HIT \"home-v3\" fetches=0 answered t=103\nt=104 leaderboard:weekly: HIT \"weekly-v4\" fetches=0 answered t=104\nt=104 course-list:sql: HIT \"sql-v4\" fetches=0 answered t=104\nt=112 stats:home: STALE \"home-v3\" fetches=1 answered t=112\nt=112 leaderboard:monthly: STALE \"monthly-v2\" fetches=1 answered t=112\nt=116 course-list:sql: HIT \"sql-v4\" fetches=0 answered t=116\nt=119 leaderboard:monthly: HIT \"monthly-v3\" fetches=0 answered t=119\nt=119 course-list:sql: HIT \"sql-v4\" fetches=0 answered t=119\nt=121 stats:home: HIT \"home-v4\" fetches=0 answered t=121\nt=121 leaderboard:weekly: STALE \"weekly-v4\" fetches=1 answered t=121\nt=121 leaderboard:monthly: HIT \"monthly-v3\" fetches=0 answered t=121\nt=121 stats:home: HIT \"home-v4\" fetches=0 answered t=121\nt=124 leaderboard:weekly: HIT \"weekly-v5\" fetches=0 answered t=124\nt=128 course-list:react: HIT \"react-v4\" fetches=0 answered t=128\nt=128 stats:home: HIT \"home-v4\" fetches=0 answered t=128\nt=128 leaderboard:monthly: HIT \"monthly-v3\" fetches=0 answered t=128\nt=134 stats:home: HIT \"home-v4\" fetches=0 answered t=134\nt=140 course-list:sql: STALE \"sql-v4\" fetches=1 answered t=140\nt=141 course-list:react: STALE \"react-v4\" fetches=1 answered t=141\nt=141 leaderboard:weekly: HIT \"weekly-v5\" fetches=0 answered t=141\nt=141 leaderboard:weekly: HIT \"weekly-v5\" fetches=0 answered t=141\nt=147 course-list:react: HIT \"react-v5\" fetches=0 answered t=147\nt=153 course-list:react: HIT \"react-v5\" fetches=0 answered t=153\nt=155 stats:home: STALE \"home-v4\" fetches=1 answered t=155\nt=162 leaderboard:weekly: STALE \"weekly-v5\" fetches=1 answered t=162\nt=168 leaderboard:monthly: STALE \"monthly-v3\" fetches=1 answered t=168\nt=168 leaderboard:monthly: STALE \"monthly-v3\" fetches=0 answered t=168\nt=174 course-list:react: STALE \"react-v5\" fetches=1 answered t=174\nt=181 course-list:sql: STALE \"sql-v5\" fetches=1 answered t=181\nt=181 leaderboard:monthly: HIT \"monthly-v4\" fetches=0 answered t=181\nt=183 course-list:sql: STALE \"sql-v5\" fetches=0 answered t=183\nt=188 course-list:react: HIT \"react-v6\" fetches=0 answered t=188\nt=188 course-list:react: HIT \"react-v6\" fetches=0 answered t=188\nt=195 course-list:sql: STALE \"sql-v5\" fetches=1 answered t=195\nt=195 leaderboard:weekly: STALE \"weekly-v6\" fetches=1 answered t=195\nt=196 leaderboard:weekly: STALE \"weekly-v6\" fetches=0 answered t=196\nt=196 course-list:react: HIT \"react-v6\" fetches=0 answered t=196\nt=198 leaderboard:weekly: HIT \"weekly-v7\" fetches=0 answered t=198\nt=200 leaderboard:weekly: HIT \"weekly-v7\" fetches=0 answered t=200\nt=201 course-list:react: HIT \"react-v6\" fetches=0 answered t=201\nt=201 leaderboard:weekly: HIT \"weekly-v7\" fetches=0 answered t=201\nt=201 course-list:react: HIT \"react-v6\" fetches=0 answered t=201\nt=201 leaderboard:monthly: STALE \"monthly-v4\" fetches=1 answered t=201\nt=203 stats:home: STALE \"home-v5\" fetches=1 answered t=203\nt=211 leaderboard:weekly: HIT \"weekly-v7\" fetches=0 answered t=211\nt=218 leaderboard:weekly: HIT \"weekly-v7\" fetches=0 answered t=218\nt=224 course-list:react: STALE \"react-v6\" fetches=1 answered t=224\nt=232 stats:home: STALE \"home-v5\" fetches=1 answered t=232\nt=232 leaderboard:monthly: HIT \"monthly-v5\" fetches=0 answered t=232\nt=234 leaderboard:weekly: STALE \"weekly-v7\" fetches=1 answered t=234\nt=234 leaderboard:monthly: STALE \"monthly-v5\" fetches=1 answered t=234\nt=234 leaderboard:weekly: STALE \"weekly-v7\" fetches=0 answered t=234\nt=235 course-list:sql: STALE \"sql-v5\" fetches=1 answered t=235\nt=235 course-list:sql: STALE \"sql-v5\" fetches=0 answered t=235\nt=235 course-list:react: HIT \"react-v7\" fetches=0 answered t=235\nt=235 leaderboard:monthly: HIT \"monthly-v6\" fetches=0 answered t=235\nt=235 course-list:react: HIT \"react-v7\" fetches=0 answered t=235\nt=235 leaderboard:monthly: HIT \"monthly-v6\" fetches=0 answered t=235\nt=235 stats:home: STALE \"home-v5\" fetches=1 answered t=235\nt=235 course-list:sql: STALE \"sql-v5\" fetches=0 answered t=235\nt=235 leaderboard:weekly: HIT \"weekly-v8\" fetches=0 answered t=235\nt=237 leaderboard:weekly: HIT \"weekly-v8\" fetches=0 answered t=237\nt=240 stats:home: HIT \"home-v8\" fetches=0 answered t=240\nt=240 leaderboard:weekly: HIT \"weekly-v8\" fetches=0 answered t=240\nt=245 stats:home: HIT \"home-v8\" fetches=0 answered t=245\nt=250 leaderboard:weekly: HIT \"weekly-v8\" fetches=0 answered t=250\nt=251 course-list:react: HIT \"react-v7\" fetches=0 answered t=251\nt=251 leaderboard:weekly: HIT \"weekly-v8\" fetches=0 answered t=251\nt=251 course-list:react: HIT \"react-v7\" fetches=0 answered t=251\nt=258 leaderboard:monthly: HIT \"monthly-v6\" fetches=0 answered t=258\nt=258 leaderboard:weekly: HIT \"weekly-v8\" fetches=0 answered t=258\nt=258 course-list:sql: HIT \"sql-v8\" fetches=0 answered t=258\nt=260 course-list:sql: HIT \"sql-v8\" fetches=0 answered t=260\nt=262 course-list:react: STALE \"react-v7\" fetches=1 answered t=262\nt=262 leaderboard:monthly: HIT \"monthly-v6\" fetches=0 answered t=262\nt=262 leaderboard:monthly: HIT \"monthly-v6\" fetches=0 answered t=262\nt=270 course-list:react: HIT \"react-v8\" fetches=0 answered t=270\nt=270 leaderboard:monthly: STALE \"monthly-v6\" fetches=1 answered t=270\nt=270 course-list:sql: STALE \"sql-v8\" fetches=1 answered t=270\nt=270 stats:home: STALE \"home-v8\" fetches=1 answered t=270\nt=276 course-list:sql: HIT \"sql-v9\" fetches=0 answered t=276\nt=276 course-list:react: HIT \"react-v8\" fetches=0 answered t=276\nt=276 leaderboard:weekly: STALE \"weekly-v8\" fetches=1 answered t=276\nt=282 course-list:react: HIT \"react-v8\" fetches=0 answered t=282\nt=286 course-list:sql: HIT \"sql-v9\" fetches=0 answered t=286\nt=287 course-list:react: HIT \"react-v8\" fetches=0 answered t=287\nt=287 stats:home: HIT \"home-v9\" fetches=0 answered t=287\nt=287 stats:home: HIT \"home-v9\" fetches=0 answered t=287\nt=291 course-list:react: HIT \"react-v8\" fetches=0 answered t=291\nt=298 course-list:sql: HIT \"sql-v9\" fetches=0 answered t=298\nt=298 course-list:react: STALE \"react-v8\" fetches=1 answered t=298\nt=298 leaderboard:weekly: HIT \"weekly-v9\" fetches=0 answered t=298\nt=298 stats:home: HIT \"home-v9\" fetches=0 answered t=298\nt=303 stats:home: STALE \"home-v9\" fetches=1 answered t=303\nt=303 course-list:react: STALE \"react-v8\" fetches=1 answered t=303\nt=307 course-list:react: HIT \"react-v10\" fetches=0 answered t=307\nt=307 course-list:sql: STALE \"sql-v9\" fetches=1 answered t=307\nt=312 stats:home: HIT \"home-v10\" fetches=0 answered t=312\nt=312 course-list:react: HIT \"react-v10\" fetches=0 answered t=312\nt=314 course-list:sql: HIT \"sql-v10\" fetches=0 answered t=314\nt=314 leaderboard:monthly: STALE \"monthly-v7\" fetches=1 answered t=314\nt=314 course-list:react: HIT \"react-v10\" fetches=0 answered t=314\nt=321 stats:home: HIT \"home-v10\" fetches=0 answered t=321\nt=321 leaderboard:monthly: STALE \"monthly-v7\" fetches=1 answered t=321\nt=322 course-list:react: HIT \"react-v10\" fetches=0 answered t=322\nt=330 stats:home: HIT \"home-v10\" fetches=0 answered t=330\nt=330 course-list:react: HIT \"react-v10\" fetches=0 answered t=330\nt=335 course-list:react: STALE \"react-v10\" fetches=1 answered t=335\nt=339 leaderboard:weekly: STALE \"weekly-v9\" fetches=1 answered t=339\nt=339 stats:home: STALE \"home-v10\" fetches=1 answered t=339\nt=339 course-list:react: HIT \"react-v11\" fetches=0 answered t=339\nt=344 course-list:sql: STALE \"sql-v10\" fetches=1 answered t=344\nt=347 stats:home: HIT \"home-v11\" fetches=0 answered t=347\nt=347 course-list:sql: HIT \"sql-v11\" fetches=0 answered t=347\nt=347 course-list:sql: HIT \"sql-v11\" fetches=0 answered t=347\nt=347 course-list:sql: HIT \"sql-v11\" fetches=0 answered t=347\nt=354 leaderboard:weekly: HIT \"weekly-v10\" fetches=0 answered t=354\nt=360 course-list:sql: HIT \"sql-v11\" fetches=0 answered t=360\nt=360 leaderboard:weekly: HIT \"weekly-v10\" fetches=0 answered t=360\nt=361 stats:home: HIT \"home-v11\" fetches=0 answered t=361\nt=361 leaderboard:monthly: STALE \"monthly-v9\" fetches=1 answered t=361\nt=361 course-list:sql: HIT \"sql-v11\" fetches=0 answered t=361\nt=367 course-list:react: STALE \"react-v11\" fetches=1 answered t=367\nt=372 course-list:react: HIT \"react-v12\" fetches=0 answered t=372\nt=375 stats:home: STALE \"home-v11\" fetches=1 answered t=375\nt=379 leaderboard:monthly: HIT \"monthly-v10\" fetches=0 answered t=379\nt=385 leaderboard:monthly: HIT \"monthly-v10\" fetches=0 answered t=385\nt=385 leaderboard:monthly: HIT \"monthly-v10\" fetches=0 answered t=385\nt=385 stats:home: STALE \"home-v11\" fetches=1 answered t=385\nt=385 course-list:sql: STALE \"sql-v11\" fetches=1 answered t=385\nt=385 leaderboard:monthly: HIT \"monthly-v10\" fetches=0 answered t=385\nt=389 stats:home: HIT \"home-v13\" fetches=0 answered t=389\nt=392 stats:home: HIT \"home-v13\" fetches=0 answered t=392\nt=393 leaderboard:monthly: HIT \"monthly-v10\" fetches=0 answered t=393\nt=393 leaderboard:monthly: HIT \"monthly-v10\" fetches=0 answered t=393\nt=393 course-list:react: HIT \"react-v12\" fetches=0 answered t=393\nt=393 course-list:react: HIT \"react-v12\" fetches=0 answered t=393\nt=397 leaderboard:weekly: STALE \"weekly-v10\" fetches=1 answered t=397\nt=397 course-list:sql: HIT \"sql-v12\" fetches=0 answered t=397\nt=403 leaderboard:monthly: STALE \"monthly-v10\" fetches=1 answered t=403\nt=409 course-list:react: STALE \"react-v12\" fetches=1 answered t=409\nt=409 leaderboard:monthly: HIT \"monthly-v11\" fetches=0 answered t=409\nt=409 leaderboard:weekly: HIT \"weekly-v11\" fetches=0 answered t=409\nt=409 course-list:react: STALE \"react-v12\" fetches=0 answered t=409\nt=409 stats:home: HIT \"home-v13\" fetches=0 answered t=409\nt=409 leaderboard:weekly: HIT \"weekly-v11\" fetches=0 answered t=409\nt=409 leaderboard:weekly: HIT \"weekly-v11\" fetches=0 answered t=409\nt=414 leaderboard:weekly: HIT \"weekly-v11\" fetches=0 answered t=414\nt=417 leaderboard:weekly: HIT \"weekly-v11\" fetches=0 answered t=417\nt=417 course-list:react: HIT \"react-v13\" fetches=0 answered t=417\nt=422 leaderboard:weekly: HIT \"weekly-v11\" fetches=0 answered t=422\nt=422 course-list:sql: STALE \"sql-v12\" fetches=1 answered t=422\nt=422 course-list:sql: HIT \"sql-v13\" fetches=0 answered t=422\nt=422 course-list:react: HIT \"react-v13\" fetches=0 answered t=422\nt=426 course-list:react: HIT \"react-v13\" fetches=0 answered t=426\nt=426 course-list:sql: HIT \"sql-v13\" fetches=0 answered t=426\nt=426 leaderboard:monthly: HIT \"monthly-v11\" fetches=0 answered t=426\nt=426 course-list:react: HIT \"react-v13\" fetches=0 answered t=426\nt=426 leaderboard:monthly: HIT \"monthly-v11\" fetches=0 answered t=426\nt=431 stats:home: STALE \"home-v13\" fetches=1 answered t=431\nt=435 course-list:react: HIT \"react-v13\" fetches=0 answered t=435\nt=435 stats:home: HIT \"home-v14\" fetches=0 answered t=435\nt=442 stats:home: HIT \"home-v14\" fetches=0 answered t=442\nt=450 leaderboard:weekly: STALE \"weekly-v11\" fetches=1 answered t=450\nt=458 course-list:react: STALE \"react-v13\" fetches=1 answered t=458\nt=458 leaderboard:monthly: STALE \"monthly-v11\" fetches=1 answered t=458\nt=462 leaderboard:monthly: HIT \"monthly-v12\" fetches=0 answered t=462\nt=462 course-list:sql: STALE \"sql-v13\" fetches=1 answered t=462\nt=469 course-list:react: HIT \"react-v14\" fetches=0 answered t=469\nt=469 leaderboard:weekly: HIT \"weekly-v12\" fetches=0 answered t=469\nt=469 stats:home: STALE \"home-v14\" fetches=1 answered t=469\nt=477 leaderboard:monthly: HIT \"monthly-v12\" fetches=0 answered t=477\nt=477 leaderboard:monthly: HIT \"monthly-v12\" fetches=0 answered t=477\nt=477 stats:home: HIT \"home-v15\" fetches=0 answered t=477\nt=477 leaderboard:monthly: HIT \"monthly-v12\" fetches=0 answered t=477\nt=485 course-list:sql: STALE \"sql-v13\" fetches=1 answered t=485\nt=487 leaderboard:weekly: STALE \"weekly-v12\" fetches=1 answered t=487\nt=487 stats:home: HIT \"home-v15\" fetches=0 answered t=487\nt=495 stats:home: HIT \"home-v15\" fetches=0 answered t=495\nt=495 leaderboard:monthly: STALE \"monthly-v12\" fetches=1 answered t=495\nt=497 course-list:sql: HIT \"sql-v15\" fetches=0 answered t=497\nt=497 stats:home: HIT \"home-v15\" fetches=0 answered t=497\nt=497 leaderboard:monthly: HIT \"monthly-v13\" fetches=0 answered t=497\nt=497 course-list:react: STALE \"react-v14\" fetches=1 answered t=497\nt=497 stats:home: HIT \"home-v15\" fetches=0 answered t=497\nt=497 course-list:sql: HIT \"sql-v15\" fetches=0 answered t=497\nt=497 stats:home: HIT \"home-v15\" fetches=0 answered t=497\nt=503 course-list:react: HIT \"react-v15\" fetches=0 answered t=503\nt=503 stats:home: STALE \"home-v15\" fetches=1 answered t=503\nt=508 leaderboard:monthly: HIT \"monthly-v13\" fetches=0 answered t=508\nt=514 course-list:sql: HIT \"sql-v15\" fetches=0 answered t=514\nt=514 stats:home: HIT \"home-v16\" fetches=0 answered t=514\nt=517 course-list:react: HIT \"react-v15\" fetches=0 answered t=517\nt=517 course-list:sql: HIT \"sql-v15\" fetches=0 answered t=517\nt=518 leaderboard:monthly: HIT \"monthly-v13\" fetches=0 answered t=518\nt=518 course-list:sql: STALE \"sql-v15\" fetches=1 answered t=518\nt=518 course-list:react: HIT \"react-v15\" fetches=0 answered t=518\nt=525 leaderboard:weekly: STALE \"weekly-v13\" fetches=1 answered t=525\nt=533 leaderboard:weekly: HIT \"weekly-v14\" fetches=0 answered t=533\nt=536 course-list:sql: HIT \"sql-v16\" fetches=0 answered t=536\nt=536 leaderboard:monthly: STALE \"monthly-v13\" fetches=1 answered t=536\nt=536 leaderboard:monthly: STALE \"monthly-v13\" fetches=0 answered t=536\nt=537 course-list:sql: HIT \"sql-v16\" fetches=0 answered t=537\nt=541 stats:home: STALE \"home-v16\" fetches=1 answered t=541\nt=541 stats:home: STALE \"home-v16\" fetches=0 answered t=541\nt=546 leaderboard:weekly: HIT \"weekly-v14\" fetches=0 answered t=546\nt=554 leaderboard:weekly: HIT \"weekly-v14\" fetches=0 answered t=554\nt=554 leaderboard:weekly: HIT \"weekly-v14\" fetches=0 answered t=554\nt=557 leaderboard:monthly: STALE \"monthly-v13\" fetches=1 answered t=557\nt=557 leaderboard:monthly: HIT \"monthly-v15\" fetches=0 answered t=557\nt=563 stats:home: STALE \"home-v16\" fetches=1 answered t=563\nt=563 leaderboard:monthly: HIT \"monthly-v15\" fetches=0 answered t=563\nt=563 leaderboard:monthly: HIT \"monthly-v15\" fetches=0 answered t=563\nt=565 course-list:react: STALE \"react-v15\" fetches=1 answered t=565\nt=565 stats:home: STALE \"home-v16\" fetches=0 answered t=565\nt=568 course-list:sql: STALE \"sql-v16\" fetches=1 answered t=568\nt=568 course-list:sql: HIT \"sql-v17\" fetches=0 answered t=568\nt=575 course-list:sql: HIT \"sql-v17\" fetches=0 answered t=575\nt=581 leaderboard:weekly: STALE \"weekly-v14\" fetches=1 answered t=581\nt=585 leaderboard:weekly: HIT \"weekly-v15\" fetches=0 answered t=585\nt=585 course-list:sql: HIT \"sql-v17\" fetches=0 answered t=585\nt=586 stats:home: HIT \"home-v18\" fetches=0 answered t=586\nt=590 course-list:sql: HIT \"sql-v17\" fetches=0 answered t=590\nt=597 stats:home: STALE \"home-v18\" fetches=1 answered t=597\nt=597 leaderboard:weekly: HIT \"weekly-v15\" fetches=0 answered t=597\nt=597 course-list:sql: HIT \"sql-v17\" fetches=0 answered t=597\nt=605 stats:home: STALE \"home-v18\" fetches=1 answered t=605\nt=608 leaderboard:weekly: HIT \"weekly-v15\" fetches=0 answered t=608\nt=608 course-list:sql: STALE \"sql-v17\" fetches=1 answered t=608\nt=615 stats:home: STALE \"home-v18\" fetches=1 answered t=615\nt=615 course-list:react: STALE \"react-v16\" fetches=1 answered t=615\nt=615 course-list:sql: HIT \"sql-v18\" fetches=0 answered t=615\nt=615 leaderboard:monthly: STALE \"monthly-v15\" fetches=1 answered t=615\nt=615 leaderboard:weekly: STALE \"weekly-v15\" fetches=1 answered t=615\nt=615 stats:home: STALE \"home-v18\" fetches=0 answered t=615\nt=618 stats:home: HIT \"home-v21\" fetches=0 answered t=618\nt=618 course-list:sql: HIT \"sql-v18\" fetches=0 answered t=618\nt=618 leaderboard:weekly: HIT \"weekly-v16\" fetches=0 answered t=618\nt=619 stats:home: HIT \"home-v21\" fetches=0 answered t=619\nt=625 leaderboard:monthly: HIT \"monthly-v16\" fetches=0 answered t=625\nt=628 course-list:sql: HIT \"sql-v18\" fetches=0 answered t=628\nt=632 course-list:react: HIT \"react-v17\" fetches=0 answered t=632\nt=632 course-list:react: HIT \"react-v17\" fetches=0 answered t=632\nt=632 leaderboard:monthly: HIT \"monthly-v16\" fetches=0 answered t=632\nt=632 course-list:react: HIT \"react-v17\" fetches=0 answered t=632\nt=633 course-list:react: HIT \"react-v17\" fetches=0 answered t=633\nt=637 stats:home: HIT \"home-v21\" fetches=0 answered t=637\nt=637 stats:home: HIT \"home-v21\" fetches=0 answered t=637\nt=643 leaderboard:weekly: HIT \"weekly-v16\" fetches=0 answered t=643\nt=643 course-list:sql: STALE \"sql-v18\" fetches=1 answered t=643\nt=643 course-list:react: HIT \"react-v17\" fetches=0 answered t=643\nt=643 course-list:react: HIT \"react-v17\" fetches=0 answered t=643\nt=644 leaderboard:monthly: HIT \"monthly-v16\" fetches=0 answered t=644\nt=644 leaderboard:monthly: HIT \"monthly-v16\" fetches=0 answered t=644\nt=644 leaderboard:weekly: HIT \"weekly-v16\" fetches=0 answered t=644\nt=644 stats:home: HIT \"home-v21\" fetches=0 answered t=644\nt=646 course-list:react: HIT \"react-v17\" fetches=0 answered t=646\nt=646 stats:home: HIT \"home-v21\" fetches=0 answered t=646\nt=652 course-list:sql: STALE \"sql-v18\" fetches=1 answered t=652\nt=652 course-list:sql: HIT \"sql-v20\" fetches=0 answered t=652\nt=658 course-list:react: STALE \"react-v17\" fetches=1 answered t=658\nt=658 leaderboard:weekly: STALE \"weekly-v16\" fetches=1 answered t=658\nt=658 stats:home: STALE \"home-v21\" fetches=1 answered t=658\nt=658 leaderboard:weekly: STALE \"weekly-v16\" fetches=0 answered t=658\nt=665 course-list:react: HIT \"react-v18\" fetches=0 answered t=665\nt=667 course-list:sql: HIT \"sql-v20\" fetches=0 answered t=667\nt=667 course-list:sql: HIT \"sql-v20\" fetches=0 answered t=667\nt=667 leaderboard:weekly: STALE \"weekly-v16\" fetches=1 answered t=667\nt=668 course-list:sql: HIT \"sql-v20\" fetches=0 answered t=668\nt=671 course-list:react: HIT \"react-v18\" fetches=0 answered t=671\nt=671 leaderboard:monthly: STALE \"monthly-v16\" fetches=1 answered t=671\nt=677 leaderboard:monthly: HIT \"monthly-v17\" fetches=0 answered t=677\nt=683 stats:home: HIT \"home-v22\" fetches=0 answered t=683\nt=690 leaderboard:weekly: STALE \"weekly-v16\" fetches=1 answered t=690\nt=690 course-list:react: STALE \"react-v18\" fetches=1 answered t=690\nt=690 course-list:sql: STALE \"sql-v20\" fetches=1 answered t=690\nt=690 course-list:sql: STALE \"sql-v20\" fetches=0 answered t=690\nt=690 stats:home: HIT \"home-v22\" fetches=0 answered t=690\nt=697 leaderboard:weekly: HIT \"weekly-v19\" fetches=0 answered t=697\nt=697 stats:home: STALE \"home-v22\" fetches=1 answered t=697\nt=697 leaderboard:monthly: HIT \"monthly-v17\" fetches=0 answered t=697\nt=699 leaderboard:weekly: HIT \"weekly-v19\" fetches=0 answered t=699\nt=701 leaderboard:monthly: HIT \"monthly-v17\" fetches=0 answered t=701\nt=701 leaderboard:weekly: HIT \"weekly-v19\" fetches=0 answered t=701\nt=701 stats:home: HIT \"home-v23\" fetches=0 answered t=701\nt=705 stats:home: HIT \"home-v23\" fetches=0 answered t=705\nt=709 leaderboard:monthly: STALE \"monthly-v17\" fetches=1 answered t=709\nt=715 stats:home: HIT \"home-v23\" fetches=0 answered t=715\nt=715 stats:home: HIT \"home-v23\" fetches=0 answered t=715\nt=715 course-list:react: HIT \"react-v19\" fetches=0 answered t=715\nt=720 leaderboard:weekly: HIT \"weekly-v19\" fetches=0 answered t=720\nt=720 stats:home: HIT \"home-v23\" fetches=0 answered t=720\nt=720 course-list:sql: HIT \"sql-v21\" fetches=0 answered t=720\nt=724 course-list:react: STALE \"react-v19\" fetches=1 answered t=724\nt=724 stats:home: HIT \"home-v23\" fetches=0 answered t=724\nt=726 leaderboard:monthly: STALE \"monthly-v17\" fetches=1 answered t=726\nt=728 leaderboard:monthly: HIT \"monthly-v19\" fetches=0 answered t=728\nt=732 stats:home: STALE \"home-v23\" fetches=1 answered t=732\nt=732 course-list:sql: STALE \"sql-v21\" fetches=1 answered t=732\nt=737 course-list:react: HIT \"react-v20\" fetches=0 answered t=737\nt=737 leaderboard:weekly: STALE \"weekly-v19\" fetches=1 answered t=737\nt=742 leaderboard:monthly: HIT \"monthly-v19\" fetches=0 answered t=742\nt=745 leaderboard:monthly: HIT \"monthly-v19\" fetches=0 answered t=745\nt=745 course-list:sql: HIT \"sql-v22\" fetches=0 answered t=745\nt=747 leaderboard:weekly: STALE \"weekly-v19\" fetches=1 answered t=747\nt=754 leaderboard:monthly: HIT \"monthly-v19\" fetches=0 answered t=754\nt=754 course-list:react: STALE \"react-v20\" fetches=1 answered t=754\nt=754 leaderboard:weekly: HIT \"weekly-v21\" fetches=0 answered t=754\nt=754 course-list:react: STALE \"react-v20\" fetches=0 answered t=754\nt=754 stats:home: HIT \"home-v24\" fetches=0 answered t=754\nt=754 leaderboard:monthly: HIT \"monthly-v19\" fetches=0 answered t=754\nt=754 leaderboard:weekly: HIT \"weekly-v21\" fetches=0 answered t=754\nt=761 leaderboard:monthly: STALE \"monthly-v19\" fetches=1 answered t=761\nt=765 leaderboard:monthly: HIT \"monthly-v20\" fetches=0 answered t=765\nt=772 stats:home: STALE \"home-v24\" fetches=1 answered t=772\nt=772 leaderboard:monthly: HIT \"monthly-v20\" fetches=0 answered t=772\nt=772 stats:home: HIT \"home-v25\" fetches=0 answered t=772\nt=772 leaderboard:monthly: HIT \"monthly-v20\" fetches=0 answered t=772\nt=772 leaderboard:monthly: HIT \"monthly-v20\" fetches=0 answered t=772\nt=772 leaderboard:monthly: HIT \"monthly-v20\" fetches=0 answered t=772\nt=778 stats:home: HIT \"home-v25\" fetches=0 answered t=778\nt=783 leaderboard:weekly: STALE \"weekly-v21\" fetches=1 answered t=783\nt=790 leaderboard:monthly: HIT \"monthly-v20\" fetches=0 answered t=790\nt=790 course-list:sql: STALE \"sql-v22\" fetches=1 answered t=790\nt=790 course-list:sql: STALE \"sql-v22\" fetches=0 answered t=790\nt=790 leaderboard:monthly: HIT \"monthly-v20\" fetches=0 answered t=790\nt=791 course-list:sql: HIT \"sql-v23\" fetches=0 answered t=791\nt=791 course-list:sql: HIT \"sql-v23\" fetches=0 answered t=791\nt=794 course-list:react: STALE \"react-v21\" fetches=1 answered t=794\nt=801 course-list:sql: HIT \"sql-v23\" fetches=0 answered t=801\nt=801 stats:home: HIT \"home-v25\" fetches=0 answered t=801\nt=801 leaderboard:weekly: HIT \"weekly-v22\" fetches=0 answered t=801\nt=804 course-list:sql: HIT \"sql-v23\" fetches=0 answered t=804\nt=804 course-list:react: HIT \"react-v22\" fetches=0 answered t=804\nt=812 leaderboard:weekly: HIT \"weekly-v22\" fetches=0 answered t=812\nt=812 leaderboard:weekly: HIT \"weekly-v22\" fetches=0 answered t=812\nt=814 leaderboard:weekly: HIT \"weekly-v22\" fetches=0 answered t=814\nt=814 course-list:react: HIT \"react-v22\" fetches=0 answered t=814\nt=814 course-list:react: HIT \"react-v22\" fetches=0 answered t=814\nt=821 leaderboard:monthly: STALE \"monthly-v20\" fetches=1 answered t=821\nt=821 leaderboard:weekly: STALE \"weekly-v22\" fetches=1 answered t=821\nt=821 stats:home: STALE \"home-v25\" fetches=1 answered t=821\nt=821 course-list:react: HIT \"react-v22\" fetches=0 answered t=821\nt=828 course-list:sql: STALE \"sql-v23\" fetches=1 answered t=828\nt=828 course-list:react: STALE \"react-v22\" fetches=1 answered t=828\nt=836 leaderboard:weekly: STALE \"weekly-v22\" fetches=1 answered t=836\nt=836 course-list:sql: HIT \"sql-v24\" fetches=0 answered t=836\nt=836 leaderboard:monthly: HIT \"monthly-v21\" fetches=0 answered t=836\nt=836 leaderboard:weekly: STALE \"weekly-v22\" fetches=0 answered t=836\nt=836 course-list:sql: HIT \"sql-v24\" fetches=0 answered t=836\nt=836 course-list:react: HIT \"react-v23\" fetches=0 answered t=836\nt=839 stats:home: HIT \"home-v26\" fetches=0 answered t=839\nt=839 course-list:sql: HIT \"sql-v24\" fetches=0 answered t=839\nt=839 leaderboard:monthly: HIT \"monthly-v21\" fetches=0 answered t=839\nt=845 stats:home: HIT \"home-v26\" fetches=0 answered t=845\nt=845 leaderboard:weekly: HIT \"weekly-v24\" fetches=0 answered t=845\nt=846 leaderboard:weekly: HIT \"weekly-v24\" fetches=0 answered t=846\nt=851 leaderboard:weekly: HIT \"weekly-v24\" fetches=0 answered t=851\nt=851 course-list:sql: HIT \"sql-v24\" fetches=0 answered t=851\nt=855 course-list:sql: HIT \"sql-v24\" fetches=0 answered t=855\nt=862 leaderboard:monthly: STALE \"monthly-v21\" fetches=1 answered t=862\nt=867 course-list:react: STALE \"react-v23\" fetches=1 answered t=867\nt=867 leaderboard:monthly: HIT \"monthly-v22\" fetches=0 answered t=867\nt=867 leaderboard:monthly: HIT \"monthly-v22\" fetches=0 answered t=867\nt=871 stats:home: STALE \"home-v26\" fetches=1 answered t=871\nt=875 stats:home: HIT \"home-v27\" fetches=0 answered t=875\nt=875 leaderboard:weekly: STALE \"weekly-v24\" fetches=1 answered t=875\nt=883 leaderboard:monthly: HIT \"monthly-v22\" fetches=0 answered t=883\nt=886 course-list:sql: STALE \"sql-v24\" fetches=1 answered t=886\nt=889 leaderboard:weekly: HIT \"weekly-v25\" fetches=0 answered t=889\nt=889 leaderboard:weekly: HIT \"weekly-v25\" fetches=0 answered t=889\nt=889 stats:home: HIT \"home-v27\" fetches=0 answered t=889\nt=889 stats:home: HIT \"home-v27\" fetches=0 answered t=889\nt=889 leaderboard:weekly: HIT \"weekly-v25\" fetches=0 answered t=889\nt=889 course-list:react: HIT \"react-v24\" fetches=0 answered t=889\nt=889 leaderboard:weekly: HIT \"weekly-v25\" fetches=0 answered t=889\nt=893 course-list:sql: HIT \"sql-v25\" fetches=0 answered t=893\nt=901 course-list:react: STALE \"react-v24\" fetches=1 answered t=901\nt=901 leaderboard:weekly: HIT \"weekly-v25\" fetches=0 answered t=901\nt=901 leaderboard:monthly: STALE \"monthly-v22\" fetches=1 answered t=901\nt=901 leaderboard:monthly: STALE \"monthly-v22\" fetches=0 answered t=901\nt=904 leaderboard:weekly: HIT \"weekly-v25\" fetches=0 answered t=904\nt=907 course-list:react: HIT \"react-v25\" fetches=0 answered t=907\nt=914 course-list:react: HIT \"react-v25\" fetches=0 answered t=914\nt=914 stats:home: STALE \"home-v27\" fetches=1 answered t=914\nt=916 leaderboard:weekly: STALE \"weekly-v25\" fetches=1 answered t=916\nt=920 leaderboard:weekly: HIT \"weekly-v26\" fetches=0 answered t=920\nt=920 course-list:sql: STALE \"sql-v25\" fetches=1 answered t=920\nt=926 leaderboard:monthly: HIT \"monthly-v23\" fetches=0 answered t=926\nt=926 leaderboard:weekly: HIT \"weekly-v26\" fetches=0 answered t=926\nt=926 leaderboard:weekly: HIT \"weekly-v26\" fetches=0 answered t=926\nt=926 leaderboard:weekly: HIT \"weekly-v26\" fetches=0 answered t=926\nt=926 course-list:react: HIT \"react-v25\" fetches=0 answered t=926\nt=929 leaderboard:weekly: HIT \"weekly-v26\" fetches=0 answered t=929\nt=933 course-list:react: STALE \"react-v25\" fetches=1 answered t=933\nt=941 leaderboard:weekly: HIT \"weekly-v26\" fetches=0 answered t=941\nt=941 stats:home: HIT \"home-v28\" fetches=0 answered t=941\nt=941 leaderboard:weekly: HIT \"weekly-v26\" fetches=0 answered t=941\nt=941 course-list:react: STALE \"react-v25\" fetches=1 answered t=941\nt=941 leaderboard:monthly: STALE \"monthly-v23\" fetches=1 answered t=941\nt=944 leaderboard:weekly: HIT \"weekly-v26\" fetches=0 answered t=944\nt=944 leaderboard:monthly: HIT \"monthly-v24\" fetches=0 answered t=944\nt=944 course-list:react: HIT \"react-v27\" fetches=0 answered t=944\nt=952 leaderboard:monthly: HIT \"monthly-v24\" fetches=0 answered t=952\nt=958 leaderboard:monthly: HIT \"monthly-v24\" fetches=0 answered t=958\nt=958 leaderboard:monthly: HIT \"monthly-v24\" fetches=0 answered t=958\nt=958 leaderboard:weekly: STALE \"weekly-v26\" fetches=1 answered t=958\nt=966 course-list:react: HIT \"react-v27\" fetches=0 answered t=966\nt=966 leaderboard:monthly: HIT \"monthly-v24\" fetches=0 answered t=966\nt=966 leaderboard:weekly: STALE \"weekly-v26\" fetches=1 answered t=966\nt=966 course-list:sql: STALE \"sql-v26\" fetches=1 answered t=966\nt=966 stats:home: STALE \"home-v28\" fetches=1 answered t=966\nt=973 course-list:react: HIT \"react-v27\" fetches=0 answered t=973\nt=973 course-list:react: HIT \"react-v27\" fetches=0 answered t=973\nt=973 course-list:sql: STALE \"sql-v26\" fetches=1 answered t=973\nt=977 leaderboard:weekly: HIT \"weekly-v28\" fetches=0 answered t=977\nt=977 leaderboard:monthly: STALE \"monthly-v24\" fetches=1 answered t=977\nt=980 stats:home: HIT \"home-v29\" fetches=0 answered t=980\nt=980 course-list:sql: HIT \"sql-v28\" fetches=0 answered t=980\nt=980 course-list:sql: HIT \"sql-v28\" fetches=0 answered t=980\nt=985 course-list:sql: HIT \"sql-v28\" fetches=0 answered t=985\nt=985 leaderboard:weekly: HIT \"weekly-v28\" fetches=0 answered t=985\nt=989 leaderboard:weekly: HIT \"weekly-v28\" fetches=0 answered t=989\nt=995 leaderboard:monthly: HIT \"monthly-v25\" fetches=0 answered t=995\nt=1002 leaderboard:weekly: STALE \"weekly-v28\" fetches=1 answered t=1002\nt=1005 leaderboard:monthly: HIT \"monthly-v25\" fetches=0 answered t=1005\nt=1005 course-list:sql: STALE \"sql-v28\" fetches=1 answered t=1005\nt=1005 course-list:sql: STALE \"sql-v28\" fetches=0 answered t=1005\nt=1010 course-list:sql: HIT \"sql-v29\" fetches=0 answered t=1010\nt=1010 leaderboard:weekly: HIT \"weekly-v29\" fetches=0 answered t=1010\nt=1016 course-list:react: STALE \"react-v27\" fetches=1 answered t=1016\nt=1016 leaderboard:weekly: HIT \"weekly-v29\" fetches=0 answered t=1016\nt=1016 leaderboard:weekly: HIT \"weekly-v29\" fetches=0 answered t=1016\nt=1016 course-list:sql: HIT \"sql-v29\" fetches=0 answered t=1016\nt=1020 course-list:react: STALE \"react-v27\" fetches=1 answered t=1020\nt=1028 course-list:react: HIT \"react-v29\" fetches=0 answered t=1028\nt=1028 course-list:react: HIT \"react-v29\" fetches=0 answered t=1028\nt=1028 stats:home: STALE \"home-v29\" fetches=1 answered t=1028\nt=1028 stats:home: STALE \"home-v29\" fetches=0 answered t=1028\nt=1028 leaderboard:monthly: STALE \"monthly-v25\" fetches=1 answered t=1028\nt=1028 course-list:sql: HIT \"sql-v29\" fetches=0 answered t=1028\nt=1028 course-list:sql: HIT \"sql-v29\" fetches=0 answered t=1028\norigin fetches: course-list:react=29 course-list:sql=29 leaderboard:monthly=26 leaderboard:weekly=29 stats:home=30",
+          "hidden": true,
+          "score": 2
+        }
+      ]
+    }
+  ]
+}

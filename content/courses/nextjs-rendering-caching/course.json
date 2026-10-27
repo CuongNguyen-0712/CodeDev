@@ -1,0 +1,187 @@
+{
+  "publicId": "nextjs-rendering-caching",
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1793020084/codedev/courses/nextjs-rendering-caching/cover",
+  "title": "Next.js Rendering & Caching: Static, Dynamic, Revalidation & Per-User Data",
+  "concept": "Choose how every page renders and what it may cache: static, revalidated or dynamic rendering, server and client components, cache keys that never mix users, revalidation by tag after an edit, stale-while-revalidate, and personal data kept out of shared caches.",
+  "description": "An intermediate course for React developers who build with the Next.js App Router and need pages that are fast without being wrong. Every lesson starts from an incident on the CodeDev learning platform - a learner who saw another learner's progress on the dashboard, a course page that kept the old price after an instructor edited it, a hydration error that only happened in Vietnamese, a whole page that went dynamic because of one cookie read, a client bundle that grew because a chart became a client component - and fixes it with a decision you can check: static, ISR or dynamic rendering, server or client components, hydration, safe cache keys, the Stale Page or Data Leak scenario, TTL and stale-while-revalidate, revalidation by tag and path, splitting public and personal data, dynamic routes, streaming with Suspense and debugging the cache in production. 12 lessons with True/False quizzes on real code, headers and logs, and TypeScript challenges graded by hidden tests.",
+  "level": "intermediate",
+  "durationMinutes": 360,
+  "instructor": "CodeDev Engineering Team",
+  "language": "TypeScript",
+  "category": "Frontend Development",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 100,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 300
+    },
+    {
+      "priceType": "money",
+      "amount": 149000,
+      "currency": "VND"
+    }
+  ],
+  "completionRules": {},
+  "domain": "frontend",
+  "learningOutcomes": [
+    {
+      "code": "rendering-choice",
+      "text": "Choose static, revalidated or dynamic rendering for each route from its data and freshness needs"
+    },
+    {
+      "code": "server-client",
+      "text": "Decide what runs as a server component and what must be a client component, and read hydration errors"
+    },
+    {
+      "code": "cache-keys",
+      "text": "Design cache keys that include every input that changes the result, and never mix users"
+    },
+    {
+      "code": "revalidation",
+      "text": "Revalidate by tag or path after a change and use TTL with stale-while-revalidate deliberately"
+    },
+    {
+      "code": "personal-data",
+      "text": "Keep per-user data out of shared caches by splitting public and personal data"
+    }
+  ],
+  "testedVersions": {
+    "TypeScript": "5.9.3 (tsc --strict in the code runner)",
+    "Next.js": "16 App Router (lesson examples; caching APIs change between versions, check the docs)"
+  },
+  "lastReviewedAt": "2026-10-26",
+  "sourceLinks": [
+    "https://nextjs.org/docs/app/getting-started/caching-and-revalidating",
+    "https://nextjs.org/docs/app/getting-started/server-and-client-components",
+    "https://react.dev/reference/react-dom/client/hydrateRoot"
+  ],
+  "owner": "CodeDev Engineering Team",
+  "knownIssues": [
+    "No Next.js in the code runner: challenges model rendering and cache decisions as pure functions and a cache on a fake clock"
+  ],
+  "scenario": {
+    "title": "Stale Page or Data Leak?",
+    "quiz": "chal_quiz_nrc_221",
+    "fixBug": "chal_coding_nrc_222"
+  },
+  "careerRoles": [
+    "frontend_developer",
+    "fullstack_developer"
+  ],
+  "skills": {
+    "react": 4,
+    "typescript": 3,
+    "performance": 3,
+    "html_css": 1
+  },
+  "goals": [
+    "grow_in_role",
+    "build_projects",
+    "performance"
+  ],
+  "prerequisites": [
+    "typescript-react-frontend"
+  ],
+  "modules": [
+    {
+      "orderIndex": 1,
+      "title": "Rendering",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "01-rendering-models",
+          "title": "Static, ISR or dynamic: choosing how a page renders",
+          "sanityId": "lesson-nrc-1-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "02-server-client-components",
+          "title": "Server or client component? Deciding per component",
+          "sanityId": "lesson-nrc-1-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "03-hydration",
+          "title": "Hydration errors: what they mean and how to fix them",
+          "sanityId": "lesson-nrc-1-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Caching",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "04-safe-cache-keys",
+          "title": "Safe cache keys: public data versus per-user data",
+          "sanityId": "lesson-nrc-2-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "05-stale-page-or-data-leak",
+          "title": "Stale page or data leak? A dashboard that showed someone else's progress",
+          "sanityId": "lesson-nrc-2-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "06-ttl-swr",
+          "title": "TTL & stale-while-revalidate",
+          "sanityId": "lesson-nrc-2-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Revalidation",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "07-revalidate-tags",
+          "title": "Revalidation by tag & path after an edit",
+          "sanityId": "lesson-nrc-3-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "08-page-not-updating",
+          "title": "Spot the AI mistake: the course page that never updates",
+          "sanityId": "lesson-nrc-3-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "09-personal-data",
+          "title": "Split public cached data from personal data",
+          "sanityId": "lesson-nrc-3-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 4,
+      "title": "In Production",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "10-dynamic-routes",
+          "title": "Dynamic routes, params & generateStaticParams",
+          "sanityId": "lesson-nrc-4-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "11-streaming-suspense",
+          "title": "Streaming with Suspense & loading states",
+          "sanityId": "lesson-nrc-4-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "12-debugging-cache",
+          "title": "Debugging the cache in production: headers & logs",
+          "sanityId": "lesson-nrc-4-3"
+        }
+      ]
+    }
+  ]
+}

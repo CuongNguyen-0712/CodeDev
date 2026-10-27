@@ -1,0 +1,1750 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nrc_221",
+      "name": "stale-page-or-data-leak-evidence",
+      "type": "quiz",
+      "title": "Stale Page or Data Leak? Read the evidence",
+      "description": "The morning after a release that cached the dashboard, learners see another learner's name, lessons and streak for about a minute. Six statements on one evidence pack - the support tickets (A), the response headers (B), the cached data function and route handler (C) and the timeline (D) - take you from reading the evidence to a hypothesis, past two wrong explanations, to the fix and its verification.",
+      "difficulty": "medium",
+      "outcomes": [
+        "cache-keys",
+        "personal-data"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence B - response headers, Tue 09:15:\n$ curl -sI https://app.codedev.test/api/dashboard -H \"cookie: session=<Lan's session>\"\nHTTP/2 200\ncache-control: public, s-maxage=60\nage: 37\nx-cache: HIT\netag: \"d-41-19-8f2a\"\n\n$ curl -sI https://app.codedev.test/api/dashboard -H \"cookie: session=<Thu's session>\"\nHTTP/2 200\ncache-control: public, s-maxage=60\nage: 38\nx-cache: HIT\netag: \"d-41-19-8f2a\"\n\n$ curl -s https://app.codedev.test/api/me -H \"cookie: session=<Lan's session>\" -D -\ncache-control: private, no-store\nx-cache: MISS\n{\"id\":\"u_2041\",\"name\":\"Lan\"}\n\nStatement: \"Thu's request was answered from a copy the CDN had stored earlier, without reaching the Next.js server: the same etag as Lan's response, an age of 38 seconds and x-cache: HIT.\"",
+          "explanation": "True. x-cache: HIT (the header name is vendor-specific) says the CDN answered from its store, and age: 38 says the stored copy was fetched from the origin 38 seconds earlier. Two different session cookies received the byte-identical response (same etag). The /api/me call shows what an origin answer looks like (x-cache: MISS, private, no-store). Reading the headers first tells you which layer answered before you open any code; the common mistake is to start debugging the application while the request never reached it.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence B - response headers, Tue 09:15:\n$ curl -sI https://app.codedev.test/api/dashboard -H \"cookie: session=<Lan's session>\"\nHTTP/2 200\ncache-control: public, s-maxage=60\nage: 37\nx-cache: HIT\netag: \"d-41-19-8f2a\"\n\n$ curl -sI https://app.codedev.test/api/dashboard -H \"cookie: session=<Thu's session>\"\nHTTP/2 200\ncache-control: public, s-maxage=60\nage: 38\nx-cache: HIT\netag: \"d-41-19-8f2a\"\n\n$ curl -s https://app.codedev.test/api/me -H \"cookie: session=<Lan's session>\" -D -\ncache-control: private, no-store\nx-cache: MISS\n{\"id\":\"u_2041\",\"name\":\"Lan\"}\n\nStatement: \"Each of the two requests carried a different session cookie, so a shared cache that follows the HTTP caching rules keeps a separate copy per cookie: the CDN cannot be the layer that mixed the two learners.\"",
+          "explanation": "False. A shared cache keys a stored response by the request URL, plus the request headers the response names in Vary. Cookies are not part of the key unless the response says Vary: Cookie, and this one does not. The header public, s-maxage=60 explicitly tells shared caches they may store the response and reuse it for 60 seconds, for any request to /api/dashboard. So the CDN did exactly what it was told, and B shows it serving one stored copy to two cookies. The misconception is that a cache somehow \"knows\" a response is personal because the request was authenticated; it only knows what the URL, Vary and Cache-Control say.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence C - release 2026.10.26-2:\n// lib/dashboard.ts (PR #611)\nexport async function getDashboard() {\n  const session = await getSession();             // reads the session cookie\n  return cached(\"dashboard\", 60, () => db.dashboardFor(session.userId));\n}\n\n// app/api/dashboard/route.ts (PR #612)\nexport async function GET() {\n  const session = await getSession();\n  if (!session) return Response.json({ error: \"sign in\" }, { status: 401, headers: { \"Cache-Control\": \"private, no-store\" } });\n  return Response.json(await getDashboard(), { headers: { \"Cache-Control\": \"public, s-maxage=60\" } });\n}\n\nEvidence D - timeline:\nMon 17:40  deploy 2026.10.26-2 (PR #611, PR #612)\nMon 17:41  origin requests to /api/dashboard drop from ~1,900/min to ~30/min\nTue 08:55  instructor publishes an edit to \"SQL Basics\" (typo in a lesson title)\nTue 09:12  ticket #5120\nTue 09:20  ticket #5124\nTue 09:34  on-call purges /api/dashboard at the CDN and adds a CDN rule: BYPASS /api/dashboard\nTue 09:36  ticket #5131\nTue 09:40  auth log, 09:30-09:40: every /api/dashboard request authenticated as the user of its own session cookie; 0 session errors\n\nStatement: \"Both layers can serve one learner's dashboard to another on their own: the data cache keys the result as \\\"dashboard\\\" without the user id, and public, s-maxage=60 lets the CDN share it by URL; ticket #5131, after the CDN bypass at 09:34, is the leak of the data cache alone.\"",
+          "explanation": "True. db.dashboardFor(session.userId) depends on the user, but the user id is read inside the closure and is not part of the key \"dashboard\", so the first learner to fill the entry is served to every learner for 60 seconds. Independently, the public header lets the CDN store that response under the URL /api/dashboard, which is the same for everyone. Purging and bypassing the CDN removed only the second layer, which is why An still saw Minh's progress at 09:36. The hypothesis explains all of A to D, including the one-minute self-healing (both TTLs are 60). The common mistake is to stop at the first layer you find.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence A - support tickets:\n#5120  Tue 09:12  Lan (u_2041): \"My dashboard says Welcome back, Minh, with 41 lessons done and a 19-day streak. I have done 3 lessons. The name in the top bar is still mine. After about a minute it went back to normal.\"\n#5124  Tue 09:20  Thu (u_3307): \"For a moment my dashboard showed someone else's streak, then it was mine again.\"\n#5131  Tue 09:36  An (u_1876): \"Dashboard shows Minh's progress, not mine.\"\n\nEvidence B - response headers, Tue 09:15:\n$ curl -sI https://app.codedev.test/api/dashboard -H \"cookie: session=<Lan's session>\"\nHTTP/2 200\ncache-control: public, s-maxage=60\nage: 37\nx-cache: HIT\netag: \"d-41-19-8f2a\"\n\n$ curl -sI https://app.codedev.test/api/dashboard -H \"cookie: session=<Thu's session>\"\nHTTP/2 200\ncache-control: public, s-maxage=60\nage: 38\nx-cache: HIT\netag: \"d-41-19-8f2a\"\n\n$ curl -s https://app.codedev.test/api/me -H \"cookie: session=<Lan's session>\" -D -\ncache-control: private, no-store\nx-cache: MISS\n{\"id\":\"u_2041\",\"name\":\"Lan\"}\n\nEvidence D - timeline:\nMon 17:40  deploy 2026.10.26-2 (PR #611, PR #612)\nMon 17:41  origin requests to /api/dashboard drop from ~1,900/min to ~30/min\nTue 08:55  instructor publishes an edit to \"SQL Basics\" (typo in a lesson title)\nTue 09:12  ticket #5120\nTue 09:20  ticket #5124\nTue 09:34  on-call purges /api/dashboard at the CDN and adds a CDN rule: BYPASS /api/dashboard\nTue 09:36  ticket #5131\nTue 09:40  auth log, 09:30-09:40: every /api/dashboard request authenticated as the user of its own session cookie; 0 session errors\n\nStatement: \"The top bar shows Lan while the dashboard shows Minh's progress, so the most likely cause is a session mix-up in auth: some of Lan's requests were authenticated as Minh.\"",
+          "explanation": "False. If Lan's session resolved to Minh, every endpoint would say Minh. B shows /api/me, which is never cached (private, no-store, x-cache: MISS), returning Lan for Lan's cookie, and the auth log in D shows every dashboard request authenticated as its own cookie's user with no session errors. The session is right; the data served for it comes from a cache whose key ignores the user. Comparing an uncached endpoint with the cached one, using the same cookie, separates the two. The misconception is to blame auth for anything that involves the wrong user.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence A - support tickets:\n#5120  Tue 09:12  Lan (u_2041): \"My dashboard says Welcome back, Minh, with 41 lessons done and a 19-day streak. I have done 3 lessons. The name in the top bar is still mine. After about a minute it went back to normal.\"\n#5124  Tue 09:20  Thu (u_3307): \"For a moment my dashboard showed someone else's streak, then it was mine again.\"\n#5131  Tue 09:36  An (u_1876): \"Dashboard shows Minh's progress, not mine.\"\n\nEvidence D - timeline:\nMon 17:40  deploy 2026.10.26-2 (PR #611, PR #612)\nMon 17:41  origin requests to /api/dashboard drop from ~1,900/min to ~30/min\nTue 08:55  instructor publishes an edit to \"SQL Basics\" (typo in a lesson title)\nTue 09:12  ticket #5120\nTue 09:20  ticket #5124\nTue 09:34  on-call purges /api/dashboard at the CDN and adds a CDN rule: BYPASS /api/dashboard\nTue 09:36  ticket #5131\nTue 09:40  auth log, 09:30-09:40: every /api/dashboard request authenticated as the user of its own session cookie; 0 session errors\n\nStatement: \"This is a stale page after the instructor's 08:55 edit: the dashboard shows data from before the edit, and calling revalidatePath(\\\"/dashboard\\\") after every lesson completion would fix it.\"",
+          "explanation": "False. Stale means the right learner's data, but old. A shows another learner's data (Minh's name, lessons and streak shown to Lan), which is a leak, not staleness. D also puts the start at Monday 17:40, before the 08:55 edit, and the edit changed a course title, not anyone's progress. Revalidating the dashboard path would only empty the shared entry so that the next learner refills it: the leak would rotate faster, not stop. The question to ask first is whose data it is; a shorter TTL or more revalidation never fixes a key that leaves out the user.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence C - release 2026.10.26-2:\n// lib/dashboard.ts (PR #611)\nexport async function getDashboard() {\n  const session = await getSession();             // reads the session cookie\n  return cached(\"dashboard\", 60, () => db.dashboardFor(session.userId));\n}\n\n// app/api/dashboard/route.ts (PR #612)\nexport async function GET() {\n  const session = await getSession();\n  if (!session) return Response.json({ error: \"sign in\" }, { status: 401, headers: { \"Cache-Control\": \"private, no-store\" } });\n  return Response.json(await getDashboard(), { headers: { \"Cache-Control\": \"public, s-maxage=60\" } });\n}\n\nProposed fix: the data cache key becomes `dashboard:${userId}` (userId read from the session outside the cached function), /api/dashboard is sent with Cache-Control: private, no-cache, /api/courses keeps public, max-age=0, s-maxage=300, and /api/dashboard is purged at the CDN after the deploy.\n\nStatement: \"A test that requests the dashboard as Lan and then as Minh through a simulated CDN, once with the CDN in front and once bypassed, and asserts each learner gets their own data, fails on the release code and passes with this fix.\"",
+          "explanation": "True. On the release code both modes fail: with the CDN in front, Minh gets Lan's stored response (public, same URL); with the CDN bypassed, the data cache returns Lan's entry under \"dashboard\". With the fix, the key contains the user, so the data cache keeps one entry per learner (the expensive query is still cached for 60 seconds), and private keeps every shared cache from storing the response, while the public course list is still shared. Testing both modes matters because each half-fix passes one of them. The purge is needed because entries stored under the old public header live until they expire.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_nrc_222",
+      "name": "stale-page-or-data-leak",
+      "type": "fix_bug",
+      "title": "Stale Page or Data Leak?",
+      "description": "Since Monday's release, learners on app.codedev.test open their dashboard and sometimes see another learner's name, lessons and streak; an anonymous visitor has seen a learner's dashboard too. After a minute or so it fixes itself. The release cached the expensive dashboard query on the server (getDashboard) and added a Cache-Control header to the /api/dashboard route handler so the CDN could absorb the morning peak. Purging and bypassing the CDN did not stop the leak.\n\nFix the data layer and the route handler so that every learner only ever gets their own dashboard, with the CDN in front and with it bypassed, while: the dashboard query stays cached on the server for 60 seconds, one entry per learner (a second request by the same learner within 60 seconds must not query the database); /api/dashboard is sent with Cache-Control \"private, no-cache\"; anonymous requests still get 401 with \"private, no-store\"; and the course list stays public, cached on the server and by the CDN with \"public, max-age=0, s-maxage=300\".\n\nThe file contains a fake clock in seconds, the database (it counts queries), the server data cache cached(key, ttlSeconds, load), and a CDN that keys entries by path and query only (the session cookie is not part of its key) and stores 200 responses for s-maxage seconds unless Cache-Control contains private or no-store. Do not change them or the test runner.\n\nInput: { \"bypassCdn\"?: boolean, \"requests\": [{ \"at\": seconds, \"user\": \"u_lan\" | null, \"path\": \"/api/...\" }, ...] }. The runner prints, per request, the status, the body, the CDN result (HIT, MISS or BYPASS) and the Cache-Control header, then the number of database queries.",
+      "difficulty": "medium",
+      "outcomes": [
+        "cache-keys",
+        "personal-data"
+      ],
+      "points": 30,
+      "hints": [
+        "There are two caches between a learner and the database. For each one, ask: what does it use as the key, and does that key contain everything that changes the dashboard? Then run the starter with the CDN bypassed: does the leak stop?",
+        "Look at the key passed to cached(...) in getDashboard and at the Cache-Control header the /api/dashboard branch of handle() returns. Compare both with what the course list does, and decide which parts of the course list's caching are right for per-user data and which are not.",
+        "A similar case on a different route: a notifications endpoint cached as cached(\"notifications\", 30, () => db.notificationsFor(userId)) with \"public, s-maxage=30\". Keying it as `notifications:${userId}` keeps one server entry per user, and sending \"private, no-cache\" stops shared caches from storing it; the public announcements endpoint next to it keeps its shared key and its public header."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Lan, then Minh five seconds later: each sees their own dashboard",
+          "input": {
+            "requests": [
+              {
+                "at": 0,
+                "user": "u_lan",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 5,
+                "user": "u_minh",
+                "path": "/api/dashboard"
+              }
+            ]
+          },
+          "expected": "t=0 u_lan GET /api/dashboard -> 200 {\"name\":\"Lan\",\"lessonsDone\":3,\"streak\":2} | cdn MISS | private, no-cache\nt=5 u_minh GET /api/dashboard -> 200 {\"name\":\"Minh\",\"lessonsDone\":41,\"streak\":19} | cdn MISS | private, no-cache\ndb queries: dashboard=2 courses=0",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "The course list stays shared: three visitors, one database query, CDN hits",
+          "input": {
+            "requests": [
+              {
+                "at": 0,
+                "user": "u_lan",
+                "path": "/api/courses?category=react"
+              },
+              {
+                "at": 10,
+                "user": "u_minh",
+                "path": "/api/courses?category=react"
+              },
+              {
+                "at": 20,
+                "user": null,
+                "path": "/api/courses?category=react"
+              },
+              {
+                "at": 25,
+                "user": "u_lan",
+                "path": "/api/dashboard"
+              }
+            ]
+          },
+          "expected": "t=0 u_lan GET /api/courses?category=react -> 200 [\"React Basics\",\"Hooks in Depth\"] | cdn MISS | public, max-age=0, s-maxage=300\nt=10 u_minh GET /api/courses?category=react -> 200 [\"React Basics\",\"Hooks in Depth\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=20 anonymous GET /api/courses?category=react -> 200 [\"React Basics\",\"Hooks in Depth\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=25 u_lan GET /api/dashboard -> 200 {\"name\":\"Lan\",\"lessonsDone\":3,\"streak\":2} | cdn MISS | private, no-cache\ndb queries: dashboard=1 courses=1",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "CDN bypassed (x-cache: BYPASS): the server cache must not mix learners either",
+          "input": {
+            "bypassCdn": true,
+            "requests": [
+              {
+                "at": 0,
+                "user": "u_minh",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 12,
+                "user": "u_lan",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 30,
+                "user": "u_an",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 31,
+                "user": "u_lan",
+                "path": "/api/courses?category=sql"
+              }
+            ]
+          },
+          "expected": "t=0 u_minh GET /api/dashboard -> 200 {\"name\":\"Minh\",\"lessonsDone\":41,\"streak\":19} | cdn BYPASS | private, no-cache\nt=12 u_lan GET /api/dashboard -> 200 {\"name\":\"Lan\",\"lessonsDone\":3,\"streak\":2} | cdn BYPASS | private, no-cache\nt=30 u_an GET /api/dashboard -> 200 {\"name\":\"An\",\"lessonsDone\":12,\"streak\":5} | cdn BYPASS | private, no-cache\nt=31 u_lan GET /api/courses?category=sql -> 200 [\"SQL Basics\",\"Joins in Practice\"] | cdn BYPASS | public, max-age=0, s-maxage=300\ndb queries: dashboard=3 courses=1",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "An anonymous visitor after a learner gets 401, never a stored dashboard",
+          "input": {
+            "requests": [
+              {
+                "at": 0,
+                "user": "u_thu",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 3,
+                "user": null,
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 4,
+                "user": "u_thu",
+                "path": "/api/dashboard"
+              }
+            ]
+          },
+          "expected": "t=0 u_thu GET /api/dashboard -> 200 {\"name\":\"Thu\",\"lessonsDone\":7,\"streak\":1} | cdn MISS | private, no-cache\nt=3 anonymous GET /api/dashboard -> 401 {\"error\":\"sign in\"} | cdn MISS | private, no-store\nt=4 u_thu GET /api/dashboard -> 200 {\"name\":\"Thu\",\"lessonsDone\":7,\"streak\":1} | cdn MISS | private, no-cache\ndb queries: dashboard=1 courses=0",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Each learner's dashboard stays cached on the server for 60 s, then is loaded again",
+          "input": {
+            "requests": [
+              {
+                "at": 0,
+                "user": "u_lan",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 30,
+                "user": "u_lan",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 30,
+                "user": "u_minh",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 59,
+                "user": "u_lan",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 60,
+                "user": "u_lan",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 89,
+                "user": "u_minh",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 90,
+                "user": "u_minh",
+                "path": "/api/dashboard"
+              }
+            ]
+          },
+          "expected": "t=0 u_lan GET /api/dashboard -> 200 {\"name\":\"Lan\",\"lessonsDone\":3,\"streak\":2} | cdn MISS | private, no-cache\nt=30 u_lan GET /api/dashboard -> 200 {\"name\":\"Lan\",\"lessonsDone\":3,\"streak\":2} | cdn MISS | private, no-cache\nt=30 u_minh GET /api/dashboard -> 200 {\"name\":\"Minh\",\"lessonsDone\":41,\"streak\":19} | cdn MISS | private, no-cache\nt=59 u_lan GET /api/dashboard -> 200 {\"name\":\"Lan\",\"lessonsDone\":3,\"streak\":2} | cdn MISS | private, no-cache\nt=60 u_lan GET /api/dashboard -> 200 {\"name\":\"Lan\",\"lessonsDone\":3,\"streak\":2} | cdn MISS | private, no-cache\nt=89 u_minh GET /api/dashboard -> 200 {\"name\":\"Minh\",\"lessonsDone\":41,\"streak\":19} | cdn MISS | private, no-cache\nt=90 u_minh GET /api/dashboard -> 200 {\"name\":\"Minh\",\"lessonsDone\":41,\"streak\":19} | cdn MISS | private, no-cache\ndb queries: dashboard=4 courses=0",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Query strings, a new learner, an unknown route and the course list after 300 s",
+          "input": {
+            "requests": [
+              {
+                "at": 0,
+                "user": "u_lan",
+                "path": "/api/dashboard?tab=streaks"
+              },
+              {
+                "at": 2,
+                "user": "u_9001",
+                "path": "/api/dashboard?tab=streaks"
+              },
+              {
+                "at": 4,
+                "user": "u_minh",
+                "path": "/api/leaderboard"
+              },
+              {
+                "at": 5,
+                "user": null,
+                "path": "/api/courses"
+              },
+              {
+                "at": 6,
+                "user": "u_an",
+                "path": "/api/courses?category=%20SQL"
+              },
+              {
+                "at": 304,
+                "user": "u_an",
+                "path": "/api/courses"
+              },
+              {
+                "at": 305,
+                "user": "u_lan",
+                "path": "/api/courses"
+              }
+            ]
+          },
+          "expected": "t=0 u_lan GET /api/dashboard?tab=streaks -> 200 {\"name\":\"Lan\",\"lessonsDone\":3,\"streak\":2} | cdn MISS | private, no-cache\nt=2 u_9001 GET /api/dashboard?tab=streaks -> 200 {\"name\":\"u_9001\",\"lessonsDone\":0,\"streak\":0} | cdn MISS | private, no-cache\nt=4 u_minh GET /api/leaderboard -> 404 {\"error\":\"not found\"} | cdn MISS | private, no-store\nt=5 anonymous GET /api/courses -> 200 [\"React Basics\",\"Hooks in Depth\",\"SQL Basics\",\"Joins in Practice\",\"Node Streams\"] | cdn MISS | public, max-age=0, s-maxage=300\nt=6 u_an GET /api/courses?category=%20SQL -> 200 [\"SQL Basics\",\"Joins in Practice\"] | cdn MISS | public, max-age=0, s-maxage=300\nt=304 u_an GET /api/courses -> 200 [\"React Basics\",\"Hooks in Depth\",\"SQL Basics\",\"Joins in Practice\",\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=305 u_lan GET /api/courses -> 200 [\"React Basics\",\"Hooks in Depth\",\"SQL Basics\",\"Joins in Practice\",\"Node Streams\"] | cdn MISS | public, max-age=0, s-maxage=300\ndb queries: dashboard=2 courses=3",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Large: 280 requests over about ten minutes from seven learners and anonymous visitors",
+          "input": {
+            "requests": [
+              {
+                "at": 0,
+                "user": null,
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 4,
+                "user": "u_an",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 4,
+                "user": "u_an",
+                "path": "/api/dashboard?tab=streaks"
+              },
+              {
+                "at": 5,
+                "user": null,
+                "path": "/api/courses?category=react"
+              },
+              {
+                "at": 5,
+                "user": null,
+                "path": "/api/courses?category=react"
+              },
+              {
+                "at": 5,
+                "user": "u_lan",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 9,
+                "user": "u_lan",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 9,
+                "user": "u_5124",
+                "path": "/api/courses"
+              },
+              {
+                "at": 13,
+                "user": null,
+                "path": "/api/courses?category=node"
+              },
+              {
+                "at": 13,
+                "user": null,
+                "path": "/api/dashboard?tab=streaks"
+              },
+              {
+                "at": 17,
+                "user": "u_7781",
+                "path": "/api/dashboard?tab=streaks"
+              },
+              {
+                "at": 20,
+                "user": null,
+                "path": "/api/leaderboard"
+              },
+              {
+                "at": 24,
+                "user": "u_5124",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 24,
+                "user": null,
+                "path": "/api/dashboard?tab=streaks"
+              },
+              {
+                "at": 28,
+                "user": "u_5120",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 28,
+                "user": "u_minh",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 28,
+                "user": "u_an",
+                "path": "/api/courses?category=sql"
+              },
+              {
+                "at": 31,
+                "user": null,
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 33,
+                "user": "u_minh",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 37,
+                "user": null,
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 40,
+                "user": "u_an",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 43,
+                "user": "u_7781",
+                "path": "/api/leaderboard"
+              },
+              {
+                "at": 43,
+                "user": "u_thu",
+                "path": "/api/leaderboard"
+              },
+              {
+                "at": 46,
+                "user": null,
+                "path": "/api/courses?category=react"
+              },
+              {
+                "at": 47,
+                "user": "u_5124",
+                "path": "/api/courses"
+              },
+              {
+                "at": 50,
+                "user": "u_7781",
+                "path": "/api/courses"
+              },
+              {
+                "at": 52,
+                "user": "u_7781",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 52,
+                "user": null,
+                "path": "/api/leaderboard"
+              },
+              {
+                "at": 52,
+                "user": "u_lan",
+                "path": "/api/leaderboard"
+              },
+              {
+                "at": 54,
+                "user": "u_an",
+                "path": "/api/courses?category=sql"
+              },
+              {
+                "at": 57,
+                "user": "u_7781",
+                "path": "/api/dashboard?tab=streaks"
+              },
+              {
+                "at": 57,
+                "user": "u_an",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 60,
+                "user": "u_5124",
+                "path": "/api/courses"
+              },
+              {
+                "at": 61,
+                "user": "u_thu",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 62,
+                "user": "u_thu",
+                "path": "/api/courses?category=node"
+              },
+              {
+                "at": 62,
+                "user": "u_an",
+                "path": "/api/courses"
+              },
+              {
+                "at": 64,
+                "user": null,
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 64,
+                "user": null,
+                "path": "/api/courses?category=react"
+              },
+              {
+                "at": 64,
+                "user": "u_an",
+                "path": "/api/courses"
+              },
+              {
+                "at": 67,
+                "user": null,
+                "path": "/api/courses"
+              },
+              {
+                "at": 68,
+                "user": "u_an",
+                "path": "/api/courses"
+              },
+              {
+                "at": 69,
+                "user": "u_thu",
+                "path": "/api/leaderboard"
+              },
+              {
+                "at": 70,
+                "user": "u_minh",
+                "path": "/api/courses"
+              },
+              {
+                "at": 70,
+                "user": "u_7781",
+                "path": "/api/courses"
+              },
+              {
+                "at": 74,
+                "user": "u_minh",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 77,
+                "user": "u_7781",
+                "path": "/api/leaderboard"
+              },
+              {
+                "at": 80,
+                "user": null,
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 83,
+                "user": "u_5124",
+                "path": "/api/leaderboard"
+              },
+              {
+                "at": 84,
+                "user": "u_minh",
+                "path": "/api/courses?category=node"
+              },
+              {
+                "at": 88,
+                "user": null,
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 88,
+                "user": "u_minh",
+                "path": "/api/dashboard?tab=streaks"
+              },
+              {
+                "at": 92,
+                "user": "u_minh",
+                "path": "/api/courses?category=node"
+              },
+              {
+                "at": 94,
+                "user": "u_5124",
+                "path": "/api/courses?category=node"
+              },
+              {
+                "at": 97,
+                "user": null,
+                "path": "/api/courses?category=sql"
+              },
+              {
+                "at": 98,
+                "user": "u_5124",
+                "path": "/api/courses"
+              },
+              {
+                "at": 98,
+                "user": "u_5124",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 99,
+                "user": "u_minh",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 103,
+                "user": "u_5120",
+                "path": "/api/leaderboard"
+              },
+              {
+                "at": 107,
+                "user": "u_thu",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 107,
+                "user": null,
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 107,
+                "user": "u_thu",
+                "path": "/api/courses"
+              },
+              {
+                "at": 109,
+                "user": "u_5124",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 110,
+                "user": "u_minh",
+                "path": "/api/courses?category=sql"
+              },
+              {
+                "at": 113,
+                "user": "u_an",
+                "path": "/api/dashboard?tab=streaks"
+              },
+              {
+                "at": 116,
+                "user": "u_5124",
+                "path": "/api/courses"
+              },
+              {
+                "at": 116,
+                "user": "u_5124",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 116,
+                "user": "u_thu",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 117,
+                "user": "u_thu",
+                "path": "/api/courses"
+              },
+              {
+                "at": 120,
+                "user": "u_5120",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 123,
+                "user": "u_5120",
+                "path": "/api/leaderboard"
+              },
+              {
+                "at": 123,
+                "user": "u_lan",
+                "path": "/api/courses?category=react"
+              },
+              {
+                "at": 124,
+                "user": "u_minh",
+                "path": "/api/courses?category=react"
+              },
+              {
+                "at": 127,
+                "user": "u_thu",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 130,
+                "user": "u_minh",
+                "path": "/api/courses"
+              },
+              {
+                "at": 132,
+                "user": "u_lan",
+                "path": "/api/courses"
+              },
+              {
+                "at": 132,
+                "user": null,
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 136,
+                "user": "u_lan",
+                "path": "/api/courses?category=node"
+              },
+              {
+                "at": 140,
+                "user": "u_5120",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 142,
+                "user": "u_lan",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 143,
+                "user": "u_5124",
+                "path": "/api/courses?category=node"
+              },
+              {
+                "at": 147,
+                "user": null,
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 147,
+                "user": "u_5120",
+                "path": "/api/courses?category=sql"
+              },
+              {
+                "at": 150,
+                "user": "u_lan",
+                "path": "/api/courses?category=react"
+              },
+              {
+                "at": 152,
+                "user": "u_lan",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 153,
+                "user": "u_lan",
+                "path": "/api/courses?category=sql"
+              },
+              {
+                "at": 153,
+                "user": "u_minh",
+                "path": "/api/dashboard?tab=streaks"
+              },
+              {
+                "at": 156,
+                "user": null,
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 160,
+                "user": "u_5120",
+                "path": "/api/courses?category=node"
+              },
+              {
+                "at": 161,
+                "user": "u_5124",
+                "path": "/api/leaderboard"
+              },
+              {
+                "at": 161,
+                "user": "u_minh",
+                "path": "/api/courses?category=react"
+              },
+              {
+                "at": 164,
+                "user": "u_5124",
+                "path": "/api/courses?category=node"
+              },
+              {
+                "at": 164,
+                "user": "u_5120",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 166,
+                "user": null,
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 168,
+                "user": "u_5120",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 172,
+                "user": "u_7781",
+                "path": "/api/dashboard?tab=streaks"
+              },
+              {
+                "at": 173,
+                "user": "u_7781",
+                "path": "/api/courses?category=sql"
+              },
+              {
+                "at": 173,
+                "user": null,
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 176,
+                "user": "u_5124",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 179,
+                "user": "u_7781",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 179,
+                "user": "u_lan",
+                "path": "/api/dashboard?tab=streaks"
+              },
+              {
+                "at": 182,
+                "user": "u_minh",
+                "path": "/api/courses?category=react"
+              },
+              {
+                "at": 185,
+                "user": "u_thu",
+                "path": "/api/dashboard?tab=streaks"
+              },
+              {
+                "at": 189,
+                "user": "u_5120",
+                "path": "/api/dashboard?tab=streaks"
+              },
+              {
+                "at": 189,
+                "user": "u_5124",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 189,
+                "user": "u_minh",
+                "path": "/api/courses?category=react"
+              },
+              {
+                "at": 193,
+                "user": "u_an",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 193,
+                "user": "u_5124",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 195,
+                "user": "u_thu",
+                "path": "/api/courses?category=sql"
+              },
+              {
+                "at": 198,
+                "user": null,
+                "path": "/api/courses?category=react"
+              },
+              {
+                "at": 200,
+                "user": "u_5124",
+                "path": "/api/courses?category=sql"
+              },
+              {
+                "at": 204,
+                "user": null,
+                "path": "/api/courses"
+              },
+              {
+                "at": 206,
+                "user": "u_an",
+                "path": "/api/dashboard?tab=streaks"
+              },
+              {
+                "at": 210,
+                "user": "u_7781",
+                "path": "/api/courses?category=react"
+              },
+              {
+                "at": 210,
+                "user": "u_thu",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 214,
+                "user": null,
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 216,
+                "user": null,
+                "path": "/api/dashboard?tab=streaks"
+              },
+              {
+                "at": 216,
+                "user": "u_5124",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 217,
+                "user": "u_7781",
+                "path": "/api/courses?category=node"
+              },
+              {
+                "at": 219,
+                "user": "u_an",
+                "path": "/api/dashboard?tab=streaks"
+              },
+              {
+                "at": 222,
+                "user": "u_lan",
+                "path": "/api/leaderboard"
+              },
+              {
+                "at": 222,
+                "user": "u_7781",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 223,
+                "user": "u_thu",
+                "path": "/api/dashboard?tab=streaks"
+              },
+              {
+                "at": 224,
+                "user": "u_5124",
+                "path": "/api/courses?category=node"
+              },
+              {
+                "at": 227,
+                "user": "u_minh",
+                "path": "/api/dashboard?tab=streaks"
+              },
+              {
+                "at": 229,
+                "user": "u_an",
+                "path": "/api/dashboard?tab=streaks"
+              },
+              {
+                "at": 229,
+                "user": "u_5120",
+                "path": "/api/courses?category=node"
+              },
+              {
+                "at": 229,
+                "user": "u_minh",
+                "path": "/api/dashboard?tab=streaks"
+              },
+              {
+                "at": 230,
+                "user": null,
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 233,
+                "user": "u_5120",
+                "path": "/api/courses?category=node"
+              },
+              {
+                "at": 235,
+                "user": "u_5124",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 238,
+                "user": "u_thu",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 238,
+                "user": null,
+                "path": "/api/courses"
+              },
+              {
+                "at": 238,
+                "user": "u_5120",
+                "path": "/api/leaderboard"
+              },
+              {
+                "at": 239,
+                "user": "u_lan",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 242,
+                "user": "u_7781",
+                "path": "/api/courses"
+              },
+              {
+                "at": 243,
+                "user": "u_5120",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 243,
+                "user": "u_7781",
+                "path": "/api/courses?category=react"
+              },
+              {
+                "at": 246,
+                "user": "u_7781",
+                "path": "/api/leaderboard"
+              },
+              {
+                "at": 250,
+                "user": null,
+                "path": "/api/courses?category=sql"
+              },
+              {
+                "at": 252,
+                "user": null,
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 253,
+                "user": "u_minh",
+                "path": "/api/courses?category=sql"
+              },
+              {
+                "at": 257,
+                "user": "u_an",
+                "path": "/api/courses?category=sql"
+              },
+              {
+                "at": 257,
+                "user": "u_7781",
+                "path": "/api/courses?category=node"
+              },
+              {
+                "at": 257,
+                "user": "u_thu",
+                "path": "/api/courses?category=node"
+              },
+              {
+                "at": 257,
+                "user": "u_an",
+                "path": "/api/courses?category=node"
+              },
+              {
+                "at": 260,
+                "user": null,
+                "path": "/api/courses?category=react"
+              },
+              {
+                "at": 260,
+                "user": null,
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 261,
+                "user": null,
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 261,
+                "user": null,
+                "path": "/api/courses?category=react"
+              },
+              {
+                "at": 262,
+                "user": "u_5120",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 264,
+                "user": "u_5120",
+                "path": "/api/courses?category=react"
+              },
+              {
+                "at": 268,
+                "user": null,
+                "path": "/api/courses?category=sql"
+              },
+              {
+                "at": 272,
+                "user": null,
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 272,
+                "user": "u_minh",
+                "path": "/api/leaderboard"
+              },
+              {
+                "at": 273,
+                "user": null,
+                "path": "/api/leaderboard"
+              },
+              {
+                "at": 275,
+                "user": "u_5120",
+                "path": "/api/courses?category=sql"
+              },
+              {
+                "at": 279,
+                "user": "u_7781",
+                "path": "/api/courses?category=react"
+              },
+              {
+                "at": 279,
+                "user": "u_lan",
+                "path": "/api/courses?category=react"
+              },
+              {
+                "at": 279,
+                "user": "u_lan",
+                "path": "/api/dashboard?tab=streaks"
+              },
+              {
+                "at": 283,
+                "user": null,
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 284,
+                "user": null,
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 285,
+                "user": "u_5124",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 285,
+                "user": "u_5120",
+                "path": "/api/courses?category=node"
+              },
+              {
+                "at": 287,
+                "user": null,
+                "path": "/api/courses?category=sql"
+              },
+              {
+                "at": 288,
+                "user": null,
+                "path": "/api/courses?category=sql"
+              },
+              {
+                "at": 291,
+                "user": "u_lan",
+                "path": "/api/dashboard?tab=streaks"
+              },
+              {
+                "at": 295,
+                "user": null,
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 299,
+                "user": "u_5124",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 303,
+                "user": "u_minh",
+                "path": "/api/courses?category=react"
+              },
+              {
+                "at": 307,
+                "user": null,
+                "path": "/api/courses?category=sql"
+              },
+              {
+                "at": 308,
+                "user": "u_minh",
+                "path": "/api/courses?category=node"
+              },
+              {
+                "at": 311,
+                "user": "u_minh",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 312,
+                "user": "u_minh",
+                "path": "/api/courses?category=sql"
+              },
+              {
+                "at": 312,
+                "user": "u_7781",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 316,
+                "user": "u_5120",
+                "path": "/api/courses?category=sql"
+              },
+              {
+                "at": 317,
+                "user": "u_7781",
+                "path": "/api/courses?category=node"
+              },
+              {
+                "at": 317,
+                "user": null,
+                "path": "/api/leaderboard"
+              },
+              {
+                "at": 321,
+                "user": "u_minh",
+                "path": "/api/leaderboard"
+              },
+              {
+                "at": 324,
+                "user": null,
+                "path": "/api/courses?category=react"
+              },
+              {
+                "at": 326,
+                "user": "u_5124",
+                "path": "/api/courses?category=node"
+              },
+              {
+                "at": 328,
+                "user": "u_thu",
+                "path": "/api/courses?category=react"
+              },
+              {
+                "at": 329,
+                "user": "u_5120",
+                "path": "/api/leaderboard"
+              },
+              {
+                "at": 329,
+                "user": "u_an",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 329,
+                "user": "u_minh",
+                "path": "/api/courses?category=sql"
+              },
+              {
+                "at": 331,
+                "user": "u_lan",
+                "path": "/api/courses?category=node"
+              },
+              {
+                "at": 334,
+                "user": "u_5124",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 334,
+                "user": "u_5124",
+                "path": "/api/courses"
+              },
+              {
+                "at": 337,
+                "user": "u_minh",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 338,
+                "user": "u_5120",
+                "path": "/api/courses"
+              },
+              {
+                "at": 340,
+                "user": "u_5124",
+                "path": "/api/leaderboard"
+              },
+              {
+                "at": 344,
+                "user": "u_5120",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 346,
+                "user": "u_an",
+                "path": "/api/courses?category=sql"
+              },
+              {
+                "at": 349,
+                "user": "u_minh",
+                "path": "/api/leaderboard"
+              },
+              {
+                "at": 350,
+                "user": "u_lan",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 353,
+                "user": "u_lan",
+                "path": "/api/courses"
+              },
+              {
+                "at": 354,
+                "user": "u_7781",
+                "path": "/api/courses?category=react"
+              },
+              {
+                "at": 358,
+                "user": "u_thu",
+                "path": "/api/courses?category=react"
+              },
+              {
+                "at": 361,
+                "user": "u_5120",
+                "path": "/api/courses?category=react"
+              },
+              {
+                "at": 364,
+                "user": null,
+                "path": "/api/courses"
+              },
+              {
+                "at": 365,
+                "user": "u_5124",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 369,
+                "user": "u_lan",
+                "path": "/api/courses?category=react"
+              },
+              {
+                "at": 369,
+                "user": "u_an",
+                "path": "/api/courses?category=sql"
+              },
+              {
+                "at": 372,
+                "user": "u_thu",
+                "path": "/api/courses?category=sql"
+              },
+              {
+                "at": 372,
+                "user": "u_minh",
+                "path": "/api/courses"
+              },
+              {
+                "at": 375,
+                "user": "u_7781",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 375,
+                "user": "u_lan",
+                "path": "/api/courses?category=sql"
+              },
+              {
+                "at": 377,
+                "user": "u_minh",
+                "path": "/api/leaderboard"
+              },
+              {
+                "at": 381,
+                "user": "u_5124",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 384,
+                "user": "u_thu",
+                "path": "/api/leaderboard"
+              },
+              {
+                "at": 385,
+                "user": "u_5124",
+                "path": "/api/courses"
+              },
+              {
+                "at": 389,
+                "user": "u_minh",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 390,
+                "user": null,
+                "path": "/api/courses?category=sql"
+              },
+              {
+                "at": 393,
+                "user": "u_5120",
+                "path": "/api/courses"
+              },
+              {
+                "at": 394,
+                "user": "u_minh",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 398,
+                "user": "u_thu",
+                "path": "/api/courses"
+              },
+              {
+                "at": 399,
+                "user": "u_an",
+                "path": "/api/dashboard?tab=streaks"
+              },
+              {
+                "at": 400,
+                "user": null,
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 401,
+                "user": null,
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 403,
+                "user": "u_minh",
+                "path": "/api/courses?category=react"
+              },
+              {
+                "at": 407,
+                "user": "u_5124",
+                "path": "/api/courses"
+              },
+              {
+                "at": 411,
+                "user": "u_5120",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 412,
+                "user": "u_thu",
+                "path": "/api/courses"
+              },
+              {
+                "at": 413,
+                "user": "u_5120",
+                "path": "/api/leaderboard"
+              },
+              {
+                "at": 416,
+                "user": "u_7781",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 416,
+                "user": "u_7781",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 416,
+                "user": "u_minh",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 416,
+                "user": "u_lan",
+                "path": "/api/courses?category=node"
+              },
+              {
+                "at": 418,
+                "user": "u_lan",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 421,
+                "user": "u_minh",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 421,
+                "user": null,
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 423,
+                "user": "u_thu",
+                "path": "/api/courses?category=node"
+              },
+              {
+                "at": 425,
+                "user": null,
+                "path": "/api/courses?category=react"
+              },
+              {
+                "at": 428,
+                "user": "u_an",
+                "path": "/api/courses?category=node"
+              },
+              {
+                "at": 428,
+                "user": "u_minh",
+                "path": "/api/courses?category=node"
+              },
+              {
+                "at": 430,
+                "user": "u_5120",
+                "path": "/api/leaderboard"
+              },
+              {
+                "at": 434,
+                "user": "u_7781",
+                "path": "/api/leaderboard"
+              },
+              {
+                "at": 434,
+                "user": "u_lan",
+                "path": "/api/leaderboard"
+              },
+              {
+                "at": 438,
+                "user": "u_minh",
+                "path": "/api/courses?category=react"
+              },
+              {
+                "at": 440,
+                "user": "u_minh",
+                "path": "/api/courses?category=sql"
+              },
+              {
+                "at": 441,
+                "user": "u_minh",
+                "path": "/api/courses?category=react"
+              },
+              {
+                "at": 442,
+                "user": "u_an",
+                "path": "/api/courses?category=node"
+              },
+              {
+                "at": 442,
+                "user": "u_5120",
+                "path": "/api/courses?category=sql"
+              },
+              {
+                "at": 442,
+                "user": "u_thu",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 446,
+                "user": "u_5120",
+                "path": "/api/dashboard?tab=streaks"
+              },
+              {
+                "at": 449,
+                "user": "u_an",
+                "path": "/api/courses?category=react"
+              },
+              {
+                "at": 449,
+                "user": "u_thu",
+                "path": "/api/dashboard?tab=streaks"
+              },
+              {
+                "at": 450,
+                "user": "u_lan",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 452,
+                "user": "u_5120",
+                "path": "/api/courses?category=node"
+              },
+              {
+                "at": 453,
+                "user": "u_an",
+                "path": "/api/courses?category=sql"
+              },
+              {
+                "at": 455,
+                "user": "u_an",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 455,
+                "user": null,
+                "path": "/api/courses?category=react"
+              },
+              {
+                "at": 457,
+                "user": "u_7781",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 459,
+                "user": "u_5120",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 462,
+                "user": "u_5124",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 463,
+                "user": "u_7781",
+                "path": "/api/courses?category=react"
+              },
+              {
+                "at": 464,
+                "user": "u_5124",
+                "path": "/api/leaderboard"
+              },
+              {
+                "at": 465,
+                "user": "u_lan",
+                "path": "/api/leaderboard"
+              },
+              {
+                "at": 468,
+                "user": null,
+                "path": "/api/courses?category=react"
+              },
+              {
+                "at": 468,
+                "user": "u_an",
+                "path": "/api/courses?category=react"
+              },
+              {
+                "at": 470,
+                "user": null,
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 473,
+                "user": null,
+                "path": "/api/courses?category=react"
+              },
+              {
+                "at": 475,
+                "user": "u_7781",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 476,
+                "user": "u_minh",
+                "path": "/api/courses"
+              },
+              {
+                "at": 478,
+                "user": null,
+                "path": "/api/courses?category=sql"
+              },
+              {
+                "at": 478,
+                "user": "u_5124",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 478,
+                "user": "u_thu",
+                "path": "/api/courses?category=sql"
+              },
+              {
+                "at": 478,
+                "user": "u_7781",
+                "path": "/api/courses"
+              },
+              {
+                "at": 479,
+                "user": null,
+                "path": "/api/dashboard?tab=streaks"
+              },
+              {
+                "at": 483,
+                "user": "u_5120",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 484,
+                "user": "u_minh",
+                "path": "/api/dashboard?tab=streaks"
+              },
+              {
+                "at": 485,
+                "user": null,
+                "path": "/api/courses"
+              },
+              {
+                "at": 489,
+                "user": "u_5120",
+                "path": "/api/courses?category=sql"
+              },
+              {
+                "at": 490,
+                "user": "u_an",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 490,
+                "user": null,
+                "path": "/api/courses?category=node"
+              },
+              {
+                "at": 492,
+                "user": "u_7781",
+                "path": "/api/courses?category=react"
+              },
+              {
+                "at": 495,
+                "user": "u_thu",
+                "path": "/api/courses?category=node"
+              },
+              {
+                "at": 498,
+                "user": null,
+                "path": "/api/leaderboard"
+              },
+              {
+                "at": 498,
+                "user": "u_5120",
+                "path": "/api/dashboard"
+              },
+              {
+                "at": 502,
+                "user": "u_5124",
+                "path": "/api/courses"
+              },
+              {
+                "at": 505,
+                "user": null,
+                "path": "/api/courses?category=node"
+              }
+            ]
+          },
+          "expected": "t=0 anonymous GET /api/dashboard -> 401 {\"error\":\"sign in\"} | cdn MISS | private, no-store\nt=4 u_an GET /api/dashboard -> 200 {\"name\":\"An\",\"lessonsDone\":12,\"streak\":5} | cdn MISS | private, no-cache\nt=4 u_an GET /api/dashboard?tab=streaks -> 200 {\"name\":\"An\",\"lessonsDone\":12,\"streak\":5} | cdn MISS | private, no-cache\nt=5 anonymous GET /api/courses?category=react -> 200 [\"React Basics\",\"Hooks in Depth\"] | cdn MISS | public, max-age=0, s-maxage=300\nt=5 anonymous GET /api/courses?category=react -> 200 [\"React Basics\",\"Hooks in Depth\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=5 u_lan GET /api/dashboard -> 200 {\"name\":\"Lan\",\"lessonsDone\":3,\"streak\":2} | cdn MISS | private, no-cache\nt=9 u_lan GET /api/dashboard -> 200 {\"name\":\"Lan\",\"lessonsDone\":3,\"streak\":2} | cdn MISS | private, no-cache\nt=9 u_5124 GET /api/courses -> 200 [\"React Basics\",\"Hooks in Depth\",\"SQL Basics\",\"Joins in Practice\",\"Node Streams\"] | cdn MISS | public, max-age=0, s-maxage=300\nt=13 anonymous GET /api/courses?category=node -> 200 [\"Node Streams\"] | cdn MISS | public, max-age=0, s-maxage=300\nt=13 anonymous GET /api/dashboard?tab=streaks -> 401 {\"error\":\"sign in\"} | cdn MISS | private, no-store\nt=17 u_7781 GET /api/dashboard?tab=streaks -> 200 {\"name\":\"u_7781\",\"lessonsDone\":0,\"streak\":0} | cdn MISS | private, no-cache\nt=20 anonymous GET /api/leaderboard -> 404 {\"error\":\"not found\"} | cdn MISS | private, no-store\nt=24 u_5124 GET /api/dashboard -> 200 {\"name\":\"u_5124\",\"lessonsDone\":0,\"streak\":0} | cdn MISS | private, no-cache\nt=24 anonymous GET /api/dashboard?tab=streaks -> 401 {\"error\":\"sign in\"} | cdn MISS | private, no-store\nt=28 u_5120 GET /api/dashboard -> 200 {\"name\":\"u_5120\",\"lessonsDone\":0,\"streak\":0} | cdn MISS | private, no-cache\nt=28 u_minh GET /api/dashboard -> 200 {\"name\":\"Minh\",\"lessonsDone\":41,\"streak\":19} | cdn MISS | private, no-cache\nt=28 u_an GET /api/courses?category=sql -> 200 [\"SQL Basics\",\"Joins in Practice\"] | cdn MISS | public, max-age=0, s-maxage=300\nt=31 anonymous GET /api/dashboard -> 401 {\"error\":\"sign in\"} | cdn MISS | private, no-store\nt=33 u_minh GET /api/dashboard -> 200 {\"name\":\"Minh\",\"lessonsDone\":41,\"streak\":19} | cdn MISS | private, no-cache\nt=37 anonymous GET /api/dashboard -> 401 {\"error\":\"sign in\"} | cdn MISS | private, no-store\nt=40 u_an GET /api/dashboard -> 200 {\"name\":\"An\",\"lessonsDone\":12,\"streak\":5} | cdn MISS | private, no-cache\nt=43 u_7781 GET /api/leaderboard -> 404 {\"error\":\"not found\"} | cdn MISS | private, no-store\nt=43 u_thu GET /api/leaderboard -> 404 {\"error\":\"not found\"} | cdn MISS | private, no-store\nt=46 anonymous GET /api/courses?category=react -> 200 [\"React Basics\",\"Hooks in Depth\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=47 u_5124 GET /api/courses -> 200 [\"React Basics\",\"Hooks in Depth\",\"SQL Basics\",\"Joins in Practice\",\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=50 u_7781 GET /api/courses -> 200 [\"React Basics\",\"Hooks in Depth\",\"SQL Basics\",\"Joins in Practice\",\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=52 u_7781 GET /api/dashboard -> 200 {\"name\":\"u_7781\",\"lessonsDone\":0,\"streak\":0} | cdn MISS | private, no-cache\nt=52 anonymous GET /api/leaderboard -> 404 {\"error\":\"not found\"} | cdn MISS | private, no-store\nt=52 u_lan GET /api/leaderboard -> 404 {\"error\":\"not found\"} | cdn MISS | private, no-store\nt=54 u_an GET /api/courses?category=sql -> 200 [\"SQL Basics\",\"Joins in Practice\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=57 u_7781 GET /api/dashboard?tab=streaks -> 200 {\"name\":\"u_7781\",\"lessonsDone\":0,\"streak\":0} | cdn MISS | private, no-cache\nt=57 u_an GET /api/dashboard -> 200 {\"name\":\"An\",\"lessonsDone\":12,\"streak\":5} | cdn MISS | private, no-cache\nt=60 u_5124 GET /api/courses -> 200 [\"React Basics\",\"Hooks in Depth\",\"SQL Basics\",\"Joins in Practice\",\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=61 u_thu GET /api/dashboard -> 200 {\"name\":\"Thu\",\"lessonsDone\":7,\"streak\":1} | cdn MISS | private, no-cache\nt=62 u_thu GET /api/courses?category=node -> 200 [\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=62 u_an GET /api/courses -> 200 [\"React Basics\",\"Hooks in Depth\",\"SQL Basics\",\"Joins in Practice\",\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=64 anonymous GET /api/dashboard -> 401 {\"error\":\"sign in\"} | cdn MISS | private, no-store\nt=64 anonymous GET /api/courses?category=react -> 200 [\"React Basics\",\"Hooks in Depth\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=64 u_an GET /api/courses -> 200 [\"React Basics\",\"Hooks in Depth\",\"SQL Basics\",\"Joins in Practice\",\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=67 anonymous GET /api/courses -> 200 [\"React Basics\",\"Hooks in Depth\",\"SQL Basics\",\"Joins in Practice\",\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=68 u_an GET /api/courses -> 200 [\"React Basics\",\"Hooks in Depth\",\"SQL Basics\",\"Joins in Practice\",\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=69 u_thu GET /api/leaderboard -> 404 {\"error\":\"not found\"} | cdn MISS | private, no-store\nt=70 u_minh GET /api/courses -> 200 [\"React Basics\",\"Hooks in Depth\",\"SQL Basics\",\"Joins in Practice\",\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=70 u_7781 GET /api/courses -> 200 [\"React Basics\",\"Hooks in Depth\",\"SQL Basics\",\"Joins in Practice\",\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=74 u_minh GET /api/dashboard -> 200 {\"name\":\"Minh\",\"lessonsDone\":41,\"streak\":19} | cdn MISS | private, no-cache\nt=77 u_7781 GET /api/leaderboard -> 404 {\"error\":\"not found\"} | cdn MISS | private, no-store\nt=80 anonymous GET /api/dashboard -> 401 {\"error\":\"sign in\"} | cdn MISS | private, no-store\nt=83 u_5124 GET /api/leaderboard -> 404 {\"error\":\"not found\"} | cdn MISS | private, no-store\nt=84 u_minh GET /api/courses?category=node -> 200 [\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=88 anonymous GET /api/dashboard -> 401 {\"error\":\"sign in\"} | cdn MISS | private, no-store\nt=88 u_minh GET /api/dashboard?tab=streaks -> 200 {\"name\":\"Minh\",\"lessonsDone\":41,\"streak\":19} | cdn MISS | private, no-cache\nt=92 u_minh GET /api/courses?category=node -> 200 [\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=94 u_5124 GET /api/courses?category=node -> 200 [\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=97 anonymous GET /api/courses?category=sql -> 200 [\"SQL Basics\",\"Joins in Practice\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=98 u_5124 GET /api/courses -> 200 [\"React Basics\",\"Hooks in Depth\",\"SQL Basics\",\"Joins in Practice\",\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=98 u_5124 GET /api/dashboard -> 200 {\"name\":\"u_5124\",\"lessonsDone\":0,\"streak\":0} | cdn MISS | private, no-cache\nt=99 u_minh GET /api/dashboard -> 200 {\"name\":\"Minh\",\"lessonsDone\":41,\"streak\":19} | cdn MISS | private, no-cache\nt=103 u_5120 GET /api/leaderboard -> 404 {\"error\":\"not found\"} | cdn MISS | private, no-store\nt=107 u_thu GET /api/dashboard -> 200 {\"name\":\"Thu\",\"lessonsDone\":7,\"streak\":1} | cdn MISS | private, no-cache\nt=107 anonymous GET /api/dashboard -> 401 {\"error\":\"sign in\"} | cdn MISS | private, no-store\nt=107 u_thu GET /api/courses -> 200 [\"React Basics\",\"Hooks in Depth\",\"SQL Basics\",\"Joins in Practice\",\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=109 u_5124 GET /api/dashboard -> 200 {\"name\":\"u_5124\",\"lessonsDone\":0,\"streak\":0} | cdn MISS | private, no-cache\nt=110 u_minh GET /api/courses?category=sql -> 200 [\"SQL Basics\",\"Joins in Practice\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=113 u_an GET /api/dashboard?tab=streaks -> 200 {\"name\":\"An\",\"lessonsDone\":12,\"streak\":5} | cdn MISS | private, no-cache\nt=116 u_5124 GET /api/courses -> 200 [\"React Basics\",\"Hooks in Depth\",\"SQL Basics\",\"Joins in Practice\",\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=116 u_5124 GET /api/dashboard -> 200 {\"name\":\"u_5124\",\"lessonsDone\":0,\"streak\":0} | cdn MISS | private, no-cache\nt=116 u_thu GET /api/dashboard -> 200 {\"name\":\"Thu\",\"lessonsDone\":7,\"streak\":1} | cdn MISS | private, no-cache\nt=117 u_thu GET /api/courses -> 200 [\"React Basics\",\"Hooks in Depth\",\"SQL Basics\",\"Joins in Practice\",\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=120 u_5120 GET /api/dashboard -> 200 {\"name\":\"u_5120\",\"lessonsDone\":0,\"streak\":0} | cdn MISS | private, no-cache\nt=123 u_5120 GET /api/leaderboard -> 404 {\"error\":\"not found\"} | cdn MISS | private, no-store\nt=123 u_lan GET /api/courses?category=react -> 200 [\"React Basics\",\"Hooks in Depth\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=124 u_minh GET /api/courses?category=react -> 200 [\"React Basics\",\"Hooks in Depth\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=127 u_thu GET /api/dashboard -> 200 {\"name\":\"Thu\",\"lessonsDone\":7,\"streak\":1} | cdn MISS | private, no-cache\nt=130 u_minh GET /api/courses -> 200 [\"React Basics\",\"Hooks in Depth\",\"SQL Basics\",\"Joins in Practice\",\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=132 u_lan GET /api/courses -> 200 [\"React Basics\",\"Hooks in Depth\",\"SQL Basics\",\"Joins in Practice\",\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=132 anonymous GET /api/dashboard -> 401 {\"error\":\"sign in\"} | cdn MISS | private, no-store\nt=136 u_lan GET /api/courses?category=node -> 200 [\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=140 u_5120 GET /api/dashboard -> 200 {\"name\":\"u_5120\",\"lessonsDone\":0,\"streak\":0} | cdn MISS | private, no-cache\nt=142 u_lan GET /api/dashboard -> 200 {\"name\":\"Lan\",\"lessonsDone\":3,\"streak\":2} | cdn MISS | private, no-cache\nt=143 u_5124 GET /api/courses?category=node -> 200 [\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=147 anonymous GET /api/dashboard -> 401 {\"error\":\"sign in\"} | cdn MISS | private, no-store\nt=147 u_5120 GET /api/courses?category=sql -> 200 [\"SQL Basics\",\"Joins in Practice\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=150 u_lan GET /api/courses?category=react -> 200 [\"React Basics\",\"Hooks in Depth\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=152 u_lan GET /api/dashboard -> 200 {\"name\":\"Lan\",\"lessonsDone\":3,\"streak\":2} | cdn MISS | private, no-cache\nt=153 u_lan GET /api/courses?category=sql -> 200 [\"SQL Basics\",\"Joins in Practice\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=153 u_minh GET /api/dashboard?tab=streaks -> 200 {\"name\":\"Minh\",\"lessonsDone\":41,\"streak\":19} | cdn MISS | private, no-cache\nt=156 anonymous GET /api/dashboard -> 401 {\"error\":\"sign in\"} | cdn MISS | private, no-store\nt=160 u_5120 GET /api/courses?category=node -> 200 [\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=161 u_5124 GET /api/leaderboard -> 404 {\"error\":\"not found\"} | cdn MISS | private, no-store\nt=161 u_minh GET /api/courses?category=react -> 200 [\"React Basics\",\"Hooks in Depth\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=164 u_5124 GET /api/courses?category=node -> 200 [\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=164 u_5120 GET /api/dashboard -> 200 {\"name\":\"u_5120\",\"lessonsDone\":0,\"streak\":0} | cdn MISS | private, no-cache\nt=166 anonymous GET /api/dashboard -> 401 {\"error\":\"sign in\"} | cdn MISS | private, no-store\nt=168 u_5120 GET /api/dashboard -> 200 {\"name\":\"u_5120\",\"lessonsDone\":0,\"streak\":0} | cdn MISS | private, no-cache\nt=172 u_7781 GET /api/dashboard?tab=streaks -> 200 {\"name\":\"u_7781\",\"lessonsDone\":0,\"streak\":0} | cdn MISS | private, no-cache\nt=173 u_7781 GET /api/courses?category=sql -> 200 [\"SQL Basics\",\"Joins in Practice\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=173 anonymous GET /api/dashboard -> 401 {\"error\":\"sign in\"} | cdn MISS | private, no-store\nt=176 u_5124 GET /api/dashboard -> 200 {\"name\":\"u_5124\",\"lessonsDone\":0,\"streak\":0} | cdn MISS | private, no-cache\nt=179 u_7781 GET /api/dashboard -> 200 {\"name\":\"u_7781\",\"lessonsDone\":0,\"streak\":0} | cdn MISS | private, no-cache\nt=179 u_lan GET /api/dashboard?tab=streaks -> 200 {\"name\":\"Lan\",\"lessonsDone\":3,\"streak\":2} | cdn MISS | private, no-cache\nt=182 u_minh GET /api/courses?category=react -> 200 [\"React Basics\",\"Hooks in Depth\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=185 u_thu GET /api/dashboard?tab=streaks -> 200 {\"name\":\"Thu\",\"lessonsDone\":7,\"streak\":1} | cdn MISS | private, no-cache\nt=189 u_5120 GET /api/dashboard?tab=streaks -> 200 {\"name\":\"u_5120\",\"lessonsDone\":0,\"streak\":0} | cdn MISS | private, no-cache\nt=189 u_5124 GET /api/dashboard -> 200 {\"name\":\"u_5124\",\"lessonsDone\":0,\"streak\":0} | cdn MISS | private, no-cache\nt=189 u_minh GET /api/courses?category=react -> 200 [\"React Basics\",\"Hooks in Depth\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=193 u_an GET /api/dashboard -> 200 {\"name\":\"An\",\"lessonsDone\":12,\"streak\":5} | cdn MISS | private, no-cache\nt=193 u_5124 GET /api/dashboard -> 200 {\"name\":\"u_5124\",\"lessonsDone\":0,\"streak\":0} | cdn MISS | private, no-cache\nt=195 u_thu GET /api/courses?category=sql -> 200 [\"SQL Basics\",\"Joins in Practice\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=198 anonymous GET /api/courses?category=react -> 200 [\"React Basics\",\"Hooks in Depth\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=200 u_5124 GET /api/courses?category=sql -> 200 [\"SQL Basics\",\"Joins in Practice\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=204 anonymous GET /api/courses -> 200 [\"React Basics\",\"Hooks in Depth\",\"SQL Basics\",\"Joins in Practice\",\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=206 u_an GET /api/dashboard?tab=streaks -> 200 {\"name\":\"An\",\"lessonsDone\":12,\"streak\":5} | cdn MISS | private, no-cache\nt=210 u_7781 GET /api/courses?category=react -> 200 [\"React Basics\",\"Hooks in Depth\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=210 u_thu GET /api/dashboard -> 200 {\"name\":\"Thu\",\"lessonsDone\":7,\"streak\":1} | cdn MISS | private, no-cache\nt=214 anonymous GET /api/dashboard -> 401 {\"error\":\"sign in\"} | cdn MISS | private, no-store\nt=216 anonymous GET /api/dashboard?tab=streaks -> 401 {\"error\":\"sign in\"} | cdn MISS | private, no-store\nt=216 u_5124 GET /api/dashboard -> 200 {\"name\":\"u_5124\",\"lessonsDone\":0,\"streak\":0} | cdn MISS | private, no-cache\nt=217 u_7781 GET /api/courses?category=node -> 200 [\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=219 u_an GET /api/dashboard?tab=streaks -> 200 {\"name\":\"An\",\"lessonsDone\":12,\"streak\":5} | cdn MISS | private, no-cache\nt=222 u_lan GET /api/leaderboard -> 404 {\"error\":\"not found\"} | cdn MISS | private, no-store\nt=222 u_7781 GET /api/dashboard -> 200 {\"name\":\"u_7781\",\"lessonsDone\":0,\"streak\":0} | cdn MISS | private, no-cache\nt=223 u_thu GET /api/dashboard?tab=streaks -> 200 {\"name\":\"Thu\",\"lessonsDone\":7,\"streak\":1} | cdn MISS | private, no-cache\nt=224 u_5124 GET /api/courses?category=node -> 200 [\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=227 u_minh GET /api/dashboard?tab=streaks -> 200 {\"name\":\"Minh\",\"lessonsDone\":41,\"streak\":19} | cdn MISS | private, no-cache\nt=229 u_an GET /api/dashboard?tab=streaks -> 200 {\"name\":\"An\",\"lessonsDone\":12,\"streak\":5} | cdn MISS | private, no-cache\nt=229 u_5120 GET /api/courses?category=node -> 200 [\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=229 u_minh GET /api/dashboard?tab=streaks -> 200 {\"name\":\"Minh\",\"lessonsDone\":41,\"streak\":19} | cdn MISS | private, no-cache\nt=230 anonymous GET /api/dashboard -> 401 {\"error\":\"sign in\"} | cdn MISS | private, no-store\nt=233 u_5120 GET /api/courses?category=node -> 200 [\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=235 u_5124 GET /api/dashboard -> 200 {\"name\":\"u_5124\",\"lessonsDone\":0,\"streak\":0} | cdn MISS | private, no-cache\nt=238 u_thu GET /api/dashboard -> 200 {\"name\":\"Thu\",\"lessonsDone\":7,\"streak\":1} | cdn MISS | private, no-cache\nt=238 anonymous GET /api/courses -> 200 [\"React Basics\",\"Hooks in Depth\",\"SQL Basics\",\"Joins in Practice\",\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=238 u_5120 GET /api/leaderboard -> 404 {\"error\":\"not found\"} | cdn MISS | private, no-store\nt=239 u_lan GET /api/dashboard -> 200 {\"name\":\"Lan\",\"lessonsDone\":3,\"streak\":2} | cdn MISS | private, no-cache\nt=242 u_7781 GET /api/courses -> 200 [\"React Basics\",\"Hooks in Depth\",\"SQL Basics\",\"Joins in Practice\",\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=243 u_5120 GET /api/dashboard -> 200 {\"name\":\"u_5120\",\"lessonsDone\":0,\"streak\":0} | cdn MISS | private, no-cache\nt=243 u_7781 GET /api/courses?category=react -> 200 [\"React Basics\",\"Hooks in Depth\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=246 u_7781 GET /api/leaderboard -> 404 {\"error\":\"not found\"} | cdn MISS | private, no-store\nt=250 anonymous GET /api/courses?category=sql -> 200 [\"SQL Basics\",\"Joins in Practice\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=252 anonymous GET /api/dashboard -> 401 {\"error\":\"sign in\"} | cdn MISS | private, no-store\nt=253 u_minh GET /api/courses?category=sql -> 200 [\"SQL Basics\",\"Joins in Practice\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=257 u_an GET /api/courses?category=sql -> 200 [\"SQL Basics\",\"Joins in Practice\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=257 u_7781 GET /api/courses?category=node -> 200 [\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=257 u_thu GET /api/courses?category=node -> 200 [\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=257 u_an GET /api/courses?category=node -> 200 [\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=260 anonymous GET /api/courses?category=react -> 200 [\"React Basics\",\"Hooks in Depth\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=260 anonymous GET /api/dashboard -> 401 {\"error\":\"sign in\"} | cdn MISS | private, no-store\nt=261 anonymous GET /api/dashboard -> 401 {\"error\":\"sign in\"} | cdn MISS | private, no-store\nt=261 anonymous GET /api/courses?category=react -> 200 [\"React Basics\",\"Hooks in Depth\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=262 u_5120 GET /api/dashboard -> 200 {\"name\":\"u_5120\",\"lessonsDone\":0,\"streak\":0} | cdn MISS | private, no-cache\nt=264 u_5120 GET /api/courses?category=react -> 200 [\"React Basics\",\"Hooks in Depth\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=268 anonymous GET /api/courses?category=sql -> 200 [\"SQL Basics\",\"Joins in Practice\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=272 anonymous GET /api/dashboard -> 401 {\"error\":\"sign in\"} | cdn MISS | private, no-store\nt=272 u_minh GET /api/leaderboard -> 404 {\"error\":\"not found\"} | cdn MISS | private, no-store\nt=273 anonymous GET /api/leaderboard -> 404 {\"error\":\"not found\"} | cdn MISS | private, no-store\nt=275 u_5120 GET /api/courses?category=sql -> 200 [\"SQL Basics\",\"Joins in Practice\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=279 u_7781 GET /api/courses?category=react -> 200 [\"React Basics\",\"Hooks in Depth\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=279 u_lan GET /api/courses?category=react -> 200 [\"React Basics\",\"Hooks in Depth\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=279 u_lan GET /api/dashboard?tab=streaks -> 200 {\"name\":\"Lan\",\"lessonsDone\":3,\"streak\":2} | cdn MISS | private, no-cache\nt=283 anonymous GET /api/dashboard -> 401 {\"error\":\"sign in\"} | cdn MISS | private, no-store\nt=284 anonymous GET /api/dashboard -> 401 {\"error\":\"sign in\"} | cdn MISS | private, no-store\nt=285 u_5124 GET /api/dashboard -> 200 {\"name\":\"u_5124\",\"lessonsDone\":0,\"streak\":0} | cdn MISS | private, no-cache\nt=285 u_5120 GET /api/courses?category=node -> 200 [\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=287 anonymous GET /api/courses?category=sql -> 200 [\"SQL Basics\",\"Joins in Practice\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=288 anonymous GET /api/courses?category=sql -> 200 [\"SQL Basics\",\"Joins in Practice\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=291 u_lan GET /api/dashboard?tab=streaks -> 200 {\"name\":\"Lan\",\"lessonsDone\":3,\"streak\":2} | cdn MISS | private, no-cache\nt=295 anonymous GET /api/dashboard -> 401 {\"error\":\"sign in\"} | cdn MISS | private, no-store\nt=299 u_5124 GET /api/dashboard -> 200 {\"name\":\"u_5124\",\"lessonsDone\":0,\"streak\":0} | cdn MISS | private, no-cache\nt=303 u_minh GET /api/courses?category=react -> 200 [\"React Basics\",\"Hooks in Depth\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=307 anonymous GET /api/courses?category=sql -> 200 [\"SQL Basics\",\"Joins in Practice\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=308 u_minh GET /api/courses?category=node -> 200 [\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=311 u_minh GET /api/dashboard -> 200 {\"name\":\"Minh\",\"lessonsDone\":41,\"streak\":19} | cdn MISS | private, no-cache\nt=312 u_minh GET /api/courses?category=sql -> 200 [\"SQL Basics\",\"Joins in Practice\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=312 u_7781 GET /api/dashboard -> 200 {\"name\":\"u_7781\",\"lessonsDone\":0,\"streak\":0} | cdn MISS | private, no-cache\nt=316 u_5120 GET /api/courses?category=sql -> 200 [\"SQL Basics\",\"Joins in Practice\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=317 u_7781 GET /api/courses?category=node -> 200 [\"Node Streams\"] | cdn MISS | public, max-age=0, s-maxage=300\nt=317 anonymous GET /api/leaderboard -> 404 {\"error\":\"not found\"} | cdn MISS | private, no-store\nt=321 u_minh GET /api/leaderboard -> 404 {\"error\":\"not found\"} | cdn MISS | private, no-store\nt=324 anonymous GET /api/courses?category=react -> 200 [\"React Basics\",\"Hooks in Depth\"] | cdn MISS | public, max-age=0, s-maxage=300\nt=326 u_5124 GET /api/courses?category=node -> 200 [\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=328 u_thu GET /api/courses?category=react -> 200 [\"React Basics\",\"Hooks in Depth\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=329 u_5120 GET /api/leaderboard -> 404 {\"error\":\"not found\"} | cdn MISS | private, no-store\nt=329 u_an GET /api/dashboard -> 200 {\"name\":\"An\",\"lessonsDone\":12,\"streak\":5} | cdn MISS | private, no-cache\nt=329 u_minh GET /api/courses?category=sql -> 200 [\"SQL Basics\",\"Joins in Practice\"] | cdn MISS | public, max-age=0, s-maxage=300\nt=331 u_lan GET /api/courses?category=node -> 200 [\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=334 u_5124 GET /api/dashboard -> 200 {\"name\":\"u_5124\",\"lessonsDone\":0,\"streak\":0} | cdn MISS | private, no-cache\nt=334 u_5124 GET /api/courses -> 200 [\"React Basics\",\"Hooks in Depth\",\"SQL Basics\",\"Joins in Practice\",\"Node Streams\"] | cdn MISS | public, max-age=0, s-maxage=300\nt=337 u_minh GET /api/dashboard -> 200 {\"name\":\"Minh\",\"lessonsDone\":41,\"streak\":19} | cdn MISS | private, no-cache\nt=338 u_5120 GET /api/courses -> 200 [\"React Basics\",\"Hooks in Depth\",\"SQL Basics\",\"Joins in Practice\",\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=340 u_5124 GET /api/leaderboard -> 404 {\"error\":\"not found\"} | cdn MISS | private, no-store\nt=344 u_5120 GET /api/dashboard -> 200 {\"name\":\"u_5120\",\"lessonsDone\":0,\"streak\":0} | cdn MISS | private, no-cache\nt=346 u_an GET /api/courses?category=sql -> 200 [\"SQL Basics\",\"Joins in Practice\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=349 u_minh GET /api/leaderboard -> 404 {\"error\":\"not found\"} | cdn MISS | private, no-store\nt=350 u_lan GET /api/dashboard -> 200 {\"name\":\"Lan\",\"lessonsDone\":3,\"streak\":2} | cdn MISS | private, no-cache\nt=353 u_lan GET /api/courses -> 200 [\"React Basics\",\"Hooks in Depth\",\"SQL Basics\",\"Joins in Practice\",\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=354 u_7781 GET /api/courses?category=react -> 200 [\"React Basics\",\"Hooks in Depth\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=358 u_thu GET /api/courses?category=react -> 200 [\"React Basics\",\"Hooks in Depth\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=361 u_5120 GET /api/courses?category=react -> 200 [\"React Basics\",\"Hooks in Depth\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=364 anonymous GET /api/courses -> 200 [\"React Basics\",\"Hooks in Depth\",\"SQL Basics\",\"Joins in Practice\",\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=365 u_5124 GET /api/dashboard -> 200 {\"name\":\"u_5124\",\"lessonsDone\":0,\"streak\":0} | cdn MISS | private, no-cache\nt=369 u_lan GET /api/courses?category=react -> 200 [\"React Basics\",\"Hooks in Depth\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=369 u_an GET /api/courses?category=sql -> 200 [\"SQL Basics\",\"Joins in Practice\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=372 u_thu GET /api/courses?category=sql -> 200 [\"SQL Basics\",\"Joins in Practice\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=372 u_minh GET /api/courses -> 200 [\"React Basics\",\"Hooks in Depth\",\"SQL Basics\",\"Joins in Practice\",\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=375 u_7781 GET /api/dashboard -> 200 {\"name\":\"u_7781\",\"lessonsDone\":0,\"streak\":0} | cdn MISS | private, no-cache\nt=375 u_lan GET /api/courses?category=sql -> 200 [\"SQL Basics\",\"Joins in Practice\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=377 u_minh GET /api/leaderboard -> 404 {\"error\":\"not found\"} | cdn MISS | private, no-store\nt=381 u_5124 GET /api/dashboard -> 200 {\"name\":\"u_5124\",\"lessonsDone\":0,\"streak\":0} | cdn MISS | private, no-cache\nt=384 u_thu GET /api/leaderboard -> 404 {\"error\":\"not found\"} | cdn MISS | private, no-store\nt=385 u_5124 GET /api/courses -> 200 [\"React Basics\",\"Hooks in Depth\",\"SQL Basics\",\"Joins in Practice\",\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=389 u_minh GET /api/dashboard -> 200 {\"name\":\"Minh\",\"lessonsDone\":41,\"streak\":19} | cdn MISS | private, no-cache\nt=390 anonymous GET /api/courses?category=sql -> 200 [\"SQL Basics\",\"Joins in Practice\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=393 u_5120 GET /api/courses -> 200 [\"React Basics\",\"Hooks in Depth\",\"SQL Basics\",\"Joins in Practice\",\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=394 u_minh GET /api/dashboard -> 200 {\"name\":\"Minh\",\"lessonsDone\":41,\"streak\":19} | cdn MISS | private, no-cache\nt=398 u_thu GET /api/courses -> 200 [\"React Basics\",\"Hooks in Depth\",\"SQL Basics\",\"Joins in Practice\",\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=399 u_an GET /api/dashboard?tab=streaks -> 200 {\"name\":\"An\",\"lessonsDone\":12,\"streak\":5} | cdn MISS | private, no-cache\nt=400 anonymous GET /api/dashboard -> 401 {\"error\":\"sign in\"} | cdn MISS | private, no-store\nt=401 anonymous GET /api/dashboard -> 401 {\"error\":\"sign in\"} | cdn MISS | private, no-store\nt=403 u_minh GET /api/courses?category=react -> 200 [\"React Basics\",\"Hooks in Depth\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=407 u_5124 GET /api/courses -> 200 [\"React Basics\",\"Hooks in Depth\",\"SQL Basics\",\"Joins in Practice\",\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=411 u_5120 GET /api/dashboard -> 200 {\"name\":\"u_5120\",\"lessonsDone\":0,\"streak\":0} | cdn MISS | private, no-cache\nt=412 u_thu GET /api/courses -> 200 [\"React Basics\",\"Hooks in Depth\",\"SQL Basics\",\"Joins in Practice\",\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=413 u_5120 GET /api/leaderboard -> 404 {\"error\":\"not found\"} | cdn MISS | private, no-store\nt=416 u_7781 GET /api/dashboard -> 200 {\"name\":\"u_7781\",\"lessonsDone\":0,\"streak\":0} | cdn MISS | private, no-cache\nt=416 u_7781 GET /api/dashboard -> 200 {\"name\":\"u_7781\",\"lessonsDone\":0,\"streak\":0} | cdn MISS | private, no-cache\nt=416 u_minh GET /api/dashboard -> 200 {\"name\":\"Minh\",\"lessonsDone\":41,\"streak\":19} | cdn MISS | private, no-cache\nt=416 u_lan GET /api/courses?category=node -> 200 [\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=418 u_lan GET /api/dashboard -> 200 {\"name\":\"Lan\",\"lessonsDone\":3,\"streak\":2} | cdn MISS | private, no-cache\nt=421 u_minh GET /api/dashboard -> 200 {\"name\":\"Minh\",\"lessonsDone\":41,\"streak\":19} | cdn MISS | private, no-cache\nt=421 anonymous GET /api/dashboard -> 401 {\"error\":\"sign in\"} | cdn MISS | private, no-store\nt=423 u_thu GET /api/courses?category=node -> 200 [\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=425 anonymous GET /api/courses?category=react -> 200 [\"React Basics\",\"Hooks in Depth\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=428 u_an GET /api/courses?category=node -> 200 [\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=428 u_minh GET /api/courses?category=node -> 200 [\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=430 u_5120 GET /api/leaderboard -> 404 {\"error\":\"not found\"} | cdn MISS | private, no-store\nt=434 u_7781 GET /api/leaderboard -> 404 {\"error\":\"not found\"} | cdn MISS | private, no-store\nt=434 u_lan GET /api/leaderboard -> 404 {\"error\":\"not found\"} | cdn MISS | private, no-store\nt=438 u_minh GET /api/courses?category=react -> 200 [\"React Basics\",\"Hooks in Depth\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=440 u_minh GET /api/courses?category=sql -> 200 [\"SQL Basics\",\"Joins in Practice\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=441 u_minh GET /api/courses?category=react -> 200 [\"React Basics\",\"Hooks in Depth\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=442 u_an GET /api/courses?category=node -> 200 [\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=442 u_5120 GET /api/courses?category=sql -> 200 [\"SQL Basics\",\"Joins in Practice\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=442 u_thu GET /api/dashboard -> 200 {\"name\":\"Thu\",\"lessonsDone\":7,\"streak\":1} | cdn MISS | private, no-cache\nt=446 u_5120 GET /api/dashboard?tab=streaks -> 200 {\"name\":\"u_5120\",\"lessonsDone\":0,\"streak\":0} | cdn MISS | private, no-cache\nt=449 u_an GET /api/courses?category=react -> 200 [\"React Basics\",\"Hooks in Depth\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=449 u_thu GET /api/dashboard?tab=streaks -> 200 {\"name\":\"Thu\",\"lessonsDone\":7,\"streak\":1} | cdn MISS | private, no-cache\nt=450 u_lan GET /api/dashboard -> 200 {\"name\":\"Lan\",\"lessonsDone\":3,\"streak\":2} | cdn MISS | private, no-cache\nt=452 u_5120 GET /api/courses?category=node -> 200 [\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=453 u_an GET /api/courses?category=sql -> 200 [\"SQL Basics\",\"Joins in Practice\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=455 u_an GET /api/dashboard -> 200 {\"name\":\"An\",\"lessonsDone\":12,\"streak\":5} | cdn MISS | private, no-cache\nt=455 anonymous GET /api/courses?category=react -> 200 [\"React Basics\",\"Hooks in Depth\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=457 u_7781 GET /api/dashboard -> 200 {\"name\":\"u_7781\",\"lessonsDone\":0,\"streak\":0} | cdn MISS | private, no-cache\nt=459 u_5120 GET /api/dashboard -> 200 {\"name\":\"u_5120\",\"lessonsDone\":0,\"streak\":0} | cdn MISS | private, no-cache\nt=462 u_5124 GET /api/dashboard -> 200 {\"name\":\"u_5124\",\"lessonsDone\":0,\"streak\":0} | cdn MISS | private, no-cache\nt=463 u_7781 GET /api/courses?category=react -> 200 [\"React Basics\",\"Hooks in Depth\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=464 u_5124 GET /api/leaderboard -> 404 {\"error\":\"not found\"} | cdn MISS | private, no-store\nt=465 u_lan GET /api/leaderboard -> 404 {\"error\":\"not found\"} | cdn MISS | private, no-store\nt=468 anonymous GET /api/courses?category=react -> 200 [\"React Basics\",\"Hooks in Depth\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=468 u_an GET /api/courses?category=react -> 200 [\"React Basics\",\"Hooks in Depth\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=470 anonymous GET /api/dashboard -> 401 {\"error\":\"sign in\"} | cdn MISS | private, no-store\nt=473 anonymous GET /api/courses?category=react -> 200 [\"React Basics\",\"Hooks in Depth\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=475 u_7781 GET /api/dashboard -> 200 {\"name\":\"u_7781\",\"lessonsDone\":0,\"streak\":0} | cdn MISS | private, no-cache\nt=476 u_minh GET /api/courses -> 200 [\"React Basics\",\"Hooks in Depth\",\"SQL Basics\",\"Joins in Practice\",\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=478 anonymous GET /api/courses?category=sql -> 200 [\"SQL Basics\",\"Joins in Practice\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=478 u_5124 GET /api/dashboard -> 200 {\"name\":\"u_5124\",\"lessonsDone\":0,\"streak\":0} | cdn MISS | private, no-cache\nt=478 u_thu GET /api/courses?category=sql -> 200 [\"SQL Basics\",\"Joins in Practice\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=478 u_7781 GET /api/courses -> 200 [\"React Basics\",\"Hooks in Depth\",\"SQL Basics\",\"Joins in Practice\",\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=479 anonymous GET /api/dashboard?tab=streaks -> 401 {\"error\":\"sign in\"} | cdn MISS | private, no-store\nt=483 u_5120 GET /api/dashboard -> 200 {\"name\":\"u_5120\",\"lessonsDone\":0,\"streak\":0} | cdn MISS | private, no-cache\nt=484 u_minh GET /api/dashboard?tab=streaks -> 200 {\"name\":\"Minh\",\"lessonsDone\":41,\"streak\":19} | cdn MISS | private, no-cache\nt=485 anonymous GET /api/courses -> 200 [\"React Basics\",\"Hooks in Depth\",\"SQL Basics\",\"Joins in Practice\",\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=489 u_5120 GET /api/courses?category=sql -> 200 [\"SQL Basics\",\"Joins in Practice\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=490 u_an GET /api/dashboard -> 200 {\"name\":\"An\",\"lessonsDone\":12,\"streak\":5} | cdn MISS | private, no-cache\nt=490 anonymous GET /api/courses?category=node -> 200 [\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=492 u_7781 GET /api/courses?category=react -> 200 [\"React Basics\",\"Hooks in Depth\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=495 u_thu GET /api/courses?category=node -> 200 [\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=498 anonymous GET /api/leaderboard -> 404 {\"error\":\"not found\"} | cdn MISS | private, no-store\nt=498 u_5120 GET /api/dashboard -> 200 {\"name\":\"u_5120\",\"lessonsDone\":0,\"streak\":0} | cdn MISS | private, no-cache\nt=502 u_5124 GET /api/courses -> 200 [\"React Basics\",\"Hooks in Depth\",\"SQL Basics\",\"Joins in Practice\",\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\nt=505 anonymous GET /api/courses?category=node -> 200 [\"Node Streams\"] | cdn HIT | public, max-age=0, s-maxage=300\ndb queries: dashboard=40 courses=8",
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

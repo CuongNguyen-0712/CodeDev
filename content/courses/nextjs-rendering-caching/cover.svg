@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Course cover: Next.js rendering and caching (static, ISR, dynamic routes; a cache key with and without the user). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#15151B"/>
+      <stop offset="0.55" stop-color="#110F16"/>
+      <stop offset="1" stop-color="#0D0B13"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#E8E8E8" stop-opacity="0.26"/>
+      <stop offset="1" stop-color="#E8E8E8" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#FFFFFF" fill-opacity="0.07"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8C8399"/></marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#dots)"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- Copy -->
+  <g id="copy" font-family="Segoe UI, Inter, Arial, sans-serif">
+    <rect x="112" y="152" width="92" height="92" rx="20" fill="#E8E8E8"/>
+    <text x="158" y="214" text-anchor="middle" font-size="34" font-weight="800" fill="#FFFFFF"><tspan fill="#111">N</tspan></text>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#C9C9D1">NEXT.JS · APP ROUTER</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">Rendering</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">&amp; Caching</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Static · ISR · Dynamic · Per-user data</text>
+    <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#E8E8EE">
+      <rect x="110" y="660" width="231" height="52" rx="26" fill="#1C1C22" stroke="#E8E8E8"/>
+      <text x="225.4" y="695" text-anchor="middle">revalidateTag</text>
+      <rect x="356.79999999999995" y="660" width="168" height="52" rx="26" fill="#1C1C22" stroke="#E8E8E8"/>
+      <text x="441.0" y="695" text-anchor="middle">cache key</text>
+      <rect x="541.1999999999999" y="660" width="75" height="52" rx="26" fill="#1C1C22" stroke="#E8E8E8"/>
+      <text x="578.6" y="695" text-anchor="middle">RSC</text>
+    </g>
+  </g>
+
+  <g id="art" font-family="Consolas, Menlo, monospace">
+    <rect x="900" y="240" width="160" height="56" rx="14" fill="#15131D" stroke="#3DBE7B" stroke-width="2"/>
+    <text x="980" y="276" font-size="21" fill="#9BE7BD" text-anchor="middle">static</text>
+    <rect x="1076" y="240" width="160" height="56" rx="14" fill="#15131D" stroke="#F2C14E" stroke-width="2"/>
+    <text x="1156" y="276" font-size="21" fill="#F6D98E" text-anchor="middle">ISR 60 s</text>
+    <rect x="1252" y="240" width="182" height="56" rx="14" fill="#15131D" stroke="#8B7CF6" stroke-width="2"/>
+    <text x="1343" y="276" font-size="21" fill="#D9D3FF" text-anchor="middle">dynamic</text>
+    <rect x="900" y="340" width="534" height="64" rx="14" fill="#13201A" stroke="#3DBE7B" stroke-width="2"/>
+    <text x="920" y="380" font-size="21" fill="#9BE7BD" text-anchor="start">key: course:42:v7</text>
+    <text x="1414" y="380" font-size="21" fill="#3DBE7B" text-anchor="end">shared ✓</text>
+    <rect x="900" y="424" width="534" height="64" rx="14" fill="#24151A" stroke="#F2555A" stroke-width="2"/>
+    <text x="920" y="464" font-size="21" fill="#F2B8BA" text-anchor="start">key: dashboard</text>
+    <text x="1414" y="464" font-size="21" fill="#F2555A" text-anchor="end">user? leak</text>
+    <rect x="900" y="508" width="534" height="64" rx="14" fill="#13201A" stroke="#3DBE7B" stroke-width="2"/>
+    <text x="920" y="548" font-size="21" fill="#9BE7BD" text-anchor="start">key: dashboard:u_42</text>
+    <text x="1414" y="548" font-size="21" fill="#3DBE7B" text-anchor="end">per user ✓</text>
+    <text x="900" y="620" font-size="19" fill="#B8B2C8" text-anchor="start">revalidateTag('course:42') after edit</text>
+  </g>
+</svg>
