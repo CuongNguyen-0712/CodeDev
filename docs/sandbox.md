@@ -108,6 +108,15 @@ Live since 2026-10-20 (`lib/challenges/vercelRunner.js`, selected by `CODE_RUNNE
   Recycle the sandbox the same way periodically so a compromise cannot persist.
 - Test: `__tests__/sandbox/vercel.integration.test.js` (opt-in, needs `VERCEL_OIDC_TOKEN` and a
   `CODE_RUNNER_SANDBOX` name containing "test"); 8/8 on 2026-10-20, 12/12 on v3 and v4 (2026-10-22).
+- **Pending: v5** (run-job change of 2026-10-23, not deployed). v4 sets the CPU rlimit with soft = hard,
+  so a busy loop that hits it gets SIGKILL and is reported as an error (`Exited with SIGKILL`) instead
+  of a timeout, about half the time (it races the wall-clock kill). The local `codedev_sandbox` already
+  runs the fix; production keeps the bug until v5 is live:
+  1. Build, self-test and push `codedev-runner:v5` (commands under "Image `codedev-runner`", with `v5`).
+  2. Optional: run `vercel.integration.test.js` against a `codedev-runner-v5-test` sandbox.
+  3. In the Vercel project env set `CODE_RUNNER_IMAGE=codedev-runner:v5` and `CODE_RUNNER_SANDBOX=codedev-runner-v5`, then deploy.
+  4. Check one challenge per language, then `vercel sandbox remove codedev-runner-v4 --delete-orphan-snapshots`.
+  5. Update the sandbox name and image in the first bullet of this list.
 
 ### Background (design notes)
 
@@ -168,6 +177,9 @@ or `{ "error": "..." }` (bad job, `slot is busy`).
   threads, 128 files, 16 MB output files, CPU seconds, address space for C/C++/Rust/Python; the
   JVM, V8 and Go use their heap flags) and a wall-clock kill at limit + 1 s. stdout is capped at
   256 KB, stderr at 8 KB.
+- CPU limit: soft `ceil(limit) + 1` s, hard one second more. The soft limit sends SIGXCPU, which
+  counts as a timeout (`timedOut: true`) just like the wall-clock kill; the two race. With soft = hard
+  the kernel sends SIGKILL instead, which cannot be told apart from other kills (v4 and older).
 - Before and after a job: every process of the slot user is killed (`kill -1` as that user, which
   a fork bomb cannot outrun), its work directory and its files in the shared temp dirs are removed.
 - Go: each job gets a private copy of the read-only std cache, with `GOFLAGS=-trimpath` (same as
