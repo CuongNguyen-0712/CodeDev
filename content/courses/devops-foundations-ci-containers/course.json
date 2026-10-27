@@ -2,10 +2,10 @@
   "publicId": "devops-foundations-ci-containers",
   "title": "DevOps Foundations: Linux, Containers, CI/CD & Observability",
   "concept": "Learn how code gets from a laptop to production: processes and logs on Linux, images and containers, a CI pipeline with caching, versioning and rollbacks, and the metrics that tell you something broke. Challenges are small Python tools a DevOps engineer writes.",
-  "description": "Learn how code gets from a laptop to production: processes and logs on Linux, images and containers, a CI pipeline with caching, versioning and rollbacks, and the metrics that tell you something broke. Challenges are small Python tools a DevOps engineer writes. 9 lessons, each starting from a real bug or incident, with beginner-friendly challenges.",
+  "description": "Learn how code gets from a laptop to production: processes and logs on Linux, images and containers, a CI pipeline with caching, versioning and rollbacks, and the metrics that tell you something broke. Challenges are small Python tools a DevOps engineer writes. 11 lessons, each starting from a real bug or incident, with beginner-friendly challenges.",
   "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594576/codedev/courses/devops-foundations-ci-containers/cover",
   "level": "beginner",
-  "durationMinutes": 201,
+  "durationMinutes": 251,
   "instructor": "CodeDev Engineering Team",
   "language": "Python",
   "category": "DevOps",
@@ -64,6 +64,12 @@
           "folder": "04-config-environment-variables",
           "title": "Configuration through environment variables",
           "sanityId": "lesson-devf-2-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "11-sbom-secret-scan",
+          "title": "What is inside the image: SBOMs & secret scans",
+          "sanityId": "lesson-devf-2-3"
         }
       ]
     },
@@ -88,6 +94,12 @@
           "folder": "07-deploys-rollbacks-blue-green-canary",
           "title": "Deploys & rollbacks: blue-green and canary",
           "sanityId": "lesson-devf-3-3"
+        },
+        {
+          "orderIndex": 4,
+          "folder": "10-bad-release-fast-rollback",
+          "title": "Bad Release, Fast Rollback: a health check that said OK",
+          "sanityId": "lesson-devf-3-4"
         }
       ]
     },

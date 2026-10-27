@@ -1,0 +1,1507 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_devf_231",
+      "name": "what-is-inside-the-image-quiz",
+      "type": "quiz",
+      "title": "What is really inside this image?",
+      "description": "Two pieces of evidence from Rice Rocket's images: a Dockerfile that deletes a .env file, and an SBOM checked against a security advisory. Decide whether each statement follows from the evidence.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The api image v2.9.0 was built from this Dockerfile. The project folder contained a .env file with DB_PASSWORD=Pr0d-Rice-2026, and there is no .dockerignore:\n\nFROM python:3.13-slim\nWORKDIR /app\nCOPY . .\nRUN pip install --no-cache-dir -r requirements.txt\nRUN rm -f /app/.env\nCMD [\"python\", \"-m\", \"api\"]\n\n$ docker run --rm ghcr.io/ricerocket/api:v2.9.0 ls -a /app\n.  ..  Dockerfile  api  requirements.txt\n\nStatement: \"Even though ls shows no .env in the running container, anyone who pulls api:v2.9.0 can still get the password out of the image.\"",
+          "explanation": "True. Layers only add. COPY . . created a layer that contains /app/.env with the password. RUN rm -f /app/.env created a new layer that only records \"this path is deleted\" (a whiteout), so the container's merged view no longer shows the file - but the COPY layer is unchanged and ships with the image. docker save, or any tool that unpacks layers one by one, gets the file back in seconds; a secret scanner that reads every layer reports it. The misconception is that what a container can see is what the image contains. The fixes: keep .env out of the build context with .dockerignore, use a build secret mount for build-time secrets, and rotate the password, because the image has already been pulled.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A security advisory covers PyYAML versions before 5.4. The dispatch service's requirements.txt pins PyYAML==6.0.2. A scanner generated a CycloneDX SBOM from the image ghcr.io/ricerocket/dispatch:v4.1.0; these are all its PyYAML entries (shortened to name, version and where the package was found):\n\nname     version   purl                     found in\npyyaml   6.0.2     pkg:pypi/pyyaml@6.0.2    /app/.venv/lib/python3.13/site-packages/PyYAML-6.0.2.dist-info\n\nPart of docker history for the same image:\n\nCOPY build/route-report /usr/local/bin/route-report    18.2MB\n\nroute-report is a single-file executable that the team builds with PyInstaller from a script whose own requirements pin PyYAML==5.3.1.\n\nStatement: \"Because the SBOM lists only PyYAML 6.0.2, the dispatch image v4.1.0 contains no PyYAML version that the advisory covers.\"",
+          "explanation": "False. An SBOM lists what the scanner could recognise, mostly from package metadata such as the .dist-info folders pip writes. PyInstaller packs the script, the Python runtime and its libraries (here PyYAML 5.3.1) into one executable, without those folders on the image's filesystem, so a scanner may not list them at all. The image still ships the old PyYAML inside /usr/local/bin/route-report. An entry missing from an SBOM is not proof that the package is absent: check how binaries copied in with COPY were built, generate an SBOM for them when you build them, or rebuild the tool with a fixed PyYAML. The misconception is that the SBOM is a complete inventory by definition.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_devf_232",
+      "name": "scan-image-layers-for-secrets",
+      "type": "mini_coding",
+      "title": "Find the secrets that every layer still carries",
+      "description": "Rice Rocket's api image v2.9.0 copied a .env file with the production database password and deleted it in the next step, so docker run ... ls shows nothing - but the file is still inside the earlier layer. Write scan_image(layers), the secret scanner the CI will run on every image before it is pushed. It gets the layers in build order, each with the files it adds (path -> text, or null for a binary file) and the paths it deletes. Check every line of every text file in every layer against the three rules in the starter (an AWS access key id, a private key header, and a NAME=value line whose name contains SECRET, PASSWORD or TOKEN with a real value, not empty and not a $reference). For each finding, report the 1-based layer, the path, the line number, the rule, and in_final_image: false when a later layer deleted that path (or a directory above it) or replaced it with a newer file. Return {\"findings\": [...], \"total\": n, \"hidden\": number not in the final image}, ordered by layer, path, line and rule. The exact rules and an example are in the docstring of scanner.py; the runner at the bottom (do not change it) reads {\"layers\": [...]} from stdin and prints the result as JSON. Never print the secret itself.",
+      "difficulty": "medium",
+      "points": 30,
+      "hints": [
+        "Which question does the scanner answer: \"what can a running container see?\" or \"what bytes does anyone who pulls the image get?\" Which layers, and which files, does the second question include?",
+        "Split the work into three small functions, as the starter does: rules_for_line(line) looks at one line only; in_final_image(path, index, layers) only looks at the layers after index (their files and their deleted paths, with inside() for directories); scan_image loops over layers, sorted paths and str.splitlines() lines and builds the findings.",
+        "A similar case on different data: layers [{\"files\": {\"etc/app.conf\": \"MAIL_TOKEN=abc\"}}, {\"deleted\": [\"etc/\"]}]. ASSIGNMENT.fullmatch(\"MAIL_TOKEN=abc\") gives the groups \"MAIL_TOKEN\" and \"abc\"; \"TOKEN\" is in the name and \"abc\" is a real value, so the line matches secret-assignment. inside(\"etc/app.conf\", \"etc/\") is True, so the finding is {\"layer\": 1, \"path\": \"etc/app.conf\", \"line\": 1, \"rule\": \"secret-assignment\", \"in_final_image\": false}, and hidden is 1."
+      ],
+      "coding": {
+        "language": "python",
+        "filePath": "scanner.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The incident: .env copied in layer 2 and removed in layer 3 is still found",
+          "hidden": false,
+          "score": 4,
+          "input": {
+            "layers": [
+              {
+                "created_by": "FROM python:3.13-slim",
+                "files": {
+                  "usr/local/bin/python3": null,
+                  "etc/os-release": "PRETTY_NAME=\"Debian GNU/Linux 12 (bookworm)\"\nID=debian\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY . /app",
+                "files": {
+                  "app/api/main.py": "import os\nDB_URL = os.environ['DATABASE_URL']\n",
+                  "app/.env": "DEBUG=0\nDB_PASSWORD=Pr0d-Rice-2026\nAWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE\n",
+                  "app/static/logo.png": null
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "RUN rm -f /app/.env",
+                "files": {},
+                "deleted": [
+                  "app/.env"
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "findings": [
+              {
+                "layer": 2,
+                "path": "app/.env",
+                "line": 2,
+                "rule": "secret-assignment",
+                "in_final_image": false
+              },
+              {
+                "layer": 2,
+                "path": "app/.env",
+                "line": 3,
+                "rule": "aws-access-key-id",
+                "in_final_image": false
+              }
+            ],
+            "total": 2,
+            "hidden": 2
+          }
+        },
+        {
+          "name": "Clean image: references, empty values and comments are not secrets",
+          "hidden": false,
+          "score": 4,
+          "input": {
+            "layers": [
+              {
+                "created_by": "FROM python:3.13-slim",
+                "files": {
+                  "usr/local/bin/python3": null,
+                  "etc/os-release": "PRETTY_NAME=\"Debian GNU/Linux 12 (bookworm)\"\nID=debian\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY deploy/app.env /app/app.env",
+                "files": {
+                  "app/app.env": "DEBUG=0\nDB_PASSWORD=\"${DB_PASSWORD}\"\nexport API_TOKEN=\"\"\nSECRET_KEY_FILE=$SECRETS_DIR/key\n# DB_PASSWORD=changeme in local dev only\nLOG_LEVEL=info\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "RUN pip install -r requirements.txt",
+                "files": {
+                  "app/.venv/bin/uvicorn": null
+                },
+                "deleted": []
+              }
+            ]
+          },
+          "expected": {
+            "findings": [],
+            "total": 0,
+            "hidden": 0
+          }
+        },
+        {
+          "name": "A key id and a private key header in files that stay in the image",
+          "hidden": false,
+          "score": 4,
+          "input": {
+            "layers": [
+              {
+                "created_by": "FROM python:3.13-slim",
+                "files": {
+                  "usr/local/bin/python3": null,
+                  "etc/os-release": "PRETTY_NAME=\"Debian GNU/Linux 12 (bookworm)\"\nID=debian\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY . /app",
+                "files": {
+                  "app/settings.py": "REGION = \"ap-southeast-1\"\nAWS_ACCESS_KEY_ID = \"AKIAIOSFODNN7EXAMPLE\"\nAWS_SECRET_ACCESS_KEY = \"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\"\n",
+                  "app/deploy/id_rsa": "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAAexample\n-----END OPENSSH PRIVATE KEY-----\n"
+                },
+                "deleted": []
+              }
+            ]
+          },
+          "expected": {
+            "findings": [
+              {
+                "layer": 2,
+                "path": "app/deploy/id_rsa",
+                "line": 1,
+                "rule": "private-key",
+                "in_final_image": true
+              },
+              {
+                "layer": 2,
+                "path": "app/settings.py",
+                "line": 2,
+                "rule": "aws-access-key-id",
+                "in_final_image": true
+              },
+              {
+                "layer": 2,
+                "path": "app/settings.py",
+                "line": 3,
+                "rule": "secret-assignment",
+                "in_final_image": true
+              }
+            ],
+            "total": 3,
+            "hidden": 0
+          }
+        },
+        {
+          "name": "Deleting a directory hides every file below it, but not a sibling with a longer name",
+          "hidden": true,
+          "score": 4,
+          "input": {
+            "layers": [
+              {
+                "created_by": "FROM python:3.13-slim",
+                "files": {
+                  "usr/local/bin/python3": null,
+                  "etc/os-release": "PRETTY_NAME=\"Debian GNU/Linux 12 (bookworm)\"\nID=debian\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY secrets /app/secrets",
+                "files": {
+                  "app/secrets/key.pem": "-----BEGIN PRIVATE KEY-----\nexample\n",
+                  "app/secrets/api.env": "PAYMENT_TOKEN=rr_live_51x0example\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY secrets-old /app/secrets-old",
+                "files": {
+                  "app/secrets-old/key.pem": "-----BEGIN PRIVATE KEY-----\nexample\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "RUN rm -rf /app/secrets",
+                "files": {},
+                "deleted": [
+                  "app/secrets/"
+                ]
+              }
+            ]
+          },
+          "expected": {
+            "findings": [
+              {
+                "layer": 2,
+                "path": "app/secrets/api.env",
+                "line": 1,
+                "rule": "secret-assignment",
+                "in_final_image": false
+              },
+              {
+                "layer": 2,
+                "path": "app/secrets/key.pem",
+                "line": 1,
+                "rule": "private-key",
+                "in_final_image": false
+              },
+              {
+                "layer": 3,
+                "path": "app/secrets-old/key.pem",
+                "line": 1,
+                "rule": "private-key",
+                "in_final_image": true
+              }
+            ],
+            "total": 3,
+            "hidden": 2
+          }
+        },
+        {
+          "name": "A file overwritten by a later layer: the old content is hidden but still reported",
+          "hidden": true,
+          "score": 4,
+          "input": {
+            "layers": [
+              {
+                "created_by": "FROM python:3.13-slim",
+                "files": {
+                  "usr/local/bin/python3": null,
+                  "etc/os-release": "PRETTY_NAME=\"Debian GNU/Linux 12 (bookworm)\"\nID=debian\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY config.env /app/config.env",
+                "files": {
+                  "app/config.env": "DB_HOST=db.internal\nDB_PASSWORD=Pr0d-Rice-2026\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY config.prod.env /app/config.env",
+                "files": {
+                  "app/config.env": "DB_HOST=db.internal\nDB_PASSWORD=${DB_PASSWORD}\n"
+                },
+                "deleted": []
+              }
+            ]
+          },
+          "expected": {
+            "findings": [
+              {
+                "layer": 2,
+                "path": "app/config.env",
+                "line": 2,
+                "rule": "secret-assignment",
+                "in_final_image": false
+              }
+            ],
+            "total": 1,
+            "hidden": 1
+          }
+        },
+        {
+          "name": "Odd input: missing files or deleted keys, binary files, CRLF lines and quoted values",
+          "hidden": true,
+          "score": 4,
+          "input": {
+            "layers": [
+              {
+                "created_by": "FROM scratch"
+              },
+              {
+                "created_by": "COPY . /srv",
+                "files": {
+                  "srv/run.sh": "#!/bin/sh\r\nexport  GITHUB_TOKEN = 'rr_ci_7c1e0example'\r\nexec python -m worker\r\n",
+                  "srv/app.bin": null,
+                  "srv/empty.env": ""
+                }
+              },
+              {
+                "created_by": "ENV MODE=prod",
+                "deleted": []
+              },
+              {
+                "created_by": "COPY worker.env /srv/worker.env",
+                "files": {
+                  "srv/worker.env": "QUEUE_PASSWORD=\"\"\nQUEUE_SECRET=''\nQUEUE_TOKEN=\"q-9f2example\"\n"
+                }
+              }
+            ]
+          },
+          "expected": {
+            "findings": [
+              {
+                "layer": 2,
+                "path": "srv/run.sh",
+                "line": 2,
+                "rule": "secret-assignment",
+                "in_final_image": true
+              },
+              {
+                "layer": 4,
+                "path": "srv/worker.env",
+                "line": 3,
+                "rule": "secret-assignment",
+                "in_final_image": true
+              }
+            ],
+            "total": 2,
+            "hidden": 0
+          }
+        },
+        {
+          "name": "One line matching two rules, and a file deleted and then added again",
+          "hidden": true,
+          "score": 4,
+          "input": {
+            "layers": [
+              {
+                "created_by": "FROM python:3.13-slim",
+                "files": {
+                  "usr/local/bin/python3": null,
+                  "etc/os-release": "PRETTY_NAME=\"Debian GNU/Linux 12 (bookworm)\"\nID=debian\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY ci.env /app/ci.env",
+                "files": {
+                  "app/ci.env": "DEPLOY_TOKEN=AKIAIOSFODNN7EXAMPLE\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "RUN rm /app/ci.env",
+                "files": {},
+                "deleted": [
+                  "app/ci.env"
+                ]
+              },
+              {
+                "created_by": "COPY ci.env /app/ci.env",
+                "files": {
+                  "app/ci.env": "DEPLOY_TOKEN=AKIAIOSFODNN7EXAMPLE\n"
+                },
+                "deleted": []
+              }
+            ]
+          },
+          "expected": {
+            "findings": [
+              {
+                "layer": 2,
+                "path": "app/ci.env",
+                "line": 1,
+                "rule": "aws-access-key-id",
+                "in_final_image": false
+              },
+              {
+                "layer": 2,
+                "path": "app/ci.env",
+                "line": 1,
+                "rule": "secret-assignment",
+                "in_final_image": false
+              },
+              {
+                "layer": 4,
+                "path": "app/ci.env",
+                "line": 1,
+                "rule": "aws-access-key-id",
+                "in_final_image": true
+              },
+              {
+                "layer": 4,
+                "path": "app/ci.env",
+                "line": 1,
+                "rule": "secret-assignment",
+                "in_final_image": true
+              }
+            ],
+            "total": 4,
+            "hidden": 2
+          }
+        },
+        {
+          "name": "Large: 40 layers with 20 files each, three secrets, one of them deleted later",
+          "hidden": true,
+          "score": 4,
+          "input": {
+            "layers": [
+              {
+                "created_by": "FROM python:3.13-slim",
+                "files": {
+                  "usr/local/bin/python3": null,
+                  "etc/os-release": "PRETTY_NAME=\"Debian GNU/Linux 12 (bookworm)\"\nID=debian\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY pkg1 /srv/pkg1",
+                "files": {
+                  "srv/pkg01/mod00.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg01/mod01.py": "import os\nTIMEOUT_SECONDS = 1\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg01/mod02.py": "import os\nTIMEOUT_SECONDS = 2\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg01/mod03.py": "import os\nTIMEOUT_SECONDS = 3\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg01/mod04.py": "import os\nTIMEOUT_SECONDS = 4\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg01/mod05.py": "import os\nTIMEOUT_SECONDS = 5\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg01/mod06.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg01/mod07.py": "import os\nTIMEOUT_SECONDS = 7\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg01/mod08.py": "import os\nTIMEOUT_SECONDS = 8\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg01/mod09.py": "import os\nTIMEOUT_SECONDS = 9\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg01/mod10.py": "import os\nTIMEOUT_SECONDS = 10\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg01/mod11.py": "import os\nTIMEOUT_SECONDS = 11\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg01/mod12.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg01/mod13.py": "import os\nTIMEOUT_SECONDS = 13\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg01/mod14.py": "import os\nTIMEOUT_SECONDS = 14\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg01/mod15.py": "import os\nTIMEOUT_SECONDS = 15\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg01/mod16.py": "import os\nTIMEOUT_SECONDS = 16\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg01/mod17.py": "import os\nTIMEOUT_SECONDS = 17\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg01/mod18.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg01/mod19.py": "import os\nTIMEOUT_SECONDS = 19\nAUTH_URL = os.environ[\"AUTH_URL\"]\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY pkg2 /srv/pkg2",
+                "files": {
+                  "srv/pkg02/mod00.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg02/mod01.py": "import os\nTIMEOUT_SECONDS = 2\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg02/mod02.py": "import os\nTIMEOUT_SECONDS = 4\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg02/mod03.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg02/mod04.py": "import os\nTIMEOUT_SECONDS = 8\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg02/mod05.py": "import os\nTIMEOUT_SECONDS = 10\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg02/mod06.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg02/mod07.py": "import os\nTIMEOUT_SECONDS = 14\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg02/mod08.py": "import os\nTIMEOUT_SECONDS = 16\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg02/mod09.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg02/mod10.py": "import os\nTIMEOUT_SECONDS = 20\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg02/mod11.py": "import os\nTIMEOUT_SECONDS = 22\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg02/mod12.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg02/mod13.py": "import os\nTIMEOUT_SECONDS = 26\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg02/mod14.py": "import os\nTIMEOUT_SECONDS = 28\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg02/mod15.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg02/mod16.py": "import os\nTIMEOUT_SECONDS = 2\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg02/mod17.py": "import os\nTIMEOUT_SECONDS = 4\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg02/mod18.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg02/mod19.py": "import os\nTIMEOUT_SECONDS = 8\nAUTH_URL = os.environ[\"AUTH_URL\"]\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY pkg3 /srv/pkg3",
+                "files": {
+                  "srv/pkg03/mod00.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg03/mod01.py": "import os\nTIMEOUT_SECONDS = 3\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg03/mod02.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg03/mod03.py": "import os\nTIMEOUT_SECONDS = 9\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg03/mod04.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg03/mod05.py": "import os\nTIMEOUT_SECONDS = 15\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg03/mod06.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg03/mod07.py": "import os\nTIMEOUT_SECONDS = 21\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg03/mod08.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg03/mod09.py": "import os\nTIMEOUT_SECONDS = 27\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg03/mod10.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg03/mod11.py": "import os\nTIMEOUT_SECONDS = 3\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg03/mod12.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg03/mod13.py": "import os\nTIMEOUT_SECONDS = 9\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg03/mod14.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg03/mod15.py": "import os\nTIMEOUT_SECONDS = 15\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg03/mod16.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg03/mod17.py": "import os\nTIMEOUT_SECONDS = 21\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg03/mod18.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg03/mod19.py": "import os\nTIMEOUT_SECONDS = 27\nAUTH_URL = os.environ[\"AUTH_URL\"]\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY pkg4 /srv/pkg4",
+                "files": {
+                  "srv/pkg04/mod00.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg04/mod01.py": "import os\nTIMEOUT_SECONDS = 4\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg04/mod02.py": "import os\nTIMEOUT_SECONDS = 8\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg04/mod03.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg04/mod04.py": "import os\nTIMEOUT_SECONDS = 16\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg04/mod05.py": "import os\nTIMEOUT_SECONDS = 20\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg04/mod06.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg04/mod07.py": "import os\nTIMEOUT_SECONDS = 28\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg04/mod08.py": "import os\nTIMEOUT_SECONDS = 2\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg04/mod09.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg04/mod10.py": "import os\nTIMEOUT_SECONDS = 10\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg04/mod11.py": "import os\nTIMEOUT_SECONDS = 14\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg04/mod12.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg04/mod13.py": "import os\nTIMEOUT_SECONDS = 22\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg04/mod14.py": "import os\nTIMEOUT_SECONDS = 26\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg04/mod15.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg04/mod16.py": "import os\nTIMEOUT_SECONDS = 4\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg04/mod17.py": "import os\nTIMEOUT_SECONDS = 8\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg04/mod18.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg04/mod19.py": "import os\nTIMEOUT_SECONDS = 16\nAUTH_URL = os.environ[\"AUTH_URL\"]\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY pkg5 /srv/pkg5",
+                "files": {
+                  "srv/pkg05/mod00.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg05/mod01.py": "import os\nTIMEOUT_SECONDS = 5\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg05/mod02.py": "import os\nTIMEOUT_SECONDS = 10\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg05/mod03.py": "import os\nTIMEOUT_SECONDS = 15\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg05/mod04.py": "import os\nTIMEOUT_SECONDS = 20\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg05/mod05.py": "import os\nTIMEOUT_SECONDS = 25\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg05/mod06.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg05/mod07.py": "import os\nTIMEOUT_SECONDS = 5\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg05/mod08.py": "import os\nTIMEOUT_SECONDS = 10\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg05/mod09.py": "import os\nTIMEOUT_SECONDS = 15\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg05/mod10.py": "import os\nTIMEOUT_SECONDS = 20\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg05/mod11.py": "import os\nTIMEOUT_SECONDS = 25\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg05/mod12.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg05/mod13.py": "import os\nTIMEOUT_SECONDS = 5\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg05/mod14.py": "import os\nTIMEOUT_SECONDS = 10\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg05/mod15.py": "import os\nTIMEOUT_SECONDS = 15\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg05/mod16.py": "import os\nTIMEOUT_SECONDS = 20\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg05/mod17.py": "import os\nTIMEOUT_SECONDS = 25\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg05/mod18.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg05/mod19.py": "import os\nTIMEOUT_SECONDS = 5\nAUTH_URL = os.environ[\"AUTH_URL\"]\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY pkg6 /srv/pkg6",
+                "files": {
+                  "srv/pkg06/mod00.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg06/mod01.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg06/mod02.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg06/mod03.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg06/mod04.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg06/mod05.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg06/mod06.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg06/mod07.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg06/mod08.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg06/mod09.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg06/mod10.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg06/mod11.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg06/mod12.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg06/mod13.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg06/mod14.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg06/mod15.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg06/mod16.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg06/mod17.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg06/mod18.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg06/mod19.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY pkg7 /srv/pkg7",
+                "files": {
+                  "srv/pkg07/mod00.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg07/mod01.py": "import os\nTIMEOUT_SECONDS = 7\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg07/mod02.py": "import os\nTIMEOUT_SECONDS = 14\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg07/mod03.py": "import os\nTIMEOUT_SECONDS = 21\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg07/mod04.py": "import os\nTIMEOUT_SECONDS = 28\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg07/mod05.py": "import os\nTIMEOUT_SECONDS = 5\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg07/mod06.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg07/mod07.py": "import os\nTIMEOUT_SECONDS = 19\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg07/mod08.py": "import os\nTIMEOUT_SECONDS = 26\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg07/mod09.py": "import os\nTIMEOUT_SECONDS = 3\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg07/mod10.py": "import os\nTIMEOUT_SECONDS = 10\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg07/mod11.py": "import os\nTIMEOUT_SECONDS = 17\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg07/mod12.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg07/mod13.py": "import os\nTIMEOUT_SECONDS = 1\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg07/mod14.py": "import os\nTIMEOUT_SECONDS = 8\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg07/mod15.py": "import os\nTIMEOUT_SECONDS = 15\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg07/mod16.py": "import os\nTIMEOUT_SECONDS = 22\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg07/mod17.py": "import os\nTIMEOUT_SECONDS = 29\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg07/mod18.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg07/mod19.py": "import os\nTIMEOUT_SECONDS = 13\nAUTH_URL = os.environ[\"AUTH_URL\"]\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY pkg8 /srv/pkg8",
+                "files": {
+                  "srv/pkg08/mod00.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg08/mod01.py": "import os\nTIMEOUT_SECONDS = 8\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg08/mod02.py": "import os\nTIMEOUT_SECONDS = 16\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg08/mod03.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg08/mod04.py": "import os\nTIMEOUT_SECONDS = 2\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg08/mod05.py": "import os\nTIMEOUT_SECONDS = 10\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg08/mod06.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg08/mod07.py": "import os\nTIMEOUT_SECONDS = 26\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg08/mod08.py": "import os\nTIMEOUT_SECONDS = 4\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg08/mod09.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg08/mod10.py": "import os\nTIMEOUT_SECONDS = 20\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg08/mod11.py": "import os\nTIMEOUT_SECONDS = 28\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg08/mod12.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg08/mod13.py": "import os\nTIMEOUT_SECONDS = 14\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg08/mod14.py": "import os\nTIMEOUT_SECONDS = 22\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg08/mod15.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg08/mod16.py": "import os\nTIMEOUT_SECONDS = 8\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg08/mod17.py": "import os\nTIMEOUT_SECONDS = 16\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg08/mod18.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg08/mod19.py": "import os\nTIMEOUT_SECONDS = 2\nAUTH_URL = os.environ[\"AUTH_URL\"]\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY pkg9 /srv/pkg9",
+                "files": {
+                  "srv/pkg09/mod00.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg09/mod01.py": "import os\nTIMEOUT_SECONDS = 9\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg09/mod02.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg09/mod03.py": "import os\nTIMEOUT_SECONDS = 27\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg09/mod04.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg09/mod05.py": "import os\nTIMEOUT_SECONDS = 15\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg09/mod06.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg09/mod07.py": "import os\nTIMEOUT_SECONDS = 3\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg09/mod08.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg09/mod09.py": "import os\nTIMEOUT_SECONDS = 21\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg09/mod10.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg09/mod11.py": "import os\nTIMEOUT_SECONDS = 9\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg09/mod12.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg09/mod13.py": "import os\nTIMEOUT_SECONDS = 27\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg09/mod14.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg09/mod15.py": "import os\nTIMEOUT_SECONDS = 15\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg09/mod16.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg09/mod17.py": "import os\nTIMEOUT_SECONDS = 3\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg09/mod18.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg09/mod19.py": "import os\nTIMEOUT_SECONDS = 21\nAUTH_URL = os.environ[\"AUTH_URL\"]\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY pkg10 /srv/pkg10",
+                "files": {
+                  "srv/pkg10/mod00.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg10/mod01.py": "import os\nTIMEOUT_SECONDS = 10\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg10/mod02.py": "import os\nTIMEOUT_SECONDS = 20\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg10/mod03.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg10/mod04.py": "import os\nTIMEOUT_SECONDS = 10\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg10/mod05.py": "import os\nTIMEOUT_SECONDS = 20\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg10/mod06.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg10/mod07.py": "import os\nTIMEOUT_SECONDS = 10\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg10/mod08.py": "import os\nTIMEOUT_SECONDS = 20\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg10/mod09.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg10/mod10.py": "import os\nTIMEOUT_SECONDS = 10\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg10/mod11.py": "import os\nTIMEOUT_SECONDS = 20\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg10/mod12.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg10/mod13.py": "import os\nTIMEOUT_SECONDS = 10\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg10/mod14.py": "import os\nTIMEOUT_SECONDS = 20\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg10/mod15.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg10/mod16.py": "import os\nTIMEOUT_SECONDS = 10\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg10/mod17.py": "import os\nTIMEOUT_SECONDS = 20\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg10/mod18.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg10/mod19.py": "import os\nTIMEOUT_SECONDS = 10\nAUTH_URL = os.environ[\"AUTH_URL\"]\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY pkg11 /srv/pkg11",
+                "files": {
+                  "srv/pkg11/mod00.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg11/mod01.py": "import os\nTIMEOUT_SECONDS = 11\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg11/mod02.py": "import os\nTIMEOUT_SECONDS = 22\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg11/mod03.py": "import os\nTIMEOUT_SECONDS = 3\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg11/mod04.py": "import os\nTIMEOUT_SECONDS = 14\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg11/mod05.py": "import os\nTIMEOUT_SECONDS = 25\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg11/mod06.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg11/mod07.py": "import os\nTIMEOUT_SECONDS = 17\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg11/mod08.py": "import os\nTIMEOUT_SECONDS = 28\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg11/mod09.py": "import os\nTIMEOUT_SECONDS = 9\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg11/mod10.py": "import os\nTIMEOUT_SECONDS = 20\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg11/mod11.py": "import os\nTIMEOUT_SECONDS = 1\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg11/mod12.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg11/mod13.py": "import os\nTIMEOUT_SECONDS = 23\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg11/mod14.py": "import os\nTIMEOUT_SECONDS = 4\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg11/mod15.py": "import os\nTIMEOUT_SECONDS = 15\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg11/mod16.py": "import os\nTIMEOUT_SECONDS = 26\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg11/mod17.py": "import os\nTIMEOUT_SECONDS = 7\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg11/mod18.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg11/mod19.py": "import os\nTIMEOUT_SECONDS = 29\nAUTH_URL = os.environ[\"AUTH_URL\"]\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY pkg12 /srv/pkg12",
+                "files": {
+                  "srv/pkg12/mod00.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg12/mod01.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg12/mod02.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg12/mod03.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg12/mod04.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg12/mod05.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg12/mod06.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg12/mod07.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\nAWS_ACCESS_KEY_ID = \"AKIAEXAMPLEFAKE00001\"\n",
+                  "srv/pkg12/mod08.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg12/mod09.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg12/mod10.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg12/mod11.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg12/mod12.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg12/mod13.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg12/mod14.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg12/mod15.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg12/mod16.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg12/mod17.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg12/mod18.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg12/mod19.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY pkg13 /srv/pkg13",
+                "files": {
+                  "srv/pkg13/mod00.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg13/mod01.py": "import os\nTIMEOUT_SECONDS = 13\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg13/mod02.py": "import os\nTIMEOUT_SECONDS = 26\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg13/mod03.py": "import os\nTIMEOUT_SECONDS = 9\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg13/mod04.py": "import os\nTIMEOUT_SECONDS = 22\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg13/mod05.py": "import os\nTIMEOUT_SECONDS = 5\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg13/mod06.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg13/mod07.py": "import os\nTIMEOUT_SECONDS = 1\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg13/mod08.py": "import os\nTIMEOUT_SECONDS = 14\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg13/mod09.py": "import os\nTIMEOUT_SECONDS = 27\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg13/mod10.py": "import os\nTIMEOUT_SECONDS = 10\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg13/mod11.py": "import os\nTIMEOUT_SECONDS = 23\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg13/mod12.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg13/mod13.py": "import os\nTIMEOUT_SECONDS = 19\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg13/mod14.py": "import os\nTIMEOUT_SECONDS = 2\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg13/mod15.py": "import os\nTIMEOUT_SECONDS = 15\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg13/mod16.py": "import os\nTIMEOUT_SECONDS = 28\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg13/mod17.py": "import os\nTIMEOUT_SECONDS = 11\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg13/mod18.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg13/mod19.py": "import os\nTIMEOUT_SECONDS = 7\nAUTH_URL = os.environ[\"AUTH_URL\"]\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY pkg14 /srv/pkg14",
+                "files": {
+                  "srv/pkg14/mod00.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg14/mod01.py": "import os\nTIMEOUT_SECONDS = 14\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg14/mod02.py": "import os\nTIMEOUT_SECONDS = 28\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg14/mod03.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg14/mod04.py": "import os\nTIMEOUT_SECONDS = 26\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg14/mod05.py": "import os\nTIMEOUT_SECONDS = 10\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg14/mod06.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg14/mod07.py": "import os\nTIMEOUT_SECONDS = 8\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg14/mod08.py": "import os\nTIMEOUT_SECONDS = 22\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg14/mod09.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg14/mod10.py": "import os\nTIMEOUT_SECONDS = 20\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg14/mod11.py": "import os\nTIMEOUT_SECONDS = 4\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg14/mod12.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg14/mod13.py": "import os\nTIMEOUT_SECONDS = 2\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg14/mod14.py": "import os\nTIMEOUT_SECONDS = 16\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg14/mod15.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg14/mod16.py": "import os\nTIMEOUT_SECONDS = 14\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg14/mod17.py": "import os\nTIMEOUT_SECONDS = 28\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg14/mod18.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg14/mod19.py": "import os\nTIMEOUT_SECONDS = 26\nAUTH_URL = os.environ[\"AUTH_URL\"]\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY pkg15 /srv/pkg15",
+                "files": {
+                  "srv/pkg15/mod00.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg15/mod01.py": "import os\nTIMEOUT_SECONDS = 15\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg15/mod02.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg15/mod03.py": "import os\nTIMEOUT_SECONDS = 15\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg15/mod04.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg15/mod05.py": "import os\nTIMEOUT_SECONDS = 15\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg15/mod06.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg15/mod07.py": "import os\nTIMEOUT_SECONDS = 15\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg15/mod08.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg15/mod09.py": "import os\nTIMEOUT_SECONDS = 15\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg15/mod10.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg15/mod11.py": "import os\nTIMEOUT_SECONDS = 15\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg15/mod12.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg15/mod13.py": "import os\nTIMEOUT_SECONDS = 15\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg15/mod14.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg15/mod15.py": "import os\nTIMEOUT_SECONDS = 15\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg15/mod16.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg15/mod17.py": "import os\nTIMEOUT_SECONDS = 15\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg15/mod18.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg15/mod19.py": "import os\nTIMEOUT_SECONDS = 15\nAUTH_URL = os.environ[\"AUTH_URL\"]\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY pkg16 /srv/pkg16",
+                "files": {
+                  "srv/pkg16/mod00.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg16/mod01.py": "import os\nTIMEOUT_SECONDS = 16\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg16/mod02.py": "import os\nTIMEOUT_SECONDS = 2\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg16/mod03.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg16/mod04.py": "import os\nTIMEOUT_SECONDS = 4\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg16/mod05.py": "import os\nTIMEOUT_SECONDS = 20\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg16/mod06.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg16/mod07.py": "import os\nTIMEOUT_SECONDS = 22\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg16/mod08.py": "import os\nTIMEOUT_SECONDS = 8\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg16/mod09.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg16/mod10.py": "import os\nTIMEOUT_SECONDS = 10\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg16/mod11.py": "import os\nTIMEOUT_SECONDS = 26\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg16/mod12.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg16/mod13.py": "import os\nTIMEOUT_SECONDS = 28\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg16/mod14.py": "import os\nTIMEOUT_SECONDS = 14\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg16/mod15.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg16/mod16.py": "import os\nTIMEOUT_SECONDS = 16\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg16/mod17.py": "import os\nTIMEOUT_SECONDS = 2\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg16/mod18.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg16/mod19.py": "import os\nTIMEOUT_SECONDS = 4\nAUTH_URL = os.environ[\"AUTH_URL\"]\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY pkg17 /srv/pkg17",
+                "files": {
+                  "srv/pkg17/mod00.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg17/mod01.py": "import os\nTIMEOUT_SECONDS = 17\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg17/mod02.py": "import os\nTIMEOUT_SECONDS = 4\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg17/mod03.py": "import os\nTIMEOUT_SECONDS = 21\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg17/mod04.py": "import os\nTIMEOUT_SECONDS = 8\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg17/mod05.py": "import os\nTIMEOUT_SECONDS = 25\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg17/mod06.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg17/mod07.py": "import os\nTIMEOUT_SECONDS = 29\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg17/mod08.py": "import os\nTIMEOUT_SECONDS = 16\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg17/mod09.py": "import os\nTIMEOUT_SECONDS = 3\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg17/mod10.py": "import os\nTIMEOUT_SECONDS = 20\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg17/mod11.py": "import os\nTIMEOUT_SECONDS = 7\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg17/mod12.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg17/mod13.py": "import os\nTIMEOUT_SECONDS = 11\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg17/mod14.py": "import os\nTIMEOUT_SECONDS = 28\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg17/mod15.py": "import os\nTIMEOUT_SECONDS = 15\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg17/mod16.py": "import os\nTIMEOUT_SECONDS = 2\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg17/mod17.py": "import os\nTIMEOUT_SECONDS = 19\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg17/mod18.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg17/mod19.py": "import os\nTIMEOUT_SECONDS = 23\nAUTH_URL = os.environ[\"AUTH_URL\"]\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY pkg18 /srv/pkg18",
+                "files": {
+                  "srv/pkg18/mod00.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg18/mod01.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg18/mod02.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg18/mod03.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg18/mod04.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg18/mod05.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg18/mod06.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg18/mod07.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg18/mod08.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg18/mod09.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg18/mod10.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg18/mod11.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg18/mod12.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg18/mod13.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg18/mod14.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg18/mod15.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg18/mod16.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg18/mod17.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg18/mod18.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg18/mod19.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY pkg19 /srv/pkg19",
+                "files": {
+                  "srv/pkg19/mod00.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg19/mod01.py": "import os\nTIMEOUT_SECONDS = 19\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg19/mod02.py": "import os\nTIMEOUT_SECONDS = 8\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg19/mod03.py": "import os\nTIMEOUT_SECONDS = 27\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg19/mod04.py": "import os\nTIMEOUT_SECONDS = 16\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg19/mod05.py": "import os\nTIMEOUT_SECONDS = 5\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg19/mod06.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg19/mod07.py": "import os\nTIMEOUT_SECONDS = 13\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg19/mod08.py": "import os\nTIMEOUT_SECONDS = 2\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg19/mod09.py": "import os\nTIMEOUT_SECONDS = 21\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg19/mod10.py": "import os\nTIMEOUT_SECONDS = 10\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg19/mod11.py": "import os\nTIMEOUT_SECONDS = 29\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg19/mod12.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg19/mod13.py": "import os\nTIMEOUT_SECONDS = 7\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg19/mod14.py": "import os\nTIMEOUT_SECONDS = 26\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg19/mod15.py": "import os\nTIMEOUT_SECONDS = 15\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg19/mod16.py": "import os\nTIMEOUT_SECONDS = 4\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg19/mod17.py": "import os\nTIMEOUT_SECONDS = 23\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg19/mod18.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg19/mod19.py": "import os\nTIMEOUT_SECONDS = 1\nAUTH_URL = os.environ[\"AUTH_URL\"]\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY pkg20 /srv/pkg20",
+                "files": {
+                  "srv/pkg20/mod00.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg20/mod01.py": "import os\nTIMEOUT_SECONDS = 20\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg20/mod02.py": "import os\nTIMEOUT_SECONDS = 10\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg20/mod03.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg20/mod04.py": "import os\nTIMEOUT_SECONDS = 20\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg20/mod05.py": "import os\nTIMEOUT_SECONDS = 10\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg20/mod06.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg20/mod07.py": "import os\nTIMEOUT_SECONDS = 20\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg20/mod08.py": "import os\nTIMEOUT_SECONDS = 10\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg20/mod09.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg20/mod10.py": "import os\nTIMEOUT_SECONDS = 20\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg20/mod11.py": "import os\nTIMEOUT_SECONDS = 10\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg20/mod12.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg20/mod13.py": "import os\nTIMEOUT_SECONDS = 20\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg20/mod14.py": "import os\nTIMEOUT_SECONDS = 10\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg20/mod15.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg20/mod16.py": "import os\nTIMEOUT_SECONDS = 20\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg20/mod17.py": "import os\nTIMEOUT_SECONDS = 10\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg20/mod18.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg20/mod19.py": "import os\nTIMEOUT_SECONDS = 20\nAUTH_URL = os.environ[\"AUTH_URL\"]\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY pkg21 /srv/pkg21",
+                "files": {
+                  "srv/pkg21/mod00.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg21/mod01.py": "import os\nTIMEOUT_SECONDS = 21\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg21/mod02.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg21/mod03.py": "import os\nTIMEOUT_SECONDS = 3\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg21/mod04.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg21/mod05.py": "import os\nTIMEOUT_SECONDS = 15\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg21/mod06.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg21/mod07.py": "import os\nTIMEOUT_SECONDS = 27\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg21/mod08.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg21/mod09.py": "import os\nTIMEOUT_SECONDS = 9\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg21/mod10.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg21/mod11.py": "import os\nTIMEOUT_SECONDS = 21\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg21/mod12.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg21/mod13.py": "import os\nTIMEOUT_SECONDS = 3\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg21/mod14.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg21/mod15.py": "import os\nTIMEOUT_SECONDS = 15\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg21/mod16.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg21/mod17.py": "import os\nTIMEOUT_SECONDS = 27\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg21/mod18.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg21/mod19.py": "import os\nTIMEOUT_SECONDS = 9\nAUTH_URL = os.environ[\"AUTH_URL\"]\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY pkg22 /srv/pkg22",
+                "files": {
+                  "srv/pkg22/mod00.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg22/mod01.py": "import os\nTIMEOUT_SECONDS = 22\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg22/mod02.py": "import os\nTIMEOUT_SECONDS = 14\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg22/mod03.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg22/mod04.py": "import os\nTIMEOUT_SECONDS = 28\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg22/mod05.py": "import os\nTIMEOUT_SECONDS = 20\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg22/mod06.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg22/mod07.py": "import os\nTIMEOUT_SECONDS = 4\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg22/mod08.py": "import os\nTIMEOUT_SECONDS = 26\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg22/mod09.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg22/mod10.py": "import os\nTIMEOUT_SECONDS = 10\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg22/mod11.py": "import os\nTIMEOUT_SECONDS = 2\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg22/mod12.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg22/mod13.py": "import os\nTIMEOUT_SECONDS = 16\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg22/mod14.py": "import os\nTIMEOUT_SECONDS = 8\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg22/mod15.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg22/mod16.py": "import os\nTIMEOUT_SECONDS = 22\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg22/mod17.py": "import os\nTIMEOUT_SECONDS = 14\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg22/mod18.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg22/mod19.py": "import os\nTIMEOUT_SECONDS = 28\nAUTH_URL = os.environ[\"AUTH_URL\"]\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY pkg23 /srv/pkg23",
+                "files": {
+                  "srv/pkg23/mod00.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg23/mod01.py": "import os\nTIMEOUT_SECONDS = 23\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg23/mod02.py": "import os\nTIMEOUT_SECONDS = 16\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg23/mod03.py": "import os\nTIMEOUT_SECONDS = 9\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg23/mod04.py": "import os\nTIMEOUT_SECONDS = 2\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg23/mod05.py": "import os\nTIMEOUT_SECONDS = 25\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg23/mod06.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg23/mod07.py": "import os\nTIMEOUT_SECONDS = 11\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg23/mod08.py": "import os\nTIMEOUT_SECONDS = 4\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg23/mod09.py": "import os\nTIMEOUT_SECONDS = 27\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg23/mod10.py": "import os\nTIMEOUT_SECONDS = 20\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg23/mod11.py": "import os\nTIMEOUT_SECONDS = 13\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg23/mod12.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg23/mod13.py": "import os\nTIMEOUT_SECONDS = 29\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg23/mod14.py": "import os\nTIMEOUT_SECONDS = 22\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg23/mod15.py": "import os\nTIMEOUT_SECONDS = 15\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg23/mod16.py": "import os\nTIMEOUT_SECONDS = 8\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg23/mod17.py": "import os\nTIMEOUT_SECONDS = 1\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg23/mod18.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg23/mod19.py": "import os\nTIMEOUT_SECONDS = 17\nAUTH_URL = os.environ[\"AUTH_URL\"]\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY pkg24 /srv/pkg24",
+                "files": {
+                  "srv/pkg24/mod00.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg24/mod01.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg24/mod02.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg24/mod03.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg24/mod04.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg24/mod05.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg24/mod06.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg24/mod07.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg24/mod08.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg24/mod09.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg24/mod10.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg24/mod11.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg24/mod12.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg24/mod13.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg24/mod14.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg24/mod15.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg24/mod16.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg24/mod17.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg24/mod18.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg24/mod19.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY pkg25 /srv/pkg25",
+                "files": {
+                  "srv/pkg25/mod00.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg25/mod01.py": "import os\nTIMEOUT_SECONDS = 25\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg25/mod02.py": "import os\nTIMEOUT_SECONDS = 20\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg25/mod03.py": "import os\nTIMEOUT_SECONDS = 15\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg25/mod04.py": "import os\nTIMEOUT_SECONDS = 10\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg25/mod05.py": "import os\nTIMEOUT_SECONDS = 5\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg25/mod06.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg25/mod07.py": "import os\nTIMEOUT_SECONDS = 25\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg25/mod08.py": "import os\nTIMEOUT_SECONDS = 20\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg25/mod09.py": "import os\nTIMEOUT_SECONDS = 15\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg25/mod10.py": "import os\nTIMEOUT_SECONDS = 10\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg25/mod11.py": "import os\nTIMEOUT_SECONDS = 5\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg25/mod12.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg25/mod13.py": "import os\nTIMEOUT_SECONDS = 25\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg25/mod14.py": "import os\nTIMEOUT_SECONDS = 20\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg25/mod15.py": "import os\nTIMEOUT_SECONDS = 15\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg25/mod16.py": "import os\nTIMEOUT_SECONDS = 10\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg25/mod17.py": "import os\nTIMEOUT_SECONDS = 5\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg25/mod18.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg25/mod19.py": "import os\nTIMEOUT_SECONDS = 25\nAUTH_URL = os.environ[\"AUTH_URL\"]\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY pkg26 /srv/pkg26",
+                "files": {
+                  "srv/pkg26/mod00.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg26/mod01.py": "import os\nTIMEOUT_SECONDS = 26\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg26/mod02.py": "import os\nTIMEOUT_SECONDS = 22\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg26/mod03.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg26/mod04.py": "import os\nTIMEOUT_SECONDS = 14\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg26/mod05.py": "import os\nTIMEOUT_SECONDS = 10\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg26/mod06.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg26/mod07.py": "import os\nTIMEOUT_SECONDS = 2\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg26/mod08.py": "import os\nTIMEOUT_SECONDS = 28\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg26/mod09.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg26/mod10.py": "import os\nTIMEOUT_SECONDS = 20\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg26/mod11.py": "import os\nTIMEOUT_SECONDS = 16\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg26/mod12.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg26/mod13.py": "import os\nTIMEOUT_SECONDS = 8\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg26/mod14.py": "import os\nTIMEOUT_SECONDS = 4\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg26/mod15.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg26/mod16.py": "import os\nTIMEOUT_SECONDS = 26\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg26/mod17.py": "import os\nTIMEOUT_SECONDS = 22\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg26/mod18.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg26/mod19.py": "import os\nTIMEOUT_SECONDS = 14\nAUTH_URL = os.environ[\"AUTH_URL\"]\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY pkg27 /srv/pkg27",
+                "files": {
+                  "srv/pkg27/mod00.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg27/mod01.py": "import os\nTIMEOUT_SECONDS = 27\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg27/mod02.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg27/mod03.py": "import os\nTIMEOUT_SECONDS = 21\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg27/mod04.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg27/mod05.py": "import os\nTIMEOUT_SECONDS = 15\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg27/mod06.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg27/mod07.py": "import os\nTIMEOUT_SECONDS = 9\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg27/mod08.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg27/mod09.py": "import os\nTIMEOUT_SECONDS = 3\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg27/mod10.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg27/mod11.py": "import os\nTIMEOUT_SECONDS = 27\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg27/mod12.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg27/mod13.py": "import os\nTIMEOUT_SECONDS = 21\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg27/mod14.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg27/mod15.py": "import os\nTIMEOUT_SECONDS = 15\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg27/mod16.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg27/mod17.py": "import os\nTIMEOUT_SECONDS = 9\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg27/mod18.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg27/mod19.py": "import os\nTIMEOUT_SECONDS = 3\nAUTH_URL = os.environ[\"AUTH_URL\"]\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY pkg28 /srv/pkg28",
+                "files": {
+                  "srv/pkg28/mod00.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg28/mod01.py": "import os\nTIMEOUT_SECONDS = 28\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg28/mod02.py": "import os\nTIMEOUT_SECONDS = 26\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg28/mod03.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg28/mod04.py": "import os\nTIMEOUT_SECONDS = 22\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg28/mod05.py": "import os\nTIMEOUT_SECONDS = 20\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg28/mod06.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg28/mod07.py": "import os\nTIMEOUT_SECONDS = 16\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg28/mod08.py": "import os\nTIMEOUT_SECONDS = 14\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg28/mod09.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg28/mod10.py": "import os\nTIMEOUT_SECONDS = 10\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg28/mod11.py": "import os\nTIMEOUT_SECONDS = 8\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg28/mod12.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg28/mod13.py": "import os\nTIMEOUT_SECONDS = 4\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg28/mod14.py": "import os\nTIMEOUT_SECONDS = 2\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg28/mod15.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg28/mod16.py": "import os\nTIMEOUT_SECONDS = 28\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg28/mod17.py": "import os\nTIMEOUT_SECONDS = 26\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg28/mod18.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg28/mod19.py": "import os\nTIMEOUT_SECONDS = 22\nAUTH_URL = os.environ[\"AUTH_URL\"]\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY pkg29 /srv/pkg29",
+                "files": {
+                  "srv/pkg29/mod00.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg29/mod01.py": "import os\nTIMEOUT_SECONDS = 29\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg29/mod02.py": "import os\nTIMEOUT_SECONDS = 28\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg29/mod03.py": "import os\nTIMEOUT_SECONDS = 27\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg29/mod04.py": "import os\nTIMEOUT_SECONDS = 26\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg29/mod05.py": "import os\nTIMEOUT_SECONDS = 25\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg29/mod06.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg29/mod07.py": "import os\nTIMEOUT_SECONDS = 23\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg29/mod08.py": "import os\nTIMEOUT_SECONDS = 22\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg29/mod09.py": "import os\nTIMEOUT_SECONDS = 21\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg29/mod10.py": "import os\nTIMEOUT_SECONDS = 20\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg29/mod11.py": "import os\nTIMEOUT_SECONDS = 19\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg29/mod12.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg29/mod13.py": "import os\nTIMEOUT_SECONDS = 17\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg29/mod14.py": "import os\nTIMEOUT_SECONDS = 16\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg29/mod15.py": "import os\nTIMEOUT_SECONDS = 15\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg29/mod16.py": "import os\nTIMEOUT_SECONDS = 14\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg29/mod17.py": "import os\nTIMEOUT_SECONDS = 13\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg29/mod18.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg29/mod19.py": "import os\nTIMEOUT_SECONDS = 11\nAUTH_URL = os.environ[\"AUTH_URL\"]\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY pkg30 /srv/pkg30",
+                "files": {
+                  "srv/pkg30/mod00.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg30/mod01.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg30/mod02.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg30/mod03.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg30/mod04.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg30/mod05.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg30/mod06.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg30/mod07.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg30/mod08.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg30/mod09.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg30/mod10.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg30/mod11.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg30/mod12.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg30/mod13.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg30/mod14.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg30/mod15.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg30/mod16.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg30/mod17.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg30/mod18.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg30/mod19.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY pkg31 /srv/pkg31",
+                "files": {
+                  "srv/pkg31/mod00.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg31/mod01.py": "import os\nTIMEOUT_SECONDS = 1\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg31/mod02.py": "import os\nTIMEOUT_SECONDS = 2\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg31/mod03.py": "import os\nTIMEOUT_SECONDS = 3\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg31/mod04.py": "import os\nTIMEOUT_SECONDS = 4\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg31/mod05.py": "import os\nTIMEOUT_SECONDS = 5\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg31/mod06.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg31/mod07.py": "import os\nTIMEOUT_SECONDS = 7\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg31/mod08.py": "import os\nTIMEOUT_SECONDS = 8\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg31/mod09.py": "import os\nTIMEOUT_SECONDS = 9\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg31/mod10.py": "import os\nTIMEOUT_SECONDS = 10\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg31/mod11.py": "import os\nTIMEOUT_SECONDS = 11\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg31/mod12.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg31/mod13.py": "import os\nTIMEOUT_SECONDS = 13\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg31/mod14.py": "import os\nTIMEOUT_SECONDS = 14\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg31/mod15.py": "import os\nTIMEOUT_SECONDS = 15\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg31/mod16.py": "import os\nTIMEOUT_SECONDS = 16\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg31/mod17.py": "import os\nTIMEOUT_SECONDS = 17\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg31/mod18.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg31/mod19.py": "import os\nTIMEOUT_SECONDS = 19\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg31/settings.env": "LOG_LEVEL=info\nSMTP_PASSWORD=rr-mail-8841\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY pkg32 /srv/pkg32",
+                "files": {
+                  "srv/pkg32/mod00.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg32/mod01.py": "import os\nTIMEOUT_SECONDS = 2\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg32/mod02.py": "import os\nTIMEOUT_SECONDS = 4\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg32/mod03.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg32/mod04.py": "import os\nTIMEOUT_SECONDS = 8\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg32/mod05.py": "import os\nTIMEOUT_SECONDS = 10\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg32/mod06.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg32/mod07.py": "import os\nTIMEOUT_SECONDS = 14\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg32/mod08.py": "import os\nTIMEOUT_SECONDS = 16\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg32/mod09.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg32/mod10.py": "import os\nTIMEOUT_SECONDS = 20\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg32/mod11.py": "import os\nTIMEOUT_SECONDS = 22\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg32/mod12.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg32/mod13.py": "import os\nTIMEOUT_SECONDS = 26\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg32/mod14.py": "import os\nTIMEOUT_SECONDS = 28\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg32/mod15.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg32/mod16.py": "import os\nTIMEOUT_SECONDS = 2\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg32/mod17.py": "import os\nTIMEOUT_SECONDS = 4\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg32/mod18.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg32/mod19.py": "import os\nTIMEOUT_SECONDS = 8\nAUTH_URL = os.environ[\"AUTH_URL\"]\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY pkg33 /srv/pkg33",
+                "files": {
+                  "srv/pkg33/mod00.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg33/mod01.py": "import os\nTIMEOUT_SECONDS = 3\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg33/mod02.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg33/mod03.py": "import os\nTIMEOUT_SECONDS = 9\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg33/mod04.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg33/mod05.py": "import os\nTIMEOUT_SECONDS = 15\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg33/mod06.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg33/mod07.py": "import os\nTIMEOUT_SECONDS = 21\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg33/mod08.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg33/mod09.py": "import os\nTIMEOUT_SECONDS = 27\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg33/mod10.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg33/mod11.py": "import os\nTIMEOUT_SECONDS = 3\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg33/mod12.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg33/mod13.py": "import os\nTIMEOUT_SECONDS = 9\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg33/mod14.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg33/mod15.py": "import os\nTIMEOUT_SECONDS = 15\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg33/mod16.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg33/mod17.py": "import os\nTIMEOUT_SECONDS = 21\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg33/mod18.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg33/mod19.py": "import os\nTIMEOUT_SECONDS = 27\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg33/certs/server.pem": "-----BEGIN EC PRIVATE KEY-----\nMHcCAQEEIExampleOnlyNotARealKey\n-----END EC PRIVATE KEY-----\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY pkg34 /srv/pkg34",
+                "files": {
+                  "srv/pkg34/mod00.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg34/mod01.py": "import os\nTIMEOUT_SECONDS = 4\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg34/mod02.py": "import os\nTIMEOUT_SECONDS = 8\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg34/mod03.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg34/mod04.py": "import os\nTIMEOUT_SECONDS = 16\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg34/mod05.py": "import os\nTIMEOUT_SECONDS = 20\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg34/mod06.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg34/mod07.py": "import os\nTIMEOUT_SECONDS = 28\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg34/mod08.py": "import os\nTIMEOUT_SECONDS = 2\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg34/mod09.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg34/mod10.py": "import os\nTIMEOUT_SECONDS = 10\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg34/mod11.py": "import os\nTIMEOUT_SECONDS = 14\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg34/mod12.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg34/mod13.py": "import os\nTIMEOUT_SECONDS = 22\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg34/mod14.py": "import os\nTIMEOUT_SECONDS = 26\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg34/mod15.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg34/mod16.py": "import os\nTIMEOUT_SECONDS = 4\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg34/mod17.py": "import os\nTIMEOUT_SECONDS = 8\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg34/mod18.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg34/mod19.py": "import os\nTIMEOUT_SECONDS = 16\nAUTH_URL = os.environ[\"AUTH_URL\"]\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY pkg35 /srv/pkg35",
+                "files": {
+                  "srv/pkg35/mod00.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg35/mod01.py": "import os\nTIMEOUT_SECONDS = 5\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg35/mod02.py": "import os\nTIMEOUT_SECONDS = 10\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg35/mod03.py": "import os\nTIMEOUT_SECONDS = 15\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg35/mod04.py": "import os\nTIMEOUT_SECONDS = 20\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg35/mod05.py": "import os\nTIMEOUT_SECONDS = 25\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg35/mod06.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg35/mod07.py": "import os\nTIMEOUT_SECONDS = 5\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg35/mod08.py": "import os\nTIMEOUT_SECONDS = 10\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg35/mod09.py": "import os\nTIMEOUT_SECONDS = 15\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg35/mod10.py": "import os\nTIMEOUT_SECONDS = 20\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg35/mod11.py": "import os\nTIMEOUT_SECONDS = 25\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg35/mod12.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg35/mod13.py": "import os\nTIMEOUT_SECONDS = 5\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg35/mod14.py": "import os\nTIMEOUT_SECONDS = 10\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg35/mod15.py": "import os\nTIMEOUT_SECONDS = 15\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg35/mod16.py": "import os\nTIMEOUT_SECONDS = 20\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg35/mod17.py": "import os\nTIMEOUT_SECONDS = 25\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg35/mod18.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg35/mod19.py": "import os\nTIMEOUT_SECONDS = 5\nAUTH_URL = os.environ[\"AUTH_URL\"]\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY pkg36 /srv/pkg36",
+                "files": {
+                  "srv/pkg36/mod00.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg36/mod01.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg36/mod02.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg36/mod03.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg36/mod04.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg36/mod05.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg36/mod06.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg36/mod07.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg36/mod08.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg36/mod09.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg36/mod10.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg36/mod11.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg36/mod12.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg36/mod13.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg36/mod14.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg36/mod15.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg36/mod16.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg36/mod17.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg36/mod18.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg36/mod19.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n"
+                },
+                "deleted": [
+                  "srv/pkg33/certs"
+                ]
+              },
+              {
+                "created_by": "COPY pkg37 /srv/pkg37",
+                "files": {
+                  "srv/pkg37/mod00.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg37/mod01.py": "import os\nTIMEOUT_SECONDS = 7\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg37/mod02.py": "import os\nTIMEOUT_SECONDS = 14\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg37/mod03.py": "import os\nTIMEOUT_SECONDS = 21\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg37/mod04.py": "import os\nTIMEOUT_SECONDS = 28\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg37/mod05.py": "import os\nTIMEOUT_SECONDS = 5\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg37/mod06.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg37/mod07.py": "import os\nTIMEOUT_SECONDS = 19\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg37/mod08.py": "import os\nTIMEOUT_SECONDS = 26\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg37/mod09.py": "import os\nTIMEOUT_SECONDS = 3\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg37/mod10.py": "import os\nTIMEOUT_SECONDS = 10\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg37/mod11.py": "import os\nTIMEOUT_SECONDS = 17\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg37/mod12.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg37/mod13.py": "import os\nTIMEOUT_SECONDS = 1\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg37/mod14.py": "import os\nTIMEOUT_SECONDS = 8\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg37/mod15.py": "import os\nTIMEOUT_SECONDS = 15\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg37/mod16.py": "import os\nTIMEOUT_SECONDS = 22\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg37/mod17.py": "import os\nTIMEOUT_SECONDS = 29\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg37/mod18.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg37/mod19.py": "import os\nTIMEOUT_SECONDS = 13\nAUTH_URL = os.environ[\"AUTH_URL\"]\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY pkg38 /srv/pkg38",
+                "files": {
+                  "srv/pkg38/mod00.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg38/mod01.py": "import os\nTIMEOUT_SECONDS = 8\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg38/mod02.py": "import os\nTIMEOUT_SECONDS = 16\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg38/mod03.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg38/mod04.py": "import os\nTIMEOUT_SECONDS = 2\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg38/mod05.py": "import os\nTIMEOUT_SECONDS = 10\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg38/mod06.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg38/mod07.py": "import os\nTIMEOUT_SECONDS = 26\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg38/mod08.py": "import os\nTIMEOUT_SECONDS = 4\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg38/mod09.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg38/mod10.py": "import os\nTIMEOUT_SECONDS = 20\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg38/mod11.py": "import os\nTIMEOUT_SECONDS = 28\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg38/mod12.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg38/mod13.py": "import os\nTIMEOUT_SECONDS = 14\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg38/mod14.py": "import os\nTIMEOUT_SECONDS = 22\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg38/mod15.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg38/mod16.py": "import os\nTIMEOUT_SECONDS = 8\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg38/mod17.py": "import os\nTIMEOUT_SECONDS = 16\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg38/mod18.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg38/mod19.py": "import os\nTIMEOUT_SECONDS = 2\nAUTH_URL = os.environ[\"AUTH_URL\"]\n"
+                },
+                "deleted": []
+              },
+              {
+                "created_by": "COPY pkg39 /srv/pkg39",
+                "files": {
+                  "srv/pkg39/mod00.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg39/mod01.py": "import os\nTIMEOUT_SECONDS = 9\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg39/mod02.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg39/mod03.py": "import os\nTIMEOUT_SECONDS = 27\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg39/mod04.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg39/mod05.py": "import os\nTIMEOUT_SECONDS = 15\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg39/mod06.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg39/mod07.py": "import os\nTIMEOUT_SECONDS = 3\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg39/mod08.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg39/mod09.py": "import os\nTIMEOUT_SECONDS = 21\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg39/mod10.py": "import os\nTIMEOUT_SECONDS = 0\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg39/mod11.py": "import os\nTIMEOUT_SECONDS = 9\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg39/mod12.py": "import os\nTIMEOUT_SECONDS = 18\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg39/mod13.py": "import os\nTIMEOUT_SECONDS = 27\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg39/mod14.py": "import os\nTIMEOUT_SECONDS = 6\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg39/mod15.py": "import os\nTIMEOUT_SECONDS = 15\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg39/mod16.py": "import os\nTIMEOUT_SECONDS = 24\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg39/mod17.py": "import os\nTIMEOUT_SECONDS = 3\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg39/mod18.py": "import os\nTIMEOUT_SECONDS = 12\nAUTH_URL = os.environ[\"AUTH_URL\"]\n",
+                  "srv/pkg39/mod19.py": "import os\nTIMEOUT_SECONDS = 21\nAUTH_URL = os.environ[\"AUTH_URL\"]\n"
+                },
+                "deleted": []
+              }
+            ]
+          },
+          "expected": {
+            "findings": [
+              {
+                "layer": 13,
+                "path": "srv/pkg12/mod07.py",
+                "line": 4,
+                "rule": "aws-access-key-id",
+                "in_final_image": true
+              },
+              {
+                "layer": 32,
+                "path": "srv/pkg31/settings.env",
+                "line": 2,
+                "rule": "secret-assignment",
+                "in_final_image": true
+              },
+              {
+                "layer": 34,
+                "path": "srv/pkg33/certs/server.pem",
+                "line": 1,
+                "rule": "private-key",
+                "in_final_image": false
+              }
+            ],
+            "total": 3,
+            "hidden": 1
+          }
+        }
+      ]
+    }
+  ]
+}
