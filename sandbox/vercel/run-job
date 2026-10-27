@@ -219,7 +219,9 @@ function userEnv(user) {
 
 // ------------------------------------------------------------ process execution
 function limited(argv, { cpuSeconds, addressSpaceMb, fileBytes }) {
-    const limits = [`--nproc=${NPROC}`, "--nofile=128", "--core=0", `--fsize=${fileBytes}`, `--cpu=${cpuSeconds}`];
+    // Hard CPU limit one second above the soft one: the kernel sends SIGXCPU first (reported as a
+    // time limit), not a bare SIGKILL, when it beats the wall-clock timer under load.
+    const limits = [`--nproc=${NPROC}`, "--nofile=128", "--core=0", `--fsize=${fileBytes}`, `--cpu=${cpuSeconds}:${cpuSeconds + 1}`];
     if (addressSpaceMb) limits.push(`--as=${addressSpaceMb * 1024 * 1024}`);
     return ["/usr/bin/prlimit", ...limits, "--", ...argv];
 }
@@ -269,6 +271,9 @@ function exec(user, argv, { stdin = "", wallMs, fd3 = false }) {
     });
 }
 
+// The wall-clock timer or the CPU limit (SIGXCPU), whichever fired first.
+const timedOut = (run) => run.timedOut || run.signal === "SIGXCPU";
+
 const tail = (text, n = 1000) => (text.length > n ? "..." + text.slice(-n) : text).trim();
 
 function failure(run, job, fallback) {
@@ -303,7 +308,7 @@ async function runStdio(user, job, test) {
     const stdin = typeof test.input === "string" ? test.input : JSON.stringify(test.input);
     const run = await exec(user, argv, { stdin, wallMs: job.timeLimitMs + STARTUP_MS });
     const ok = run.exitCode === 0 && !run.timedOut && !run.overflow;
-    return { ok, output: ok ? run.stdout : null, error: ok ? null : failure(run, job), timedOut: run.timedOut, timeMs: run.timeMs, logs: [] };
+    return { ok, output: ok ? run.stdout : null, error: ok ? null : failure(run, job), timedOut: timedOut(run), timeMs: run.timeMs, logs: [] };
 }
 
 async function runFunction(user, job, test) {
@@ -330,7 +335,7 @@ async function runFunction(user, job, test) {
             };
         } catch { /* fall through */ }
     }
-    return { ok: false, output: null, error: failure(run, job, "Process exited without a result"), timedOut: run.timedOut, timeMs: run.timeMs, logs: [] };
+    return { ok: false, output: null, error: failure(run, job, "Process exited without a result"), timedOut: timedOut(run), timeMs: run.timeMs, logs: [] };
 }
 
 // ------------------------------------------------------------ main
