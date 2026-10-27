@@ -80,4 +80,14 @@ export const userClient = {
         const res = await apiClient.delete(`/user/accounts/${provider}`);
         return res.data;
     },
+
+    // Connect refused because the provider account is another user's (plan 12.4).
+    getLinkConflict: async () => {
+        const res = await apiClient.get('/user/delete-unverified');
+        return res.data?.conflict || null;
+    },
+
+    deleteUnverified: async (confirm) => {
+        return await apiClient.post('/user/delete-unverified', { confirm });
+    },
 };

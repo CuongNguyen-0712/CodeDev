@@ -2,6 +2,7 @@ import { createElement } from "react";
 import { render } from "@react-email/components";
 import bcrypt from "bcryptjs";
 
+import { accountPurgeDb } from "@/db/accountPurge.db";
 import { emailTokenDb } from "@/db/emailToken.db";
 import { userDb } from "@/db/user.db";
 import { ApiError } from "@/lib/error/apiError";
@@ -148,6 +149,24 @@ export const accountLinkService = {
                 ? "Not you? Sign in, disconnect it under Settings > Sign-in methods, then sign out your other devices."
                 : "Not you? Sign in and check Settings > Sign-in methods and Active sessions.",
         });
+    },
+
+    /** `{ owner_username, email_verified, deletable, purge_after }` of a refused Connect (plan 12.4), or null. */
+    linkConflict: ({ userId, provider, providerAccountId }) => userDb.getLinkConflict({ userId, provider, providerAccountId }),
+
+    /** "Delete and switch" (plan 12.4): deletes the signed-in, never-verified account right now. */
+    deleteUnverified: async ({ userId, sessionId = null, ip = null }) => {
+        const result = await accountPurgeDb.purgeUser({ userPublicId: userId, requested: true });
+        if (result.status === "gone") {
+            throw new ApiError("This account is verified, or was never deletable here.", 409, { code: "NOT_DELETABLE", expose: true });
+        }
+        if (result.status === "skipped") {
+            throw new ApiError("This account has purchase history and cannot be deleted here.", 409, { code: "NOT_DELETABLE", expose: true });
+        }
+
+        auditAuth("account.purged", { userId, sessionId, ip, reason: "user_requested", count: result.files });
+        // As the maintenance job does: sessions to Redis, files to storage.
+        await processAuthOutbox({ ids: result.outboxIds, limit: result.outboxIds.length });
     },
 
     /** Settings > Sign-in methods. */
