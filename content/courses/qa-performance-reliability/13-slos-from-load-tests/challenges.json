@@ -1,0 +1,50 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_qpr_511",
+      "name": "slos-from-load-tests",
+      "type": "quiz",
+      "title": "What can this load test promise?",
+      "description": "Two statements on turning exam-day load test results into an objective for POST /api/submissions: what a p95 under the threshold proves, and what a short failure at the forecast peak costs the 28-day error budget.",
+      "difficulty": "medium",
+      "outcomes": [
+        "reliability"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Steady-state part of a rerun at 340 req/s, constant-arrival-rate, 30 min (k6-style output, abbreviated):\n\nsubmit_duration (POST /api/submissions, scenario=peak)\n  avg=581ms  med=388ms  p(90)=1.12s  p(95)=1.38s  max=10s\nhttp_req_failed (scenario=peak; 400/413/422 marked expected)\n  0.21%  (1,285 of 612,000) - all 503 from the admission limiter\n\nProposed objective: 99.9% of valid submissions accepted (202) within 2 s.\n\nStatement: \"This run shows the submit endpoint can meet the proposed objective at 340 req/s.\"",
+          "explanation": "False. p95 = 1.38 s only proves that at least 95% of the samples took at most 2 s (nearest-rank: p95 <= 2 s is the same as \"at least 95% within 2 s\"). The objective needs 99.9%, so at most 0.1% of valid requests may be bad. The 1,285 limiter 503s are valid requests that the platform refused, 0.21% of the run, which alone is about twice the allowed 0.1% before any slow 202 is counted. The 503s are fast, so they even pull the latency percentiles down. The misconception is that a percentile under the threshold means the success objective is met; write the objective as good / valid and compute it from the samples.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Objective: 99.5% of valid POST /api/submissions requests are good (202 within 2 s), rolling 28 days.\nLast 28 days: 12,400,000 valid submit requests.\nExam-day forecast: 340 submissions/s at peak, confirmed by the load test plan.\n\nScenario under discussion: a bad deploy makes every submit fail for 2 minutes at the exam-day peak.\n\nStatement: \"Those 2 minutes alone would spend more than half of the 28-day error budget.\"",
+          "explanation": "True. The budget counted in requests is 0.005 x 12,400,000 = 62,000 bad requests; half of it is 31,000. Two minutes at 340/s are 340 x 120 = 40,800 failed requests, about 66% of the budget. Converted to time at average traffic the budget looks like 201.6 minutes for 28 days, which makes a 2-minute failure seem small; that is the misconception the statement tests. At peak each minute contains far more requests than an average minute, so the request count, not the minutes, is what the SLI and the budget measure.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

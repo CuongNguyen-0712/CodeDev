@@ -1,0 +1,50 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_qpr_131",
+      "name": "tail-latency-fan-out",
+      "type": "quiz",
+      "title": "One slow call per page",
+      "description": "Two pieces of evidence about pages that fan out to many backend calls: a trace summary of the course overview request, and per-service SLOs next to a dashboard request that calls all of them. Decide what the tail of each call means for the page.",
+      "difficulty": "medium",
+      "outcomes": [
+        "latency-metrics"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Trace summary of GET /api/courses/:id/overview for a course with 25 lessons. The API sends one request per lesson to progress-service, all 25 in parallel, and answers when the last one returns. Over the last 24 hours, progress-service calls had (nearest-rank, 2.1 million calls): p50 35 ms, p95 61 ms, p99 900 ms. The slow calls are spread evenly over time and instances.\n\nStatement: \"If slow calls happen independently of each other, about 22% of overview requests include at least one progress-service call from the slowest 1%.\"",
+          "explanation": "True. Each call is outside the slowest 1% with probability 0.99, so all 25 calls are with probability 0.99^25 = 0.778, and at least one is slow in 1 - 0.778 = 22.2% of the overview requests. Because the API waits for the last call, those requests take at least as long as that slow call: a 1-in-100 event for one call becomes a better than 1-in-5 event for the page. The misconception is to treat p99 as \"only 1% of users are affected\": that holds for a page that makes one call, not for one that makes 25. The independence assumption matters: if slow calls cluster (one sick instance, a GC pause hitting several calls of the same page), fewer pages are affected but each one more; the trace of the parent request is how you check.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "GET /api/dashboard builds the learner dashboard. It calls these services in parallel and answers when all of them have returned:\n\nservice           calls per dashboard   p99 last 7 days   SLO (p99)\nauth                       1                 110 ms         300 ms\ncatalog                    3                 180 ms         300 ms\nprogress                  30                 250 ms         300 ms\nrecommendations            2                 290 ms         300 ms\n\nStatement: \"Every call meets its p99 target of 300 ms and the calls run in parallel, so GET /api/dashboard also meets a p99 of 300 ms.\"",
+          "explanation": "False. Running in parallel means the dashboard waits for the slowest of its 36 calls, not for a typical one. Each call can be over 300 ms in up to 1% of cases, so if they are independent, at least one of the 36 is slow in up to 1 - 0.99^36 = 30.4% of dashboards: the dashboard's p99, and even its p75, can be far above 300 ms. For the page to stay under 300 ms in 99% of cases, each call would need to stay under it with probability 0.99^(1/36) = 0.99972, about its p99.97. The misconception is that per-service SLOs add up to a page SLO, or that parallelism removes the tail: it removes the sum, not the maximum. Measure the dashboard request itself (its parent span or real user timings) and set its target there.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

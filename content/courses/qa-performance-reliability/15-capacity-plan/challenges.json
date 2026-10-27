@@ -1,0 +1,66 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_qpr_531",
+      "name": "capacity-plan-evidence",
+      "type": "quiz",
+      "title": "Check the numbers in an exam-day capacity plan",
+      "description": "Three statements on draft capacity plans for 340 submissions/s at the exam-day peak: capacity from CPU utilisation, grader sandboxes from Little's Law, and API instances after one fails.",
+      "difficulty": "medium",
+      "outcomes": [
+        "reliability"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Draft plan, section \"API capacity\":\n\nload test (steady state): 340 req/s POST /api/submissions on 4 API instances\nAPI CPU: 40% average, 46% on the busiest instance\nsubmit p95: 6.2 s, pool wait p95: 5.8 s (pool size 10 per instance)\n\nconclusion: capacity = 340 / 0.40 = 850 req/s\n\nStatement: \"The CPU reading supports 850 req/s as the capacity of these 4 instances.\"",
+          "explanation": "False. Dividing the load by CPU utilisation assumes CPU is the first resource to run out and that latency stays acceptable until CPU reaches 100%. The same evidence shows the opposite: at 340 req/s requests already wait 5.8 s (p95) for a pool connection and the submit p95 is 6.2 s, so the objective is broken at 340 req/s with CPU at 40%. The first bottleneck is the pool, not CPU. Capacity is the highest load at which the objective still holds, found with a step test (the knee), not an extrapolation of one resource. The misconception is that idle CPU means spare capacity.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence for the grader:\n\ndesign load: 408 submissions/s (forecast 340/s + 20% forecast error)\nmean grading time per submission (steady state at 340/s): 1.6 s\none grader node runs 24 sandboxes; queue wait grows sharply above ~80% busy\n\nDraft plan: 30 grader nodes.\n\nStatement: \"With 30 nodes, the average sandbox utilisation at the design load would be above 90%.\"",
+          "explanation": "True. Little's Law (L = lambda x W) gives the average number of busy sandboxes: 408/s x 1.6 s = 652.8. Thirty nodes have 30 x 24 = 720 sandboxes, so the average utilisation is 652.8 / 720 = 90.7%, above the ~80% where queue wait grows sharply, and with no room for one node to fail. Keeping utilisation at most 80% needs 652.8 / 0.8 = 816 sandboxes, 34 nodes. The misconception is to size workers by the arrival rate alone (408 jobs per second sounds like it needs few machines) and forget that each job holds a sandbox for 1.6 s.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Step test per API instance (steady state per step, objective: 99.5% of valid submits accepted within 2 s):\n\nper instance   100/s   110/s   120/s   130/s   140/s   150/s\nsubmit SLI     99.9%   99.9%   99.8%   99.7%   99.1%   96.4%\n\nLoad balancer in the same test: the busiest instance received up to 10% more than the mean.\nDraft plan: 5 API instances for a design load of 408 submissions/s.\n\nStatement: \"If one of the 5 instances fails at the design load, even the busiest remaining instance stays at or below 130/s, the highest step where the objective held.\"",
+          "explanation": "True. With 4 instances left, the mean load is 408 / 4 = 102/s per instance, and the busiest one receives up to 10% more: 102 x 1.1 = 112.2/s, under 130/s. So the draft survives one failure within measured capacity, though with less margin than a plan at 100/s per instance after a loss would give. The common mistake is to forget either the failed unit (checking 408 / 5 instead of 408 / 4) or the balancing skew (checking the mean instead of the busiest instance); a defensible plan checks the busiest unit in the failure case against the measured step, not against a guess.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

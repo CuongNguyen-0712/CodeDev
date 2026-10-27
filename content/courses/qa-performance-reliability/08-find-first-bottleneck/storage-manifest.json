@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_qpr_322",
+      "key": "challenges/python/chal_coding_qpr_322/starter.py",
+      "contentType": "text/x-python; charset=utf-8",
+      "originalName": "main.py",
+      "size": 2352
+    }
+  ]
+}

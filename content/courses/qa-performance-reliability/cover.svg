@@ -31,10 +31,10 @@
     <path d="M126 214 A34 34 0 0 1 190 214" fill="none" stroke="#0F1724" stroke-width="7" stroke-linecap="round"/>
     <path d="M158 208 L180 178" stroke="#FFD43B" stroke-width="7" stroke-linecap="round"/>
     <circle cx="158" cy="208" r="7" fill="#FFD43B"/>
-    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#3DBE7B">PYTHON · PERFORMANCE QA</text>
-    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">Load, Latency</text>
-    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">&amp; Chaos</text>
-    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Percentiles · SLOs · Retries · Chaos</text>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#3DBE7B">PYTHON · LOAD TESTING</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">Load Testing</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">&amp; Bottlenecks</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Percentiles · Saturation · Valid benchmarks</text>
     <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#CFE0F4">
       <rect x="110" y="660" width="107" height="52" rx="26" fill="#14223A" stroke="#3776AB"/>
       <text x="163.5" y="695" text-anchor="middle">p99</text>

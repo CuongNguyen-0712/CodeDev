@@ -1,0 +1,50 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_qpr_111",
+      "name": "latency-throughput-concurrency",
+      "type": "quiz",
+      "title": "Latency, throughput or concurrency?",
+      "description": "Two pieces of evidence from the exam-day rehearsal: two k6 runs of the leaderboard endpoint with different numbers of virtual users, and a short request log. Decide what each one really shows.",
+      "difficulty": "medium",
+      "outcomes": [
+        "latency-metrics"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Two k6 runs of GET /api/leaderboard on the staging API, closed loop (each VU waits for its response, then sends the next request), no think time, 120 s of steady state each:\n\n# run A - 100 VUs\nhttp_req_duration....: avg=82.4ms med=79.8ms p(95)=104.2ms\nhttp_req_failed......: 0.00%  0 out of 145248\nhttp_reqs............: 145248  1210.4/s\n\n# run B - 300 VUs\nhttp_req_duration....: avg=244.6ms med=241.0ms p(95)=281.7ms\nhttp_req_failed......: 0.00%  0 out of 147000\nhttp_reqs............: 147000  1225.0/s\n\nStatement: \"Run B shows that the leaderboard endpoint can serve about three times the load that run A measured, with no errors.\"",
+          "explanation": "False. Load served is throughput: completed requests per second. It went from 1210.4/s to 1225.0/s, about 1% more, while the number of requests in flight (the VUs) tripled. With throughput flat at the server's capacity, the extra concurrency can only turn into waiting time, and it did: 1225.0/s x 0.2446 s = 300 requests in flight, the 300 VUs, and the average latency tripled from 82 ms to 245 ms. The common misconception is to read VUs (concurrency) as capacity: three times the VUs means three times as many requests waiting, not three times as many served.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Five requests to POST /api/submissions recorded by the load generator (times in ms from the start of the test, all answered 201 Created):\n\nrequest  start_ms  end_ms\nA              0     300\nB             50     900\nC            200    1400\nD            400     600\nE            700    1100\n\nThe report computes throughput for the window from 0 ms (included) to 1000 ms (excluded).\n\nStatement: \"Throughput in this window is 3 requests per second: C and E were sent inside the window, but they do not count because they completed after it.\"",
+          "explanation": "True. Throughput counts requests that completed in the window: A (300 ms), B (900 ms) and D (600 ms), so 3 completions in 1 second. C and E were in flight during the window and count towards its concurrency (the average number of requests in flight is (300 + 850 + 800 + 200 + 300) / 1000 = 2.45), but their latency and their completion belong to the next window. The misconception is to count requests sent as throughput: a generator can send faster than the server completes, and the difference is a growing queue, not extra throughput.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

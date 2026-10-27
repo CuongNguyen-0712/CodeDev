@@ -1,0 +1,50 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_qpr_521",
+      "name": "chaos-experiment-hypothesis",
+      "type": "quiz",
+      "title": "Read a chaos experiment record",
+      "description": "Two statements on chaos experiments against the submit path: what a resource metric as the steady state can prove, and when an abort condition on consecutive minutes stops the injection.",
+      "difficulty": "medium",
+      "outcomes": [
+        "reliability"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Experiment record H-12 (staging, load test at 200 submissions/s):\n\nfault:        stop grader node g2 (one of 4) at 15:10 for 10 min\nsteady state: average CPU of the remaining grader nodes < 85%\nresult:       CPU 15:10-15:20 between 71% and 78%  ->  hypothesis confirmed\n\nSame run, from the load generator (not in the record):\nminute    submit good ratio   time to result p95\n15:09         99.8%               6.1 s\n15:12         99.7%              48.0 s\n15:16         99.6%              97.0 s\n15:20         99.6%             141.0 s\n\nStatement: \"This record shows that learners were not affected by losing one grader node.\"",
+          "explanation": "False. CPU is a resource metric: it says the surviving nodes were busy but below 85%, and that fits a grading queue that keeps growing, because grading is limited by the number of sandbox slots per node, not by CPU. Acceptance stayed fine (the submit good ratio is about the 202 within 2 s), but the time from acceptance to result grew from 6 s to 141 s and was still rising: learners waited minutes for their results. The steady state of an experiment must be an output metric learners feel, here both acceptance and time to result; resource metrics belong in the diagnostics and the hard guards. The misconception is that \"within its bound\" on any metric confirms the hypothesis; it only confirms what that metric can see.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Abort condition of experiment H-17: stop the injection when the submit good ratio is below 99.0% for 2 consecutive minutes. The runner checks it at the end of every minute. No other abort condition fired.\n\nminute   submit good ratio\n10:01        99.7%\n10:02        98.6%\n10:03        99.2%\n10:04        98.4%\n10:05        97.9%\n\nStatement: \"The runner stops the injection at the end of minute 10:05, not earlier.\"",
+          "explanation": "True. 10:02 is below 99.0%, but 10:03 is above it, so the run of consecutive bad minutes resets to zero. 10:04 is the first bad minute of a new run and 10:05 the second, so the condition is met at the end of 10:05. Stopping at 10:04 would count two bad minutes that are not consecutive. Requiring consecutive minutes is deliberate: one bad minute can be noise, two in a row are a trend. The common mistake is to count bad minutes in total, which aborts on noise and makes the abort rule mean something different from what was agreed.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

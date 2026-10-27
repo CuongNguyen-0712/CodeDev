@@ -1,30 +1,73 @@
 {
   "publicId": "qa-performance-reliability",
-  "title": "Performance & Reliability Testing: Load, Latency & Chaos",
-  "concept": "Test how a system behaves under load and failure, not only whether it works: workload models, latency percentiles and coordinated omission, throughput and saturation, SLOs and error budgets, retries and timeouts under stress, and chaos experiments with a hypothesis.",
-  "description": "Test how a system behaves under load and failure, not only whether it works: workload models, latency percentiles and coordinated omission, throughput and saturation, SLOs and error budgets, retries and timeouts under stress, and chaos experiments with a hypothesis. 8 lessons, each starting from a real bug or incident, with graded challenges.",
-  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792642663/codedev/courses/qa-performance-reliability/cover",
-  "level": "advanced",
-  "durationMinutes": 220,
+  "title": "Load Testing & Bottleneck Analysis: Percentiles, Load Profiles, Saturation & Valid Benchmarks",
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1793062623/codedev/courses/qa-performance-reliability/cover",
+  "concept": "Find the first bottleneck with numbers you can defend: latency, throughput and concurrency, percentiles instead of averages, load profiles, coordinated omission, warm-up, the saturation knee, Little's Law, comparisons that beat the noise, and turning load tests into SLOs and capacity plans.",
+  "description": "An expert course for engineers who are asked \"will it hold on exam day?\". Every lesson starts from an incident on the CodeDev learning platform - a report that said the average was 120 ms while learners waited 6 seconds, a load generator that hid its own stalls, a benchmark that compared a cold run with a warm one, a submit endpoint that fell over at 340 requests per second while CPU sat at 40% - and answers it with analysis you can check: latency versus throughput, percentiles from samples, load profiles, throughput and error rates, coordinated omission, warm-up, the Find the First Bottleneck scenario, the saturation knee, significant differences, Little's Law, benchmark validity, SLOs, chaos experiments and capacity plans. 15 lessons with True/False quizzes on real load test output and dashboards, and Python challenges graded by hidden tests on recorded results.",
+  "level": "expert",
+  "durationMinutes": 480,
   "instructor": "CodeDev Engineering Team",
   "language": "Python",
   "category": "Testing & QA",
   "cost": 0,
   "pointPrice": 0,
-  "reward": 150,
+  "reward": 200,
   "accessModel": "premium",
   "publishStatus": "draft",
   "offers": [
     {
       "priceType": "points",
-      "amount": 600
+      "amount": 1000
     },
     {
       "priceType": "money",
-      "amount": 249000,
+      "amount": 349000,
       "currency": "VND"
     }
   ],
+  "completionRules": {},
+  "domain": "quality",
+  "learningOutcomes": [
+    {
+      "code": "latency-metrics",
+      "text": "Report latency with percentiles from raw samples instead of averages"
+    },
+    {
+      "code": "load-design",
+      "text": "Design load profiles and compute throughput and error rates from load test results"
+    },
+    {
+      "code": "measurement-validity",
+      "text": "Keep measurements valid: coordinated omission, warm-up and differences larger than the noise"
+    },
+    {
+      "code": "bottlenecks",
+      "text": "Find the saturation knee and the first bottleneck, and reason with Little's Law"
+    },
+    {
+      "code": "reliability",
+      "text": "Turn load test results into SLOs, chaos experiments and a capacity plan"
+    }
+  ],
+  "testedVersions": {
+    "Python": "3 (code runner)",
+    "Load tools": "k6 / Locust / wrk2 output formats in lessons (check current docs)"
+  },
+  "lastReviewedAt": "2026-10-26",
+  "sourceLinks": [
+    "https://grafana.com/docs/k6/latest/",
+    "https://github.com/giltene/wrk2",
+    "https://brooker.co.za/blog/2018/06/20/littles-law.html"
+  ],
+  "owner": "CodeDev Engineering Team",
+  "knownIssues": [
+    "No load generator runs in the code runner: challenges analyse recorded samples and logs"
+  ],
+  "scenario": {
+    "title": "Find the First Bottleneck",
+    "quiz": "chal_quiz_qpr_321",
+    "fixBug": "chal_coding_qpr_322"
+  },
   "careerRoles": [
     "qa_engineer",
     "devops_engineer",
@@ -33,6 +76,7 @@
   "skills": {
     "testing": 5,
     "performance": 5,
+    "python": 3,
     "system_design": 2
   },
   "goals": [
@@ -40,65 +84,127 @@
     "performance"
   ],
   "prerequisites": [
-    "test-automation-foundations"
+    "postgres-performance",
+    "observability-opentelemetry"
   ],
-  "modules": [],
-  "outline": [
+  "modules": [
     {
       "orderIndex": 1,
-      "title": "Load",
+      "title": "Measuring Latency",
       "lessons": [
         {
           "orderIndex": 1,
-          "title": "Workload models: open vs closed systems",
-          "challenges": "Q(m) + C(m)"
+          "folder": "01-latency-throughput",
+          "title": "Latency, throughput & concurrency: three different numbers",
+          "sanityId": "lesson-qpr-1-1"
         },
         {
           "orderIndex": 2,
-          "title": "Percentiles, histograms & coordinated omission",
-          "challenges": "Q(h) + C(h)"
+          "folder": "02-percentiles",
+          "title": "Percentiles done right: p50, p95 & p99 from samples",
+          "sanityId": "lesson-qpr-1-2"
         },
         {
           "orderIndex": 3,
-          "title": "Throughput, saturation & Little's law",
-          "challenges": "C(m)"
+          "folder": "03-tail-latency",
+          "title": "Why the tail matters: one slow call per page",
+          "sanityId": "lesson-qpr-1-3"
         }
       ]
     },
     {
       "orderIndex": 2,
-      "title": "Reliability",
+      "title": "Load Tests",
       "lessons": [
         {
           "orderIndex": 1,
-          "title": "SLOs & error budgets",
-          "challenges": "C(m)"
+          "folder": "04-load-profiles",
+          "title": "Load profiles: ramp-up, steady state & ramp-down",
+          "sanityId": "lesson-qpr-2-1"
         },
         {
           "orderIndex": 2,
-          "title": "Timeouts, retries & retry storms",
-          "challenges": "Q(m) + F(h)"
+          "folder": "05-throughput-errors",
+          "title": "Throughput & error rate from a load test log",
+          "sanityId": "lesson-qpr-2-2"
         },
         {
           "orderIndex": 3,
-          "title": "Circuit breakers under load",
-          "challenges": "C(h)"
+          "folder": "06-coordinated-omission",
+          "title": "Spot the AI mistake: a load generator with coordinated omission",
+          "sanityId": "lesson-qpr-2-3"
         }
       ]
     },
     {
       "orderIndex": 3,
-      "title": "Chaos",
+      "title": "Analysis",
       "lessons": [
         {
           "orderIndex": 1,
-          "title": "Designing a chaos experiment",
-          "challenges": "Q(m) + C(m)"
+          "folder": "07-warm-up",
+          "title": "Exclude the warm-up before you compare",
+          "sanityId": "lesson-qpr-3-1"
         },
         {
           "orderIndex": 2,
-          "title": "Analysing a failed load test",
-          "challenges": "C(h)"
+          "folder": "08-find-first-bottleneck",
+          "title": "Find the first bottleneck: a report that said 120 ms",
+          "sanityId": "lesson-qpr-3-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "09-saturation-knee",
+          "title": "Find the saturation knee",
+          "sanityId": "lesson-qpr-3-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 4,
+      "title": "Validity",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "10-significant-difference",
+          "title": "Is it really faster? Comparing runs with noise",
+          "sanityId": "lesson-qpr-4-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "11-littles-law",
+          "title": "Little's Law: concurrency from throughput & latency",
+          "sanityId": "lesson-qpr-4-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "12-benchmark-validity",
+          "title": "Valid benchmarks: environment, data & think time",
+          "sanityId": "lesson-qpr-4-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 5,
+      "title": "Reliability",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "13-slos-from-load-tests",
+          "title": "From load test results to SLOs",
+          "sanityId": "lesson-qpr-5-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "14-chaos-experiments",
+          "title": "Chaos experiments with a hypothesis",
+          "sanityId": "lesson-qpr-5-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "15-capacity-plan",
+          "title": "A capacity plan you can defend",
+          "sanityId": "lesson-qpr-5-3"
         }
       ]
     }

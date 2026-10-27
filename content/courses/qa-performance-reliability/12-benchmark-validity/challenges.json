@@ -1,0 +1,66 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_qpr_431",
+      "name": "valid-benchmark-or-not",
+      "type": "quiz",
+      "title": "Valid benchmark or not? Environment, data, think time and the load model",
+      "description": "Three statements on benchmarks of the CodeDev API: a staging run with a tiny data set, a k6 script without think time, and a closed-model test during a slowdown. For each, decide whether the benchmark measures what its report claims.",
+      "difficulty": "medium",
+      "outcomes": [
+        "measurement-validity"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Benchmark report BM-0907, GET /api/leaderboard?courseId=<id>:\n  environment   staging; same build, same instance type (4 vCPU, 16 GB) and same PostgreSQL 18\n                configuration as production\n  data          seed script: 500 users, 3 courses, 4,200 submissions\n  result        300 req/s for 10 min, p95 18 ms, 0 errors\n\nProduction today: 1.2M users, 340 courses, 61M submissions.\n\nStatement: \"Because staging runs the same build on the same instance type with the same database configuration, the 18 ms p95 is a good estimate of the leaderboard's p95 in production at 300 req/s.\"",
+          "explanation": "False. The data is part of the environment. 4,200 submissions fit in a few hundred kilobytes, so every query runs from memory and any plan is fast, including a sequential scan and an in-memory sort. With 61 million rows the planner may choose different plans, sorts can spill to disk, and the working set no longer fits in the cache, so the buffer hit ratio drops. The same build and hardware with a data set 15,000 times smaller measures a different system. The misconception is that matching the code and the machine is enough; benchmark on production-like volume and distribution (how many submissions the biggest course has, not only the average).",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "k6 script used for the report \"Leaderboard holds 1,000 concurrent learners\":\n  export const options = { vus: 1000, duration: \"10m\" };\n  export default function () {\n    http.get(`${BASE}/api/leaderboard?courseId=42`);\n  }\nResult: mean http_req_duration 200 ms.\nProduct analytics: a learner on the leaderboard page reloads it about every 30 s.\n\nStatement: \"Without a sleep() between iterations, these 1,000 VUs send roughly 5,000 requests per second, about 150 times what 1,000 real learners send, so the test measures a much heavier load than its title says.\"",
+          "explanation": "True. A closed-loop VU sends its next request as soon as the previous one returns, so N = X x (R + Z) gives X = 1,000 / 0.2 s = 5,000 req/s with no think time. 1,000 real learners with about 30 s between reloads send 1,000 / (30 + 0.2) s, about 33 req/s. 5,000 / 33 is about 150. The report's title counts VUs, but the server feels requests per second. Either add realistic think time (sleep with a spread around 30 s) or, better, state the load as a request rate. The misconception is to treat a VU as a user.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Closed-model k6 test of POST /api/submissions, 50 VUs, no think time. Halfway through, a migration took a lock and latency rose for two minutes:\n  before the lock   http_req_duration avg=100ms   http_reqs 500/s   errors 0%\n  during the lock   http_req_duration avg=1s      http_reqs 50/s    errors 0%\n  after the lock    http_req_duration avg=100ms   http_reqs 500/s   errors 0%\n\nStatement: \"The test shows that during a slowdown like this the API receives ten times fewer submissions, so on exam day the backlog stays small and the system recovers by itself.\"",
+          "explanation": "False. In a closed model each VU waits for its answer before sending the next request, so when the server slowed down the load generator slowed down with it: 50 VUs / 1 s = 50 req/s. That is a property of the test, not of the learners. On exam day submissions arrive independently of the server's latency (an open model): about 340 per second keep coming during the lock, and every second the API cannot keep up adds to a queue. To see that, use an open-model executor (k6 constant-arrival-rate, wrk2 -R) and watch dropped iterations and the queue. The misconception is to read a closed-loop throughput drop as 'less demand'.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
