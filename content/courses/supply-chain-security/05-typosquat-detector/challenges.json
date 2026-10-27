@@ -1,0 +1,2971 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_ssc_221",
+      "name": "typosquat-distance-quiz",
+      "type": "quiz",
+      "title": "One edit away: read the detector's output",
+      "description": "Two findings from CodeDev's typosquat detector: why a swapped pair of letters needs Damerau-Levenshtein, and what a distance of 0 after normalization does and does not mean.",
+      "difficulty": "medium",
+      "outcomes": [
+        "dependency-risks"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The typosquat detector on PR #1207 compares the normalized candidate with each popular name. Threshold for a normalized name of 4 to 7 characters: 1.\n\ncandidate   popular   Levenshtein   Damerau-Levenshtein (OSA)\nreqeust     request   2             1\nlodahs      lodash    2             1\n\nDetector output (Damerau-Levenshtein):\n{\"name\":\"lodahs\",\"nearest\":\"lodash\",\"distance\":1,\"verdict\":\"lookalike\"}\n{\"name\":\"reqeust\",\"nearest\":\"request\",\"distance\":1,\"verdict\":\"lookalike\"}\n\nStatement: \"If the detector used plain Levenshtein distance with the same thresholds, it would report reqeust and lodahs as clear.\"",
+          "explanation": "True. Plain Levenshtein has no swap operation, so turning \"eq\" into \"qe\" costs two substitutions (or a delete and an insert): distance 2, above the threshold of 1 for a 7-character name, so the verdict would be clear. Swapped adjacent letters are among the most common typing mistakes, and therefore among the most common typosquats; Damerau-Levenshtein counts the swap as one edit. The misconception is that any edit distance will do: the choice of operations decides which mistakes you catch at a given threshold.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Detector output on PR #1207, popular list [\"lodash\", \"react\", \"request\", ...]:\n\n{\"name\":\"l0dash-js\",\"nearest\":\"lodash\",\"distance\":0,\"verdict\":\"lookalike\"}\n\nnormalize(\"l0dash-js\"): \"l0dash-js\" -> digit swap -> \"lodash-js\" -> trailing \"-js\" removed -> \"lodash\"\n\nStatement: \"A distance of 0 means l0dash-js and lodash are the same package on the registry, so the verdict should be exact instead of lookalike.\"",
+          "explanation": "False. Normalization exists only to compare names the way a hurried human reads them; the registry compares exact strings. l0dash-js is a different package, published by whoever registered it, and a distance of 0 after normalization is the strongest typosquat signal there is: the name was built to look like lodash. Exact must compare the raw name with the popular list. The misconception is to treat a normalized match as identity, which turns the detector's best catch into an approval.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_ssc_222",
+      "name": "typosquat-detector",
+      "type": "mini_coding",
+      "title": "Typosquat detector",
+      "description": "Before a PR that adds dependencies can merge, CodeDev compares every new package name with a list of popular names: \"reqeust\", \"crossenv\" and \"L0dash.js\" are one edit or one trick away from packages everyone installs. Write detectTyposquats(popular, candidates), which returns one { name, nearest, distance, verdict } per candidate. verdict \"invalid\": the candidate is \"\", longer than 214 characters, or contains a character other than A-Z a-z 0-9 @ / . _ ~ - (nearest null, distance null). \"exact\": the candidate is exactly, same case, one of the popular names (nearest = the candidate, distance 0). Otherwise normalize the candidate and every popular name and compute the distance between the normalized forms; nearest = the popular name as written in the list with the smallest distance (on a tie, the popular name that sorts first with < and >); verdict \"lookalike\" when distance <= threshold(length of the normalized candidate), else \"clear\". normalize, in this order: (1) lowercase; (2) \"@scope/rest\" becomes \"rest\" (only when the name starts with \"@\" and contains \"/\"); (3) every \"_\" and \".\" becomes \"-\"; (4) every \"1\" becomes \"l\" and every \"0\" becomes \"o\"; (5) remove a leading \"js-\", then a trailing \"-js\", each only when something is left. distance: Damerau-Levenshtein in its restricted form (optimal string alignment): the fewest inserts, deletes, substitutions and swaps of two adjacent characters, each costing 1, with no character edited twice. threshold(n): 0 for n <= 3, 1 for 4 <= n <= 7, 2 for n >= 8. Sort the results by verdict (lookalike, invalid, clear, exact), then by distance (smallest first), then by name (< and >); equal results keep their input order. The runner reads { popular, candidates } (popular has at least one name) and prints the results as JSON.",
+      "difficulty": "medium",
+      "outcomes": [
+        "dependency-risks"
+      ],
+      "points": 30,
+      "hints": [
+        "Which two strings are the same package for npm, and which two only look the same to a hurried reader? Exact must answer the first question with the raw name; the distance answers the second with normalized names.",
+        "Build and test the three pieces separately before detectTyposquats: normalize (five steps, in the order given), the distance table (insert, delete and substitute, plus one extra case for two adjacent characters that are swapped, which looks two rows and two columns back), and the threshold, which uses the length of the normalized candidate. Then check the sort keys: verdict, distance, name.",
+        "A similar case with other names: popular [\"chalk\", \"qs\"]. \"hcalk\" has \"ch\" swapped: distance 1 (plain Levenshtein says 2); its normalized length is 5, so the threshold is 1 and it is a lookalike of chalk. \"chalk.js\" becomes \"chalk-js\", then \"chalk\": distance 0, a lookalike, not exact, because the raw name differs. \"q-s\" stays \"q-s\": length 3, threshold 0, distance 1 from \"qs\", so it is clear with nearest \"qs\"."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The PR's suggestions: a swap, a separator trick, a scope clone, a missing letter, an exact match",
+          "input": {
+            "popular": [
+              "react",
+              "react-dom",
+              "lodash",
+              "express",
+              "request",
+              "cross-env",
+              "dompurify",
+              "zod",
+              "qs",
+              "ms",
+              "chalk",
+              "axios",
+              "js-yaml",
+              "yaml",
+              "@types/node",
+              "typescript",
+              "next",
+              "i18next",
+              "uuid",
+              "pg",
+              "ws"
+            ],
+            "candidates": [
+              "reqeust",
+              "cross_env",
+              "@codedev-ui/lodash",
+              "react",
+              "zod-validation-kit",
+              "dompurfy"
+            ]
+          },
+          "expected": [
+            {
+              "name": "@codedev-ui/lodash",
+              "nearest": "lodash",
+              "distance": 0,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "cross_env",
+              "nearest": "cross-env",
+              "distance": 0,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "dompurfy",
+              "nearest": "dompurify",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "reqeust",
+              "nearest": "request",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "zod-validation-kit",
+              "nearest": "axios",
+              "distance": 15,
+              "verdict": "clear"
+            },
+            {
+              "name": "react",
+              "nearest": "react",
+              "distance": 0,
+              "verdict": "exact"
+            }
+          ],
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Short names: up to 3 characters only a normalized match counts",
+          "input": {
+            "popular": [
+              "qs",
+              "ms",
+              "pg",
+              "zod",
+              "react"
+            ],
+            "candidates": [
+              "ws",
+              "pq",
+              "zod",
+              "z0d",
+              "Zod",
+              "zods"
+            ]
+          },
+          "expected": [
+            {
+              "name": "Zod",
+              "nearest": "zod",
+              "distance": 0,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "z0d",
+              "nearest": "zod",
+              "distance": 0,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "zods",
+              "nearest": "zod",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "pq",
+              "nearest": "pg",
+              "distance": 1,
+              "verdict": "clear"
+            },
+            {
+              "name": "ws",
+              "nearest": "ms",
+              "distance": 1,
+              "verdict": "clear"
+            },
+            {
+              "name": "zod",
+              "nearest": "zod",
+              "distance": 0,
+              "verdict": "exact"
+            }
+          ],
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Swapped adjacent letters count as one edit",
+          "input": {
+            "popular": [
+              "react",
+              "react-dom",
+              "lodash",
+              "express",
+              "request",
+              "cross-env",
+              "dompurify",
+              "zod",
+              "qs",
+              "ms",
+              "chalk",
+              "axios",
+              "js-yaml",
+              "yaml",
+              "@types/node",
+              "typescript",
+              "next",
+              "i18next",
+              "uuid",
+              "pg",
+              "ws"
+            ],
+            "candidates": [
+              "lodahs",
+              "axois",
+              "raect",
+              "typesrcipt",
+              "chalk",
+              "epxress",
+              "uudi"
+            ]
+          },
+          "expected": [
+            {
+              "name": "axois",
+              "nearest": "axios",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "epxress",
+              "nearest": "express",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "lodahs",
+              "nearest": "lodash",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "raect",
+              "nearest": "react",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "typesrcipt",
+              "nearest": "typescript",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "uudi",
+              "nearest": "uuid",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "chalk",
+              "nearest": "chalk",
+              "distance": 0,
+              "verdict": "exact"
+            }
+          ],
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Normalization: case, separators, 1/l and 0/o, js- and -js, scopes, ties on the nearest name",
+          "input": {
+            "popular": [
+              "react",
+              "react-dom",
+              "lodash",
+              "express",
+              "request",
+              "cross-env",
+              "dompurify",
+              "zod",
+              "qs",
+              "ms",
+              "chalk",
+              "axios",
+              "js-yaml",
+              "yaml",
+              "@types/node",
+              "typescript",
+              "next",
+              "i18next",
+              "uuid",
+              "pg",
+              "ws"
+            ],
+            "candidates": [
+              "L0dash.js",
+              "js-lodash",
+              "lodash_js",
+              "@evil/react-dom",
+              "@types/node",
+              "@typos/node",
+              "react.dom",
+              "expres-js",
+              "yam1",
+              "js-yaml",
+              "i18nexl",
+              "il8next",
+              "REACT"
+            ]
+          },
+          "expected": [
+            {
+              "name": "@evil/react-dom",
+              "nearest": "react-dom",
+              "distance": 0,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "@typos/node",
+              "nearest": "@types/node",
+              "distance": 0,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "L0dash.js",
+              "nearest": "lodash",
+              "distance": 0,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "REACT",
+              "nearest": "react",
+              "distance": 0,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "il8next",
+              "nearest": "i18next",
+              "distance": 0,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "js-lodash",
+              "nearest": "lodash",
+              "distance": 0,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "lodash_js",
+              "nearest": "lodash",
+              "distance": 0,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "react.dom",
+              "nearest": "react-dom",
+              "distance": 0,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "yam1",
+              "nearest": "js-yaml",
+              "distance": 0,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "expres-js",
+              "nearest": "express",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "i18nexl",
+              "nearest": "i18next",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "@types/node",
+              "nearest": "@types/node",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "js-yaml",
+              "nearest": "js-yaml",
+              "distance": 0,
+              "verdict": "exact"
+            }
+          ],
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Thresholds at their edges: lengths 3, 4, 7 and 8 with distances 1 and 2",
+          "input": {
+            "popular": [
+              "react",
+              "react-dom",
+              "lodash",
+              "express",
+              "request",
+              "cross-env",
+              "dompurify",
+              "zod",
+              "qs",
+              "ms",
+              "chalk",
+              "axios",
+              "js-yaml",
+              "yaml",
+              "@types/node",
+              "typescript",
+              "next",
+              "i18next",
+              "uuid",
+              "pg",
+              "ws"
+            ],
+            "candidates": [
+              "zdo",
+              "axio",
+              "exprezz",
+              "requesst",
+              "reqeusts",
+              "dompurifi",
+              "lodashxy",
+              "lodashx",
+              "lodasxy",
+              "nexts"
+            ]
+          },
+          "expected": [
+            {
+              "name": "axio",
+              "nearest": "axios",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "dompurifi",
+              "nearest": "dompurify",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "lodashx",
+              "nearest": "lodash",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "nexts",
+              "nearest": "next",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "requesst",
+              "nearest": "request",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "lodashxy",
+              "nearest": "lodash",
+              "distance": 2,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "reqeusts",
+              "nearest": "request",
+              "distance": 2,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "zdo",
+              "nearest": "zod",
+              "distance": 1,
+              "verdict": "clear"
+            },
+            {
+              "name": "exprezz",
+              "nearest": "express",
+              "distance": 2,
+              "verdict": "clear"
+            },
+            {
+              "name": "lodasxy",
+              "nearest": "lodash",
+              "distance": 2,
+              "verdict": "clear"
+            }
+          ],
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Invalid names, duplicates and equal results keep their input order",
+          "input": {
+            "popular": [
+              "react",
+              "react-dom",
+              "lodash",
+              "express",
+              "request",
+              "cross-env",
+              "dompurify",
+              "zod",
+              "qs",
+              "ms",
+              "chalk",
+              "axios",
+              "js-yaml",
+              "yaml",
+              "@types/node",
+              "typescript",
+              "next",
+              "i18next",
+              "uuid",
+              "pg",
+              "ws"
+            ],
+            "candidates": [
+              "reqeust",
+              "",
+              "react dom",
+              "lodash!",
+              "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "réact",
+              "reqeust",
+              "raect",
+              "react",
+              "react",
+              "ok-name-here"
+            ]
+          },
+          "expected": [
+            {
+              "name": "raect",
+              "nearest": "react",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "reqeust",
+              "nearest": "request",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "reqeust",
+              "nearest": "request",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "",
+              "nearest": null,
+              "distance": null,
+              "verdict": "invalid"
+            },
+            {
+              "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "nearest": null,
+              "distance": null,
+              "verdict": "invalid"
+            },
+            {
+              "name": "lodash!",
+              "nearest": null,
+              "distance": null,
+              "verdict": "invalid"
+            },
+            {
+              "name": "react dom",
+              "nearest": null,
+              "distance": null,
+              "verdict": "invalid"
+            },
+            {
+              "name": "réact",
+              "nearest": null,
+              "distance": null,
+              "verdict": "invalid"
+            },
+            {
+              "name": "ok-name-here",
+              "nearest": "@types/node",
+              "distance": 10,
+              "verdict": "clear"
+            },
+            {
+              "name": "react",
+              "nearest": "react",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "react",
+              "nearest": "react",
+              "distance": 0,
+              "verdict": "exact"
+            }
+          ],
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Large: 200 popular names, 303 candidates",
+          "input": {
+            "popular": [
+              "ce-tch",
+              "pe-le-mi",
+              "kit-re-dash-ty",
+              "kit-de-press-ka",
+              "ce-vi-tch-ery",
+              "ty-form-re-ser",
+              "tab-lo-act-fe",
+              "tab-kit",
+              "qu-pe-tch-ce",
+              "form-dash-vi-ex",
+              "vi-form-ka-ka",
+              "press-ery",
+              "fe-tch",
+              "pe-qu-tab",
+              "ery-kit-press-ery",
+              "ce-ex-ui-ka",
+              "qu-lo-ex-le",
+              "ery-ex",
+              "fe-vi-vi-ty",
+              "no-form",
+              "mi-vi-de-tch",
+              "ui-zo-mi-re",
+              "ce-ka-vi",
+              "fe-ery-ser",
+              "zo-form-tch-kit",
+              "tab-press",
+              "press-pe",
+              "ka-reex",
+              "qu-qu-qu-pe",
+              "ty-dash",
+              "lo-dash",
+              "act-tch-ser",
+              "pe-re-ka-mi",
+              "re-dash-ty",
+              "vi-le",
+              "tab-le",
+              "tab-ka",
+              "pe-form-ty",
+              "ser-tab",
+              "form-press-re",
+              "press-ka-fe",
+              "kit-pe-ex-tab",
+              "ser-pe-qu-re",
+              "vi-tch-ty-lo",
+              "pe-ui-re",
+              "pe-kit-kit-le",
+              "tch-tab-re",
+              "act-press",
+              "fe-ery",
+              "ui-tch-pe",
+              "ser-qu-no-lo",
+              "press-ui-tab-fe",
+              "ex-ser-de-pe",
+              "ery-act",
+              "le-press",
+              "act-pe-ce",
+              "le-tab-ex",
+              "no-ery-ery",
+              "tch-re-qu-fe",
+              "de-press",
+              "tch-lo-de",
+              "vi-le-ex",
+              "pe-ui-tch",
+              "de-re-le-le",
+              "ui-ty-vi-le",
+              "qu-ser-pe-ty",
+              "act-le-ty",
+              "re-ex-act",
+              "qu-ser-ce",
+              "qu-ex",
+              "tch-ty-kit",
+              "vi-ce-le",
+              "ex-ex",
+              "re-act",
+              "form-ka-le-kit",
+              "tab-qu-ui-ce",
+              "kit-re-press",
+              "press-kit-le-de",
+              "re-ka",
+              "tch-kit-zo",
+              "ex-lo-fe",
+              "de-tch-pe-ser",
+              "pe-tab-dash-vi",
+              "dash-no",
+              "mi-vi-tch",
+              "tab-qu-zo-ce",
+              "ty-form-ka-ui",
+              "ty-ex",
+              "kit-tab-tch-dash",
+              "no-ui-ery",
+              "press-ery-le-lo",
+              "fe-form",
+              "ex-form",
+              "le-pe",
+              "pe-no-act",
+              "mi-ce-fe-ery",
+              "ex-zo-dash",
+              "lo-ka-le",
+              "pe-qu-qu-ce",
+              "vi-ui-form",
+              "dash-de",
+              "form-ui-ce-no",
+              "qu-no",
+              "ce-zo-ex-le",
+              "mi-dash-re",
+              "le-re-fe-ery",
+              "ty-zo-ka-le",
+              "re-ui",
+              "tab-ser-tch-qu",
+              "mi-kit",
+              "vi-ty-re-tch",
+              "pe-ui-press",
+              "press-pe-ui-dash",
+              "le-ser-zo",
+              "qu-vi-tab",
+              "mi-vi",
+              "ui-le-vi-ser",
+              "kit-ka-pe-ce",
+              "pe-vi-dash-ty",
+              "ce-ex",
+              "le-press-ex-re",
+              "tab-form-vi",
+              "form-qu",
+              "ser-qu-press-vi",
+              "dash-act-pe-lo",
+              "le-press-ex-ty",
+              "vi-lo",
+              "act-ery-fe-de",
+              "lo-no-tab-ex",
+              "mi-lo-de",
+              "de-qu-tab-no",
+              "ty-ce-ser-ce",
+              "form-vi-ex-press",
+              "act-de-re",
+              "no-dash-ery",
+              "mi-tab",
+              "no-ka",
+              "act-form-kit",
+              "no-ser-pe-tab",
+              "re-lo",
+              "form-ex-form",
+              "dash-pe-no",
+              "de-ce-ery",
+              "act-kit-pe-ty",
+              "ser-ka-form-de",
+              "tab-re-dash",
+              "ex-ui-zo",
+              "vi-ui-form-qu",
+              "ka-mi-le-press",
+              "ser-pe",
+              "mi-mi",
+              "ery-ka-ka",
+              "mi-form-ka",
+              "ex-le-ser-de",
+              "no-vi-ui",
+              "re-qu-press-press",
+              "tch-press-zo-qu",
+              "ui-form",
+              "ex-ui-mi",
+              "press-pe-ka",
+              "fe-mi-ka-re",
+              "de-qu-form-ce",
+              "fe-ty",
+              "zo-fe-de-zo",
+              "no-tab-ty-zo",
+              "ui-act",
+              "ce-ui",
+              "no-ce",
+              "tch-pe",
+              "tch-ser-ui-ery",
+              "ex-qu",
+              "no-tab-ty-tab",
+              "form-ce",
+              "vi-ui-tch",
+              "ery-ka-ui",
+              "re-ser-ery",
+              "zo-ka-ser-tch",
+              "fe-ex-dash-act",
+              "no-mi-ex",
+              "qu-tab-press",
+              "form-vi-vi-qu",
+              "fe-no-ery-de",
+              "ka-mi-vi-ser",
+              "ty-lo-pe",
+              "dash-press-ex",
+              "press-ser-ex",
+              "tch-act-ui-fe",
+              "ce-ui-ery",
+              "ka-ce",
+              "ser-fe-ui-ce",
+              "dash-fe-form-kit",
+              "ka-ce-qu",
+              "form-no",
+              "no-lo-press",
+              "vi-kit-qu",
+              "mi-qu-lo-ce",
+              "kit-lo",
+              "dash-qu-zo-lo",
+              "lo-le-form-ser",
+              "ui-ty-ka-dash"
+            ],
+            "candidates": [
+              "qu-pet-ch-ce",
+              "ui-ty-vil-e",
+              "f-eery",
+              "pres-ska-fe",
+              "m-iform-ka",
+              "kit-tab-tch-dash",
+              "m-iform-ka",
+              "thc-pe",
+              "pressk-a-fe",
+              "zo-ka-ser-tch",
+              "kit-tab-tchd-ash",
+              "m-iform-ka",
+              "mi-dash-re",
+              "nok-a",
+              "fem-i-ka-re",
+              "lo-no-tba-ex",
+              "dash-press-exceka",
+              "ui-ty-vi-el",
+              "kit-tabt-ch-dash",
+              "ui-ty-vi-leleform",
+              "le-tabe-x",
+              "qu-pe-tchc-e",
+              "dash-presse-x",
+              "thc-pe",
+              "form-no",
+              "c-etch",
+              "e-xzo-dash",
+              "e-xlo-fe",
+              "no-ak",
+              "dash-presse-x",
+              "lo-no-tab-ex",
+              "ex-zo-dash",
+              "ser-ka-form-de",
+              "dahs-press-ex",
+              "pe-re-ka-miactde",
+              "ex-zo-dasheryty",
+              "fe-ery",
+              "form-no",
+              "ex-ex",
+              "qu-lo-ex-leformtch",
+              "thc-pe",
+              "form-noformlo",
+              "ex-xe",
+              "dash-perss-ex",
+              "dash-press-excepe",
+              "mi-dash-re",
+              "press-ka-fe",
+              "fe-ex-dash-actexform",
+              "form-on",
+              "qu-pe-thc-ce",
+              "pe-re-ka-miactery",
+              "e-xzo-dash",
+              "le-tab-xe",
+              "zo-ak-ser-tch",
+              "f-eery",
+              "f-eery",
+              "ex-ex",
+              "dash-press-ex",
+              "zo-formt-ch-kit",
+              "le-prses-ex-re",
+              "dash-perss-ex",
+              "e-xex",
+              "ser-ka-fomr-de",
+              "qu-ep-tch-ce",
+              "le-tab-exuipress",
+              "mi-form-ka",
+              "dash-press-ex",
+              "qu-lo-ex-le",
+              "mi-dash-re",
+              "ui-yt-vi-le",
+              "zo-ka-ser-tchpede",
+              "no-ak",
+              "fe-mi-ka-reexdash",
+              "q-ulo-ex-le",
+              "no-ak",
+              "ui-ty-vi-le",
+              "mi-form-ka",
+              "press-ka-fe",
+              "tch-peceex",
+              "f-eery",
+              "ui-ty-vil-e",
+              "fe-erytchui",
+              "n-oka",
+              "e-xzo-dash",
+              "qul-o-ex-le",
+              "m-idash-re",
+              "nok-a",
+              "qu-lo-ex-le",
+              "qu-pe-tch-cetabvi",
+              "ui-ty-vi-lenoui",
+              "lo-no-tab-ex",
+              "ex-xe",
+              "ex-lo-feactform",
+              "kit-tab-tch-dashzore",
+              "pe-re-kam-i",
+              "ui-tyv-i-le",
+              "qu-pe-thc-ce",
+              "ui-ty-vi-lefequ",
+              "c-etch",
+              "dash-presse-x",
+              "le-tab-extchlo",
+              "mi-form-ka",
+              "dash-press-ex",
+              "zo-form-tch-kit",
+              "zo-ka-ser-tchdashform",
+              "from-no",
+              "f-emi-ka-re",
+              "fe-mi-ka-er",
+              "zo-form-tch-kti",
+              "c-etch",
+              "ser-ka-fomr-de",
+              "zo-form-tch-kitactvi",
+              "c-etch",
+              "lo-no-tab-expeery",
+              "fe-eryceui",
+              "lo-no-tab-ex",
+              "press-pe-ui-dashuitch",
+              "exe-x",
+              "from-no",
+              "press-ak-fe",
+              "form-no",
+              "qu-pet-ch-ce",
+              "press-pe-ui-dash",
+              "fe-mi-ka-re",
+              "fe-mi-k-are",
+              "m-dash-re",
+              "mi-dash-re",
+              "lo-no-tab-exacttab",
+              "form-notchmi",
+              "zo-ka-ser-tch",
+              "c-etch",
+              "fe-eryactka",
+              "exe-x",
+              "qu-loe-x-le",
+              "press-pe-ui-dash",
+              "zo-ka-ser-cth",
+              "ex-ex",
+              "ser-ka-form-de",
+              "c-etch",
+              "ui-ty-vi-leserzo",
+              "l-etab-ex",
+              "tch-peleka",
+              "le-prses-ex-re",
+              "press-pe-ui-dash",
+              "for-mno",
+              "kit-tabt-ch-dash",
+              "mi-dash-re",
+              "ui-ty-iv-le",
+              "fe-mi-kar-e",
+              "no-ak",
+              "le-atb-ex",
+              "thc-pe",
+              "zof-orm-tch-kit",
+              "ser-ka-form-de",
+              "thc-pe",
+              "mi-dash-rezoka",
+              "kit-tabt-ch-dash",
+              "thc-pe",
+              "qu-lo-ex-lereno",
+              "form-no",
+              "lo-no-tabe-x",
+              "pe-re-ka-mi",
+              "ce-tch",
+              "ex-el-ser-de",
+              "ser-ka-form-de",
+              "ser-ka-form-de",
+              "pe-re-ka-im",
+              "form-on",
+              "lo-no-tabe-x",
+              "kit-tab-tch-dashreser",
+              "fe-mi-ka-rekale",
+              "zo-ak-ser-tch",
+              "fe-ery",
+              "kit-tabt-ch-dash",
+              "mi-form-kauikit",
+              "mi-dash-represspress",
+              "dash-press-exloce",
+              "le-press-ex-re",
+              "zo-ka-sert-ch",
+              "n-oka",
+              "tch-peretch",
+              "n-oka",
+              "uit-y-vi-le",
+              "le-tab-exdashde",
+              "qu-loe-x-le",
+              "form-on",
+              "ex-lof-e",
+              "press-ka-fe",
+              "f-eery",
+              "le-tba-ex",
+              "le-ta-bex",
+              "le-tab-ex",
+              "thc-pe",
+              "f-eery",
+              "qu-pe-tch-ce",
+              "m-idash-re",
+              "l-ono-tab-ex",
+              "m-idash-re",
+              "press-ak-fe",
+              "c-etch",
+              "le-tab-ex",
+              "e-xzo-dash",
+              "e-xlo-fe",
+              "le-tab-ex",
+              "press-pe-ui-dash",
+              "le-prses-ex-re",
+              "thc-pe",
+              "dash-press-ex",
+              "pressp-e-ui-dash",
+              "mi-form-kakitery",
+              "le-press-ex-rekitno",
+              "le-prses-ex-re",
+              "zo-ka-ser-tch",
+              "le-tab-ex",
+              "press-pe-uid-ash",
+              "no-ka",
+              "z-oka-ser-tch",
+              "ser-ka-form-deformmi",
+              "ex-lo-fe",
+              "lo-no-tba-ex",
+              "qu-lo-ex-leviser",
+              "press-kaf-e",
+              "pe-re-ka-miactle",
+              "dash-press-ex",
+              "qu-lo-e-xle",
+              "ui-ty-vi-le",
+              "zo-ka-ser-tchkitfe",
+              "form-noeryka",
+              "qu-loe-x-le",
+              "qu-pe-tch-ce",
+              "mi-dash-refeui",
+              "press-pe-ui-dashuizo",
+              "press-p-eui-dash",
+              "ce-tch",
+              "press-ka-fepressery",
+              "ex-zo-dashuipe",
+              "ui-yt-vi-le",
+              "press-ak-fe",
+              "no-ka",
+              "ex-zo-dash",
+              "kti-tab-tch-dash",
+              "dash-press-exkaui",
+              "zo-ofrm-tch-kit",
+              "ui-tyv-i-le",
+              "dash-press-ex",
+              "zo-form-tch-kitdashdash",
+              "m-idash-re",
+              "per-e-ka-mi",
+              "pe-er-ka-mi",
+              "qu-pe-tch-cenoka",
+              "mi-form-kareka",
+              "e-xex",
+              "qu-lo-ex-le",
+              "fe-mi-ka-re",
+              "m-idash-re",
+              "qu-pe-tchc-e",
+              "ex-lo-fe",
+              "dash-prses-ex",
+              "c-etch",
+              "c-etch",
+              "kit-tab-tch-dashpressui",
+              "ui-tyv-i-le",
+              "le-tab-exdashui",
+              "qu-pe-thc-ce",
+              "ce-tchexmi",
+              "lo-on-tab-ex",
+              "dash-press-xe",
+              "fem-i-ka-re",
+              "press-kaf-e",
+              "mi-dash-redemi",
+              "ex-zo-dashquce",
+              "ui-yt-vi-le",
+              "qu-pet-ch-ce",
+              "dash-rpess-ex",
+              "zo-form-thc-kit",
+              "pe-rek-a-mi",
+              "ser-ka-fomr-de",
+              "m-iform-ka",
+              "ui-ty-vi-el",
+              "zo-ka-ser-tch",
+              "qu-pe-tch-cetable",
+              "tch-pe",
+              "ce-tchformce",
+              "le-tab-xe",
+              "le-tab-exnotab",
+              "e-xlo-fe",
+              "ui-tyv-i-le",
+              "uit-y-vi-le",
+              "zo-ka-ser-tch",
+              "m-idash-re",
+              "tch-pe",
+              "ex-zo-dashfeno",
+              "zo-form-tch-kit",
+              "form-nouilo",
+              "qu-lo-ex-le",
+              "l-ono-tab-ex",
+              "press-p-eui-dash",
+              "lo-no-tab-expepress",
+              "m-iform-ka",
+              "ce-tchlere",
+              "",
+              "has space",
+              "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            ]
+          },
+          "expected": [
+            {
+              "name": "c-etch",
+              "nearest": "ce-tch",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "c-etch",
+              "nearest": "ce-tch",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "c-etch",
+              "nearest": "ce-tch",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "c-etch",
+              "nearest": "ce-tch",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "c-etch",
+              "nearest": "ce-tch",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "c-etch",
+              "nearest": "ce-tch",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "c-etch",
+              "nearest": "ce-tch",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "c-etch",
+              "nearest": "ce-tch",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "c-etch",
+              "nearest": "ce-tch",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "dahs-press-ex",
+              "nearest": "dash-press-ex",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "dash-perss-ex",
+              "nearest": "dash-press-ex",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "dash-perss-ex",
+              "nearest": "dash-press-ex",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "dash-press-xe",
+              "nearest": "dash-press-ex",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "dash-presse-x",
+              "nearest": "dash-press-ex",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "dash-presse-x",
+              "nearest": "dash-press-ex",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "dash-presse-x",
+              "nearest": "dash-press-ex",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "dash-prses-ex",
+              "nearest": "dash-press-ex",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "dash-rpess-ex",
+              "nearest": "dash-press-ex",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "e-xex",
+              "nearest": "ex-ex",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "e-xex",
+              "nearest": "ex-ex",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "e-xlo-fe",
+              "nearest": "ex-lo-fe",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "e-xlo-fe",
+              "nearest": "ex-lo-fe",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "e-xlo-fe",
+              "nearest": "ex-lo-fe",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "e-xzo-dash",
+              "nearest": "ex-zo-dash",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "e-xzo-dash",
+              "nearest": "ex-zo-dash",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "e-xzo-dash",
+              "nearest": "ex-zo-dash",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "e-xzo-dash",
+              "nearest": "ex-zo-dash",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "ex-el-ser-de",
+              "nearest": "ex-le-ser-de",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "ex-lof-e",
+              "nearest": "ex-lo-fe",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "ex-xe",
+              "nearest": "ex-ex",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "ex-xe",
+              "nearest": "ex-ex",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "exe-x",
+              "nearest": "ex-ex",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "exe-x",
+              "nearest": "ex-ex",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "f-eery",
+              "nearest": "fe-ery",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "f-eery",
+              "nearest": "fe-ery",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "f-eery",
+              "nearest": "fe-ery",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "f-eery",
+              "nearest": "fe-ery",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "f-eery",
+              "nearest": "fe-ery",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "f-eery",
+              "nearest": "fe-ery",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "f-emi-ka-re",
+              "nearest": "fe-mi-ka-re",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "fe-mi-k-are",
+              "nearest": "fe-mi-ka-re",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "fe-mi-ka-er",
+              "nearest": "fe-mi-ka-re",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "fe-mi-kar-e",
+              "nearest": "fe-mi-ka-re",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "fem-i-ka-re",
+              "nearest": "fe-mi-ka-re",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "fem-i-ka-re",
+              "nearest": "fe-mi-ka-re",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "for-mno",
+              "nearest": "form-no",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "form-on",
+              "nearest": "form-no",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "form-on",
+              "nearest": "form-no",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "form-on",
+              "nearest": "form-no",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "from-no",
+              "nearest": "form-no",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "from-no",
+              "nearest": "form-no",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "kit-tab-tchd-ash",
+              "nearest": "kit-tab-tch-dash",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "kit-tabt-ch-dash",
+              "nearest": "kit-tab-tch-dash",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "kit-tabt-ch-dash",
+              "nearest": "kit-tab-tch-dash",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "kit-tabt-ch-dash",
+              "nearest": "kit-tab-tch-dash",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "kit-tabt-ch-dash",
+              "nearest": "kit-tab-tch-dash",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "kti-tab-tch-dash",
+              "nearest": "kit-tab-tch-dash",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "l-etab-ex",
+              "nearest": "le-tab-ex",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "l-ono-tab-ex",
+              "nearest": "lo-no-tab-ex",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "l-ono-tab-ex",
+              "nearest": "lo-no-tab-ex",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "le-atb-ex",
+              "nearest": "le-tab-ex",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "le-prses-ex-re",
+              "nearest": "le-press-ex-re",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "le-prses-ex-re",
+              "nearest": "le-press-ex-re",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "le-prses-ex-re",
+              "nearest": "le-press-ex-re",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "le-prses-ex-re",
+              "nearest": "le-press-ex-re",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "le-ta-bex",
+              "nearest": "le-tab-ex",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "le-tab-xe",
+              "nearest": "le-tab-ex",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "le-tab-xe",
+              "nearest": "le-tab-ex",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "le-tabe-x",
+              "nearest": "le-tab-ex",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "le-tba-ex",
+              "nearest": "le-tab-ex",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "lo-no-tabe-x",
+              "nearest": "lo-no-tab-ex",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "lo-no-tabe-x",
+              "nearest": "lo-no-tab-ex",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "lo-no-tba-ex",
+              "nearest": "lo-no-tab-ex",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "lo-no-tba-ex",
+              "nearest": "lo-no-tab-ex",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "lo-on-tab-ex",
+              "nearest": "lo-no-tab-ex",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "m-dash-re",
+              "nearest": "mi-dash-re",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "m-idash-re",
+              "nearest": "mi-dash-re",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "m-idash-re",
+              "nearest": "mi-dash-re",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "m-idash-re",
+              "nearest": "mi-dash-re",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "m-idash-re",
+              "nearest": "mi-dash-re",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "m-idash-re",
+              "nearest": "mi-dash-re",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "m-idash-re",
+              "nearest": "mi-dash-re",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "m-iform-ka",
+              "nearest": "mi-form-ka",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "m-iform-ka",
+              "nearest": "mi-form-ka",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "m-iform-ka",
+              "nearest": "mi-form-ka",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "m-iform-ka",
+              "nearest": "mi-form-ka",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "m-iform-ka",
+              "nearest": "mi-form-ka",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "n-oka",
+              "nearest": "no-ka",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "n-oka",
+              "nearest": "no-ka",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "n-oka",
+              "nearest": "no-ka",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "no-ak",
+              "nearest": "no-ka",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "no-ak",
+              "nearest": "no-ka",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "no-ak",
+              "nearest": "no-ka",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "no-ak",
+              "nearest": "no-ka",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "nok-a",
+              "nearest": "no-ka",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "nok-a",
+              "nearest": "no-ka",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "pe-er-ka-mi",
+              "nearest": "pe-re-ka-mi",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "pe-re-ka-im",
+              "nearest": "pe-re-ka-mi",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "pe-re-kam-i",
+              "nearest": "pe-re-ka-mi",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "pe-rek-a-mi",
+              "nearest": "pe-re-ka-mi",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "per-e-ka-mi",
+              "nearest": "pe-re-ka-mi",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "pres-ska-fe",
+              "nearest": "press-ka-fe",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "press-ak-fe",
+              "nearest": "press-ka-fe",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "press-ak-fe",
+              "nearest": "press-ka-fe",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "press-ak-fe",
+              "nearest": "press-ka-fe",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "press-kaf-e",
+              "nearest": "press-ka-fe",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "press-kaf-e",
+              "nearest": "press-ka-fe",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "press-p-eui-dash",
+              "nearest": "press-pe-ui-dash",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "press-p-eui-dash",
+              "nearest": "press-pe-ui-dash",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "press-pe-uid-ash",
+              "nearest": "press-pe-ui-dash",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "pressk-a-fe",
+              "nearest": "press-ka-fe",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "pressp-e-ui-dash",
+              "nearest": "press-pe-ui-dash",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "q-ulo-ex-le",
+              "nearest": "qu-lo-ex-le",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "qu-ep-tch-ce",
+              "nearest": "qu-pe-tch-ce",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "qu-lo-e-xle",
+              "nearest": "qu-lo-ex-le",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "qu-loe-x-le",
+              "nearest": "qu-lo-ex-le",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "qu-loe-x-le",
+              "nearest": "qu-lo-ex-le",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "qu-loe-x-le",
+              "nearest": "qu-lo-ex-le",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "qu-pe-tchc-e",
+              "nearest": "qu-pe-tch-ce",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "qu-pe-tchc-e",
+              "nearest": "qu-pe-tch-ce",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "qu-pe-thc-ce",
+              "nearest": "qu-pe-tch-ce",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "qu-pe-thc-ce",
+              "nearest": "qu-pe-tch-ce",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "qu-pe-thc-ce",
+              "nearest": "qu-pe-tch-ce",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "qu-pet-ch-ce",
+              "nearest": "qu-pe-tch-ce",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "qu-pet-ch-ce",
+              "nearest": "qu-pe-tch-ce",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "qu-pet-ch-ce",
+              "nearest": "qu-pe-tch-ce",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "qul-o-ex-le",
+              "nearest": "qu-lo-ex-le",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "ser-ka-fomr-de",
+              "nearest": "ser-ka-form-de",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "ser-ka-fomr-de",
+              "nearest": "ser-ka-form-de",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "ser-ka-fomr-de",
+              "nearest": "ser-ka-form-de",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "thc-pe",
+              "nearest": "tch-pe",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "thc-pe",
+              "nearest": "tch-pe",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "thc-pe",
+              "nearest": "tch-pe",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "thc-pe",
+              "nearest": "tch-pe",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "thc-pe",
+              "nearest": "tch-pe",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "thc-pe",
+              "nearest": "tch-pe",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "thc-pe",
+              "nearest": "tch-pe",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "thc-pe",
+              "nearest": "tch-pe",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "ui-ty-iv-le",
+              "nearest": "ui-ty-vi-le",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "ui-ty-vi-el",
+              "nearest": "ui-ty-vi-le",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "ui-ty-vi-el",
+              "nearest": "ui-ty-vi-le",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "ui-ty-vil-e",
+              "nearest": "ui-ty-vi-le",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "ui-ty-vil-e",
+              "nearest": "ui-ty-vi-le",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "ui-tyv-i-le",
+              "nearest": "ui-ty-vi-le",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "ui-tyv-i-le",
+              "nearest": "ui-ty-vi-le",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "ui-tyv-i-le",
+              "nearest": "ui-ty-vi-le",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "ui-tyv-i-le",
+              "nearest": "ui-ty-vi-le",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "ui-yt-vi-le",
+              "nearest": "ui-ty-vi-le",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "ui-yt-vi-le",
+              "nearest": "ui-ty-vi-le",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "ui-yt-vi-le",
+              "nearest": "ui-ty-vi-le",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "uit-y-vi-le",
+              "nearest": "ui-ty-vi-le",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "uit-y-vi-le",
+              "nearest": "ui-ty-vi-le",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "z-oka-ser-tch",
+              "nearest": "zo-ka-ser-tch",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "zo-ak-ser-tch",
+              "nearest": "zo-ka-ser-tch",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "zo-ak-ser-tch",
+              "nearest": "zo-ka-ser-tch",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "zo-form-tch-kti",
+              "nearest": "zo-form-tch-kit",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "zo-form-thc-kit",
+              "nearest": "zo-form-tch-kit",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "zo-formt-ch-kit",
+              "nearest": "zo-form-tch-kit",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "zo-ka-ser-cth",
+              "nearest": "zo-ka-ser-tch",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "zo-ka-sert-ch",
+              "nearest": "zo-ka-ser-tch",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "zo-ofrm-tch-kit",
+              "nearest": "zo-form-tch-kit",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "zof-orm-tch-kit",
+              "nearest": "zo-form-tch-kit",
+              "distance": 1,
+              "verdict": "lookalike"
+            },
+            {
+              "name": "",
+              "nearest": null,
+              "distance": null,
+              "verdict": "invalid"
+            },
+            {
+              "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "nearest": null,
+              "distance": null,
+              "verdict": "invalid"
+            },
+            {
+              "name": "has space",
+              "nearest": null,
+              "distance": null,
+              "verdict": "invalid"
+            },
+            {
+              "name": "mi-form-kareka",
+              "nearest": "vi-form-ka-ka",
+              "distance": 3,
+              "verdict": "clear"
+            },
+            {
+              "name": "ce-tchexmi",
+              "nearest": "ce-tch",
+              "distance": 4,
+              "verdict": "clear"
+            },
+            {
+              "name": "ce-tchlere",
+              "nearest": "ce-tch",
+              "distance": 4,
+              "verdict": "clear"
+            },
+            {
+              "name": "dash-press-exceka",
+              "nearest": "dash-press-ex",
+              "distance": 4,
+              "verdict": "clear"
+            },
+            {
+              "name": "dash-press-excepe",
+              "nearest": "dash-press-ex",
+              "distance": 4,
+              "verdict": "clear"
+            },
+            {
+              "name": "dash-press-exkaui",
+              "nearest": "dash-press-ex",
+              "distance": 4,
+              "verdict": "clear"
+            },
+            {
+              "name": "dash-press-exloce",
+              "nearest": "dash-press-ex",
+              "distance": 4,
+              "verdict": "clear"
+            },
+            {
+              "name": "ex-zo-dashfeno",
+              "nearest": "ex-zo-dash",
+              "distance": 4,
+              "verdict": "clear"
+            },
+            {
+              "name": "ex-zo-dashquce",
+              "nearest": "ex-zo-dash",
+              "distance": 4,
+              "verdict": "clear"
+            },
+            {
+              "name": "ex-zo-dashuipe",
+              "nearest": "ex-zo-dash",
+              "distance": 4,
+              "verdict": "clear"
+            },
+            {
+              "name": "fe-eryceui",
+              "nearest": "fe-ery",
+              "distance": 4,
+              "verdict": "clear"
+            },
+            {
+              "name": "fe-mi-ka-rekale",
+              "nearest": "fe-mi-ka-re",
+              "distance": 4,
+              "verdict": "clear"
+            },
+            {
+              "name": "form-nouilo",
+              "nearest": "form-no",
+              "distance": 4,
+              "verdict": "clear"
+            },
+            {
+              "name": "kit-tab-tch-dashzore",
+              "nearest": "kit-tab-tch-dash",
+              "distance": 4,
+              "verdict": "clear"
+            },
+            {
+              "name": "mi-dash-redemi",
+              "nearest": "mi-dash-re",
+              "distance": 4,
+              "verdict": "clear"
+            },
+            {
+              "name": "mi-dash-refeui",
+              "nearest": "mi-dash-re",
+              "distance": 4,
+              "verdict": "clear"
+            },
+            {
+              "name": "mi-dash-rezoka",
+              "nearest": "mi-dash-re",
+              "distance": 4,
+              "verdict": "clear"
+            },
+            {
+              "name": "press-pe-ui-dashuizo",
+              "nearest": "press-pe-ui-dash",
+              "distance": 4,
+              "verdict": "clear"
+            },
+            {
+              "name": "qu-lo-ex-lereno",
+              "nearest": "qu-lo-ex-le",
+              "distance": 4,
+              "verdict": "clear"
+            },
+            {
+              "name": "qu-pe-tch-cenoka",
+              "nearest": "qu-pe-tch-ce",
+              "distance": 4,
+              "verdict": "clear"
+            },
+            {
+              "name": "tch-peceex",
+              "nearest": "tch-pe",
+              "distance": 4,
+              "verdict": "clear"
+            },
+            {
+              "name": "tch-peleka",
+              "nearest": "tch-pe",
+              "distance": 4,
+              "verdict": "clear"
+            },
+            {
+              "name": "ui-ty-vi-lefequ",
+              "nearest": "ui-ty-vi-le",
+              "distance": 4,
+              "verdict": "clear"
+            },
+            {
+              "name": "ui-ty-vi-lenoui",
+              "nearest": "ui-ty-vi-le",
+              "distance": 4,
+              "verdict": "clear"
+            },
+            {
+              "name": "zo-ka-ser-tchpede",
+              "nearest": "zo-ka-ser-tch",
+              "distance": 4,
+              "verdict": "clear"
+            },
+            {
+              "name": "ce-tchformce",
+              "nearest": "de-qu-form-ce",
+              "distance": 5,
+              "verdict": "clear"
+            },
+            {
+              "name": "ex-zo-dasheryty",
+              "nearest": "ex-zo-dash",
+              "distance": 5,
+              "verdict": "clear"
+            },
+            {
+              "name": "fe-eryactka",
+              "nearest": "fe-ery",
+              "distance": 5,
+              "verdict": "clear"
+            },
+            {
+              "name": "fe-erytchui",
+              "nearest": "fe-ery",
+              "distance": 5,
+              "verdict": "clear"
+            },
+            {
+              "name": "form-noeryka",
+              "nearest": "form-no",
+              "distance": 5,
+              "verdict": "clear"
+            },
+            {
+              "name": "form-noformlo",
+              "nearest": "form-ex-form",
+              "distance": 5,
+              "verdict": "clear"
+            },
+            {
+              "name": "form-notchmi",
+              "nearest": "form-no",
+              "distance": 5,
+              "verdict": "clear"
+            },
+            {
+              "name": "kit-tab-tch-dashreser",
+              "nearest": "kit-tab-tch-dash",
+              "distance": 5,
+              "verdict": "clear"
+            },
+            {
+              "name": "le-press-ex-rekitno",
+              "nearest": "le-press-ex-re",
+              "distance": 5,
+              "verdict": "clear"
+            },
+            {
+              "name": "le-tab-exdashui",
+              "nearest": "pe-tab-dash-vi",
+              "distance": 5,
+              "verdict": "clear"
+            },
+            {
+              "name": "le-tab-exnotab",
+              "nearest": "le-tab-ex",
+              "distance": 5,
+              "verdict": "clear"
+            },
+            {
+              "name": "le-tab-extchlo",
+              "nearest": "le-tab-ex",
+              "distance": 5,
+              "verdict": "clear"
+            },
+            {
+              "name": "lo-no-tab-expeery",
+              "nearest": "lo-no-tab-ex",
+              "distance": 5,
+              "verdict": "clear"
+            },
+            {
+              "name": "mi-form-kauikit",
+              "nearest": "mi-form-ka",
+              "distance": 5,
+              "verdict": "clear"
+            },
+            {
+              "name": "pe-re-ka-miactde",
+              "nearest": "pe-re-ka-mi",
+              "distance": 5,
+              "verdict": "clear"
+            },
+            {
+              "name": "pe-re-ka-miactle",
+              "nearest": "pe-re-ka-mi",
+              "distance": 5,
+              "verdict": "clear"
+            },
+            {
+              "name": "press-pe-ui-dashuitch",
+              "nearest": "press-pe-ui-dash",
+              "distance": 5,
+              "verdict": "clear"
+            },
+            {
+              "name": "qu-lo-ex-leviser",
+              "nearest": "qu-lo-ex-le",
+              "distance": 5,
+              "verdict": "clear"
+            },
+            {
+              "name": "qu-pe-tch-cetable",
+              "nearest": "qu-pe-tch-ce",
+              "distance": 5,
+              "verdict": "clear"
+            },
+            {
+              "name": "qu-pe-tch-cetabvi",
+              "nearest": "qu-pe-tch-ce",
+              "distance": 5,
+              "verdict": "clear"
+            },
+            {
+              "name": "tch-peretch",
+              "nearest": "tch-pe",
+              "distance": 5,
+              "verdict": "clear"
+            },
+            {
+              "name": "ui-ty-vi-leserzo",
+              "nearest": "ui-ty-vi-le",
+              "distance": 5,
+              "verdict": "clear"
+            },
+            {
+              "name": "zo-form-tch-kitactvi",
+              "nearest": "zo-form-tch-kit",
+              "distance": 5,
+              "verdict": "clear"
+            },
+            {
+              "name": "zo-ka-ser-tchkitfe",
+              "nearest": "zo-ka-ser-tch",
+              "distance": 5,
+              "verdict": "clear"
+            },
+            {
+              "name": "fe-ex-dash-actexform",
+              "nearest": "fe-ex-dash-act",
+              "distance": 6,
+              "verdict": "clear"
+            },
+            {
+              "name": "fe-mi-ka-reexdash",
+              "nearest": "fe-mi-ka-re",
+              "distance": 6,
+              "verdict": "clear"
+            },
+            {
+              "name": "le-tab-exdashde",
+              "nearest": "le-tab-ex",
+              "distance": 6,
+              "verdict": "clear"
+            },
+            {
+              "name": "le-tab-exuipress",
+              "nearest": "qu-tab-press",
+              "distance": 6,
+              "verdict": "clear"
+            },
+            {
+              "name": "lo-no-tab-exacttab",
+              "nearest": "lo-no-tab-ex",
+              "distance": 6,
+              "verdict": "clear"
+            },
+            {
+              "name": "mi-form-kakitery",
+              "nearest": "mi-form-ka",
+              "distance": 6,
+              "verdict": "clear"
+            },
+            {
+              "name": "pe-re-ka-miactery",
+              "nearest": "pe-re-ka-mi",
+              "distance": 6,
+              "verdict": "clear"
+            },
+            {
+              "name": "ser-ka-form-deformmi",
+              "nearest": "ser-ka-form-de",
+              "distance": 6,
+              "verdict": "clear"
+            },
+            {
+              "name": "ui-ty-vi-leleform",
+              "nearest": "ui-ty-vi-le",
+              "distance": 6,
+              "verdict": "clear"
+            },
+            {
+              "name": "ex-lo-feactform",
+              "nearest": "ex-lo-fe",
+              "distance": 7,
+              "verdict": "clear"
+            },
+            {
+              "name": "kit-tab-tch-dashpressui",
+              "nearest": "kit-tab-tch-dash",
+              "distance": 7,
+              "verdict": "clear"
+            },
+            {
+              "name": "lo-no-tab-expepress",
+              "nearest": "lo-no-tab-ex",
+              "distance": 7,
+              "verdict": "clear"
+            },
+            {
+              "name": "qu-lo-ex-leformtch",
+              "nearest": "qu-lo-ex-le",
+              "distance": 7,
+              "verdict": "clear"
+            },
+            {
+              "name": "press-ka-fepressery",
+              "nearest": "press-ka-fe",
+              "distance": 8,
+              "verdict": "clear"
+            },
+            {
+              "name": "zo-form-tch-kitdashdash",
+              "nearest": "zo-form-tch-kit",
+              "distance": 8,
+              "verdict": "clear"
+            },
+            {
+              "name": "zo-ka-ser-tchdashform",
+              "nearest": "zo-ka-ser-tch",
+              "distance": 8,
+              "verdict": "clear"
+            },
+            {
+              "name": "mi-dash-represspress",
+              "nearest": "dash-press-ex",
+              "distance": 9,
+              "verdict": "clear"
+            },
+            {
+              "name": "ce-tch",
+              "nearest": "ce-tch",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "ce-tch",
+              "nearest": "ce-tch",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "dash-press-ex",
+              "nearest": "dash-press-ex",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "dash-press-ex",
+              "nearest": "dash-press-ex",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "dash-press-ex",
+              "nearest": "dash-press-ex",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "dash-press-ex",
+              "nearest": "dash-press-ex",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "dash-press-ex",
+              "nearest": "dash-press-ex",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "dash-press-ex",
+              "nearest": "dash-press-ex",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "ex-ex",
+              "nearest": "ex-ex",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "ex-ex",
+              "nearest": "ex-ex",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "ex-ex",
+              "nearest": "ex-ex",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "ex-lo-fe",
+              "nearest": "ex-lo-fe",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "ex-lo-fe",
+              "nearest": "ex-lo-fe",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "ex-zo-dash",
+              "nearest": "ex-zo-dash",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "ex-zo-dash",
+              "nearest": "ex-zo-dash",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "fe-ery",
+              "nearest": "fe-ery",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "fe-ery",
+              "nearest": "fe-ery",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "fe-mi-ka-re",
+              "nearest": "fe-mi-ka-re",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "fe-mi-ka-re",
+              "nearest": "fe-mi-ka-re",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "form-no",
+              "nearest": "form-no",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "form-no",
+              "nearest": "form-no",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "form-no",
+              "nearest": "form-no",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "form-no",
+              "nearest": "form-no",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "kit-tab-tch-dash",
+              "nearest": "kit-tab-tch-dash",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "le-press-ex-re",
+              "nearest": "le-press-ex-re",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "le-tab-ex",
+              "nearest": "le-tab-ex",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "le-tab-ex",
+              "nearest": "le-tab-ex",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "le-tab-ex",
+              "nearest": "le-tab-ex",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "le-tab-ex",
+              "nearest": "le-tab-ex",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "lo-no-tab-ex",
+              "nearest": "lo-no-tab-ex",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "lo-no-tab-ex",
+              "nearest": "lo-no-tab-ex",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "lo-no-tab-ex",
+              "nearest": "lo-no-tab-ex",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "mi-dash-re",
+              "nearest": "mi-dash-re",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "mi-dash-re",
+              "nearest": "mi-dash-re",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "mi-dash-re",
+              "nearest": "mi-dash-re",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "mi-dash-re",
+              "nearest": "mi-dash-re",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "mi-dash-re",
+              "nearest": "mi-dash-re",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "mi-form-ka",
+              "nearest": "mi-form-ka",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "mi-form-ka",
+              "nearest": "mi-form-ka",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "mi-form-ka",
+              "nearest": "mi-form-ka",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "no-ka",
+              "nearest": "no-ka",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "no-ka",
+              "nearest": "no-ka",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "pe-re-ka-mi",
+              "nearest": "pe-re-ka-mi",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "press-ka-fe",
+              "nearest": "press-ka-fe",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "press-ka-fe",
+              "nearest": "press-ka-fe",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "press-ka-fe",
+              "nearest": "press-ka-fe",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "press-pe-ui-dash",
+              "nearest": "press-pe-ui-dash",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "press-pe-ui-dash",
+              "nearest": "press-pe-ui-dash",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "press-pe-ui-dash",
+              "nearest": "press-pe-ui-dash",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "press-pe-ui-dash",
+              "nearest": "press-pe-ui-dash",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "qu-lo-ex-le",
+              "nearest": "qu-lo-ex-le",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "qu-lo-ex-le",
+              "nearest": "qu-lo-ex-le",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "qu-lo-ex-le",
+              "nearest": "qu-lo-ex-le",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "qu-lo-ex-le",
+              "nearest": "qu-lo-ex-le",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "qu-pe-tch-ce",
+              "nearest": "qu-pe-tch-ce",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "qu-pe-tch-ce",
+              "nearest": "qu-pe-tch-ce",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "ser-ka-form-de",
+              "nearest": "ser-ka-form-de",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "ser-ka-form-de",
+              "nearest": "ser-ka-form-de",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "ser-ka-form-de",
+              "nearest": "ser-ka-form-de",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "ser-ka-form-de",
+              "nearest": "ser-ka-form-de",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "ser-ka-form-de",
+              "nearest": "ser-ka-form-de",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "tch-pe",
+              "nearest": "tch-pe",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "tch-pe",
+              "nearest": "tch-pe",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "ui-ty-vi-le",
+              "nearest": "ui-ty-vi-le",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "ui-ty-vi-le",
+              "nearest": "ui-ty-vi-le",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "zo-form-tch-kit",
+              "nearest": "zo-form-tch-kit",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "zo-form-tch-kit",
+              "nearest": "zo-form-tch-kit",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "zo-ka-ser-tch",
+              "nearest": "zo-ka-ser-tch",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "zo-ka-ser-tch",
+              "nearest": "zo-ka-ser-tch",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "zo-ka-ser-tch",
+              "nearest": "zo-ka-ser-tch",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "zo-ka-ser-tch",
+              "nearest": "zo-ka-ser-tch",
+              "distance": 0,
+              "verdict": "exact"
+            },
+            {
+              "name": "zo-ka-ser-tch",
+              "nearest": "zo-ka-ser-tch",
+              "distance": 0,
+              "verdict": "exact"
+            }
+          ],
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

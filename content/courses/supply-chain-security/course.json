@@ -1,0 +1,189 @@
+{
+  "publicId": "supply-chain-security",
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1793025131/codedev/courses/supply-chain-security/cover",
+  "title": "Software Supply Chain Security & AI-Generated Code: Packages, Secrets, SBOMs & Signatures",
+  "concept": "Protect a project from what it installs and what it ships: lockfiles and version ranges, packages an AI invented, typosquatting and dependency confusion, install scripts, secrets in code and logs, SBOMs you can diff, and artifacts verified against signed digests.",
+  "description": "An advanced course for developers and DevOps engineers who own a CI pipeline. Every lesson starts from an incident on the CodeDev learning platform - a package an AI assistant recommended that did not exist until someone registered it, a scoped package the checker skipped, a postinstall script that read environment variables during the build, an API key printed by the config loader into CI logs, a release that shipped a dependency nobody added on purpose - and fixes it with a check you can automate: lockfiles and ranges, allowlists and package age, typosquat and slopsquat detection, dependency confusion, install scripts, secret scanning, SBOM diffs, digests and signatures, and CI token permissions. 12 lessons with True/False quizzes on real manifests, logs and SBOMs, and TypeScript challenges graded by hidden tests.",
+  "level": "advanced",
+  "durationMinutes": 400,
+  "instructor": "CodeDev Engineering Team",
+  "language": "TypeScript",
+  "category": "Cyber Security",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 150,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 600
+    },
+    {
+      "priceType": "money",
+      "amount": 249000,
+      "currency": "VND"
+    }
+  ],
+  "completionRules": {},
+  "domain": "quality",
+  "learningOutcomes": [
+    {
+      "code": "dependency-risks",
+      "text": "Explain typosquatting, slopsquatting, dependency confusion and malicious install scripts"
+    },
+    {
+      "code": "dependency-checks",
+      "text": "Check lockfiles, version ranges, allowlists and package age automatically in CI"
+    },
+    {
+      "code": "secrets",
+      "text": "Find secrets in diffs and keep them out of logs"
+    },
+    {
+      "code": "sbom-provenance",
+      "text": "Generate and diff SBOMs and verify artifacts against signed digests"
+    },
+    {
+      "code": "ci-hardening",
+      "text": "Limit CI token permissions and review AI-suggested dependencies before they land"
+    }
+  ],
+  "testedVersions": {
+    "TypeScript": "5.9.3 (tsc --strict in the code runner)",
+    "npm": "lockfileVersion 3 (lesson examples)",
+    "SBOM": "CycloneDX / SPDX JSON (lesson examples)"
+  },
+  "lastReviewedAt": "2026-10-26",
+  "sourceLinks": [
+    "https://slsa.dev/",
+    "https://cyclonedx.org/specification/overview/",
+    "https://docs.npmjs.com/cli/v10/configuring-npm/package-lock-json"
+  ],
+  "owner": "CodeDev Engineering Team",
+  "knownIssues": [
+    "No network in the code runner: registries, SBOMs and signatures are fixtures"
+  ],
+  "scenario": {
+    "title": "The Package That Didn't Exist",
+    "quiz": "chal_quiz_ssc_211",
+    "fixBug": "chal_coding_ssc_212"
+  },
+  "careerRoles": [
+    "devops_engineer",
+    "backend_developer",
+    "fullstack_developer"
+  ],
+  "skills": {
+    "system_design": 2,
+    "testing": 2,
+    "typescript": 3,
+    "docker": 2
+  },
+  "goals": [
+    "grow_in_role",
+    "interview_prep"
+  ],
+  "prerequisites": [
+    "devops-foundations-ci-containers",
+    "ai-assisted-development"
+  ],
+  "modules": [
+    {
+      "orderIndex": 1,
+      "title": "Dependencies",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "01-supply-chain-risks",
+          "title": "Supply chain risks: what can go wrong between npm install and production",
+          "sanityId": "lesson-ssc-1-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "02-lockfiles-ranges",
+          "title": "Lockfiles & version ranges: what you actually install",
+          "sanityId": "lesson-ssc-1-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "03-allowlist-age",
+          "title": "Allowlists & package age: block what nobody approved",
+          "sanityId": "lesson-ssc-1-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Names & Scripts",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "04-package-that-didnt-exist",
+          "title": "The package that didn't exist: a scoped name the checker skipped",
+          "sanityId": "lesson-ssc-2-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "05-typosquat-detector",
+          "title": "Typosquatting & slopsquatting: names one edit away",
+          "sanityId": "lesson-ssc-2-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "06-spot-install-scripts",
+          "title": "Spot the AI mistake: install scripts allowed by default",
+          "sanityId": "lesson-ssc-2-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Secrets",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "07-secret-scanning",
+          "title": "Secret scanning: patterns & entropy in a diff",
+          "sanityId": "lesson-ssc-3-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "08-secrets-in-logs",
+          "title": "Fix it: a config loader that prints secrets",
+          "sanityId": "lesson-ssc-3-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "09-ci-permissions",
+          "title": "CI token permissions & dependency confusion",
+          "sanityId": "lesson-ssc-3-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 4,
+      "title": "Provenance",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "10-sbom-diff",
+          "title": "SBOMs: what changed between two releases",
+          "sanityId": "lesson-ssc-4-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "11-verify-digests",
+          "title": "Verify artifacts against signed digests",
+          "sanityId": "lesson-ssc-4-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "12-review-ai-dependencies",
+          "title": "Reviewing AI-suggested dependencies before they land",
+          "sanityId": "lesson-ssc-4-3"
+        }
+      ]
+    }
+  ]
+}

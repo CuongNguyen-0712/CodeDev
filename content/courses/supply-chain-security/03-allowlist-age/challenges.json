@@ -1,0 +1,5127 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_ssc_131",
+      "name": "allowlist-quarantine-quiz",
+      "type": "quiz",
+      "title": "Who approved this name, and how old is this version?",
+      "description": "Two pieces of evidence from the CodeDev dependency gate: an allowlist matcher with a wildcard entry, and an exception for an urgent security release.",
+      "difficulty": "medium",
+      "outcomes": [
+        "dependency-checks"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The gate's allowlist matcher, written by an AI assistant:\n\nconst allowlist = [\"@codedev/*\", \"lodash*\", \"zod\"];\nconst allowed = (name: string) =>\n  allowlist.some((p) => p.endsWith(\"*\") ? name.startsWith(p.slice(0, -1)) : name === p);\n\nPolicy: quarantineDays 7. Today is 2026-10-27.\nPull request #2331 adds lodash-deep-clone-pro 1.0.3, published 2026-10-18T09:00:00Z by an account created the same day.\n\nStatement: \"The gate blocks lodash-deep-clone-pro in pull request #2331.\"",
+          "explanation": "False. For \"lodash*\" the matcher drops the star and checks name.startsWith(\"lodash\"), which lodash-deep-clone-pro passes. The version is 9 days old, so the 7-day quarantine ends on 2026-10-25 and does not block it either: the package is allowed. A wildcard is safe only for a scope you own, because only your organization can publish under @codedev/; anyone can register a name that starts with lodash. The misconception is that a prefix pattern restricts names the way a scope does; replace it with the exact names you approved (lodash, lodash.merge ...).",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "dependency-policy.json:\n{\n  \"allowlist\": [\"@codedev/*\", \"express\", \"zod\", \"next\"],\n  \"quarantineDays\": 7,\n  \"exceptions\": [\n    { \"name\": \"express\", \"version\": \"4.22.1\", \"ticket\": \"SEC-231\", \"expires\": \"2026-11-03\" }\n  ]\n}\n\nRegistry snapshot: express 4.22.1 published 2026-10-26T15:02:00Z (fix for an advisory that affects the API).\nToday is 2026-10-27. The gate lifts the allowlist and quarantine blocks for a change whose name and exact version match an exception that has not expired.\n\nStatement: \"Today the gate allows express 4.22.1, and if 4.22.2 is published tomorrow, the gate blocks it until its own quarantine ends.\"",
+          "explanation": "True. 4.22.1 is one day old, so the quarantine alone would block it until 2026-11-02, but the exception matches the name and the exact version and is valid until 2026-11-03, so the gate allows it. The exception says nothing about 4.22.2: a release tomorrow is checked like any other version and waits 7 days. That is the reason exceptions name an exact version - an exception for \"express\" in general would also have let through a hijacked release published right after the fix. The misconception is that an exception approves a package; it approves one decision about one version, for a limited time.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_ssc_132",
+      "name": "dependency-allowlist-gate",
+      "type": "mini_coding",
+      "title": "Gate new dependencies: allowlist, quarantine and exceptions",
+      "description": "Every pull request to the CodeDev repositories passes a dependency gate before npm ci. Write decide(change, policy, registry, today) in TypeScript: it returns { allow, reasons } for one added or updated package (change.name and the new version change.to; from is only displayed). Blocking reasons, in this order: \"not in registry\" - registry (name -> version -> publish timestamp) has no such package or no such version; \"publish date unknown\" - the timestamp is not ISO 8601 with a date, a time (hh:mm, optional :ss and fraction) and Z or an offset such as +07:00 (2026-10-20T08:15:00Z, 2026-10-21T03:00:00+07:00); \"not on allowlist\" - no allowlist entry matches: an entry matches the exact name (case-sensitive), and an entry of the form \"@scope/*\" matches every name that starts with \"@scope/\"; \"quarantined until <D> (published <P>)\" - P is the UTC calendar date (YYYY-MM-DD) of the publish instant, D is P plus policy.quarantineDays days, and the version is blocked while today < D (today is a YYYY-MM-DD date; dates in this form compare correctly as strings). An exception { name, version, ticket, expires } matches a change with the same name and exact version; it is valid while expires is a real calendar date written YYYY-MM-DD and today <= expires. A valid exception lifts \"not on allowlist\" and the quarantine, but never \"not in registry\" or \"publish date unknown\"; when it turns a block into an allow, reasons is [\"exception <ticket> (expires <expires>)\"] for the first valid matching exception in the list. When the change stays blocked and matching exceptions exist but none of them is valid, add \"exception <ticket> not valid (expires <expires>)\" for the first matching one, as the last reason. A change with no blocking reason is allowed with reasons []. The runner prints one line per change, in input order, then the totals.",
+      "difficulty": "medium",
+      "outcomes": [
+        "dependency-checks"
+      ],
+      "points": 30,
+      "hints": [
+        "Which blocking reasons describe facts about the package (does this version exist, can we read its date) and which describe your team's decisions (an approved name, a waiting period)? Which of the two kinds can a signed-off exception change?",
+        "Collect the reasons in two lists - the ones an exception may lift and the ones it may not - and look at exceptions only at the end. For dates: check the timestamp format with a regular expression before Date.parse (which accepts many other formats), take new Date(ms).toISOString().slice(0, 10) for the UTC date, add days in milliseconds from that date's midnight UTC, and compare YYYY-MM-DD strings. A real date survives the round trip through Date and toISOString unchanged.",
+        "A worked example on other data, quarantine 3 days, today 2026-03-10: a version published 2026-03-07T22:00:00-05:00 is 2026-03-08T03:00:00Z, so P = 2026-03-08 and D = 2026-03-11: blocked. One published 2026-03-07T10:00:00Z gives D = 2026-03-10: allowed, because today is not before D. An entry @acme/* allows @acme/cli but not @acme-tools/cli or acme-cli. An exception that expires 2026-03-10 still counts on 2026-03-10; one for version 2.0.0 does nothing for 2.0.1."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The AI pull request: an unknown name, a lookalike, a two-day-old zod; express and our scope pass",
+          "input": {
+            "today": "2026-10-27",
+            "policy": {
+              "allowlist": [
+                "@codedev/*",
+                "express",
+                "zod",
+                "marked",
+                "dompurify",
+                "pino",
+                "next",
+                "react",
+                "react-dom"
+              ],
+              "quarantineDays": 7,
+              "exceptions": []
+            },
+            "registry": {
+              "express": {
+                "4.21.1": "2024-10-08T19:42:11Z",
+                "4.21.2": "2024-12-05T17:20:31Z",
+                "4.22.0": "2026-10-25T09:00:00Z"
+              },
+              "zod": {
+                "4.1.11": "2026-09-22T12:00:00Z",
+                "4.1.12": "2026-10-25T06:30:00Z"
+              },
+              "marked": {
+                "14.1.2": "2026-08-01T10:00:00Z",
+                "14.1.3": "2026-10-19T10:00:00Z"
+              },
+              "dompurify": {
+                "3.2.7": "2026-09-30T08:00:00Z"
+              },
+              "dom-purify": {
+                "3.1.0": "2026-10-17T03:12:41Z"
+              },
+              "@codedev/md-render": {
+                "0.3.0": "2026-09-30T14:00:00Z",
+                "0.4.0": "2026-10-26T16:00:00Z"
+              },
+              "left-pad": {
+                "1.3.0": "2018-04-09T00:00:00Z"
+              },
+              "pino": {
+                "9.12.0": "2026-10-23T11:00:00Z",
+                "9.12.1": "2026-10-24T11:00:00Z"
+              }
+            },
+            "changes": [
+              {
+                "name": "marked",
+                "from": null,
+                "to": "14.1.2"
+              },
+              {
+                "name": "dom-purify",
+                "from": null,
+                "to": "3.1.0"
+              },
+              {
+                "name": "markdown-sanitize-lite",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "zod",
+                "from": "4.1.11",
+                "to": "4.1.12"
+              },
+              {
+                "name": "@codedev/md-render",
+                "from": null,
+                "to": "0.3.0"
+              },
+              {
+                "name": "express",
+                "from": "4.21.1",
+                "to": "4.21.2"
+              }
+            ]
+          },
+          "expected": "allow marked@14.1.2\nblock dom-purify@3.1.0: not on allowlist\nblock markdown-sanitize-lite@1.0.0: not in registry; not on allowlist\nblock zod@4.1.12 (was 4.1.11): quarantined until 2026-11-01 (published 2026-10-25)\nallow @codedev/md-render@0.3.0\nallow express@4.21.2 (was 4.21.1)\n3 allowed, 3 blocked",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Exceptions: one for the exact version lifts quarantine; an expired one and another version do not",
+          "input": {
+            "today": "2026-10-27",
+            "policy": {
+              "allowlist": [
+                "@codedev/*",
+                "express",
+                "zod",
+                "marked",
+                "dompurify",
+                "pino",
+                "next",
+                "react",
+                "react-dom"
+              ],
+              "quarantineDays": 7,
+              "exceptions": [
+                {
+                  "name": "zod",
+                  "version": "4.1.12",
+                  "ticket": "SEC-212",
+                  "expires": "2026-11-03"
+                },
+                {
+                  "name": "left-pad",
+                  "version": "1.3.0",
+                  "ticket": "SEC-118",
+                  "expires": "2026-10-20"
+                },
+                {
+                  "name": "pino",
+                  "version": "9.12.0",
+                  "ticket": "SEC-230",
+                  "expires": "2026-11-10"
+                },
+                {
+                  "name": "@codedev/md-render",
+                  "version": "0.3.0",
+                  "ticket": "SEC-199",
+                  "expires": "2026-12-01"
+                }
+              ]
+            },
+            "registry": {
+              "express": {
+                "4.21.1": "2024-10-08T19:42:11Z",
+                "4.21.2": "2024-12-05T17:20:31Z",
+                "4.22.0": "2026-10-25T09:00:00Z"
+              },
+              "zod": {
+                "4.1.11": "2026-09-22T12:00:00Z",
+                "4.1.12": "2026-10-25T06:30:00Z"
+              },
+              "marked": {
+                "14.1.2": "2026-08-01T10:00:00Z",
+                "14.1.3": "2026-10-19T10:00:00Z"
+              },
+              "dompurify": {
+                "3.2.7": "2026-09-30T08:00:00Z"
+              },
+              "dom-purify": {
+                "3.1.0": "2026-10-17T03:12:41Z"
+              },
+              "@codedev/md-render": {
+                "0.3.0": "2026-09-30T14:00:00Z",
+                "0.4.0": "2026-10-26T16:00:00Z"
+              },
+              "left-pad": {
+                "1.3.0": "2018-04-09T00:00:00Z"
+              },
+              "pino": {
+                "9.12.0": "2026-10-23T11:00:00Z",
+                "9.12.1": "2026-10-24T11:00:00Z"
+              }
+            },
+            "changes": [
+              {
+                "name": "zod",
+                "from": "4.1.11",
+                "to": "4.1.12"
+              },
+              {
+                "name": "left-pad",
+                "from": null,
+                "to": "1.3.0"
+              },
+              {
+                "name": "pino",
+                "from": "9.12.0",
+                "to": "9.12.1"
+              },
+              {
+                "name": "@codedev/md-render",
+                "from": null,
+                "to": "0.3.0"
+              }
+            ]
+          },
+          "expected": "allow zod@4.1.12 (was 4.1.11): exception SEC-212 (expires 2026-11-03)\nblock left-pad@1.3.0: not on allowlist; exception SEC-118 not valid (expires 2026-10-20)\nblock pino@9.12.1 (was 9.12.0): quarantined until 2026-10-31 (published 2026-10-24)\nallow @codedev/md-render@0.3.0\n2 allowed, 2 blocked",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Day boundaries: quarantine ending today, UTC dates of +07:00 and 23:59Z, future dates, expiry today",
+          "input": {
+            "today": "2026-10-27",
+            "policy": {
+              "allowlist": [
+                "a-ends-today",
+                "b-ends-tomorrow",
+                "c-offset",
+                "d-late-utc",
+                "e-future",
+                "g-zero-hour"
+              ],
+              "quarantineDays": 7,
+              "exceptions": [
+                {
+                  "name": "f-expires-today",
+                  "version": "1.0.0",
+                  "ticket": "SEC-301",
+                  "expires": "2026-10-27"
+                },
+                {
+                  "name": "h-expired-yesterday",
+                  "version": "1.0.0",
+                  "ticket": "SEC-302",
+                  "expires": "2026-10-26"
+                }
+              ]
+            },
+            "registry": {
+              "a-ends-today": {
+                "1.0.0": "2026-10-20T00:00:00Z"
+              },
+              "b-ends-tomorrow": {
+                "1.0.0": "2026-10-21T00:00:00Z"
+              },
+              "c-offset": {
+                "1.0.0": "2026-10-21T03:00:00+07:00"
+              },
+              "d-late-utc": {
+                "1.0.0": "2026-10-20T23:59:59Z"
+              },
+              "e-future": {
+                "1.0.0": "2026-10-29T08:00:00Z"
+              },
+              "f-expires-today": {
+                "1.0.0": "2026-10-26T08:00:00Z"
+              },
+              "g-zero-hour": {
+                "2.0.0": "2026-10-21T00:30:00.000+01:00"
+              },
+              "h-expired-yesterday": {
+                "1.0.0": "2025-01-01T00:00:00Z"
+              }
+            },
+            "changes": [
+              {
+                "name": "a-ends-today",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "b-ends-tomorrow",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "c-offset",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "d-late-utc",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "e-future",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "f-expires-today",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "g-zero-hour",
+                "from": "1.9.0",
+                "to": "2.0.0"
+              },
+              {
+                "name": "h-expired-yesterday",
+                "from": null,
+                "to": "1.0.0"
+              }
+            ]
+          },
+          "expected": "allow a-ends-today@1.0.0\nblock b-ends-tomorrow@1.0.0: quarantined until 2026-10-28 (published 2026-10-21)\nallow c-offset@1.0.0\nallow d-late-utc@1.0.0\nblock e-future@1.0.0: quarantined until 2026-11-05 (published 2026-10-29)\nallow f-expires-today@1.0.0: exception SEC-301 (expires 2026-10-27)\nallow g-zero-hour@2.0.0 (was 1.9.0)\nblock h-expired-yesterday@1.0.0: not on allowlist; exception SEC-302 not valid (expires 2026-10-26)\n5 allowed, 3 blocked",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Allowlist patterns: other scopes that start like ours, prefixes of exact names, case",
+          "input": {
+            "today": "2026-10-27",
+            "policy": {
+              "allowlist": [
+                "@codedev/*",
+                "lodash",
+                "@types/*",
+                "@babel/core",
+                "express",
+                "@codedev"
+              ],
+              "quarantineDays": 7,
+              "exceptions": []
+            },
+            "registry": {
+              "@codedev/ui": {
+                "2.0.0": "2026-01-10T00:00:00Z"
+              },
+              "@codedev-labs/grader": {
+                "1.0.0": "2026-01-10T00:00:00Z"
+              },
+              "@codedevs/ui": {
+                "2.0.0": "2026-01-10T00:00:00Z"
+              },
+              "codedev-utils": {
+                "1.0.0": "2026-01-10T00:00:00Z"
+              },
+              "lodash": {
+                "4.17.21": "2021-02-20T15:42:16Z"
+              },
+              "lodash.merge": {
+                "4.6.2": "2019-07-04T00:00:00Z"
+              },
+              "lodash-es": {
+                "4.17.21": "2021-02-20T15:42:16Z"
+              },
+              "@types/node": {
+                "24.9.1": "2026-10-01T00:00:00Z"
+              },
+              "@babel/core": {
+                "7.28.4": "2026-09-01T00:00:00Z"
+              },
+              "@babel/parser": {
+                "7.28.4": "2026-09-01T00:00:00Z"
+              },
+              "Express": {
+                "4.21.2": "2024-12-05T17:20:31Z"
+              },
+              "@codedev/sub/x": {
+                "1.0.0": "2026-01-10T00:00:00Z"
+              }
+            },
+            "changes": [
+              {
+                "name": "@codedev/ui",
+                "from": "1.9.0",
+                "to": "2.0.0"
+              },
+              {
+                "name": "@codedev-labs/grader",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedevs/ui",
+                "from": null,
+                "to": "2.0.0"
+              },
+              {
+                "name": "codedev-utils",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "lodash",
+                "from": null,
+                "to": "4.17.21"
+              },
+              {
+                "name": "lodash.merge",
+                "from": null,
+                "to": "4.6.2"
+              },
+              {
+                "name": "lodash-es",
+                "from": null,
+                "to": "4.17.21"
+              },
+              {
+                "name": "@types/node",
+                "from": "24.9.0",
+                "to": "24.9.1"
+              },
+              {
+                "name": "@babel/core",
+                "from": null,
+                "to": "7.28.4"
+              },
+              {
+                "name": "@babel/parser",
+                "from": null,
+                "to": "7.28.4"
+              },
+              {
+                "name": "Express",
+                "from": null,
+                "to": "4.21.2"
+              }
+            ]
+          },
+          "expected": "allow @codedev/ui@2.0.0 (was 1.9.0)\nblock @codedev-labs/grader@1.0.0: not on allowlist\nblock @codedevs/ui@2.0.0: not on allowlist\nblock codedev-utils@1.0.0: not on allowlist\nallow lodash@4.17.21\nblock lodash.merge@4.6.2: not on allowlist\nblock lodash-es@4.17.21: not on allowlist\nallow @types/node@24.9.1 (was 24.9.0)\nallow @babel/core@7.28.4\nblock @babel/parser@7.28.4: not on allowlist\nblock Express@4.21.2: not on allowlist\n4 allowed, 7 blocked",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Invalid data fails closed: unreadable dates, unreal expiry dates, exceptions for missing versions",
+          "input": {
+            "today": "2026-10-27",
+            "policy": {
+              "allowlist": [
+                "@codedev/*",
+                "pino",
+                "zod",
+                "marked"
+              ],
+              "quarantineDays": 7,
+              "exceptions": [
+                {
+                  "name": "pino",
+                  "version": "9.13.0",
+                  "ticket": "SEC-401",
+                  "expires": "2026-12-01"
+                },
+                {
+                  "name": "zod",
+                  "version": "4.2.0",
+                  "ticket": "SEC-402",
+                  "expires": "2026-02-30"
+                },
+                {
+                  "name": "zod",
+                  "version": "4.2.0",
+                  "ticket": "SEC-403",
+                  "expires": "soon"
+                },
+                {
+                  "name": "marked",
+                  "version": "15.0.0",
+                  "ticket": "SEC-404",
+                  "expires": "2026-11-30"
+                },
+                {
+                  "name": "ghost-lib",
+                  "version": "1.0.0",
+                  "ticket": "SEC-405",
+                  "expires": "2026-11-30"
+                },
+                {
+                  "name": "chalk",
+                  "version": "5.6.2",
+                  "ticket": "SEC-406",
+                  "expires": "2026-13-01"
+                }
+              ]
+            },
+            "registry": {
+              "pino": {
+                "9.12.1": "2026-10-01T00:00:00Z"
+              },
+              "zod": {
+                "4.2.0": "2026-10-26T00:00:00Z"
+              },
+              "marked": {
+                "15.0.0": "yesterday",
+                "15.0.1": "",
+                "15.0.2": "2026-10-01"
+              },
+              "@codedev/ui": {
+                "3.0.0": "Mon, 26 Oct 2026 10:00:00 GMT"
+              },
+              "chalk": {
+                "5.6.2": "2026-01-01T00:00:00Z"
+              }
+            },
+            "changes": [
+              {
+                "name": "pino",
+                "from": "9.12.1",
+                "to": "9.13.0"
+              },
+              {
+                "name": "zod",
+                "from": "4.1.12",
+                "to": "4.2.0"
+              },
+              {
+                "name": "marked",
+                "from": "14.1.2",
+                "to": "15.0.0"
+              },
+              {
+                "name": "marked",
+                "from": "14.1.2",
+                "to": "15.0.1"
+              },
+              {
+                "name": "marked",
+                "from": "14.1.2",
+                "to": "15.0.2"
+              },
+              {
+                "name": "@codedev/ui",
+                "from": "2.0.0",
+                "to": "3.0.0"
+              },
+              {
+                "name": "ghost-lib",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "chalk",
+                "from": null,
+                "to": "5.6.2"
+              }
+            ]
+          },
+          "expected": "block pino@9.13.0 (was 9.12.1): not in registry\nblock zod@4.2.0 (was 4.1.12): quarantined until 2026-11-02 (published 2026-10-26); exception SEC-402 not valid (expires 2026-02-30)\nblock marked@15.0.0 (was 14.1.2): publish date unknown\nblock marked@15.0.1 (was 14.1.2): publish date unknown\nblock marked@15.0.2 (was 14.1.2): publish date unknown\nblock @codedev/ui@3.0.0 (was 2.0.0): publish date unknown\nblock ghost-lib@1.0.0: not in registry; not on allowlist\nblock chalk@5.6.2: not on allowlist; exception SEC-406 not valid (expires 2026-13-01)\n0 allowed, 8 blocked",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Quarantine of 0 days: only a version dated after today is held",
+          "input": {
+            "today": "2026-10-27",
+            "policy": {
+              "allowlist": [
+                "zod",
+                "pino"
+              ],
+              "quarantineDays": 0,
+              "exceptions": []
+            },
+            "registry": {
+              "zod": {
+                "4.1.12": "2026-10-27T23:00:00Z"
+              },
+              "pino": {
+                "9.13.0": "2026-10-28T00:00:00Z"
+              }
+            },
+            "changes": [
+              {
+                "name": "zod",
+                "from": "4.1.11",
+                "to": "4.1.12"
+              },
+              {
+                "name": "pino",
+                "from": null,
+                "to": "9.13.0"
+              }
+            ]
+          },
+          "expected": "allow zod@4.1.12 (was 4.1.11)\nblock pino@9.13.0: quarantined until 2026-10-28 (published 2026-10-28)\n1 allowed, 1 blocked",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Large: 420 changes, scopes and lookalike scopes, mixed ages, exceptions that expire around today",
+          "input": {
+            "today": "2026-10-27",
+            "policy": {
+              "allowlist": [
+                "@codedev/*",
+                "@types/*",
+                "pkg-0",
+                "pkg-3",
+                "pkg-6",
+                "pkg-7",
+                "pkg-8",
+                "pkg-9",
+                "pkg-15",
+                "pkg-23",
+                "pkg-25",
+                "pkg-30",
+                "pkg-31",
+                "pkg-35",
+                "pkg-36",
+                "pkg-38",
+                "pkg-41",
+                "pkg-42",
+                "pkg-44",
+                "pkg-47",
+                "pkg-49",
+                "pkg-50",
+                "pkg-52",
+                "pkg-53",
+                "pkg-54",
+                "pkg-55",
+                "pkg-58",
+                "pkg-64",
+                "pkg-66",
+                "pkg-67",
+                "pkg-68",
+                "pkg-69",
+                "pkg-73",
+                "pkg-74",
+                "pkg-78",
+                "pkg-79",
+                "pkg-85",
+                "pkg-87",
+                "pkg-88",
+                "pkg-90",
+                "pkg-96",
+                "pkg-97",
+                "pkg-98",
+                "pkg-99",
+                "pkg-100",
+                "pkg-102",
+                "pkg-103",
+                "pkg-104",
+                "pkg-110",
+                "pkg-112",
+                "pkg-113",
+                "pkg-114",
+                "pkg-115",
+                "pkg-116",
+                "pkg-120",
+                "pkg-122",
+                "pkg-124",
+                "pkg-127",
+                "pkg-128",
+                "pkg-131",
+                "pkg-134",
+                "pkg-140",
+                "pkg-143",
+                "pkg-147",
+                "pkg-148",
+                "pkg-150",
+                "pkg-151",
+                "pkg-152",
+                "pkg-155",
+                "pkg-160",
+                "pkg-168",
+                "pkg-169",
+                "pkg-171",
+                "pkg-173",
+                "pkg-174",
+                "pkg-181",
+                "pkg-184",
+                "pkg-188",
+                "pkg-190",
+                "pkg-191",
+                "pkg-192",
+                "pkg-195",
+                "pkg-196",
+                "pkg-199",
+                "pkg-200",
+                "pkg-202",
+                "pkg-203",
+                "pkg-204",
+                "pkg-206",
+                "pkg-207",
+                "pkg-210",
+                "pkg-212",
+                "pkg-216",
+                "pkg-217",
+                "pkg-220",
+                "pkg-222",
+                "pkg-223",
+                "pkg-224",
+                "pkg-225",
+                "pkg-227",
+                "pkg-229",
+                "pkg-230",
+                "pkg-231",
+                "pkg-234",
+                "pkg-240",
+                "pkg-246",
+                "pkg-247",
+                "pkg-248",
+                "pkg-252",
+                "pkg-258",
+                "pkg-261",
+                "pkg-265",
+                "pkg-266",
+                "pkg-267",
+                "pkg-268",
+                "pkg-273",
+                "pkg-275",
+                "pkg-278",
+                "pkg-280",
+                "pkg-281",
+                "pkg-282",
+                "pkg-283",
+                "pkg-285",
+                "pkg-287",
+                "pkg-291",
+                "pkg-293",
+                "pkg-296",
+                "pkg-298",
+                "pkg-299",
+                "pkg-302",
+                "pkg-303",
+                "pkg-304",
+                "pkg-306",
+                "pkg-312",
+                "pkg-313",
+                "pkg-315",
+                "pkg-316",
+                "pkg-317",
+                "pkg-318",
+                "pkg-319",
+                "pkg-320",
+                "pkg-322",
+                "pkg-323",
+                "pkg-324",
+                "pkg-325",
+                "pkg-328",
+                "pkg-329",
+                "pkg-330",
+                "pkg-331",
+                "pkg-332",
+                "pkg-334",
+                "pkg-336",
+                "pkg-337",
+                "pkg-341",
+                "pkg-342",
+                "pkg-344",
+                "pkg-345",
+                "pkg-346",
+                "pkg-349",
+                "pkg-351",
+                "pkg-352",
+                "pkg-354",
+                "pkg-355",
+                "pkg-356",
+                "pkg-357",
+                "pkg-358",
+                "pkg-359",
+                "pkg-361",
+                "pkg-362",
+                "pkg-364",
+                "pkg-366",
+                "pkg-367",
+                "pkg-368",
+                "pkg-370",
+                "pkg-371",
+                "pkg-374",
+                "pkg-375",
+                "pkg-377",
+                "pkg-378",
+                "pkg-382",
+                "pkg-388",
+                "pkg-389",
+                "pkg-390",
+                "pkg-394",
+                "pkg-396",
+                "pkg-400",
+                "pkg-406",
+                "pkg-408",
+                "pkg-409",
+                "pkg-410",
+                "pkg-411",
+                "pkg-412",
+                "pkg-414",
+                "pkg-416",
+                "pkg-417",
+                "pkg-418",
+                "pkg-419"
+              ],
+              "quarantineDays": 14,
+              "exceptions": [
+                {
+                  "name": "pkg-0",
+                  "version": "1.0.0",
+                  "ticket": "SEC-1000",
+                  "expires": "2026-10-26"
+                },
+                {
+                  "name": "pkg-8",
+                  "version": "9.9.9",
+                  "ticket": "SEC-1008",
+                  "expires": "2026-11-01"
+                },
+                {
+                  "name": "pkg-13",
+                  "version": "1.1.0",
+                  "ticket": "SEC-1013",
+                  "expires": "2026-10-31"
+                },
+                {
+                  "name": "@codedev-ext/mod-27",
+                  "version": "1.99.0",
+                  "ticket": "SEC-1027",
+                  "expires": "2026-10-25"
+                },
+                {
+                  "name": "pkg-28",
+                  "version": "1.0.0",
+                  "ticket": "SEC-1028",
+                  "expires": "2026-10-23"
+                },
+                {
+                  "name": "pkg-40",
+                  "version": "9.9.9",
+                  "ticket": "SEC-1040",
+                  "expires": "2026-10-26"
+                },
+                {
+                  "name": "@types/t-72",
+                  "version": "1.3.0",
+                  "ticket": "SEC-1072",
+                  "expires": "2026-10-29"
+                },
+                {
+                  "name": "pkg-74",
+                  "version": "1.99.0",
+                  "ticket": "SEC-1074",
+                  "expires": "2026-10-24"
+                },
+                {
+                  "name": "pkg-83",
+                  "version": "1.0.0",
+                  "ticket": "SEC-1083",
+                  "expires": "2026-10-28"
+                },
+                {
+                  "name": "@types/t-86",
+                  "version": "1.2.0",
+                  "ticket": "SEC-1086",
+                  "expires": "2026-10-29"
+                },
+                {
+                  "name": "pkg-92",
+                  "version": "1.0.0",
+                  "ticket": "SEC-1092",
+                  "expires": "2026-10-30"
+                },
+                {
+                  "name": "@codedev/mod-94",
+                  "version": "1.0.0",
+                  "ticket": "SEC-1094",
+                  "expires": "2026-10-30"
+                },
+                {
+                  "name": "pkg-98",
+                  "version": "1.0.0",
+                  "ticket": "SEC-1098",
+                  "expires": "2026-10-26"
+                },
+                {
+                  "name": "pkg-104",
+                  "version": "1.1.0",
+                  "ticket": "SEC-1104",
+                  "expires": "2026-11-01"
+                },
+                {
+                  "name": "pkg-118",
+                  "version": "1.1.0",
+                  "ticket": "SEC-1118",
+                  "expires": "2026-10-24"
+                },
+                {
+                  "name": "pkg-128",
+                  "version": "1.1.0",
+                  "ticket": "SEC-1128",
+                  "expires": "2026-10-25"
+                },
+                {
+                  "name": "@codedev/mod-136",
+                  "version": "1.1.0",
+                  "ticket": "SEC-1136",
+                  "expires": "2026-10-27"
+                },
+                {
+                  "name": "pkg-143",
+                  "version": "1.1.0",
+                  "ticket": "SEC-1143",
+                  "expires": "2026-10-28"
+                },
+                {
+                  "name": "pkg-150",
+                  "version": "1.1.0",
+                  "ticket": "SEC-1150",
+                  "expires": "2026-10-28"
+                },
+                {
+                  "name": "pkg-153",
+                  "version": "9.9.9",
+                  "ticket": "SEC-1153",
+                  "expires": "2026-10-26"
+                },
+                {
+                  "name": "@codedev/mod-157",
+                  "version": "1.0.0",
+                  "ticket": "SEC-1157",
+                  "expires": "2026-10-31"
+                },
+                {
+                  "name": "@codedev-ext/mod-163",
+                  "version": "1.0.0",
+                  "ticket": "SEC-1163",
+                  "expires": "2026-10-29"
+                },
+                {
+                  "name": "pkg-165",
+                  "version": "1.0.0",
+                  "ticket": "SEC-1165",
+                  "expires": "2026-10-31"
+                },
+                {
+                  "name": "@codedev/mod-166",
+                  "version": "1.2.0",
+                  "ticket": "SEC-1166",
+                  "expires": "2026-10-28"
+                },
+                {
+                  "name": "pkg-183",
+                  "version": "1.0.0",
+                  "ticket": "SEC-1183",
+                  "expires": "2026-10-27"
+                },
+                {
+                  "name": "pkg-202",
+                  "version": "1.2.0",
+                  "ticket": "SEC-1202",
+                  "expires": "2026-10-31"
+                },
+                {
+                  "name": "@codedev-ext/mod-214",
+                  "version": "1.0.0",
+                  "ticket": "SEC-1214",
+                  "expires": "2026-11-01"
+                },
+                {
+                  "name": "pkg-216",
+                  "version": "1.99.0",
+                  "ticket": "SEC-1216",
+                  "expires": "2026-10-31"
+                },
+                {
+                  "name": "pkg-221",
+                  "version": "1.2.0",
+                  "ticket": "SEC-1221",
+                  "expires": "2026-11-01"
+                },
+                {
+                  "name": "pkg-227",
+                  "version": "1.0.0",
+                  "ticket": "SEC-1227",
+                  "expires": "2026-10-24"
+                },
+                {
+                  "name": "@codedev/mod-233",
+                  "version": "1.0.0",
+                  "ticket": "SEC-1233",
+                  "expires": "2026-10-31"
+                },
+                {
+                  "name": "pkg-234",
+                  "version": "1.1.0",
+                  "ticket": "SEC-1234",
+                  "expires": "2026-10-23"
+                },
+                {
+                  "name": "@types/t-236",
+                  "version": "1.1.0",
+                  "ticket": "SEC-1236",
+                  "expires": "2026-10-29"
+                },
+                {
+                  "name": "pkg-252",
+                  "version": "1.99.0",
+                  "ticket": "SEC-1252",
+                  "expires": "2026-10-25"
+                },
+                {
+                  "name": "@types/t-259",
+                  "version": "9.9.9",
+                  "ticket": "SEC-1259",
+                  "expires": "2026-10-28"
+                },
+                {
+                  "name": "pkg-261",
+                  "version": "1.0.0",
+                  "ticket": "SEC-1261",
+                  "expires": "2026-10-29"
+                },
+                {
+                  "name": "pkg-263",
+                  "version": "1.99.0",
+                  "ticket": "SEC-1263",
+                  "expires": "2026-10-24"
+                },
+                {
+                  "name": "pkg-266",
+                  "version": "1.0.0",
+                  "ticket": "SEC-1266",
+                  "expires": "2026-10-29"
+                },
+                {
+                  "name": "pkg-269",
+                  "version": "1.0.0",
+                  "ticket": "SEC-1269",
+                  "expires": "2026-10-26"
+                },
+                {
+                  "name": "pkg-278",
+                  "version": "1.0.0",
+                  "ticket": "SEC-1278",
+                  "expires": "2026-10-29"
+                },
+                {
+                  "name": "pkg-280",
+                  "version": "1.0.0",
+                  "ticket": "SEC-1280",
+                  "expires": "2026-10-25"
+                },
+                {
+                  "name": "pkg-293",
+                  "version": "1.1.0",
+                  "ticket": "SEC-1293",
+                  "expires": "2026-10-23"
+                },
+                {
+                  "name": "pkg-294",
+                  "version": "1.1.0",
+                  "ticket": "SEC-1294",
+                  "expires": "2026-10-29"
+                },
+                {
+                  "name": "@codedev/mod-310",
+                  "version": "1.2.0",
+                  "ticket": "SEC-1310",
+                  "expires": "2026-11-01"
+                },
+                {
+                  "name": "pkg-316",
+                  "version": "1.0.0",
+                  "ticket": "SEC-1316",
+                  "expires": "2026-10-28"
+                },
+                {
+                  "name": "pkg-323",
+                  "version": "1.0.0",
+                  "ticket": "SEC-1323",
+                  "expires": "2026-11-01"
+                },
+                {
+                  "name": "pkg-328",
+                  "version": "1.1.0",
+                  "ticket": "SEC-1328",
+                  "expires": "2026-10-24"
+                },
+                {
+                  "name": "pkg-331",
+                  "version": "1.1.0",
+                  "ticket": "SEC-1331",
+                  "expires": "2026-10-30"
+                },
+                {
+                  "name": "pkg-334",
+                  "version": "1.99.0",
+                  "ticket": "SEC-1334",
+                  "expires": "2026-10-24"
+                },
+                {
+                  "name": "pkg-344",
+                  "version": "1.3.0",
+                  "ticket": "SEC-1344",
+                  "expires": "2026-10-23"
+                },
+                {
+                  "name": "pkg-353",
+                  "version": "1.0.0",
+                  "ticket": "SEC-1353",
+                  "expires": "2026-10-26"
+                },
+                {
+                  "name": "pkg-355",
+                  "version": "1.0.0",
+                  "ticket": "SEC-1355",
+                  "expires": "2026-10-28"
+                },
+                {
+                  "name": "pkg-361",
+                  "version": "1.3.0",
+                  "ticket": "SEC-1361",
+                  "expires": "2026-10-29"
+                },
+                {
+                  "name": "pkg-366",
+                  "version": "1.0.0",
+                  "ticket": "SEC-1366",
+                  "expires": "2026-11-01"
+                },
+                {
+                  "name": "pkg-367",
+                  "version": "1.1.0",
+                  "ticket": "SEC-1367",
+                  "expires": "2026-10-31"
+                },
+                {
+                  "name": "pkg-368",
+                  "version": "1.0.0",
+                  "ticket": "SEC-1368",
+                  "expires": "2026-11-01"
+                },
+                {
+                  "name": "pkg-370",
+                  "version": "1.2.0",
+                  "ticket": "SEC-1370",
+                  "expires": "2026-10-23"
+                },
+                {
+                  "name": "pkg-386",
+                  "version": "1.1.0",
+                  "ticket": "SEC-1386",
+                  "expires": "2026-10-31"
+                },
+                {
+                  "name": "pkg-390",
+                  "version": "1.0.0",
+                  "ticket": "SEC-1390",
+                  "expires": "2026-10-24"
+                },
+                {
+                  "name": "@codedev/mod-398",
+                  "version": "1.3.0",
+                  "ticket": "SEC-1398",
+                  "expires": "2026-10-27"
+                },
+                {
+                  "name": "@codedev/mod-407",
+                  "version": "1.1.0",
+                  "ticket": "SEC-1407",
+                  "expires": "2026-10-31"
+                },
+                {
+                  "name": "@codedev/mod-413",
+                  "version": "1.0.0",
+                  "ticket": "SEC-1413",
+                  "expires": "2026-10-29"
+                },
+                {
+                  "name": "pkg-419",
+                  "version": "1.0.0",
+                  "ticket": "SEC-1419",
+                  "expires": "2026-10-31"
+                }
+              ]
+            },
+            "registry": {
+              "pkg-0": {
+                "1.0.0": "2026-09-20T16:07:56Z",
+                "1.1.0": "2026-10-08T20:52:38Z",
+                "1.2.0": "2026-09-23T01:47:21Z"
+              },
+              "@codedev/mod-1": {
+                "1.0.0": "2026-09-23T19:25:47Z",
+                "1.1.0": "2026-09-30T01:31:44Z",
+                "1.2.0": "2026-10-05T11:54:10Z"
+              },
+              "@codedev/mod-2": {
+                "1.0.0": "2026-09-30T20:43:01Z",
+                "1.1.0": "2026-09-27T20:03:37Z",
+                "1.2.0": "2026-09-30T00:52:07Z"
+              },
+              "pkg-3": {
+                "1.0.0": "2026-10-07T04:48:48Z",
+                "1.1.0": "2026-10-11T13:46:38Z",
+                "1.2.0": "2026-10-13T07:09:36Z",
+                "1.3.0": "2026-09-26T14:25:08Z"
+              },
+              "@codedev-ext/mod-4": {
+                "1.0.0": "2026-10-06T12:36:05Z"
+              },
+              "@codedev-ext/mod-5": {
+                "1.0.0": "2026-09-25T14:29:34Z"
+              },
+              "pkg-7": {
+                "1.0.0": "2026-10-18T20:14:37Z",
+                "1.1.0": "2026-10-18T14:16:23Z"
+              },
+              "pkg-8": {
+                "1.0.0": "2026-10-11T18:35:40Z"
+              },
+              "pkg-9": {
+                "1.0.0": "2026-10-01T23:23:11Z",
+                "1.1.0": "2026-10-19T05:26:31Z",
+                "1.2.0": "2026-10-10T09:27:48Z",
+                "1.3.0": "2026-09-28T12:09:28Z"
+              },
+              "pkg-10": {
+                "1.0.0": "2026-10-16T17:51:29Z",
+                "1.1.0": "2026-09-24T20:58:50Z"
+              },
+              "pkg-11": {
+                "1.0.0": "2026-10-07T06:51:02Z"
+              },
+              "@codedev-ext/mod-12": {
+                "1.0.0": "2026-10-25T19:45:37Z",
+                "1.1.0": "2026-10-16T07:29:08Z",
+                "1.2.0": "2026-10-02T02:39:34Z"
+              },
+              "pkg-13": {
+                "1.0.0": "2026-09-20T01:47:02Z",
+                "1.1.0": "2026-10-06T15:36:22Z"
+              },
+              "pkg-14": {
+                "1.0.0": "2026-10-23T21:34:58Z",
+                "1.1.0": "2026-10-17T02:20:06Z",
+                "1.2.0": "2026-10-21T01:31:59Z",
+                "1.3.0": "2026-09-29T18:22:57Z"
+              },
+              "pkg-15": {
+                "1.0.0": "2026-10-23T14:21:56Z"
+              },
+              "@types/t-17": {
+                "1.0.0": "2026-10-21T07:45:43Z"
+              },
+              "@codedev/mod-18": {
+                "1.0.0": "2026-09-28T18:01:18Z",
+                "1.1.0": "2026-10-10T02:05:17Z"
+              },
+              "@codedev-ext/mod-19": {
+                "1.0.0": "2026-10-04T13:21:50Z",
+                "1.1.0": "2026-09-25T12:58:36Z"
+              },
+              "pkg-20": {
+                "1.0.0": "2026-10-05T16:32:07Z",
+                "1.1.0": "2026-09-24T07:51:11Z",
+                "1.2.0": "2026-09-23T11:58:47Z",
+                "1.3.0": "2026-09-24T23:00:30Z"
+              },
+              "@codedev/mod-21": {
+                "1.0.0": "2026-10-28T22:55:00Z",
+                "1.1.0": "2026-10-29T20:23:02Z",
+                "1.2.0": "2026-09-26T01:03:14Z"
+              },
+              "@codedev-ext/mod-22": {
+                "1.0.0": "2026-09-28T18:41:14Z",
+                "1.1.0": "2026-09-22T08:42:10Z"
+              },
+              "pkg-23": {
+                "1.0.0": "2026-10-29T04:03:20Z",
+                "1.1.0": "2026-10-17T07:19:23Z"
+              },
+              "pkg-25": {
+                "1.0.0": "2026-10-21T16:04:54Z"
+              },
+              "@codedev/mod-26": {
+                "1.0.0": "2026-09-22T02:21:50Z",
+                "1.1.0": "2026-10-14T08:00:08Z",
+                "1.2.0": "2026-09-29T21:10:06Z",
+                "1.3.0": "2026-10-25T04:58:51Z"
+              },
+              "@codedev-ext/mod-27": {
+                "1.0.0": "2026-09-20T23:09:32Z",
+                "1.1.0": "2026-10-04T16:26:50Z",
+                "1.2.0": "2026-10-06T20:03:12Z"
+              },
+              "pkg-28": {
+                "1.0.0": "2026-10-24T15:55:27Z",
+                "1.1.0": "2026-10-19T23:51:47Z",
+                "1.2.0": "2026-10-04T04:46:43Z"
+              },
+              "pkg-29": {
+                "1.0.0": "2026-10-06T14:32:17Z"
+              },
+              "pkg-30": {
+                "1.0.0": "2026-10-25T20:14:30Z"
+              },
+              "pkg-31": {
+                "1.0.0": "2026-10-17T14:14:39Z",
+                "1.1.0": "2026-10-26T02:04:56Z"
+              },
+              "@codedev/mod-32": {
+                "1.0.0": "2026-10-11T04:35:32Z",
+                "1.1.0": "2026-10-24T15:22:25Z",
+                "1.2.0": "2026-10-27T14:33:06Z"
+              },
+              "@codedev/mod-33": {
+                "1.0.0": "2026-10-29T00:46:41Z"
+              },
+              "@codedev/mod-34": {
+                "1.0.0": "2026-10-25T23:54:02Z",
+                "1.1.0": "2026-09-29T00:13:54Z"
+              },
+              "pkg-35": {
+                "1.0.0": "2026-10-05T19:57:34Z",
+                "1.1.0": "2026-10-03T16:08:55Z",
+                "1.2.0": "2026-10-15T19:00:34Z",
+                "1.3.0": "2026-10-24T08:46:00Z"
+              },
+              "pkg-36": {
+                "1.0.0": "2026-10-03T21:28:43Z",
+                "1.1.0": "2026-10-05T21:00:18Z"
+              },
+              "@types/t-37": {
+                "1.0.0": "2026-10-18T18:10:30Z"
+              },
+              "pkg-38": {
+                "1.0.0": "2026-10-29T05:56:03Z",
+                "1.1.0": "2026-10-09T08:45:00Z"
+              },
+              "@codedev/mod-39": {
+                "1.0.0": "2026-10-27T03:32:43Z",
+                "1.1.0": "2026-09-30T03:52:03Z"
+              },
+              "pkg-40": {
+                "1.0.0": "2026-10-05T16:39:29Z",
+                "1.1.0": "2026-10-03T16:32:06Z"
+              },
+              "pkg-41": {
+                "1.0.0": "2026-09-24T08:53:02Z",
+                "1.1.0": "2026-10-03T04:33:32Z",
+                "1.2.0": "2026-10-17T21:54:26Z",
+                "1.3.0": "2026-10-01T13:21:26Z"
+              },
+              "pkg-42": {
+                "1.0.0": "2026-09-29T00:42:15Z",
+                "1.1.0": "2026-09-22T17:35:14Z"
+              },
+              "@codedev/mod-43": {
+                "1.0.0": "2026-10-24T06:20:45Z",
+                "1.1.0": "2026-09-26T22:09:22Z"
+              },
+              "pkg-44": {
+                "1.0.0": "2026-10-07T00:50:57Z",
+                "1.1.0": "2026-10-10T13:23:35Z"
+              },
+              "@codedev/mod-45": {
+                "1.0.0": "2026-10-10T07:49:31Z",
+                "1.1.0": "2026-10-23T08:03:26Z"
+              },
+              "@types/t-46": {
+                "1.0.0": "2026-10-25T03:51:36Z",
+                "1.1.0": "2026-09-29T13:15:28Z",
+                "1.2.0": "2026-10-02T00:12:01Z",
+                "1.3.0": "2026-10-20T16:05:37Z"
+              },
+              "pkg-48": {
+                "1.0.0": "2026-10-19T09:09:54Z",
+                "1.1.0": "2026-10-05T15:08:16Z",
+                "1.2.0": "2026-10-29T18:12:11Z",
+                "1.3.0": "2026-10-13T06:39:01Z"
+              },
+              "pkg-49": {
+                "1.0.0": "2026-10-25T11:40:22Z"
+              },
+              "pkg-50": {
+                "1.0.0": "2026-10-01T23:01:27Z"
+              },
+              "pkg-51": {
+                "1.0.0": "2026-10-22T01:36:12Z"
+              },
+              "pkg-52": {
+                "1.0.0": "2026-10-05T01:18:04Z",
+                "1.1.0": "2026-10-22T01:18:47Z"
+              },
+              "pkg-53": {
+                "1.0.0": "2026-09-29T06:32:58Z"
+              },
+              "pkg-54": {
+                "1.0.0": "2026-10-29T10:54:15Z"
+              },
+              "pkg-55": {
+                "1.0.0": "2026-10-09T03:31:57Z",
+                "1.1.0": "2026-10-06T05:59:30Z",
+                "1.2.0": "2026-10-07T21:53:36Z",
+                "1.3.0": "2026-10-08T08:46:58Z"
+              },
+              "pkg-57": {
+                "1.0.0": "2026-10-06T22:57:23Z",
+                "1.1.0": "2026-10-21T22:46:10Z",
+                "1.2.0": "2026-10-24T19:30:12Z",
+                "1.3.0": "2026-09-27T13:37:01Z"
+              },
+              "pkg-58": {
+                "1.0.0": "2026-10-04T03:20:33Z",
+                "1.1.0": "2026-10-23T15:56:13Z",
+                "1.2.0": "2026-10-11T04:28:00Z",
+                "1.3.0": "2026-09-28T07:13:02Z"
+              },
+              "@types/t-59": {
+                "1.0.0": "2026-10-19T07:20:59Z",
+                "1.1.0": "2026-10-26T02:20:35Z",
+                "1.2.0": "2026-10-23T16:08:17Z",
+                "1.3.0": "2026-09-30T09:13:33Z"
+              },
+              "@codedev/mod-60": {
+                "1.0.0": "2026-10-17T01:03:04Z"
+              },
+              "pkg-61": {
+                "1.0.0": "2026-10-26T09:55:03Z",
+                "1.1.0": "2026-09-29T12:51:20Z",
+                "1.2.0": "2026-10-21T05:04:53Z"
+              },
+              "@codedev/mod-62": {
+                "1.0.0": "2026-09-30T08:38:45Z",
+                "1.1.0": "2026-10-28T20:04:15Z"
+              },
+              "pkg-63": {
+                "1.0.0": "2026-10-26T04:20:23Z"
+              },
+              "@codedev/mod-65": {
+                "1.0.0": "2026-10-23T01:01:45Z",
+                "1.1.0": "2026-09-28T05:21:44Z"
+              },
+              "pkg-66": {
+                "1.0.0": "2026-10-15T18:38:22Z",
+                "1.1.0": "2026-09-24T01:59:02Z"
+              },
+              "pkg-67": {
+                "1.0.0": "2026-09-26T04:45:15Z",
+                "1.1.0": "2026-10-05T04:28:57Z",
+                "1.2.0": "2026-10-01T14:07:25Z"
+              },
+              "pkg-68": {
+                "1.0.0": "2026-09-28T17:51:39Z"
+              },
+              "pkg-69": {
+                "1.0.0": "2026-10-16T18:00:00Z",
+                "1.1.0": "2026-10-07T05:27:34Z",
+                "1.2.0": "2026-09-23T12:43:33Z"
+              },
+              "@types/t-70": {
+                "1.0.0": "2026-10-20T15:24:56Z",
+                "1.1.0": "2026-10-01T20:30:37Z",
+                "1.2.0": "2026-10-12T09:45:58Z",
+                "1.3.0": "2026-10-21T11:36:56Z"
+              },
+              "@codedev/mod-71": {
+                "1.0.0": "2026-10-12T14:44:08Z",
+                "1.1.0": "2026-09-20T01:43:37Z"
+              },
+              "@types/t-72": {
+                "1.0.0": "2026-10-12T13:44:00Z",
+                "1.1.0": "2026-10-28T11:42:44Z",
+                "1.2.0": "2026-09-28T21:21:15Z",
+                "1.3.0": "2026-10-01T10:44:27Z"
+              },
+              "pkg-73": {
+                "1.0.0": "2026-10-11T14:17:15Z",
+                "1.1.0": "2026-09-30T03:46:49Z",
+                "1.2.0": "2026-10-25T12:46:16Z",
+                "1.3.0": "2026-09-21T06:53:03Z"
+              },
+              "pkg-74": {
+                "1.0.0": "2026-10-23T03:45:23Z"
+              },
+              "@codedev/mod-75": {
+                "1.0.0": "2026-10-29T08:36:52Z",
+                "1.1.0": "2026-10-28T03:04:56Z",
+                "1.2.0": "2026-10-20T17:34:25Z",
+                "1.3.0": "2026-09-20T13:43:55Z"
+              },
+              "@types/t-76": {
+                "1.0.0": "2026-10-01T20:25:18Z",
+                "1.1.0": "2026-09-27T03:28:00Z"
+              },
+              "pkg-77": {
+                "1.0.0": "2026-10-04T22:13:21Z",
+                "1.1.0": "2026-10-08T20:31:15Z",
+                "1.2.0": "2026-10-25T10:29:08Z"
+              },
+              "pkg-78": {
+                "1.0.0": "2026-10-16T18:52:21Z",
+                "1.1.0": "2026-10-07T14:06:22Z",
+                "1.2.0": "2026-10-03T06:15:20Z"
+              },
+              "pkg-79": {
+                "1.0.0": "2026-10-19T23:39:48Z",
+                "1.1.0": "2026-10-11T01:21:26Z",
+                "1.2.0": "2026-09-23T05:33:01Z",
+                "1.3.0": "2026-10-28T10:00:00Z"
+              },
+              "@codedev-ext/mod-80": {
+                "1.0.0": "2026-10-21T03:06:29Z",
+                "1.1.0": "2026-10-29T17:50:33Z",
+                "1.2.0": "2026-09-23T12:15:55Z",
+                "1.3.0": "2026-10-27T11:34:21Z"
+              },
+              "@codedev/mod-81": {
+                "1.0.0": "2026-09-23T22:42:20Z",
+                "1.1.0": "2026-10-26T08:17:24Z",
+                "1.2.0": "2026-10-29T11:25:35Z"
+              },
+              "pkg-82": {
+                "1.0.0": "2026-10-28T14:37:56Z",
+                "1.1.0": "2026-10-09T04:49:57Z",
+                "1.2.0": "2026-10-16T03:48:45Z",
+                "1.3.0": "2026-10-02T00:59:18Z"
+              },
+              "pkg-83": {
+                "1.0.0": "2026-10-09T09:57:58Z",
+                "1.1.0": "2026-10-09T04:36:59Z",
+                "1.2.0": "2026-09-20T06:15:03Z"
+              },
+              "@types/t-84": {
+                "1.0.0": "2026-10-21T10:51:09Z"
+              },
+              "pkg-85": {
+                "1.0.0": "2026-09-28T07:35:07Z"
+              },
+              "@types/t-86": {
+                "1.0.0": "2026-09-27T11:11:31Z",
+                "1.1.0": "2026-10-24T05:25:33Z",
+                "1.2.0": "2026-10-09T14:28:37Z"
+              },
+              "pkg-87": {
+                "1.0.0": "2026-10-06T07:25:59Z"
+              },
+              "pkg-88": {
+                "1.0.0": "2026-09-30T21:17:35Z",
+                "1.1.0": "2026-10-21T02:30:24Z"
+              },
+              "@types/t-89": {
+                "1.0.0": "2026-10-23T18:58:14Z"
+              },
+              "pkg-90": {
+                "1.0.0": "2026-10-18T17:06:35Z",
+                "1.1.0": "2026-10-07T06:51:37Z"
+              },
+              "pkg-91": {
+                "1.0.0": "2026-09-30T20:21:42Z"
+              },
+              "pkg-92": {
+                "1.0.0": "2026-09-20T11:29:20Z"
+              },
+              "@codedev/mod-93": {
+                "1.0.0": "2026-10-28T13:10:17Z",
+                "1.1.0": "2026-09-30T19:42:50Z"
+              },
+              "@codedev/mod-94": {
+                "1.0.0": "2026-09-29T23:16:35Z",
+                "1.1.0": "2026-10-20T18:07:58Z",
+                "1.2.0": "2026-10-12T17:42:41Z"
+              },
+              "@codedev-ext/mod-95": {
+                "1.0.0": "2026-09-20T23:59:45Z",
+                "1.1.0": "2026-09-26T19:28:27Z",
+                "1.2.0": "2026-10-23T05:39:18Z",
+                "1.3.0": "2026-09-29T17:16:49Z"
+              },
+              "pkg-96": {
+                "1.0.0": "2026-10-04T05:28:27Z",
+                "1.1.0": "2026-10-29T17:50:07Z",
+                "1.2.0": "2026-09-27T10:23:12Z"
+              },
+              "pkg-97": {
+                "1.0.0": "2026-10-16T07:07:30Z",
+                "1.1.0": "2026-10-17T23:16:30Z",
+                "1.2.0": "2026-09-23T23:54:27Z"
+              },
+              "pkg-98": {
+                "1.0.0": "2026-10-03T06:47:30Z",
+                "1.1.0": "2026-10-14T04:03:05Z",
+                "1.2.0": "2026-10-01T12:39:15Z",
+                "1.3.0": "2026-10-12T05:30:36Z"
+              },
+              "pkg-99": {
+                "1.0.0": "2026-09-29T09:03:00Z",
+                "1.1.0": "2026-10-24T04:59:54Z",
+                "1.2.0": "2026-09-24T18:56:01Z",
+                "1.3.0": "2026-10-07T00:31:49Z"
+              },
+              "pkg-100": {
+                "1.0.0": "2026-09-30T04:12:31Z",
+                "1.1.0": "2026-10-17T18:33:07Z",
+                "1.2.0": "2026-10-19T09:11:44Z",
+                "1.3.0": "2026-10-10T14:48:30Z"
+              },
+              "@codedev/mod-101": {
+                "1.0.0": "2026-10-02T07:12:26Z",
+                "1.1.0": "2026-10-03T14:59:00Z",
+                "1.2.0": "2026-10-02T00:52:30Z"
+              },
+              "pkg-102": {
+                "1.0.0": "2026-10-06T16:26:19Z",
+                "1.1.0": "2026-10-20T08:37:50Z"
+              },
+              "pkg-103": {
+                "1.0.0": "2026-09-30T18:32:39Z",
+                "1.1.0": "2026-10-01T04:13:28Z",
+                "1.2.0": "2026-10-28T23:30:21Z"
+              },
+              "pkg-104": {
+                "1.0.0": "2026-09-25T20:57:44Z",
+                "1.1.0": "2026-09-23T15:42:37Z",
+                "1.2.0": "2026-09-29T08:16:16Z",
+                "1.3.0": "2026-09-29T07:58:10Z"
+              },
+              "@types/t-105": {
+                "1.0.0": "2026-10-22T00:43:18Z",
+                "1.1.0": "2026-10-26T16:07:35Z",
+                "1.2.0": "2026-10-14T18:37:00Z",
+                "1.3.0": "2026-09-27T17:44:12Z"
+              },
+              "pkg-106": {
+                "1.0.0": "2026-10-05T18:24:30Z",
+                "1.1.0": "2026-10-24T18:08:46Z",
+                "1.2.0": "2026-10-01T12:10:01Z",
+                "1.3.0": "2026-10-03T10:11:46Z"
+              },
+              "@codedev/mod-107": {
+                "1.0.0": "2026-09-25T03:50:09Z",
+                "1.1.0": "2026-10-17T00:34:48Z"
+              },
+              "pkg-108": {
+                "1.0.0": "2026-10-17T13:20:14Z",
+                "1.1.0": "2026-09-30T13:33:13Z",
+                "1.2.0": "2026-09-28T00:50:29Z"
+              },
+              "pkg-109": {
+                "1.0.0": "2026-10-26T03:21:01Z",
+                "1.1.0": "2026-10-14T12:20:23Z",
+                "1.2.0": "2026-09-20T05:14:11Z"
+              },
+              "pkg-110": {
+                "1.0.0": "2026-10-10T17:13:17Z"
+              },
+              "@types/t-111": {
+                "1.0.0": "2026-09-26T14:44:22Z",
+                "1.1.0": "2026-10-27T02:02:02Z"
+              },
+              "pkg-112": {
+                "1.0.0": "2026-10-02T12:49:42Z",
+                "1.1.0": "2026-10-06T13:13:48Z"
+              },
+              "pkg-114": {
+                "1.0.0": "2026-10-05T11:56:22Z",
+                "1.1.0": "2026-10-13T01:44:13Z",
+                "1.2.0": "2026-10-20T22:20:20Z"
+              },
+              "pkg-115": {
+                "1.0.0": "2026-09-23T19:39:46Z"
+              },
+              "pkg-116": {
+                "1.0.0": "2026-10-08T01:27:23Z"
+              },
+              "pkg-117": {
+                "1.0.0": "2026-10-02T12:43:25Z",
+                "1.1.0": "2026-10-29T00:28:36Z",
+                "1.2.0": "2026-10-06T00:37:23Z",
+                "1.3.0": "2026-09-27T11:36:15Z"
+              },
+              "pkg-118": {
+                "1.0.0": "2026-10-02T12:17:24Z",
+                "1.1.0": "2026-10-07T02:44:49Z",
+                "1.2.0": "2026-09-21T23:18:03Z"
+              },
+              "@codedev/mod-119": {
+                "1.0.0": "2026-09-23T23:58:19Z"
+              },
+              "pkg-120": {
+                "1.0.0": "2026-09-20T04:20:54Z",
+                "1.1.0": "2026-10-19T19:51:56Z",
+                "1.2.0": "2026-10-06T20:36:09Z"
+              },
+              "pkg-121": {
+                "1.0.0": "2026-09-27T21:16:54Z",
+                "1.1.0": "2026-10-26T04:31:34Z",
+                "1.2.0": "2026-10-05T13:06:36Z",
+                "1.3.0": "2026-10-02T11:14:56Z"
+              },
+              "pkg-122": {
+                "1.0.0": "2026-09-23T18:30:26Z"
+              },
+              "pkg-123": {
+                "1.0.0": "2026-10-08T10:04:35Z",
+                "1.1.0": "2026-10-12T17:11:15Z",
+                "1.2.0": "2026-10-16T10:56:26Z",
+                "1.3.0": "2026-10-04T20:37:30Z"
+              },
+              "pkg-124": {
+                "1.0.0": "2026-09-24T15:26:39Z"
+              },
+              "@codedev/mod-125": {
+                "1.0.0": "2026-10-29T23:59:43Z",
+                "1.1.0": "2026-10-24T06:39:50Z",
+                "1.2.0": "2026-10-25T15:21:56Z"
+              },
+              "@codedev-ext/mod-126": {
+                "1.0.0": "2026-10-24T04:06:43Z",
+                "1.1.0": "2026-10-26T09:26:21Z",
+                "1.2.0": "2026-10-18T02:30:50Z"
+              },
+              "pkg-127": {
+                "1.0.0": "2026-09-30T11:56:16Z",
+                "1.1.0": "2026-10-20T00:47:08Z"
+              },
+              "pkg-128": {
+                "1.0.0": "2026-10-18T17:16:14Z",
+                "1.1.0": "2026-09-30T20:38:11Z",
+                "1.2.0": "2026-10-22T20:55:20Z"
+              },
+              "pkg-129": {
+                "1.0.0": "2026-10-08T11:03:32Z",
+                "1.1.0": "2026-10-14T14:24:19Z"
+              },
+              "pkg-130": {
+                "1.0.0": "2026-09-27T00:24:34Z",
+                "1.1.0": "2026-09-20T04:23:10Z"
+              },
+              "pkg-131": {
+                "1.0.0": "2026-10-06T08:37:43Z",
+                "1.1.0": "2026-10-09T13:35:38Z"
+              },
+              "@types/t-132": {
+                "1.0.0": "2026-10-07T16:18:44Z"
+              },
+              "pkg-133": {
+                "1.0.0": "2026-10-23T06:49:55Z",
+                "1.1.0": "2026-10-04T18:11:49Z",
+                "1.2.0": "2026-10-03T03:47:44Z",
+                "1.3.0": "2026-10-04T06:27:49Z"
+              },
+              "pkg-134": {
+                "1.0.0": "2026-10-29T20:09:17Z",
+                "1.1.0": "2026-10-04T07:22:53Z",
+                "1.2.0": "2026-10-23T17:28:38Z"
+              },
+              "@codedev/mod-135": {
+                "1.0.0": "2026-10-24T11:27:35Z",
+                "1.1.0": "2026-09-25T19:35:24Z"
+              },
+              "@codedev/mod-136": {
+                "1.0.0": "2026-10-15T20:16:57Z",
+                "1.1.0": "2026-10-19T00:29:52Z"
+              },
+              "@codedev/mod-137": {
+                "1.0.0": "2026-10-14T12:47:48Z",
+                "1.1.0": "2026-10-19T16:07:11Z",
+                "1.2.0": "2026-09-24T02:43:08Z"
+              },
+              "@codedev/mod-138": {
+                "1.0.0": "2026-10-16T16:49:19Z"
+              },
+              "pkg-139": {
+                "1.0.0": "2026-10-28T17:29:45Z"
+              },
+              "pkg-140": {
+                "1.0.0": "2026-10-19T13:45:12Z",
+                "1.1.0": "2026-10-10T07:19:49Z"
+              },
+              "@types/t-141": {
+                "1.0.0": "2026-09-22T08:05:31Z"
+              },
+              "pkg-142": {
+                "1.0.0": "2026-10-01T12:23:33Z",
+                "1.1.0": "2026-09-30T18:09:23Z"
+              },
+              "pkg-143": {
+                "1.0.0": "2026-10-01T17:51:12Z",
+                "1.1.0": "2026-10-02T04:07:35Z"
+              },
+              "pkg-144": {
+                "1.0.0": "2026-10-03T00:01:48Z",
+                "1.1.0": "2026-10-20T10:37:14Z",
+                "1.2.0": "2026-09-26T19:36:04Z"
+              },
+              "@types/t-145": {
+                "1.0.0": "2026-10-21T11:03:45Z"
+              },
+              "pkg-146": {
+                "1.0.0": "2026-10-01T18:26:52Z"
+              },
+              "pkg-147": {
+                "1.0.0": "2026-10-15T16:39:12Z",
+                "1.1.0": "2026-09-23T02:46:35Z",
+                "1.2.0": "2026-09-28T15:11:54Z"
+              },
+              "pkg-148": {
+                "1.0.0": "2026-10-21T00:19:52Z"
+              },
+              "pkg-149": {
+                "1.0.0": "2026-10-12T13:38:37Z",
+                "1.1.0": "2026-10-05T17:40:32Z",
+                "1.2.0": "2026-10-24T10:00:14Z"
+              },
+              "pkg-150": {
+                "1.0.0": "2026-10-26T17:30:35Z",
+                "1.1.0": "2026-10-21T15:21:18Z"
+              },
+              "pkg-151": {
+                "1.0.0": "2026-10-25T17:17:45Z"
+              },
+              "pkg-152": {
+                "1.0.0": "2026-10-22T13:17:21Z"
+              },
+              "pkg-153": {
+                "1.0.0": "2026-09-27T12:11:15Z",
+                "1.1.0": "2026-10-24T00:15:15Z"
+              },
+              "@codedev/mod-154": {
+                "1.0.0": "2026-10-07T16:57:58Z"
+              },
+              "pkg-155": {
+                "1.0.0": "2026-10-07T07:43:13Z",
+                "1.1.0": "2026-10-21T20:19:41Z",
+                "1.2.0": "2026-10-15T16:55:32Z"
+              },
+              "@codedev-ext/mod-156": {
+                "1.0.0": "2026-10-11T05:11:32Z",
+                "1.1.0": "2026-10-23T02:04:00Z",
+                "1.2.0": "2026-09-24T12:31:24Z"
+              },
+              "@codedev/mod-157": {
+                "1.0.0": "2026-10-13T16:41:46Z",
+                "1.1.0": "2026-10-20T14:27:03Z"
+              },
+              "@codedev/mod-158": {
+                "1.0.0": "2026-10-25T16:43:48Z",
+                "1.1.0": "2026-10-16T16:35:19Z",
+                "1.2.0": "2026-10-28T07:57:41Z"
+              },
+              "@codedev/mod-159": {
+                "1.0.0": "2026-10-04T06:22:59Z"
+              },
+              "pkg-160": {
+                "1.0.0": "2026-10-28T02:44:43Z"
+              },
+              "pkg-161": {
+                "1.0.0": "2026-10-06T18:33:45Z",
+                "1.1.0": "2026-10-22T20:22:02Z",
+                "1.2.0": "2026-10-08T23:59:43Z"
+              },
+              "pkg-162": {
+                "1.0.0": "2026-10-11T07:32:56Z",
+                "1.1.0": "2026-09-30T05:15:39Z"
+              },
+              "@codedev-ext/mod-163": {
+                "1.0.0": "2026-09-30T11:37:37Z"
+              },
+              "@codedev/mod-164": {
+                "1.0.0": "2026-10-06T23:48:11Z"
+              },
+              "pkg-165": {
+                "1.0.0": "2026-10-22T10:46:29Z",
+                "1.1.0": "2026-10-17T22:04:17Z"
+              },
+              "@codedev/mod-166": {
+                "1.0.0": "2026-10-21T08:54:57Z",
+                "1.1.0": "2026-09-27T12:37:35Z",
+                "1.2.0": "2026-09-24T13:18:06Z",
+                "1.3.0": "2026-10-15T10:34:36Z"
+              },
+              "@codedev/mod-167": {
+                "1.0.0": "2026-10-28T22:22:59Z",
+                "1.1.0": "2026-09-23T07:00:09Z",
+                "1.2.0": "2026-10-17T02:36:16Z",
+                "1.3.0": "2026-10-13T23:08:36Z"
+              },
+              "pkg-168": {
+                "1.0.0": "2026-10-25T02:16:50Z",
+                "1.1.0": "2026-10-04T05:03:35Z",
+                "1.2.0": "2026-09-20T11:58:27Z",
+                "1.3.0": "2026-10-15T20:36:26Z"
+              },
+              "pkg-169": {
+                "1.0.0": "2026-10-03T21:56:46Z",
+                "1.1.0": "2026-09-20T19:37:03Z"
+              },
+              "@codedev/mod-170": {
+                "1.0.0": "2026-09-20T14:47:46Z",
+                "1.1.0": "2026-10-12T15:41:57Z",
+                "1.2.0": "2026-10-11T17:00:59Z"
+              },
+              "pkg-171": {
+                "1.0.0": "2026-10-16T10:11:08Z",
+                "1.1.0": "2026-09-24T03:50:34Z"
+              },
+              "@codedev-ext/mod-172": {
+                "1.0.0": "2026-10-01T18:22:26Z"
+              },
+              "pkg-173": {
+                "1.0.0": "2026-09-20T07:27:59Z",
+                "1.1.0": "2026-09-28T03:02:27Z",
+                "1.2.0": "2026-09-21T02:50:08Z"
+              },
+              "pkg-174": {
+                "1.0.0": "2026-09-25T13:06:04Z",
+                "1.1.0": "2026-10-04T10:06:00Z",
+                "1.2.0": "2026-09-24T23:57:28Z",
+                "1.3.0": "2026-10-10T14:48:16Z"
+              },
+              "pkg-175": {
+                "1.0.0": "2026-10-12T01:48:46Z",
+                "1.1.0": "2026-09-23T00:39:31Z"
+              },
+              "pkg-176": {
+                "1.0.0": "2026-09-30T15:44:08Z",
+                "1.1.0": "2026-10-05T03:04:33Z"
+              },
+              "@codedev-ext/mod-177": {
+                "1.0.0": "2026-09-22T12:39:51Z"
+              },
+              "@codedev-ext/mod-178": {
+                "1.0.0": "2026-09-24T13:19:14Z",
+                "1.1.0": "2026-09-23T01:00:17Z"
+              },
+              "pkg-179": {
+                "1.0.0": "2026-10-26T16:56:25Z"
+              },
+              "@codedev/mod-180": {
+                "1.0.0": "2026-10-18T10:46:59Z",
+                "1.1.0": "2026-10-06T06:47:56Z"
+              },
+              "pkg-181": {
+                "1.0.0": "2026-10-17T08:28:09Z",
+                "1.1.0": "2026-10-11T10:59:00Z",
+                "1.2.0": "2026-09-22T03:49:24Z"
+              },
+              "@types/t-182": {
+                "1.0.0": "2026-10-15T08:43:33Z",
+                "1.1.0": "2026-10-06T20:44:42Z",
+                "1.2.0": "2026-10-17T07:58:14Z",
+                "1.3.0": "2026-09-24T03:19:54Z"
+              },
+              "pkg-183": {
+                "1.0.0": "2026-10-13T12:09:33Z",
+                "1.1.0": "2026-10-22T18:49:55Z",
+                "1.2.0": "2026-10-02T07:34:40Z",
+                "1.3.0": "2026-10-20T07:08:06Z"
+              },
+              "pkg-184": {
+                "1.0.0": "2026-10-29T13:05:12Z",
+                "1.1.0": "2026-09-24T18:14:31Z",
+                "1.2.0": "2026-10-22T05:45:16Z"
+              },
+              "pkg-185": {
+                "1.0.0": "2026-09-30T09:27:53Z"
+              },
+              "@codedev/mod-186": {
+                "1.0.0": "2026-10-07T00:14:23Z",
+                "1.1.0": "2026-10-06T20:38:22Z",
+                "1.2.0": "2026-10-05T12:15:13Z"
+              },
+              "pkg-187": {
+                "1.0.0": "2026-10-08T07:51:27Z",
+                "1.1.0": "2026-09-20T21:35:45Z"
+              },
+              "pkg-188": {
+                "1.0.0": "2026-10-10T02:35:46Z",
+                "1.1.0": "2026-10-26T20:23:56Z"
+              },
+              "@types/t-189": {
+                "1.0.0": "2026-10-10T01:56:21Z"
+              },
+              "pkg-190": {
+                "1.0.0": "2026-10-11T20:57:39Z",
+                "1.1.0": "2026-10-08T07:52:40Z",
+                "1.2.0": "2026-10-12T07:37:49Z"
+              },
+              "pkg-191": {
+                "1.0.0": "2026-10-14T14:56:58Z",
+                "1.1.0": "2026-10-25T14:17:24Z",
+                "1.2.0": "2026-10-11T09:37:01Z",
+                "1.3.0": "2026-10-21T23:50:37Z"
+              },
+              "pkg-192": {
+                "1.0.0": "2026-10-18T23:32:54Z",
+                "1.1.0": "2026-10-10T08:05:55Z"
+              },
+              "pkg-193": {
+                "1.0.0": "2026-10-12T19:50:15Z"
+              },
+              "@codedev/mod-194": {
+                "1.0.0": "2026-10-06T20:42:56Z"
+              },
+              "pkg-195": {
+                "1.0.0": "2026-10-02T05:53:48Z"
+              },
+              "pkg-196": {
+                "1.0.0": "2026-10-28T20:43:53Z",
+                "1.1.0": "2026-10-24T07:27:31Z",
+                "1.2.0": "2026-10-21T17:20:55Z",
+                "1.3.0": "2026-09-29T20:14:01Z"
+              },
+              "@types/t-197": {
+                "1.0.0": "2026-10-27T01:21:42Z",
+                "1.1.0": "2026-10-27T05:23:44Z"
+              },
+              "@codedev/mod-198": {
+                "1.0.0": "2026-10-20T22:10:28Z",
+                "1.1.0": "2026-10-26T23:53:26Z",
+                "1.2.0": "2026-10-02T19:20:00Z"
+              },
+              "pkg-199": {
+                "1.0.0": "2026-10-03T01:26:18Z",
+                "1.1.0": "2026-09-30T20:36:17Z",
+                "1.2.0": "2026-10-29T21:55:09Z"
+              },
+              "pkg-200": {
+                "1.0.0": "2026-09-27T06:14:40Z"
+              },
+              "@codedev/mod-201": {
+                "1.0.0": "2026-10-06T07:20:04Z",
+                "1.1.0": "2026-10-17T17:05:28Z"
+              },
+              "pkg-202": {
+                "1.0.0": "2026-09-24T23:32:06Z",
+                "1.1.0": "2026-10-02T21:23:35Z",
+                "1.2.0": "2026-09-26T23:32:56Z"
+              },
+              "pkg-203": {
+                "1.0.0": "2026-10-08T04:53:54Z"
+              },
+              "pkg-204": {
+                "1.0.0": "2026-09-26T19:05:36Z",
+                "1.1.0": "2026-10-13T00:44:09Z"
+              },
+              "@codedev/mod-205": {
+                "1.0.0": "2026-10-01T14:55:18Z"
+              },
+              "pkg-206": {
+                "1.0.0": "2026-09-24T20:44:29Z"
+              },
+              "pkg-207": {
+                "1.0.0": "2026-10-19T18:32:04Z",
+                "1.1.0": "2026-10-18T09:12:25Z",
+                "1.2.0": "2026-10-14T15:56:38Z"
+              },
+              "@codedev-ext/mod-208": {
+                "1.0.0": "2026-09-24T03:14:37Z",
+                "1.1.0": "2026-10-29T20:48:39Z"
+              },
+              "pkg-209": {
+                "1.0.0": "2026-10-13T18:34:28Z"
+              },
+              "pkg-210": {
+                "1.0.0": "2026-10-02T17:12:57Z",
+                "1.1.0": "2026-10-08T12:34:37Z",
+                "1.2.0": "2026-10-04T06:15:45Z",
+                "1.3.0": "2026-10-23T12:28:02Z"
+              },
+              "pkg-211": {
+                "1.0.0": "2026-10-06T03:51:01Z",
+                "1.1.0": "2026-10-14T16:21:24Z",
+                "1.2.0": "2026-10-20T11:14:36Z"
+              },
+              "pkg-212": {
+                "1.0.0": "2026-09-21T13:09:10Z",
+                "1.1.0": "2026-10-17T09:11:51Z",
+                "1.2.0": "2026-10-07T21:40:34Z",
+                "1.3.0": "2026-10-05T00:59:01Z"
+              },
+              "pkg-213": {
+                "1.0.0": "2026-09-20T05:40:41Z",
+                "1.1.0": "2026-10-19T22:37:10Z"
+              },
+              "@codedev-ext/mod-214": {
+                "1.0.0": "2026-09-22T17:54:49Z",
+                "1.1.0": "2026-10-05T15:54:31Z",
+                "1.2.0": "2026-10-16T08:04:14Z",
+                "1.3.0": "2026-10-09T19:16:00Z"
+              },
+              "@codedev/mod-215": {
+                "1.0.0": "2026-10-05T18:56:04Z"
+              },
+              "pkg-216": {
+                "1.0.0": "2026-09-28T19:04:17Z",
+                "1.1.0": "2026-09-29T23:57:53Z"
+              },
+              "pkg-217": {
+                "1.0.0": "2026-10-13T08:16:44Z",
+                "1.1.0": "2026-09-21T03:17:52Z"
+              },
+              "@codedev/mod-219": {
+                "1.0.0": "2026-10-19T12:13:11Z",
+                "1.1.0": "2026-10-08T19:38:59Z"
+              },
+              "pkg-220": {
+                "1.0.0": "2026-10-08T02:12:36Z",
+                "1.1.0": "2026-09-25T17:33:18Z"
+              },
+              "pkg-221": {
+                "1.0.0": "2026-10-24T18:00:28Z",
+                "1.1.0": "2026-10-14T14:54:00Z",
+                "1.2.0": "2026-10-10T07:49:20Z",
+                "1.3.0": "2026-10-20T14:42:51Z"
+              },
+              "pkg-222": {
+                "1.0.0": "2026-10-11T06:58:13Z"
+              },
+              "pkg-223": {
+                "1.0.0": "2026-10-26T19:39:27Z"
+              },
+              "pkg-224": {
+                "1.0.0": "2026-09-27T02:06:11Z"
+              },
+              "pkg-226": {
+                "1.0.0": "2026-10-02T05:45:01Z",
+                "1.1.0": "2026-10-24T20:23:38Z"
+              },
+              "pkg-227": {
+                "1.0.0": "2026-10-19T12:07:06Z"
+              },
+              "@types/t-228": {
+                "1.0.0": "2026-10-24T01:48:45Z"
+              },
+              "pkg-229": {
+                "1.0.0": "2026-10-11T06:57:38Z"
+              },
+              "pkg-230": {
+                "1.0.0": "2026-10-03T01:16:51Z",
+                "1.1.0": "2026-09-30T01:02:26Z"
+              },
+              "pkg-231": {
+                "1.0.0": "2026-10-07T22:15:37Z",
+                "1.1.0": "2026-09-28T13:43:22Z",
+                "1.2.0": "2026-10-28T16:02:27Z"
+              },
+              "@types/t-232": {
+                "1.0.0": "2026-10-29T22:13:16Z",
+                "1.1.0": "2026-10-09T17:04:59Z",
+                "1.2.0": "2026-09-26T01:34:48Z"
+              },
+              "@codedev/mod-233": {
+                "1.0.0": "2026-10-24T04:38:49Z"
+              },
+              "pkg-234": {
+                "1.0.0": "2026-09-30T14:57:58Z",
+                "1.1.0": "2026-09-22T17:04:36Z"
+              },
+              "pkg-235": {
+                "1.0.0": "2026-10-04T19:08:34Z"
+              },
+              "@types/t-236": {
+                "1.0.0": "2026-09-26T22:04:45Z",
+                "1.1.0": "2026-09-22T07:29:00Z",
+                "1.2.0": "2026-10-01T23:27:30Z",
+                "1.3.0": "2026-10-03T19:55:08Z"
+              },
+              "@codedev/mod-237": {
+                "1.0.0": "2026-10-19T17:38:05Z",
+                "1.1.0": "2026-10-20T09:43:59Z"
+              },
+              "@codedev/mod-238": {
+                "1.0.0": "2026-10-07T00:17:05Z",
+                "1.1.0": "2026-10-27T23:13:45Z"
+              },
+              "@codedev-ext/mod-239": {
+                "1.0.0": "2026-10-17T21:12:39Z",
+                "1.1.0": "2026-09-25T01:02:11Z"
+              },
+              "pkg-240": {
+                "1.0.0": "2026-09-28T14:34:59Z"
+              },
+              "@types/t-241": {
+                "1.0.0": "2026-10-26T17:51:18Z",
+                "1.1.0": "2026-10-17T07:01:23Z",
+                "1.2.0": "2026-10-09T01:44:03Z"
+              },
+              "@codedev/mod-242": {
+                "1.0.0": "2026-10-10T19:52:33Z",
+                "1.1.0": "2026-10-20T12:00:45Z",
+                "1.2.0": "2026-09-30T10:18:48Z"
+              },
+              "@codedev/mod-243": {
+                "1.0.0": "2026-10-20T23:50:00Z"
+              },
+              "@codedev/mod-244": {
+                "1.0.0": "2026-10-22T16:12:54Z"
+              },
+              "@codedev-ext/mod-245": {
+                "1.0.0": "2026-10-20T05:13:21Z"
+              },
+              "pkg-246": {
+                "1.0.0": "2026-10-05T05:34:06Z",
+                "1.1.0": "2026-09-20T14:49:18Z",
+                "1.2.0": "2026-10-27T22:58:06Z"
+              },
+              "pkg-247": {
+                "1.0.0": "2026-09-25T10:13:54Z",
+                "1.1.0": "2026-09-22T01:58:45Z",
+                "1.2.0": "2026-10-25T23:30:10Z"
+              },
+              "pkg-248": {
+                "1.0.0": "2026-10-03T22:50:22Z",
+                "1.1.0": "2026-09-20T01:10:01Z",
+                "1.2.0": "2026-10-01T02:34:44Z",
+                "1.3.0": "2026-10-08T14:33:11Z"
+              },
+              "@codedev-ext/mod-249": {
+                "1.0.0": "2026-10-10T22:39:35Z",
+                "1.1.0": "2026-10-19T06:32:46Z",
+                "1.2.0": "2026-10-16T22:27:41Z",
+                "1.3.0": "2026-10-29T16:23:22Z"
+              },
+              "pkg-250": {
+                "1.0.0": "2026-09-23T00:35:39Z",
+                "1.1.0": "2026-09-21T10:18:06Z",
+                "1.2.0": "2026-10-16T08:46:44Z",
+                "1.3.0": "2026-10-10T05:17:37Z"
+              },
+              "pkg-251": {
+                "1.0.0": "2026-10-01T08:41:02Z",
+                "1.1.0": "2026-10-11T00:32:03Z",
+                "1.2.0": "2026-10-15T07:42:35Z"
+              },
+              "pkg-254": {
+                "1.0.0": "2026-10-16T02:30:58Z"
+              },
+              "@codedev/mod-255": {
+                "1.0.0": "2026-10-09T18:24:48Z",
+                "1.1.0": "2026-10-22T13:04:17Z"
+              },
+              "pkg-256": {
+                "1.0.0": "2026-10-27T01:28:42Z",
+                "1.1.0": "2026-09-23T04:01:20Z",
+                "1.2.0": "2026-10-14T08:31:49Z"
+              },
+              "@codedev/mod-257": {
+                "1.0.0": "2026-10-06T07:56:33Z",
+                "1.1.0": "2026-10-15T10:56:43Z",
+                "1.2.0": "2026-10-10T18:42:19Z",
+                "1.3.0": "2026-10-12T19:33:36Z"
+              },
+              "pkg-258": {
+                "1.0.0": "2026-10-04T07:41:05Z",
+                "1.1.0": "2026-10-17T01:06:04Z",
+                "1.2.0": "2026-10-24T09:38:01Z",
+                "1.3.0": "2026-09-21T01:06:45Z"
+              },
+              "@types/t-259": {
+                "1.0.0": "2026-10-26T16:35:12Z",
+                "1.1.0": "2026-09-23T20:22:21Z",
+                "1.2.0": "2026-10-24T12:02:47Z"
+              },
+              "pkg-260": {
+                "1.0.0": "2026-10-11T03:16:32Z",
+                "1.1.0": "2026-10-23T10:51:41Z"
+              },
+              "pkg-261": {
+                "1.0.0": "2026-09-28T23:51:49Z",
+                "1.1.0": "2026-10-14T09:20:45Z",
+                "1.2.0": "2026-10-26T02:36:12Z"
+              },
+              "pkg-262": {
+                "1.0.0": "2026-10-09T14:37:21Z",
+                "1.1.0": "2026-10-18T07:42:18Z",
+                "1.2.0": "2026-10-21T23:32:25Z",
+                "1.3.0": "2026-10-11T09:22:15Z"
+              },
+              "pkg-263": {
+                "1.0.0": "2026-10-09T08:38:48Z"
+              },
+              "pkg-264": {
+                "1.0.0": "2026-10-09T08:20:39Z"
+              },
+              "pkg-265": {
+                "1.0.0": "2026-10-22T15:38:13Z"
+              },
+              "pkg-266": {
+                "1.0.0": "2026-10-28T05:03:06Z",
+                "1.1.0": "2026-09-25T17:05:22Z"
+              },
+              "pkg-267": {
+                "1.0.0": "2026-10-11T02:14:37Z",
+                "1.1.0": "2026-10-01T15:02:42Z",
+                "1.2.0": "2026-09-21T06:52:57Z",
+                "1.3.0": "2026-10-19T19:31:40Z"
+              },
+              "pkg-268": {
+                "1.0.0": "2026-10-07T02:40:26Z",
+                "1.1.0": "2026-10-29T22:35:10Z"
+              },
+              "pkg-269": {
+                "1.0.0": "2026-09-28T18:25:11Z"
+              },
+              "pkg-270": {
+                "1.0.0": "2026-10-28T13:11:15Z"
+              },
+              "@types/t-271": {
+                "1.0.0": "2026-09-21T10:58:49Z",
+                "1.1.0": "2026-10-09T02:43:49Z",
+                "1.2.0": "2026-10-02T22:20:50Z",
+                "1.3.0": "2026-09-30T16:36:23Z"
+              },
+              "@types/t-272": {
+                "1.0.0": "2026-10-09T01:14:25Z"
+              },
+              "pkg-273": {
+                "1.0.0": "2026-10-29T19:29:47Z",
+                "1.1.0": "2026-10-06T13:11:27Z",
+                "1.2.0": "2026-10-23T02:41:47Z"
+              },
+              "@codedev/mod-274": {
+                "1.0.0": "2026-09-26T08:42:53Z",
+                "1.1.0": "2026-10-16T04:51:34Z"
+              },
+              "pkg-275": {
+                "1.0.0": "2026-10-11T03:16:38Z",
+                "1.1.0": "2026-10-22T23:28:03Z",
+                "1.2.0": "2026-09-24T10:48:29Z"
+              },
+              "@codedev-ext/mod-276": {
+                "1.0.0": "2026-10-01T22:36:36Z",
+                "1.1.0": "2026-10-17T14:53:17Z",
+                "1.2.0": "2026-10-22T03:03:22Z"
+              },
+              "@codedev/mod-277": {
+                "1.0.0": "2026-10-05T23:52:04Z"
+              },
+              "pkg-278": {
+                "1.0.0": "2026-10-27T21:29:28Z"
+              },
+              "@codedev-ext/mod-279": {
+                "1.0.0": "2026-10-21T02:16:38Z",
+                "1.1.0": "2026-10-28T23:41:12Z"
+              },
+              "pkg-280": {
+                "1.0.0": "2026-10-27T06:07:15Z",
+                "1.1.0": "2026-10-19T06:10:17Z",
+                "1.2.0": "2026-10-17T11:13:44Z"
+              },
+              "pkg-281": {
+                "1.0.0": "2026-10-22T12:59:17Z",
+                "1.1.0": "2026-10-11T02:20:43Z"
+              },
+              "pkg-282": {
+                "1.0.0": "2026-10-28T08:47:00Z",
+                "1.1.0": "2026-10-22T00:39:03Z",
+                "1.2.0": "2026-10-08T21:53:12Z",
+                "1.3.0": "2026-10-20T04:24:22Z"
+              },
+              "pkg-283": {
+                "1.0.0": "2026-10-19T00:57:31Z",
+                "1.1.0": "2026-10-17T23:01:27Z"
+              },
+              "@types/t-284": {
+                "1.0.0": "2026-10-28T07:29:14Z",
+                "1.1.0": "2026-09-21T01:01:13Z"
+              },
+              "pkg-285": {
+                "1.0.0": "2026-10-19T11:57:51Z",
+                "1.1.0": "2026-09-20T05:53:15Z"
+              },
+              "pkg-286": {
+                "1.0.0": "2026-10-04T08:17:27Z",
+                "1.1.0": "2026-10-26T05:28:50Z",
+                "1.2.0": "2026-10-19T10:07:55Z",
+                "1.3.0": "2026-10-13T15:35:09Z"
+              },
+              "pkg-287": {
+                "1.0.0": "2026-10-21T21:46:54Z",
+                "1.1.0": "2026-09-27T22:28:04Z",
+                "1.2.0": "2026-10-09T18:03:50Z",
+                "1.3.0": "2026-10-01T01:41:30Z"
+              },
+              "pkg-288": {
+                "1.0.0": "2026-10-12T04:15:24Z",
+                "1.1.0": "2026-10-17T11:12:39Z",
+                "1.2.0": "2026-09-28T08:22:40Z"
+              },
+              "@codedev-ext/mod-289": {
+                "1.0.0": "2026-09-23T19:37:50Z",
+                "1.1.0": "2026-10-06T09:52:28Z",
+                "1.2.0": "2026-09-25T15:21:59Z",
+                "1.3.0": "2026-09-27T03:18:58Z"
+              },
+              "pkg-290": {
+                "1.0.0": "2026-10-18T05:57:54Z",
+                "1.1.0": "2026-09-22T10:41:48Z",
+                "1.2.0": "2026-10-08T19:08:28Z"
+              },
+              "pkg-291": {
+                "1.0.0": "2026-10-02T04:28:17Z"
+              },
+              "@types/t-292": {
+                "1.0.0": "2026-10-29T17:18:25Z",
+                "1.1.0": "2026-10-20T05:31:56Z"
+              },
+              "pkg-293": {
+                "1.0.0": "2026-10-12T22:22:16Z",
+                "1.1.0": "2026-10-17T17:00:27Z",
+                "1.2.0": "2026-10-10T18:12:45Z",
+                "1.3.0": "2026-10-14T04:05:42Z"
+              },
+              "pkg-294": {
+                "1.0.0": "2026-10-17T13:12:04Z",
+                "1.1.0": "2026-09-25T07:53:31Z",
+                "1.2.0": "2026-09-22T02:40:50Z",
+                "1.3.0": "2026-10-04T12:36:21Z"
+              },
+              "@codedev/mod-295": {
+                "1.0.0": "2026-10-03T04:57:49Z",
+                "1.1.0": "2026-10-28T16:26:29Z",
+                "1.2.0": "2026-10-01T05:49:58Z"
+              },
+              "pkg-296": {
+                "1.0.0": "2026-10-17T14:01:04Z",
+                "1.1.0": "2026-10-09T16:23:04Z",
+                "1.2.0": "2026-09-23T11:19:13Z"
+              },
+              "@codedev/mod-297": {
+                "1.0.0": "2026-09-20T12:21:30Z",
+                "1.1.0": "2026-10-25T17:47:09Z"
+              },
+              "pkg-298": {
+                "1.0.0": "2026-10-15T10:03:19Z",
+                "1.1.0": "2026-10-09T14:59:56Z",
+                "1.2.0": "2026-10-11T00:32:36Z",
+                "1.3.0": "2026-10-26T18:06:30Z"
+              },
+              "pkg-299": {
+                "1.0.0": "2026-10-08T13:07:09Z"
+              },
+              "pkg-300": {
+                "1.0.0": "2026-09-26T09:50:52Z",
+                "1.1.0": "2026-10-24T10:05:11Z",
+                "1.2.0": "2026-09-26T11:41:10Z"
+              },
+              "pkg-301": {
+                "1.0.0": "2026-10-01T17:19:37Z"
+              },
+              "pkg-302": {
+                "1.0.0": "2026-09-24T09:49:42Z",
+                "1.1.0": "2026-10-24T12:10:56Z",
+                "1.2.0": "2026-10-10T22:35:45Z"
+              },
+              "pkg-303": {
+                "1.0.0": "2026-09-27T17:22:28Z",
+                "1.1.0": "2026-10-23T07:32:00Z"
+              },
+              "pkg-304": {
+                "1.0.0": "2026-09-28T02:17:05Z",
+                "1.1.0": "2026-09-30T08:18:57Z",
+                "1.2.0": "2026-09-30T03:53:34Z",
+                "1.3.0": "2026-10-07T15:41:09Z"
+              },
+              "@codedev-ext/mod-305": {
+                "1.0.0": "2026-10-03T12:06:16Z",
+                "1.1.0": "2026-10-24T13:21:21Z",
+                "1.2.0": "2026-10-19T08:23:30Z"
+              },
+              "pkg-306": {
+                "1.0.0": "2026-10-09T18:49:43Z",
+                "1.1.0": "2026-10-10T14:14:30Z"
+              },
+              "pkg-308": {
+                "1.0.0": "2026-09-23T18:09:32Z",
+                "1.1.0": "2026-09-23T23:16:22Z",
+                "1.2.0": "2026-09-22T20:42:24Z"
+              },
+              "pkg-309": {
+                "1.0.0": "2026-10-02T06:16:40Z",
+                "1.1.0": "2026-10-12T09:56:43Z",
+                "1.2.0": "2026-09-30T14:19:13Z"
+              },
+              "@codedev/mod-310": {
+                "1.0.0": "2026-10-23T15:55:49Z",
+                "1.1.0": "2026-10-29T17:32:58Z",
+                "1.2.0": "2026-09-26T06:11:02Z"
+              },
+              "pkg-311": {
+                "1.0.0": "2026-09-28T16:34:12Z",
+                "1.1.0": "2026-10-25T08:31:16Z"
+              },
+              "pkg-312": {
+                "1.0.0": "2026-09-22T07:42:04Z",
+                "1.1.0": "2026-10-26T09:37:34Z"
+              },
+              "pkg-313": {
+                "1.0.0": "2026-10-11T17:13:39Z",
+                "1.1.0": "2026-10-28T14:38:26Z",
+                "1.2.0": "2026-09-25T06:50:28Z"
+              },
+              "pkg-314": {
+                "1.0.0": "2026-10-28T03:56:14Z"
+              },
+              "pkg-315": {
+                "1.0.0": "2026-10-17T15:22:00Z",
+                "1.1.0": "2026-10-10T02:48:15Z",
+                "1.2.0": "2026-10-18T17:47:57Z"
+              },
+              "pkg-316": {
+                "1.0.0": "2026-10-04T11:29:01Z",
+                "1.1.0": "2026-10-19T13:37:44Z"
+              },
+              "pkg-318": {
+                "1.0.0": "2026-10-10T12:20:37Z",
+                "1.1.0": "2026-09-28T06:14:52Z",
+                "1.2.0": "2026-09-25T15:10:02Z",
+                "1.3.0": "2026-09-23T23:04:36Z"
+              },
+              "pkg-319": {
+                "1.0.0": "2026-10-02T04:14:55Z",
+                "1.1.0": "2026-09-21T03:59:24Z",
+                "1.2.0": "2026-10-02T02:51:38Z"
+              },
+              "pkg-320": {
+                "1.0.0": "2026-10-23T07:29:00Z",
+                "1.1.0": "2026-10-14T17:35:40Z"
+              },
+              "@codedev/mod-321": {
+                "1.0.0": "2026-10-02T01:14:14Z",
+                "1.1.0": "2026-10-02T19:53:25Z"
+              },
+              "pkg-322": {
+                "1.0.0": "2026-10-05T16:11:14Z"
+              },
+              "pkg-324": {
+                "1.0.0": "2026-10-07T20:07:10Z"
+              },
+              "pkg-325": {
+                "1.0.0": "2026-10-05T04:11:29Z",
+                "1.1.0": "2026-09-27T21:12:21Z",
+                "1.2.0": "2026-10-04T22:52:23Z",
+                "1.3.0": "2026-10-02T00:33:00Z"
+              },
+              "@codedev/mod-326": {
+                "1.0.0": "2026-10-09T06:09:36Z",
+                "1.1.0": "2026-10-26T10:02:02Z",
+                "1.2.0": "2026-10-08T02:58:56Z",
+                "1.3.0": "2026-10-29T18:31:43Z"
+              },
+              "pkg-327": {
+                "1.0.0": "2026-10-10T23:30:56Z",
+                "1.1.0": "2026-10-27T08:30:03Z",
+                "1.2.0": "2026-10-24T16:24:30Z",
+                "1.3.0": "2026-09-24T14:17:53Z"
+              },
+              "pkg-328": {
+                "1.0.0": "2026-09-24T03:36:09Z",
+                "1.1.0": "2026-10-14T11:35:21Z",
+                "1.2.0": "2026-09-23T00:50:45Z"
+              },
+              "pkg-329": {
+                "1.0.0": "2026-10-03T02:16:24Z",
+                "1.1.0": "2026-10-02T18:39:24Z",
+                "1.2.0": "2026-10-09T02:32:38Z"
+              },
+              "pkg-330": {
+                "1.0.0": "2026-10-25T12:27:24Z",
+                "1.1.0": "2026-09-27T09:23:36Z"
+              },
+              "pkg-331": {
+                "1.0.0": "2026-10-16T11:33:01Z",
+                "1.1.0": "2026-10-03T03:42:59Z",
+                "1.2.0": "2026-09-28T19:03:45Z",
+                "1.3.0": "2026-09-27T11:20:22Z"
+              },
+              "pkg-332": {
+                "1.0.0": "2026-09-29T15:33:17Z"
+              },
+              "@codedev/mod-333": {
+                "1.0.0": "2026-09-30T15:18:51Z",
+                "1.1.0": "2026-10-01T01:13:09Z",
+                "1.2.0": "2026-10-06T17:35:33Z"
+              },
+              "pkg-334": {
+                "1.0.0": "2026-10-27T01:14:46Z",
+                "1.1.0": "2026-10-03T09:08:15Z"
+              },
+              "@codedev/mod-335": {
+                "1.0.0": "2026-10-09T15:26:21Z",
+                "1.1.0": "2026-10-29T00:41:51Z",
+                "1.2.0": "2026-10-20T09:38:31Z",
+                "1.3.0": "2026-10-21T17:01:47Z"
+              },
+              "pkg-336": {
+                "1.0.0": "2026-09-21T07:31:43Z",
+                "1.1.0": "2026-10-01T18:28:35Z",
+                "1.2.0": "2026-10-27T09:03:58Z"
+              },
+              "pkg-337": {
+                "1.0.0": "2026-10-24T00:46:25Z",
+                "1.1.0": "2026-10-23T07:06:00Z",
+                "1.2.0": "2026-10-11T14:28:36Z",
+                "1.3.0": "2026-10-12T19:15:08Z"
+              },
+              "pkg-338": {
+                "1.0.0": "2026-10-22T05:23:02Z",
+                "1.1.0": "2026-10-10T07:41:41Z",
+                "1.2.0": "2026-09-23T08:00:40Z"
+              },
+              "pkg-339": {
+                "1.0.0": "2026-09-25T07:14:21Z",
+                "1.1.0": "2026-10-20T08:18:28Z",
+                "1.2.0": "2026-09-26T03:16:19Z"
+              },
+              "@codedev-ext/mod-340": {
+                "1.0.0": "2026-10-10T22:09:27Z",
+                "1.1.0": "2026-10-07T13:10:56Z",
+                "1.2.0": "2026-09-21T17:24:16Z"
+              },
+              "pkg-341": {
+                "1.0.0": "2026-10-10T00:21:06Z"
+              },
+              "pkg-342": {
+                "1.0.0": "2026-10-03T16:27:40Z"
+              },
+              "@codedev/mod-343": {
+                "1.0.0": "2026-10-13T12:53:25Z",
+                "1.1.0": "2026-09-21T21:59:57Z",
+                "1.2.0": "2026-10-14T21:29:59Z"
+              },
+              "pkg-344": {
+                "1.0.0": "2026-09-22T20:24:54Z",
+                "1.1.0": "2026-10-17T06:43:16Z",
+                "1.2.0": "2026-10-16T07:20:50Z",
+                "1.3.0": "2026-10-12T13:53:32Z"
+              },
+              "pkg-345": {
+                "1.0.0": "2026-09-22T10:12:34Z"
+              },
+              "pkg-346": {
+                "1.0.0": "2026-10-09T10:58:41Z",
+                "1.1.0": "2026-10-07T13:46:03Z",
+                "1.2.0": "2026-09-26T09:22:50Z"
+              },
+              "pkg-347": {
+                "1.0.0": "2026-10-08T10:24:13Z"
+              },
+              "@types/t-348": {
+                "1.0.0": "2026-10-10T10:06:10Z"
+              },
+              "pkg-349": {
+                "1.0.0": "2026-10-11T06:15:32Z",
+                "1.1.0": "2026-10-24T20:50:19Z",
+                "1.2.0": "2026-10-19T00:03:27Z",
+                "1.3.0": "2026-10-04T05:21:09Z"
+              },
+              "@codedev/mod-350": {
+                "1.0.0": "2026-09-20T06:29:16Z"
+              },
+              "pkg-351": {
+                "1.0.0": "2026-10-27T14:23:50Z",
+                "1.1.0": "2026-10-05T12:04:59Z",
+                "1.2.0": "2026-09-22T05:49:20Z"
+              },
+              "pkg-352": {
+                "1.0.0": "2026-10-03T17:51:53Z",
+                "1.1.0": "2026-09-29T02:44:17Z",
+                "1.2.0": "2026-10-20T12:26:58Z"
+              },
+              "pkg-353": {
+                "1.0.0": "2026-10-05T05:50:34Z"
+              },
+              "pkg-354": {
+                "1.0.0": "2026-09-30T15:39:20Z",
+                "1.1.0": "2026-10-19T13:56:15Z",
+                "1.2.0": "2026-10-28T00:29:03Z"
+              },
+              "pkg-355": {
+                "1.0.0": "2026-09-25T07:00:02Z"
+              },
+              "pkg-356": {
+                "1.0.0": "2026-10-12T02:41:21Z",
+                "1.1.0": "2026-10-13T13:31:01Z",
+                "1.2.0": "2026-09-24T01:41:11Z",
+                "1.3.0": "2026-10-04T21:15:10Z"
+              },
+              "pkg-357": {
+                "1.0.0": "2026-10-18T09:56:07Z",
+                "1.1.0": "2026-10-01T04:08:11Z"
+              },
+              "pkg-358": {
+                "1.0.0": "2026-09-29T10:53:51Z",
+                "1.1.0": "2026-10-02T23:04:11Z"
+              },
+              "pkg-359": {
+                "1.0.0": "2026-09-24T22:03:03Z",
+                "1.1.0": "2026-10-17T07:02:58Z"
+              },
+              "@types/t-360": {
+                "1.0.0": "2026-09-22T10:46:45Z",
+                "1.1.0": "2026-10-14T08:23:06Z",
+                "1.2.0": "2026-10-13T11:39:26Z"
+              },
+              "pkg-361": {
+                "1.0.0": "2026-10-26T03:39:08Z",
+                "1.1.0": "2026-09-29T08:13:35Z",
+                "1.2.0": "2026-10-10T06:52:47Z",
+                "1.3.0": "2026-09-24T03:33:56Z"
+              },
+              "pkg-362": {
+                "1.0.0": "2026-10-04T18:55:43Z",
+                "1.1.0": "2026-09-23T09:19:53Z"
+              },
+              "pkg-363": {
+                "1.0.0": "2026-10-11T04:51:36Z"
+              },
+              "pkg-364": {
+                "1.0.0": "2026-09-26T03:56:38Z",
+                "1.1.0": "2026-09-24T06:02:44Z"
+              },
+              "@codedev/mod-365": {
+                "1.0.0": "2026-10-17T01:23:26Z",
+                "1.1.0": "2026-10-04T00:16:43Z",
+                "1.2.0": "2026-09-20T19:53:59Z"
+              },
+              "pkg-366": {
+                "1.0.0": "2026-10-27T03:06:18Z"
+              },
+              "pkg-367": {
+                "1.0.0": "2026-10-01T02:14:54Z",
+                "1.1.0": "2026-10-16T20:56:05Z"
+              },
+              "pkg-368": {
+                "1.0.0": "2026-09-22T19:25:46Z",
+                "1.1.0": "2026-10-10T00:39:37Z"
+              },
+              "@codedev/mod-369": {
+                "1.0.0": "2026-10-10T13:06:36Z",
+                "1.1.0": "2026-10-24T00:06:22Z"
+              },
+              "pkg-370": {
+                "1.0.0": "2026-10-25T21:27:32Z",
+                "1.1.0": "2026-09-23T13:09:14Z",
+                "1.2.0": "2026-10-26T11:10:22Z"
+              },
+              "pkg-371": {
+                "1.0.0": "2026-10-28T17:21:13Z"
+              },
+              "@codedev-ext/mod-372": {
+                "1.0.0": "2026-10-21T20:56:01Z",
+                "1.1.0": "2026-09-23T19:48:19Z",
+                "1.2.0": "2026-10-18T23:37:48Z",
+                "1.3.0": "2026-09-27T10:28:27Z"
+              },
+              "@types/t-373": {
+                "1.0.0": "2026-10-27T11:30:54Z",
+                "1.1.0": "2026-10-29T23:21:06Z",
+                "1.2.0": "2026-10-21T11:14:29Z"
+              },
+              "pkg-375": {
+                "1.0.0": "2026-10-14T09:31:45Z"
+              },
+              "pkg-376": {
+                "1.0.0": "2026-09-28T20:24:50Z",
+                "1.1.0": "2026-09-28T15:11:53Z",
+                "1.2.0": "2026-09-20T05:21:16Z",
+                "1.3.0": "2026-10-25T22:28:22Z"
+              },
+              "pkg-377": {
+                "1.0.0": "2026-10-27T13:19:35Z"
+              },
+              "pkg-378": {
+                "1.0.0": "2026-10-06T23:02:37Z",
+                "1.1.0": "2026-09-22T00:19:55Z",
+                "1.2.0": "2026-10-25T01:44:46Z",
+                "1.3.0": "2026-10-27T10:15:04Z"
+              },
+              "@codedev/mod-379": {
+                "1.0.0": "2026-10-20T07:05:43Z",
+                "1.1.0": "2026-10-27T17:38:40Z"
+              },
+              "pkg-380": {
+                "1.0.0": "2026-10-02T12:00:17Z",
+                "1.1.0": "2026-10-04T00:10:57Z",
+                "1.2.0": "2026-10-18T11:16:19Z",
+                "1.3.0": "2026-10-12T14:05:17Z"
+              },
+              "@codedev/mod-381": {
+                "1.0.0": "2026-10-24T04:56:32Z"
+              },
+              "pkg-382": {
+                "1.0.0": "2026-10-12T09:11:25Z",
+                "1.1.0": "2026-09-20T21:32:17Z",
+                "1.2.0": "2026-09-21T18:04:25Z",
+                "1.3.0": "2026-10-18T03:56:50Z"
+              },
+              "@codedev-ext/mod-383": {
+                "1.0.0": "2026-10-24T23:29:24Z"
+              },
+              "pkg-384": {
+                "1.0.0": "2026-09-29T11:14:05Z",
+                "1.1.0": "2026-10-05T14:34:36Z",
+                "1.2.0": "2026-09-26T14:58:23Z"
+              },
+              "pkg-385": {
+                "1.0.0": "2026-09-20T12:48:16Z",
+                "1.1.0": "2026-10-11T01:41:09Z"
+              },
+              "pkg-386": {
+                "1.0.0": "2026-09-26T02:20:18Z",
+                "1.1.0": "2026-09-29T19:37:34Z"
+              },
+              "pkg-387": {
+                "1.0.0": "2026-10-10T14:22:44Z"
+              },
+              "pkg-388": {
+                "1.0.0": "2026-10-14T05:02:13Z"
+              },
+              "pkg-389": {
+                "1.0.0": "2026-10-27T07:23:36Z",
+                "1.1.0": "2026-10-25T11:54:10Z"
+              },
+              "pkg-390": {
+                "1.0.0": "2026-09-29T15:22:07Z"
+              },
+              "@types/t-391": {
+                "1.0.0": "2026-10-18T08:48:28Z",
+                "1.1.0": "2026-10-18T22:05:47Z",
+                "1.2.0": "2026-10-27T15:09:45Z",
+                "1.3.0": "2026-10-01T10:00:05Z"
+              },
+              "pkg-392": {
+                "1.0.0": "2026-09-28T10:56:39Z",
+                "1.1.0": "2026-10-12T05:49:30Z",
+                "1.2.0": "2026-10-08T03:24:17Z",
+                "1.3.0": "2026-09-21T04:09:30Z"
+              },
+              "pkg-393": {
+                "1.0.0": "2026-10-11T06:28:20Z",
+                "1.1.0": "2026-10-03T08:55:33Z"
+              },
+              "pkg-394": {
+                "1.0.0": "2026-10-02T08:00:15Z"
+              },
+              "@types/t-395": {
+                "1.0.0": "2026-10-03T05:38:12Z",
+                "1.1.0": "2026-10-22T05:58:46Z"
+              },
+              "pkg-396": {
+                "1.0.0": "2026-09-26T15:54:49Z",
+                "1.1.0": "2026-10-16T13:34:02Z",
+                "1.2.0": "2026-10-06T11:05:39Z",
+                "1.3.0": "2026-10-22T06:25:05Z"
+              },
+              "@codedev-ext/mod-397": {
+                "1.0.0": "2026-09-27T02:48:17Z",
+                "1.1.0": "2026-10-16T21:22:13Z",
+                "1.2.0": "2026-10-09T23:44:32Z"
+              },
+              "@codedev/mod-398": {
+                "1.0.0": "2026-10-15T23:03:14Z",
+                "1.1.0": "2026-10-12T22:55:14Z",
+                "1.2.0": "2026-10-24T01:51:52Z",
+                "1.3.0": "2026-09-20T19:09:07Z"
+              },
+              "@codedev-ext/mod-399": {
+                "1.0.0": "2026-10-24T05:03:00Z",
+                "1.1.0": "2026-09-30T15:30:26Z",
+                "1.2.0": "2026-09-20T10:19:54Z"
+              },
+              "pkg-400": {
+                "1.0.0": "2026-10-10T21:24:44Z",
+                "1.1.0": "2026-09-26T16:47:54Z"
+              },
+              "pkg-401": {
+                "1.0.0": "2026-10-25T23:00:33Z",
+                "1.1.0": "2026-10-25T16:39:25Z",
+                "1.2.0": "2026-10-20T22:52:27Z"
+              },
+              "pkg-402": {
+                "1.0.0": "2026-09-23T15:07:16Z"
+              },
+              "pkg-403": {
+                "1.0.0": "2026-10-02T01:24:34Z",
+                "1.1.0": "2026-09-21T03:10:16Z"
+              },
+              "pkg-404": {
+                "1.0.0": "2026-09-23T09:43:39Z",
+                "1.1.0": "2026-09-25T11:16:18Z",
+                "1.2.0": "2026-10-16T20:27:26Z",
+                "1.3.0": "2026-09-20T13:37:20Z"
+              },
+              "@codedev/mod-405": {
+                "1.0.0": "2026-10-03T15:27:38Z",
+                "1.1.0": "2026-10-28T10:45:18Z",
+                "1.2.0": "2026-10-17T00:37:12Z"
+              },
+              "pkg-406": {
+                "1.0.0": "2026-09-21T13:08:49Z"
+              },
+              "@codedev/mod-407": {
+                "1.0.0": "2026-09-23T12:30:15Z",
+                "1.1.0": "2026-10-14T09:30:44Z",
+                "1.2.0": "2026-10-02T00:41:51Z",
+                "1.3.0": "2026-09-25T19:38:21Z"
+              },
+              "pkg-408": {
+                "1.0.0": "2026-10-06T16:50:02Z",
+                "1.1.0": "2026-10-28T00:23:49Z"
+              },
+              "pkg-409": {
+                "1.0.0": "2026-10-29T00:03:35Z",
+                "1.1.0": "2026-09-24T14:41:14Z"
+              },
+              "pkg-410": {
+                "1.0.0": "2026-09-25T06:44:21Z"
+              },
+              "pkg-411": {
+                "1.0.0": "2026-10-06T17:05:39Z",
+                "1.1.0": "2026-10-02T03:58:39Z",
+                "1.2.0": "2026-09-28T17:08:34Z"
+              },
+              "pkg-412": {
+                "1.0.0": "2026-10-14T11:07:49Z",
+                "1.1.0": "2026-10-04T07:13:40Z"
+              },
+              "@codedev/mod-413": {
+                "1.0.0": "2026-09-26T15:38:49Z",
+                "1.1.0": "2026-09-25T07:48:01Z",
+                "1.2.0": "2026-10-18T03:40:08Z",
+                "1.3.0": "2026-09-27T06:36:20Z"
+              },
+              "pkg-414": {
+                "1.0.0": "2026-10-11T18:58:11Z"
+              },
+              "pkg-415": {
+                "1.0.0": "2026-10-13T14:11:01Z",
+                "1.1.0": "2026-10-01T16:08:01Z",
+                "1.2.0": "2026-10-27T17:03:18Z"
+              },
+              "pkg-416": {
+                "1.0.0": "2026-09-21T18:54:54Z",
+                "1.1.0": "2026-10-12T03:36:50Z"
+              },
+              "pkg-417": {
+                "1.0.0": "2026-10-20T10:50:06Z",
+                "1.1.0": "2026-10-06T10:36:38Z"
+              },
+              "pkg-418": {
+                "1.0.0": "2026-10-29T13:23:44Z",
+                "1.1.0": "2026-09-27T04:57:32Z"
+              },
+              "pkg-419": {
+                "1.0.0": "2026-10-03T23:41:13Z",
+                "1.1.0": "2026-10-08T18:27:39Z",
+                "1.2.0": "2026-10-07T15:11:43Z"
+              }
+            },
+            "changes": [
+              {
+                "name": "pkg-0",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev/mod-1",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev/mod-2",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-3",
+                "from": null,
+                "to": "1.2.0"
+              },
+              {
+                "name": "@codedev-ext/mod-4",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev-ext/mod-5",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-6",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-7",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-8",
+                "from": null,
+                "to": "9.9.9"
+              },
+              {
+                "name": "pkg-9",
+                "from": "0.9.0",
+                "to": "1.2.0"
+              },
+              {
+                "name": "pkg-10",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-11",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev-ext/mod-12",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-13",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-14",
+                "from": null,
+                "to": "9.9.9"
+              },
+              {
+                "name": "pkg-15",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev/mod-16",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "@types/t-17",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev/mod-18",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev-ext/mod-19",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-20",
+                "from": null,
+                "to": "1.2.0"
+              },
+              {
+                "name": "@codedev/mod-21",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "@codedev-ext/mod-22",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-23",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-24",
+                "from": "0.9.0",
+                "to": "1.2.0"
+              },
+              {
+                "name": "pkg-25",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev/mod-26",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "@codedev-ext/mod-27",
+                "from": "0.9.0",
+                "to": "1.2.0"
+              },
+              {
+                "name": "pkg-28",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-29",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-30",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-31",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "@codedev/mod-32",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "@codedev/mod-33",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev/mod-34",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-35",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-36",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "@types/t-37",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-38",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev/mod-39",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-40",
+                "from": null,
+                "to": "9.9.9"
+              },
+              {
+                "name": "pkg-41",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-42",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev/mod-43",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-44",
+                "from": "0.9.0",
+                "to": "9.9.9"
+              },
+              {
+                "name": "@codedev/mod-45",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "@types/t-46",
+                "from": "0.9.0",
+                "to": "1.2.0"
+              },
+              {
+                "name": "pkg-47",
+                "from": "0.9.0",
+                "to": "1.2.0"
+              },
+              {
+                "name": "pkg-48",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-49",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-50",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-51",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-52",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-53",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-54",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-55",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "@codedev/mod-56",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-57",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-58",
+                "from": null,
+                "to": "1.2.0"
+              },
+              {
+                "name": "@types/t-59",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "@codedev/mod-60",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-61",
+                "from": "0.9.0",
+                "to": "1.2.0"
+              },
+              {
+                "name": "@codedev/mod-62",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-63",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-64",
+                "from": null,
+                "to": "1.2.0"
+              },
+              {
+                "name": "@codedev/mod-65",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-66",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-67",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-68",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-69",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "@types/t-70",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "@codedev/mod-71",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "@types/t-72",
+                "from": "0.9.0",
+                "to": "1.3.0"
+              },
+              {
+                "name": "pkg-73",
+                "from": "0.9.0",
+                "to": "1.2.0"
+              },
+              {
+                "name": "pkg-74",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev/mod-75",
+                "from": "0.9.0",
+                "to": "1.2.0"
+              },
+              {
+                "name": "@types/t-76",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-77",
+                "from": "0.9.0",
+                "to": "1.2.0"
+              },
+              {
+                "name": "pkg-78",
+                "from": null,
+                "to": "1.2.0"
+              },
+              {
+                "name": "pkg-79",
+                "from": "0.9.0",
+                "to": "1.3.0"
+              },
+              {
+                "name": "@codedev-ext/mod-80",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "@codedev/mod-81",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-82",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-83",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "@types/t-84",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-85",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "@types/t-86",
+                "from": null,
+                "to": "1.2.0"
+              },
+              {
+                "name": "pkg-87",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-88",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "@types/t-89",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-90",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-91",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-92",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev/mod-93",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev/mod-94",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev-ext/mod-95",
+                "from": "0.9.0",
+                "to": "1.2.0"
+              },
+              {
+                "name": "pkg-96",
+                "from": "0.9.0",
+                "to": "1.2.0"
+              },
+              {
+                "name": "pkg-97",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-98",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-99",
+                "from": "0.9.0",
+                "to": "1.3.0"
+              },
+              {
+                "name": "pkg-100",
+                "from": null,
+                "to": "1.2.0"
+              },
+              {
+                "name": "@codedev/mod-101",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-102",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-103",
+                "from": "0.9.0",
+                "to": "1.2.0"
+              },
+              {
+                "name": "pkg-104",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "@types/t-105",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-106",
+                "from": null,
+                "to": "1.3.0"
+              },
+              {
+                "name": "@codedev/mod-107",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-108",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-109",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-110",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "@types/t-111",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-112",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-113",
+                "from": "0.9.0",
+                "to": "1.2.0"
+              },
+              {
+                "name": "pkg-114",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-115",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-116",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-117",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-118",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "@codedev/mod-119",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-120",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-121",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-122",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-123",
+                "from": null,
+                "to": "9.9.9"
+              },
+              {
+                "name": "pkg-124",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev/mod-125",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev-ext/mod-126",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-127",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-128",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-129",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-130",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-131",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "@types/t-132",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-133",
+                "from": "0.9.0",
+                "to": "1.3.0"
+              },
+              {
+                "name": "pkg-134",
+                "from": "0.9.0",
+                "to": "1.2.0"
+              },
+              {
+                "name": "@codedev/mod-135",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev/mod-136",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "@codedev/mod-137",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "@codedev/mod-138",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-139",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-140",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "@types/t-141",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-142",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-143",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-144",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "@types/t-145",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-146",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-147",
+                "from": "0.9.0",
+                "to": "1.2.0"
+              },
+              {
+                "name": "pkg-148",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-149",
+                "from": "0.9.0",
+                "to": "1.2.0"
+              },
+              {
+                "name": "pkg-150",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-151",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-152",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-153",
+                "from": null,
+                "to": "9.9.9"
+              },
+              {
+                "name": "@codedev/mod-154",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-155",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "@codedev-ext/mod-156",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "@codedev/mod-157",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev/mod-158",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "@codedev/mod-159",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-160",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-161",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-162",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev-ext/mod-163",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev/mod-164",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-165",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev/mod-166",
+                "from": "0.9.0",
+                "to": "1.2.0"
+              },
+              {
+                "name": "@codedev/mod-167",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-168",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-169",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev/mod-170",
+                "from": "0.9.0",
+                "to": "1.2.0"
+              },
+              {
+                "name": "pkg-171",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev-ext/mod-172",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-173",
+                "from": "0.9.0",
+                "to": "1.2.0"
+              },
+              {
+                "name": "pkg-174",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-175",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-176",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev-ext/mod-177",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev-ext/mod-178",
+                "from": "0.9.0",
+                "to": "9.9.9"
+              },
+              {
+                "name": "pkg-179",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev/mod-180",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-181",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "@types/t-182",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-183",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-184",
+                "from": null,
+                "to": "1.2.0"
+              },
+              {
+                "name": "pkg-185",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev/mod-186",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-187",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-188",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "@types/t-189",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-190",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-191",
+                "from": null,
+                "to": "1.3.0"
+              },
+              {
+                "name": "pkg-192",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-193",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev/mod-194",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-195",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-196",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "@types/t-197",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev/mod-198",
+                "from": "0.9.0",
+                "to": "1.2.0"
+              },
+              {
+                "name": "pkg-199",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-200",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev/mod-201",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-202",
+                "from": "0.9.0",
+                "to": "1.2.0"
+              },
+              {
+                "name": "pkg-203",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-204",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev/mod-205",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-206",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-207",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev-ext/mod-208",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-209",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-210",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-211",
+                "from": "0.9.0",
+                "to": "9.9.9"
+              },
+              {
+                "name": "pkg-212",
+                "from": null,
+                "to": "1.3.0"
+              },
+              {
+                "name": "pkg-213",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev-ext/mod-214",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev/mod-215",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-216",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-217",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev/mod-218",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev/mod-219",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-220",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-221",
+                "from": null,
+                "to": "1.2.0"
+              },
+              {
+                "name": "pkg-222",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-223",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-224",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-225",
+                "from": null,
+                "to": "1.2.0"
+              },
+              {
+                "name": "pkg-226",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-227",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "@types/t-228",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-229",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-230",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-231",
+                "from": null,
+                "to": "1.2.0"
+              },
+              {
+                "name": "@types/t-232",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev/mod-233",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-234",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-235",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "@types/t-236",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "@codedev/mod-237",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev/mod-238",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "@codedev-ext/mod-239",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-240",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "@types/t-241",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "@codedev/mod-242",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "@codedev/mod-243",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev/mod-244",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev-ext/mod-245",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-246",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-247",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-248",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev-ext/mod-249",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-250",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-251",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-252",
+                "from": "0.9.0",
+                "to": "1.2.0"
+              },
+              {
+                "name": "@codedev-ext/mod-253",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-254",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev/mod-255",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-256",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "@codedev/mod-257",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-258",
+                "from": "0.9.0",
+                "to": "1.2.0"
+              },
+              {
+                "name": "@types/t-259",
+                "from": "0.9.0",
+                "to": "9.9.9"
+              },
+              {
+                "name": "pkg-260",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-261",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-262",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-263",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-264",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-265",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-266",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-267",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-268",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-269",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-270",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "@types/t-271",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "@types/t-272",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-273",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "@codedev/mod-274",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-275",
+                "from": null,
+                "to": "1.2.0"
+              },
+              {
+                "name": "@codedev-ext/mod-276",
+                "from": null,
+                "to": "1.2.0"
+              },
+              {
+                "name": "@codedev/mod-277",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-278",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev-ext/mod-279",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-280",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-281",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-282",
+                "from": null,
+                "to": "1.3.0"
+              },
+              {
+                "name": "pkg-283",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "@types/t-284",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-285",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-286",
+                "from": "0.9.0",
+                "to": "1.3.0"
+              },
+              {
+                "name": "pkg-287",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-288",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "@codedev-ext/mod-289",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-290",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-291",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "@types/t-292",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-293",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-294",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "@codedev/mod-295",
+                "from": null,
+                "to": "1.2.0"
+              },
+              {
+                "name": "pkg-296",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev/mod-297",
+                "from": null,
+                "to": "9.9.9"
+              },
+              {
+                "name": "pkg-298",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-299",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-300",
+                "from": null,
+                "to": "1.2.0"
+              },
+              {
+                "name": "pkg-301",
+                "from": "0.9.0",
+                "to": "9.9.9"
+              },
+              {
+                "name": "pkg-302",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-303",
+                "from": null,
+                "to": "9.9.9"
+              },
+              {
+                "name": "pkg-304",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "@codedev-ext/mod-305",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-306",
+                "from": null,
+                "to": "9.9.9"
+              },
+              {
+                "name": "@codedev-ext/mod-307",
+                "from": null,
+                "to": "1.2.0"
+              },
+              {
+                "name": "pkg-308",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-309",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev/mod-310",
+                "from": null,
+                "to": "1.2.0"
+              },
+              {
+                "name": "pkg-311",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-312",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-313",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-314",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-315",
+                "from": null,
+                "to": "1.2.0"
+              },
+              {
+                "name": "pkg-316",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-317",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-318",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-319",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-320",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "@codedev/mod-321",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-322",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-323",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-324",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-325",
+                "from": null,
+                "to": "1.3.0"
+              },
+              {
+                "name": "@codedev/mod-326",
+                "from": null,
+                "to": "1.3.0"
+              },
+              {
+                "name": "pkg-327",
+                "from": "0.9.0",
+                "to": "1.2.0"
+              },
+              {
+                "name": "pkg-328",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-329",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-330",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-331",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-332",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev/mod-333",
+                "from": null,
+                "to": "1.2.0"
+              },
+              {
+                "name": "pkg-334",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "@codedev/mod-335",
+                "from": "0.9.0",
+                "to": "1.3.0"
+              },
+              {
+                "name": "pkg-336",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-337",
+                "from": "0.9.0",
+                "to": "1.3.0"
+              },
+              {
+                "name": "pkg-338",
+                "from": null,
+                "to": "1.2.0"
+              },
+              {
+                "name": "pkg-339",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "@codedev-ext/mod-340",
+                "from": "0.9.0",
+                "to": "1.2.0"
+              },
+              {
+                "name": "pkg-341",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-342",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev/mod-343",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-344",
+                "from": "0.9.0",
+                "to": "1.3.0"
+              },
+              {
+                "name": "pkg-345",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-346",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-347",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "@types/t-348",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-349",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "@codedev/mod-350",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-351",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-352",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-353",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-354",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-355",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-356",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-357",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-358",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-359",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "@types/t-360",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-361",
+                "from": "0.9.0",
+                "to": "1.3.0"
+              },
+              {
+                "name": "pkg-362",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-363",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-364",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev/mod-365",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-366",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-367",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-368",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev/mod-369",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-370",
+                "from": "0.9.0",
+                "to": "1.2.0"
+              },
+              {
+                "name": "pkg-371",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev-ext/mod-372",
+                "from": null,
+                "to": "1.2.0"
+              },
+              {
+                "name": "@types/t-373",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-374",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-375",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-376",
+                "from": "0.9.0",
+                "to": "9.9.9"
+              },
+              {
+                "name": "pkg-377",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-378",
+                "from": null,
+                "to": "1.2.0"
+              },
+              {
+                "name": "@codedev/mod-379",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-380",
+                "from": "0.9.0",
+                "to": "1.3.0"
+              },
+              {
+                "name": "@codedev/mod-381",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-382",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev-ext/mod-383",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-384",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-385",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-386",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-387",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-388",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-389",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-390",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "@types/t-391",
+                "from": "0.9.0",
+                "to": "1.3.0"
+              },
+              {
+                "name": "pkg-392",
+                "from": null,
+                "to": "1.2.0"
+              },
+              {
+                "name": "pkg-393",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-394",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "@types/t-395",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-396",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "@codedev-ext/mod-397",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev/mod-398",
+                "from": "0.9.0",
+                "to": "1.3.0"
+              },
+              {
+                "name": "@codedev-ext/mod-399",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-400",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-401",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-402",
+                "from": null,
+                "to": "9.9.9"
+              },
+              {
+                "name": "pkg-403",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-404",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev/mod-405",
+                "from": null,
+                "to": "9.9.9"
+              },
+              {
+                "name": "pkg-406",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "@codedev/mod-407",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-408",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-409",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-410",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-411",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-412",
+                "from": null,
+                "to": "9.9.9"
+              },
+              {
+                "name": "@codedev/mod-413",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-414",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-415",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-416",
+                "from": null,
+                "to": "1.0.0"
+              },
+              {
+                "name": "pkg-417",
+                "from": null,
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-418",
+                "from": "0.9.0",
+                "to": "1.1.0"
+              },
+              {
+                "name": "pkg-419",
+                "from": "0.9.0",
+                "to": "1.0.0"
+              }
+            ]
+          },
+          "expected": "allow pkg-0@1.0.0 (was 0.9.0)\nallow @codedev/mod-1@1.0.0 (was 0.9.0)\nallow @codedev/mod-2@1.1.0\nallow pkg-3@1.2.0\nblock @codedev-ext/mod-4@1.0.0: not on allowlist\nblock @codedev-ext/mod-5@1.0.0: not on allowlist\nblock pkg-6@1.0.0 (was 0.9.0): not in registry\nblock pkg-7@1.1.0: quarantined until 2026-11-01 (published 2026-10-18)\nblock pkg-8@9.9.9: not in registry\nallow pkg-9@1.2.0 (was 0.9.0)\nblock pkg-10@1.0.0: not on allowlist; quarantined until 2026-10-30 (published 2026-10-16)\nblock pkg-11@1.0.0 (was 0.9.0): not on allowlist\nblock @codedev-ext/mod-12@1.0.0 (was 0.9.0): not on allowlist; quarantined until 2026-11-08 (published 2026-10-25)\nallow pkg-13@1.1.0 (was 0.9.0): exception SEC-1013 (expires 2026-10-31)\nblock pkg-14@9.9.9: not in registry; not on allowlist\nblock pkg-15@1.0.0: quarantined until 2026-11-06 (published 2026-10-23)\nblock @codedev/mod-16@1.1.0: not in registry\nblock @types/t-17@1.0.0 (was 0.9.0): quarantined until 2026-11-04 (published 2026-10-21)\nallow @codedev/mod-18@1.0.0\nblock @codedev-ext/mod-19@1.0.0 (was 0.9.0): not on allowlist\nblock pkg-20@1.2.0: not on allowlist\nblock @codedev/mod-21@1.1.0: quarantined until 2026-11-12 (published 2026-10-29)\nblock @codedev-ext/mod-22@1.1.0: not on allowlist\nblock pkg-23@1.1.0 (was 0.9.0): quarantined until 2026-10-31 (published 2026-10-17)\nblock pkg-24@1.2.0 (was 0.9.0): not in registry; not on allowlist\nblock pkg-25@1.0.0: quarantined until 2026-11-04 (published 2026-10-21)\nblock @codedev/mod-26@1.1.0 (was 0.9.0): quarantined until 2026-10-28 (published 2026-10-14)\nblock @codedev-ext/mod-27@1.2.0 (was 0.9.0): not on allowlist\nblock pkg-28@1.0.0 (was 0.9.0): not on allowlist; quarantined until 2026-11-07 (published 2026-10-24); exception SEC-1028 not valid (expires 2026-10-23)\nblock pkg-29@1.0.0: not on allowlist\nblock pkg-30@1.0.0 (was 0.9.0): quarantined until 2026-11-08 (published 2026-10-25)\nblock pkg-31@1.1.0 (was 0.9.0): quarantined until 2026-11-09 (published 2026-10-26)\nblock @codedev/mod-32@1.1.0: quarantined until 2026-11-07 (published 2026-10-24)\nblock @codedev/mod-33@1.0.0: quarantined until 2026-11-12 (published 2026-10-29)\nblock @codedev/mod-34@1.0.0: quarantined until 2026-11-08 (published 2026-10-25)\nallow pkg-35@1.1.0\nallow pkg-36@1.0.0 (was 0.9.0)\nblock @types/t-37@1.0.0 (was 0.9.0): quarantined until 2026-11-01 (published 2026-10-18)\nblock pkg-38@1.0.0: quarantined until 2026-11-12 (published 2026-10-29)\nblock @codedev/mod-39@1.0.0 (was 0.9.0): quarantined until 2026-11-10 (published 2026-10-27)\nblock pkg-40@9.9.9: not in registry; not on allowlist; exception SEC-1040 not valid (expires 2026-10-26)\nallow pkg-41@1.1.0\nallow pkg-42@1.0.0 (was 0.9.0)\nblock @codedev/mod-43@1.0.0: quarantined until 2026-11-07 (published 2026-10-24)\nblock pkg-44@9.9.9 (was 0.9.0): not in registry\nblock @codedev/mod-45@1.1.0 (was 0.9.0): quarantined until 2026-11-06 (published 2026-10-23)\nallow @types/t-46@1.2.0 (was 0.9.0)\nblock pkg-47@1.2.0 (was 0.9.0): not in registry\nblock pkg-48@1.0.0: not on allowlist; quarantined until 2026-11-02 (published 2026-10-19)\nblock pkg-49@1.0.0: quarantined until 2026-11-08 (published 2026-10-25)\nallow pkg-50@1.0.0\nblock pkg-51@1.0.0 (was 0.9.0): not on allowlist; quarantined until 2026-11-05 (published 2026-10-22)\nallow pkg-52@1.0.0 (was 0.9.0)\nallow pkg-53@1.0.0\nblock pkg-54@1.0.0: quarantined until 2026-11-12 (published 2026-10-29)\nallow pkg-55@1.1.0 (was 0.9.0)\nblock @codedev/mod-56@1.1.0 (was 0.9.0): not in registry\nblock pkg-57@1.0.0: not on allowlist\nallow pkg-58@1.2.0\nblock @types/t-59@1.1.0 (was 0.9.0): quarantined until 2026-11-09 (published 2026-10-26)\nblock @codedev/mod-60@1.0.0: quarantined until 2026-10-31 (published 2026-10-17)\nblock pkg-61@1.2.0 (was 0.9.0): not on allowlist; quarantined until 2026-11-04 (published 2026-10-21)\nblock @codedev/mod-62@1.1.0 (was 0.9.0): quarantined until 2026-11-11 (published 2026-10-28)\nblock pkg-63@1.0.0: not on allowlist; quarantined until 2026-11-09 (published 2026-10-26)\nblock pkg-64@1.2.0: not in registry\nallow @codedev/mod-65@1.1.0\nallow pkg-66@1.1.0 (was 0.9.0)\nallow pkg-67@1.0.0\nallow pkg-68@1.0.0 (was 0.9.0)\nallow pkg-69@1.1.0 (was 0.9.0)\nallow @types/t-70@1.1.0 (was 0.9.0)\nallow @codedev/mod-71@1.0.0\nallow @types/t-72@1.3.0 (was 0.9.0)\nblock pkg-73@1.2.0 (was 0.9.0): quarantined until 2026-11-08 (published 2026-10-25)\nblock pkg-74@1.0.0: quarantined until 2026-11-06 (published 2026-10-23)\nblock @codedev/mod-75@1.2.0 (was 0.9.0): quarantined until 2026-11-03 (published 2026-10-20)\nallow @types/t-76@1.1.0 (was 0.9.0)\nblock pkg-77@1.2.0 (was 0.9.0): not on allowlist; quarantined until 2026-11-08 (published 2026-10-25)\nallow pkg-78@1.2.0\nblock pkg-79@1.3.0 (was 0.9.0): quarantined until 2026-11-11 (published 2026-10-28)\nblock @codedev-ext/mod-80@1.1.0 (was 0.9.0): not on allowlist; quarantined until 2026-11-12 (published 2026-10-29)\nallow @codedev/mod-81@1.0.0\nblock pkg-82@1.1.0 (was 0.9.0): not on allowlist\nallow pkg-83@1.0.0: exception SEC-1083 (expires 2026-10-28)\nblock @types/t-84@1.0.0: quarantined until 2026-11-04 (published 2026-10-21)\nallow pkg-85@1.0.0 (was 0.9.0)\nallow @types/t-86@1.2.0\nallow pkg-87@1.0.0 (was 0.9.0)\nblock pkg-88@1.1.0: quarantined until 2026-11-04 (published 2026-10-21)\nblock @types/t-89@1.0.0: quarantined until 2026-11-06 (published 2026-10-23)\nblock pkg-90@1.0.0 (was 0.9.0): quarantined until 2026-11-01 (published 2026-10-18)\nblock pkg-91@1.0.0: not on allowlist\nallow pkg-92@1.0.0 (was 0.9.0): exception SEC-1092 (expires 2026-10-30)\nblock @codedev/mod-93@1.0.0: quarantined until 2026-11-11 (published 2026-10-28)\nallow @codedev/mod-94@1.0.0 (was 0.9.0)\nblock @codedev-ext/mod-95@1.2.0 (was 0.9.0): not on allowlist; quarantined until 2026-11-06 (published 2026-10-23)\nallow pkg-96@1.2.0 (was 0.9.0)\nblock pkg-97@1.0.0: quarantined until 2026-10-30 (published 2026-10-16)\nallow pkg-98@1.0.0 (was 0.9.0)\nallow pkg-99@1.3.0 (was 0.9.0)\nblock pkg-100@1.2.0: quarantined until 2026-11-02 (published 2026-10-19)\nallow @codedev/mod-101@1.0.0\nblock pkg-102@1.1.0 (was 0.9.0): quarantined until 2026-11-03 (published 2026-10-20)\nblock pkg-103@1.2.0 (was 0.9.0): quarantined until 2026-11-11 (published 2026-10-28)\nallow pkg-104@1.1.0\nblock @types/t-105@1.1.0 (was 0.9.0): quarantined until 2026-11-09 (published 2026-10-26)\nblock pkg-106@1.3.0: not on allowlist\nblock @codedev/mod-107@1.1.0: quarantined until 2026-10-31 (published 2026-10-17)\nblock pkg-108@1.1.0: not on allowlist\nblock pkg-109@1.0.0: not on allowlist; quarantined until 2026-11-09 (published 2026-10-26)\nallow pkg-110@1.0.0 (was 0.9.0)\nallow @types/t-111@1.0.0 (was 0.9.0)\nallow pkg-112@1.1.0\nblock pkg-113@1.2.0 (was 0.9.0): not in registry\nallow pkg-114@1.0.0\nallow pkg-115@1.0.0 (was 0.9.0)\nallow pkg-116@1.0.0\nblock pkg-117@1.1.0: not on allowlist; quarantined until 2026-11-12 (published 2026-10-29)\nblock pkg-118@1.1.0: not on allowlist; exception SEC-1118 not valid (expires 2026-10-24)\nallow @codedev/mod-119@1.0.0\nallow pkg-120@1.0.0 (was 0.9.0)\nblock pkg-121@1.0.0: not on allowlist\nallow pkg-122@1.0.0 (was 0.9.0)\nblock pkg-123@9.9.9: not in registry; not on allowlist\nallow pkg-124@1.0.0 (was 0.9.0)\nblock @codedev/mod-125@1.0.0: quarantined until 2026-11-12 (published 2026-10-29)\nblock @codedev-ext/mod-126@1.1.0: not on allowlist; quarantined until 2026-11-09 (published 2026-10-26)\nallow pkg-127@1.0.0 (was 0.9.0)\nallow pkg-128@1.1.0\nblock pkg-129@1.1.0: not on allowlist; quarantined until 2026-10-28 (published 2026-10-14)\nblock pkg-130@1.0.0: not on allowlist\nallow pkg-131@1.1.0 (was 0.9.0)\nallow @types/t-132@1.0.0 (was 0.9.0)\nblock pkg-133@1.3.0 (was 0.9.0): not on allowlist\nblock pkg-134@1.2.0 (was 0.9.0): quarantined until 2026-11-06 (published 2026-10-23)\nblock @codedev/mod-135@1.0.0 (was 0.9.0): quarantined until 2026-11-07 (published 2026-10-24)\nallow @codedev/mod-136@1.1.0 (was 0.9.0): exception SEC-1136 (expires 2026-10-27)\nblock @codedev/mod-137@1.1.0 (was 0.9.0): quarantined until 2026-11-02 (published 2026-10-19)\nblock @codedev/mod-138@1.0.0 (was 0.9.0): quarantined until 2026-10-30 (published 2026-10-16)\nblock pkg-139@1.0.0 (was 0.9.0): not on allowlist; quarantined until 2026-11-11 (published 2026-10-28)\nallow pkg-140@1.1.0 (was 0.9.0)\nallow @types/t-141@1.0.0 (was 0.9.0)\nblock pkg-142@1.1.0 (was 0.9.0): not on allowlist\nallow pkg-143@1.1.0\nblock pkg-144@1.0.0: not on allowlist\nblock @types/t-145@1.0.0 (was 0.9.0): quarantined until 2026-11-04 (published 2026-10-21)\nblock pkg-146@1.0.0 (was 0.9.0): not on allowlist\nallow pkg-147@1.2.0 (was 0.9.0)\nblock pkg-148@1.0.0 (was 0.9.0): quarantined until 2026-11-04 (published 2026-10-21)\nblock pkg-149@1.2.0 (was 0.9.0): not on allowlist; quarantined until 2026-11-07 (published 2026-10-24)\nallow pkg-150@1.1.0 (was 0.9.0): exception SEC-1150 (expires 2026-10-28)\nblock pkg-151@1.0.0: quarantined until 2026-11-08 (published 2026-10-25)\nblock pkg-152@1.0.0: quarantined until 2026-11-05 (published 2026-10-22)\nblock pkg-153@9.9.9: not in registry; not on allowlist; exception SEC-1153 not valid (expires 2026-10-26)\nallow @codedev/mod-154@1.0.0\nblock pkg-155@1.1.0: quarantined until 2026-11-04 (published 2026-10-21)\nblock @codedev-ext/mod-156@1.1.0 (was 0.9.0): not on allowlist; quarantined until 2026-11-06 (published 2026-10-23)\nallow @codedev/mod-157@1.0.0\nblock @codedev/mod-158@1.1.0: quarantined until 2026-10-30 (published 2026-10-16)\nallow @codedev/mod-159@1.0.0 (was 0.9.0)\nblock pkg-160@1.0.0 (was 0.9.0): quarantined until 2026-11-11 (published 2026-10-28)\nblock pkg-161@1.0.0 (was 0.9.0): not on allowlist\nblock pkg-162@1.0.0 (was 0.9.0): not on allowlist\nallow @codedev-ext/mod-163@1.0.0: exception SEC-1163 (expires 2026-10-29)\nallow @codedev/mod-164@1.0.0 (was 0.9.0)\nallow pkg-165@1.0.0 (was 0.9.0): exception SEC-1165 (expires 2026-10-31)\nallow @codedev/mod-166@1.2.0 (was 0.9.0)\nallow @codedev/mod-167@1.1.0\nblock pkg-168@1.0.0 (was 0.9.0): quarantined until 2026-11-08 (published 2026-10-25)\nallow pkg-169@1.0.0\nallow @codedev/mod-170@1.2.0 (was 0.9.0)\nblock pkg-171@1.0.0 (was 0.9.0): quarantined until 2026-10-30 (published 2026-10-16)\nblock @codedev-ext/mod-172@1.0.0: not on allowlist\nallow pkg-173@1.2.0 (was 0.9.0)\nallow pkg-174@1.0.0\nblock pkg-175@1.0.0 (was 0.9.0): not on allowlist\nblock pkg-176@1.0.0 (was 0.9.0): not on allowlist\nblock @codedev-ext/mod-177@1.0.0: not on allowlist\nblock @codedev-ext/mod-178@9.9.9 (was 0.9.0): not in registry; not on allowlist\nblock pkg-179@1.0.0: not on allowlist; quarantined until 2026-11-09 (published 2026-10-26)\nallow @codedev/mod-180@1.1.0\nallow pkg-181@1.1.0 (was 0.9.0)\nallow @types/t-182@1.1.0\nallow pkg-183@1.0.0: exception SEC-1183 (expires 2026-10-27)\nblock pkg-184@1.2.0: quarantined until 2026-11-05 (published 2026-10-22)\nblock pkg-185@1.0.0 (was 0.9.0): not on allowlist\nallow @codedev/mod-186@1.0.0 (was 0.9.0)\nblock pkg-187@1.0.0 (was 0.9.0): not on allowlist\nblock pkg-188@1.1.0: quarantined until 2026-11-09 (published 2026-10-26)\nallow @types/t-189@1.0.0 (was 0.9.0)\nallow pkg-190@1.0.0\nblock pkg-191@1.3.0: quarantined until 2026-11-04 (published 2026-10-21)\nallow pkg-192@1.1.0\nblock pkg-193@1.0.0: not on allowlist\nallow @codedev/mod-194@1.0.0\nallow pkg-195@1.0.0 (was 0.9.0)\nblock pkg-196@1.1.0: quarantined until 2026-11-07 (published 2026-10-24)\nblock @types/t-197@1.0.0 (was 0.9.0): quarantined until 2026-11-10 (published 2026-10-27)\nallow @codedev/mod-198@1.2.0 (was 0.9.0)\nallow pkg-199@1.0.0\nallow pkg-200@1.0.0\nallow @codedev/mod-201@1.0.0\nallow pkg-202@1.2.0 (was 0.9.0)\nallow pkg-203@1.0.0 (was 0.9.0)\nallow pkg-204@1.0.0\nallow @codedev/mod-205@1.0.0\nallow pkg-206@1.0.0\nblock pkg-207@1.0.0 (was 0.9.0): quarantined until 2026-11-02 (published 2026-10-19)\nblock @codedev-ext/mod-208@1.0.0 (was 0.9.0): not on allowlist\nblock pkg-209@1.0.0 (was 0.9.0): not on allowlist\nallow pkg-210@1.1.0\nblock pkg-211@9.9.9 (was 0.9.0): not in registry; not on allowlist\nallow pkg-212@1.3.0\nblock pkg-213@1.0.0 (was 0.9.0): not on allowlist\nallow @codedev-ext/mod-214@1.0.0: exception SEC-1214 (expires 2026-11-01)\nallow @codedev/mod-215@1.0.0\nallow pkg-216@1.1.0 (was 0.9.0)\nallow pkg-217@1.0.0 (was 0.9.0)\nblock @codedev/mod-218@1.0.0 (was 0.9.0): not in registry\nallow @codedev/mod-219@1.1.0 (was 0.9.0)\nallow pkg-220@1.1.0\nallow pkg-221@1.2.0: exception SEC-1221 (expires 2026-11-01)\nallow pkg-222@1.0.0\nblock pkg-223@1.0.0 (was 0.9.0): quarantined until 2026-11-09 (published 2026-10-26)\nallow pkg-224@1.0.0 (was 0.9.0)\nblock pkg-225@1.2.0: not in registry\nblock pkg-226@1.0.0 (was 0.9.0): not on allowlist\nblock pkg-227@1.0.0 (was 0.9.0): quarantined until 2026-11-02 (published 2026-10-19); exception SEC-1227 not valid (expires 2026-10-24)\nblock @types/t-228@1.0.0: quarantined until 2026-11-07 (published 2026-10-24)\nallow pkg-229@1.0.0\nallow pkg-230@1.1.0 (was 0.9.0)\nblock pkg-231@1.2.0: quarantined until 2026-11-11 (published 2026-10-28)\nblock @types/t-232@1.0.0 (was 0.9.0): quarantined until 2026-11-12 (published 2026-10-29)\nallow @codedev/mod-233@1.0.0: exception SEC-1233 (expires 2026-10-31)\nallow pkg-234@1.1.0 (was 0.9.0)\nblock pkg-235@1.0.0 (was 0.9.0): not on allowlist\nallow @types/t-236@1.1.0 (was 0.9.0)\nblock @codedev/mod-237@1.0.0: quarantined until 2026-11-02 (published 2026-10-19)\nblock @codedev/mod-238@1.1.0 (was 0.9.0): quarantined until 2026-11-10 (published 2026-10-27)\nblock @codedev-ext/mod-239@1.0.0 (was 0.9.0): not on allowlist; quarantined until 2026-10-31 (published 2026-10-17)\nallow pkg-240@1.0.0 (was 0.9.0)\nblock @types/t-241@1.1.0 (was 0.9.0): quarantined until 2026-10-31 (published 2026-10-17)\nblock @codedev/mod-242@1.1.0: quarantined until 2026-11-03 (published 2026-10-20)\nblock @codedev/mod-243@1.0.0 (was 0.9.0): quarantined until 2026-11-03 (published 2026-10-20)\nblock @codedev/mod-244@1.0.0: quarantined until 2026-11-05 (published 2026-10-22)\nblock @codedev-ext/mod-245@1.0.0: not on allowlist; quarantined until 2026-11-03 (published 2026-10-20)\nallow pkg-246@1.1.0 (was 0.9.0)\nallow pkg-247@1.1.0\nallow pkg-248@1.0.0 (was 0.9.0)\nblock @codedev-ext/mod-249@1.1.0: not on allowlist; quarantined until 2026-11-02 (published 2026-10-19)\nblock pkg-250@1.1.0: not on allowlist\nblock pkg-251@1.0.0 (was 0.9.0): not on allowlist\nblock pkg-252@1.2.0 (was 0.9.0): not in registry\nblock @codedev-ext/mod-253@1.0.0 (was 0.9.0): not in registry; not on allowlist\nblock pkg-254@1.0.0: not on allowlist; quarantined until 2026-10-30 (published 2026-10-16)\nallow @codedev/mod-255@1.0.0 (was 0.9.0)\nblock pkg-256@1.1.0: not on allowlist\nblock @codedev/mod-257@1.1.0: quarantined until 2026-10-29 (published 2026-10-15)\nblock pkg-258@1.2.0 (was 0.9.0): quarantined until 2026-11-07 (published 2026-10-24)\nblock @types/t-259@9.9.9 (was 0.9.0): not in registry\nblock pkg-260@1.0.0: not on allowlist\nallow pkg-261@1.0.0\nblock pkg-262@1.1.0 (was 0.9.0): not on allowlist; quarantined until 2026-11-01 (published 2026-10-18)\nblock pkg-263@1.0.0 (was 0.9.0): not on allowlist\nblock pkg-264@1.0.0 (was 0.9.0): not on allowlist\nblock pkg-265@1.0.0 (was 0.9.0): quarantined until 2026-11-05 (published 2026-10-22)\nallow pkg-266@1.0.0 (was 0.9.0): exception SEC-1266 (expires 2026-10-29)\nallow pkg-267@1.0.0 (was 0.9.0)\nblock pkg-268@1.1.0: quarantined until 2026-11-12 (published 2026-10-29)\nblock pkg-269@1.0.0: not on allowlist; exception SEC-1269 not valid (expires 2026-10-26)\nblock pkg-270@1.0.0: not on allowlist; quarantined until 2026-11-11 (published 2026-10-28)\nallow @types/t-271@1.1.0 (was 0.9.0)\nallow @types/t-272@1.0.0\nallow pkg-273@1.1.0\nblock @codedev/mod-274@1.1.0: quarantined until 2026-10-30 (published 2026-10-16)\nallow pkg-275@1.2.0\nblock @codedev-ext/mod-276@1.2.0: not on allowlist; quarantined until 2026-11-05 (published 2026-10-22)\nallow @codedev/mod-277@1.0.0\nallow pkg-278@1.0.0 (was 0.9.0): exception SEC-1278 (expires 2026-10-29)\nblock @codedev-ext/mod-279@1.0.0 (was 0.9.0): not on allowlist; quarantined until 2026-11-04 (published 2026-10-21)\nblock pkg-280@1.0.0: quarantined until 2026-11-10 (published 2026-10-27); exception SEC-1280 not valid (expires 2026-10-25)\nallow pkg-281@1.1.0\nblock pkg-282@1.3.0: quarantined until 2026-11-03 (published 2026-10-20)\nblock pkg-283@1.0.0: quarantined until 2026-11-02 (published 2026-10-19)\nblock @types/t-284@1.0.0: quarantined until 2026-11-11 (published 2026-10-28)\nallow pkg-285@1.1.0\nblock pkg-286@1.3.0 (was 0.9.0): not on allowlist\nblock pkg-287@1.0.0 (was 0.9.0): quarantined until 2026-11-04 (published 2026-10-21)\nblock pkg-288@1.1.0: not on allowlist; quarantined until 2026-10-31 (published 2026-10-17)\nblock @codedev-ext/mod-289@1.0.0: not on allowlist\nblock pkg-290@1.1.0 (was 0.9.0): not on allowlist\nallow pkg-291@1.0.0 (was 0.9.0)\nblock @types/t-292@1.1.0: quarantined until 2026-11-03 (published 2026-10-20)\nblock pkg-293@1.1.0 (was 0.9.0): quarantined until 2026-10-31 (published 2026-10-17); exception SEC-1293 not valid (expires 2026-10-23)\nallow pkg-294@1.1.0 (was 0.9.0): exception SEC-1294 (expires 2026-10-29)\nallow @codedev/mod-295@1.2.0\nblock pkg-296@1.0.0 (was 0.9.0): quarantined until 2026-10-31 (published 2026-10-17)\nblock @codedev/mod-297@9.9.9: not in registry\nblock pkg-298@1.0.0 (was 0.9.0): quarantined until 2026-10-29 (published 2026-10-15)\nallow pkg-299@1.0.0\nblock pkg-300@1.2.0: not on allowlist\nblock pkg-301@9.9.9 (was 0.9.0): not in registry; not on allowlist\nallow pkg-302@1.0.0 (was 0.9.0)\nblock pkg-303@9.9.9: not in registry\nallow pkg-304@1.1.0 (was 0.9.0)\nblock @codedev-ext/mod-305@1.1.0: not on allowlist; quarantined until 2026-11-07 (published 2026-10-24)\nblock pkg-306@9.9.9: not in registry\nblock @codedev-ext/mod-307@1.2.0: not in registry; not on allowlist\nblock pkg-308@1.0.0: not on allowlist\nblock pkg-309@1.0.0 (was 0.9.0): not on allowlist\nallow @codedev/mod-310@1.2.0\nblock pkg-311@1.1.0 (was 0.9.0): not on allowlist; quarantined until 2026-11-08 (published 2026-10-25)\nallow pkg-312@1.0.0\nallow pkg-313@1.0.0\nblock pkg-314@1.0.0: not on allowlist; quarantined until 2026-11-11 (published 2026-10-28)\nblock pkg-315@1.2.0: quarantined until 2026-11-01 (published 2026-10-18)\nallow pkg-316@1.0.0 (was 0.9.0)\nblock pkg-317@1.0.0: not in registry\nallow pkg-318@1.0.0\nallow pkg-319@1.1.0 (was 0.9.0)\nblock pkg-320@1.1.0 (was 0.9.0): quarantined until 2026-10-28 (published 2026-10-14)\nallow @codedev/mod-321@1.0.0\nallow pkg-322@1.0.0\nblock pkg-323@1.0.0 (was 0.9.0): not in registry\nallow pkg-324@1.0.0\nallow pkg-325@1.3.0\nblock @codedev/mod-326@1.3.0: quarantined until 2026-11-12 (published 2026-10-29)\nblock pkg-327@1.2.0 (was 0.9.0): not on allowlist; quarantined until 2026-11-07 (published 2026-10-24)\nblock pkg-328@1.1.0 (was 0.9.0): quarantined until 2026-10-28 (published 2026-10-14); exception SEC-1328 not valid (expires 2026-10-24)\nallow pkg-329@1.0.0\nblock pkg-330@1.0.0: quarantined until 2026-11-08 (published 2026-10-25)\nallow pkg-331@1.1.0 (was 0.9.0)\nallow pkg-332@1.0.0 (was 0.9.0)\nallow @codedev/mod-333@1.2.0\nallow pkg-334@1.1.0 (was 0.9.0)\nblock @codedev/mod-335@1.3.0 (was 0.9.0): quarantined until 2026-11-04 (published 2026-10-21)\nallow pkg-336@1.1.0 (was 0.9.0)\nallow pkg-337@1.3.0 (was 0.9.0)\nblock pkg-338@1.2.0: not on allowlist\nblock pkg-339@1.1.0: not on allowlist; quarantined until 2026-11-03 (published 2026-10-20)\nblock @codedev-ext/mod-340@1.2.0 (was 0.9.0): not on allowlist\nallow pkg-341@1.0.0\nallow pkg-342@1.0.0\nallow @codedev/mod-343@1.0.0 (was 0.9.0)\nallow pkg-344@1.3.0 (was 0.9.0)\nallow pkg-345@1.0.0 (was 0.9.0)\nallow pkg-346@1.0.0 (was 0.9.0)\nblock pkg-347@1.0.0 (was 0.9.0): not on allowlist\nallow @types/t-348@1.0.0\nblock pkg-349@1.1.0: quarantined until 2026-11-07 (published 2026-10-24)\nallow @codedev/mod-350@1.0.0\nblock pkg-351@1.0.0: quarantined until 2026-11-10 (published 2026-10-27)\nallow pkg-352@1.0.0\nblock pkg-353@1.0.0 (was 0.9.0): not on allowlist; exception SEC-1353 not valid (expires 2026-10-26)\nallow pkg-354@1.0.0\nallow pkg-355@1.0.0 (was 0.9.0)\nallow pkg-356@1.1.0 (was 0.9.0)\nblock pkg-357@1.0.0 (was 0.9.0): quarantined until 2026-11-01 (published 2026-10-18)\nallow pkg-358@1.1.0 (was 0.9.0)\nallow pkg-359@1.0.0 (was 0.9.0)\nblock @types/t-360@1.1.0: quarantined until 2026-10-28 (published 2026-10-14)\nallow pkg-361@1.3.0 (was 0.9.0)\nallow pkg-362@1.1.0\nblock pkg-363@1.0.0 (was 0.9.0): not on allowlist\nallow pkg-364@1.0.0 (was 0.9.0)\nblock @codedev/mod-365@1.0.0: quarantined until 2026-10-31 (published 2026-10-17)\nallow pkg-366@1.0.0 (was 0.9.0): exception SEC-1366 (expires 2026-11-01)\nallow pkg-367@1.1.0: exception SEC-1367 (expires 2026-10-31)\nallow pkg-368@1.0.0\nblock @codedev/mod-369@1.1.0: quarantined until 2026-11-07 (published 2026-10-24)\nblock pkg-370@1.2.0 (was 0.9.0): quarantined until 2026-11-09 (published 2026-10-26); exception SEC-1370 not valid (expires 2026-10-23)\nblock pkg-371@1.0.0: quarantined until 2026-11-11 (published 2026-10-28)\nblock @codedev-ext/mod-372@1.2.0: not on allowlist; quarantined until 2026-11-01 (published 2026-10-18)\nblock @types/t-373@1.0.0 (was 0.9.0): quarantined until 2026-11-10 (published 2026-10-27)\nblock pkg-374@1.0.0 (was 0.9.0): not in registry\nblock pkg-375@1.0.0 (was 0.9.0): quarantined until 2026-10-28 (published 2026-10-14)\nblock pkg-376@9.9.9 (was 0.9.0): not in registry; not on allowlist\nblock pkg-377@1.0.0 (was 0.9.0): quarantined until 2026-11-10 (published 2026-10-27)\nblock pkg-378@1.2.0: quarantined until 2026-11-08 (published 2026-10-25)\nblock @codedev/mod-379@1.0.0: quarantined until 2026-11-03 (published 2026-10-20)\nblock pkg-380@1.3.0 (was 0.9.0): not on allowlist\nblock @codedev/mod-381@1.0.0: quarantined until 2026-11-07 (published 2026-10-24)\nallow pkg-382@1.0.0\nblock @codedev-ext/mod-383@1.0.0 (was 0.9.0): not on allowlist; quarantined until 2026-11-07 (published 2026-10-24)\nblock pkg-384@1.1.0: not on allowlist\nblock pkg-385@1.0.0 (was 0.9.0): not on allowlist\nallow pkg-386@1.1.0: exception SEC-1386 (expires 2026-10-31)\nblock pkg-387@1.0.0 (was 0.9.0): not on allowlist\nblock pkg-388@1.0.0 (was 0.9.0): quarantined until 2026-10-28 (published 2026-10-14)\nblock pkg-389@1.0.0 (was 0.9.0): quarantined until 2026-11-10 (published 2026-10-27)\nallow pkg-390@1.0.0 (was 0.9.0)\nallow @types/t-391@1.3.0 (was 0.9.0)\nblock pkg-392@1.2.0: not on allowlist\nblock pkg-393@1.0.0: not on allowlist\nallow pkg-394@1.0.0\nblock @types/t-395@1.1.0: quarantined until 2026-11-05 (published 2026-10-22)\nblock pkg-396@1.1.0 (was 0.9.0): quarantined until 2026-10-30 (published 2026-10-16)\nblock @codedev-ext/mod-397@1.0.0: not on allowlist\nallow @codedev/mod-398@1.3.0 (was 0.9.0)\nblock @codedev-ext/mod-399@1.1.0: not on allowlist\nallow pkg-400@1.0.0\nblock pkg-401@1.1.0: not on allowlist; quarantined until 2026-11-08 (published 2026-10-25)\nblock pkg-402@9.9.9: not in registry; not on allowlist\nblock pkg-403@1.0.0: not on allowlist\nblock pkg-404@1.0.0 (was 0.9.0): not on allowlist\nblock @codedev/mod-405@9.9.9: not in registry\nallow pkg-406@1.0.0\nallow @codedev/mod-407@1.1.0 (was 0.9.0): exception SEC-1407 (expires 2026-10-31)\nallow pkg-408@1.0.0 (was 0.9.0)\nblock pkg-409@1.0.0 (was 0.9.0): quarantined until 2026-11-12 (published 2026-10-29)\nallow pkg-410@1.0.0 (was 0.9.0)\nallow pkg-411@1.0.0 (was 0.9.0)\nblock pkg-412@9.9.9: not in registry\nallow @codedev/mod-413@1.0.0 (was 0.9.0)\nallow pkg-414@1.0.0 (was 0.9.0)\nblock pkg-415@1.0.0: not on allowlist\nallow pkg-416@1.0.0\nallow pkg-417@1.1.0\nallow pkg-418@1.1.0 (was 0.9.0)\nallow pkg-419@1.0.0 (was 0.9.0)\n183 allowed, 237 blocked",
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "An empty diff allows nothing and blocks nothing",
+          "input": {
+            "today": "2026-10-27",
+            "policy": {
+              "allowlist": [],
+              "quarantineDays": 7,
+              "exceptions": []
+            },
+            "registry": {},
+            "changes": []
+          },
+          "expected": "0 allowed, 0 blocked",
+          "hidden": true,
+          "score": 2
+        }
+      ]
+    }
+  ]
+}

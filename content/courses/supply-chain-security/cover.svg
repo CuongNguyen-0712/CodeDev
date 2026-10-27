@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Course cover: supply chain security (a dependency check that flags an invented package, a secret and an install script). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1A150A"/>
+      <stop offset="0.55" stop-color="#110F16"/>
+      <stop offset="1" stop-color="#0D0B13"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#D9A21B" stop-opacity="0.26"/>
+      <stop offset="1" stop-color="#D9A21B" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#FFFFFF" fill-opacity="0.07"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8C8399"/></marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#dots)"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- Copy -->
+  <g id="copy" font-family="Segoe UI, Inter, Arial, sans-serif">
+    <rect x="112" y="152" width="92" height="92" rx="20" fill="#D9A21B"/>
+    <text x="158" y="214" text-anchor="middle" font-size="34" font-weight="800" fill="#FFFFFF">SC</text>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#F2D38A">SUPPLY CHAIN · CI</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">Supply Chain</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">Security</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Packages · Secrets · SBOMs · Signatures</text>
+    <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#F8E8C0">
+      <rect x="110" y="660" width="153" height="52" rx="26" fill="#241C0B" stroke="#D9A21B"/>
+      <text x="186.4" y="695" text-anchor="middle">lockfile</text>
+      <rect x="278.8" y="660" width="90" height="52" rx="26" fill="#241C0B" stroke="#D9A21B"/>
+      <text x="324.0" y="695" text-anchor="middle">SBOM</text>
+      <rect x="385.20000000000005" y="660" width="122" height="52" rx="26" fill="#241C0B" stroke="#D9A21B"/>
+      <text x="446.0" y="695" text-anchor="middle">digest</text>
+    </g>
+  </g>
+
+  <g id="art" font-family="Consolas, Menlo, monospace">
+    <rect x="880" y="230" width="560" height="300" rx="14" fill="#17140C" stroke="#4A3E22" stroke-width="2"/>
+    <text x="905" y="270" font-size="20" fill="#F2D38A" text-anchor="start">dependency check</text>
+    <text x="905" y="310" font-size="19" fill="#9BE7BD" text-anchor="start">@codedev/ui-kit      ok</text>
+    <text x="905" y="346" font-size="19" fill="#F2C14E" text-anchor="start">react-hooks-utilz    lookalike</text>
+    <text x="905" y="382" font-size="19" fill="#F2555A" text-anchor="start">sql-sanitize-lite    not on npm</text>
+    <text x="905" y="418" font-size="19" fill="#F2555A" text-anchor="start">postinstall: curl … | sh   blocked</text>
+    <text x="905" y="454" font-size="19" fill="#F2555A" text-anchor="start">AKIA…EXAMPLE in diff   secret</text>
+    <text x="905" y="498" font-size="19" fill="#3DBE7B" text-anchor="start">sha256 matches signed digest ✓</text>
+    <text x="880" y="580" font-size="18" fill="#B8B2C8" text-anchor="start">SBOM diff: +3 packages since v2.4.0</text>
+  </g>
+</svg>

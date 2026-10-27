@@ -1,0 +1,67 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_ssc_431",
+      "name": "review-ai-dependencies-quiz",
+      "type": "quiz",
+      "title": "Review three AI-suggested dependencies",
+      "description": "Three dependency suggestions from AI coding assistants in CodeDev pull requests: a package the registry does not know, a scoped package that looks like ours, and a library proposed for a format the team controls.",
+      "difficulty": "medium",
+      "outcomes": [
+        "ci-hardening",
+        "dependency-risks"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "An assistant's answer in a pull request for the grades import:\n  \"Use csv-stream-validator, it handles headers and types: npm install csv-stream-validator\"\n\n$ npm view csv-stream-validator\nnpm error code E404\nnpm error 404 Not Found - GET https://registry.npmjs.org/csv-stream-validator - Not found\n\nStatement: \"The suggestion should be rejected now and the name added to the team's deny list, because anyone can register an unclaimed name later and the same suggestion can be repeated to other developers.\"",
+          "explanation": "True. A 404 means the assistant invented the name. Today the install fails; tomorrow someone may register exactly that name, because invented names repeat across prompts and attackers watch for them (slopsquatting, lesson 2.2). Waiting until the package \"appears\" would mean installing whatever the first person to claim the name published. Rejecting it and putting the name on a deny list in the dependency check protects the next developer who gets the same answer. The misconception is that a hallucinated package is harmless because the install fails.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "An assistant suggests @codedev/csv-utils for the same import.\n\n# .npmrc (repository)\n@codedev-internal:registry=https://npm.internal.codedev.test/\n\n$ npm view @codedev/csv-utils maintainers time.created repository.url\nmaintainers = [ 'fastpkgs <fastpkgs@proton.test>' ]\ntime.created = '2026-10-19T22:41:07.311Z'\nrepository.url = (empty)\n\nStatement: \"Because the package is published under the @codedev scope, it comes from the CodeDev team and the publisher check can be skipped.\"",
+          "explanation": "False. A scope belongs to whoever registered it on that registry. Here the team's packages use @codedev-internal from a private registry; @codedev is not mapped in .npmrc, so it resolves from the public registry, where it has a maintainer nobody knows, an age of a few days and no repository. A familiar-looking scope is a lure, not an identity: check who owns the scope and that .npmrc maps it, as in lessons 2.1 and 3.3. The misconception is that the scope name proves the publisher.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The task given to the assistant:\n  \"Import grades.csv produced by our own exporter: header studentId,lessonId,score, then one row per grade,\n   integers only, no quotes, no commas inside fields, at most 5,000 rows.\"\n\nThe assistant's proposal: install fast-csv-parse-pro@1.0.3.\n\ndependency-review (CI):\n  fast-csv-parse-pro@1.0.3   published 9 days ago   1 maintainer\n  install script: postinstall \"node setup.js\"\n  adds 41 packages to the lockfile\n\nStatement: \"Writing a short parser with tests is a reasonable choice here: the format is produced by our own exporter and has no quoting rules, and each of the 41 packages would be code the team has to trust and keep updated.\"",
+          "explanation": "True. The format is fully specified and controlled by the team, so the parser is a split on newlines and commas plus validation, about 20 lines with a test for each rule (header, integer fields, row limit, invalid rows). The package would add a new, nine-day-old publisher, an install script and 41 transitive packages to every install and every SBOM. The judgement changes when the input is not yours: CSV from users, with quoting, escaped quotes and newlines inside fields, is exactly where an established library already in your tree is the safer choice. The misconception is that using a package is always less risk than writing code.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

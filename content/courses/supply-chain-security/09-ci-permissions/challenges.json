@@ -1,0 +1,66 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_ssc_331",
+      "name": "ci-permissions-quiz",
+      "type": "quiz",
+      "title": "Who can reach this token?",
+      "description": "Three pieces of evidence from the CI review: a preview workflow triggered by pull_request_target, a dependency resolved from the wrong registry, and the trust policy of the deploy role.",
+      "difficulty": "medium",
+      "outcomes": [
+        "ci-hardening"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": ".github/workflows/preview.yml:\n\non: pull_request_target\npermissions:\n  contents: read\njobs:\n  preview:\n    runs-on: ubuntu-24.04\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          ref: ${{ github.event.pull_request.head.sha }}\n      - run: npm ci\n      - run: npm run build\n      - run: npx vercel deploy --prebuilt --token \"$VERCEL_TOKEN\"\n        env:\n          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}\n\nStatement: \"Because the workflow limits GITHUB_TOKEN to contents: read, a pull request from a fork cannot get VERCEL_TOKEN out of this workflow.\"",
+          "explanation": "False. The permissions block scopes only GITHUB_TOKEN; it has no effect on repository secrets such as VERCEL_TOKEN. pull_request_target runs in the context of the base repository, so secrets are available even when the pull request comes from a fork, and this job then checks out the fork's commit and runs it: npm ci runs its install scripts and npm run build runs its build script. That code can rewrite node_modules/.bin/vercel or any file the last step uses, so the step that receives VERCEL_TOKEN executes code the fork controls. The fix is to build untrusted code with the pull_request trigger, which gives forks no secrets, and to deploy previews only for branches of the repository or from a separate privileged workflow that never executes the pull request's code. The misconception is that permissions: is a general sandbox; it limits one token.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "package.json: \"@codedev/grading-client\": \"^2.4.0\"   (published only on npm.codedev.test, latest 2.6.1)\n\n.npmrc in the repository:\nregistry=https://registry.npmjs.org/\n//npm.codedev.test/:_authToken=${CODEDEV_NPM_TOKEN}\n\n~/.npmrc on every developer laptop:\n@codedev:registry=https://npm.codedev.test/\n\nCI log (npm install):\nnpm http fetch GET 200 https://registry.npmjs.org/@codedev%2fgrading-client 212ms\nadded 1 package: @codedev/grading-client@2.99.0\n\nStatement: \"Adding @codedev:registry=https://npm.codedev.test/ to the repository's .npmrc makes npm request every @codedev/* package from npm.codedev.test only, so this project can no longer install the public 2.99.0.\"",
+          "explanation": "True. A scope registry line sends every package of that scope to that registry and nowhere else; npm does not fall back to the default registry or compare versions across registries. Laptops were safe only because each developer's ~/.npmrc had the line; the CI runner has no such file, so it asked the public registry, where someone had published 2.99.0 - a version chosen to satisfy ^2.4.0. Put the line in the repository's .npmrc so every machine uses it, regenerate the lockfile and check that every @codedev entry's resolved URL points at npm.codedev.test, and claim the codedev organisation on npmjs.com so nobody else can publish under that scope. The misconception is that a higher version on the public registry wins over a correctly configured scope; it only wins when the scope is not configured.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Trust policy of the AWS role codedev-deploy:\n\n\"Principal\": { \"Federated\": \"arn:aws:iam::123456789012:oidc-provider/token.actions.githubusercontent.com\" },\n\"Action\": \"sts:AssumeRoleWithWebIdentity\",\n\"Condition\": {\n  \"StringEquals\": { \"token.actions.githubusercontent.com:aud\": \"sts.amazonaws.com\" },\n  \"StringLike\":   { \"token.actions.githubusercontent.com:sub\": \"repo:codedev/platform:*\" }\n}\n\n.github/workflows/deploy.yml - the only workflow that requests id-token: write:\non:\n  push:\n    branches: [main]\npermissions:\n  id-token: write\n  contents: read\n\nStatement: \"Because only the deploy workflow on main requests id-token: write, only runs on main can assume the codedev-deploy role.\"",
+          "explanation": "False. Which workflow requests id-token: write today is decided by files that anyone with push access can change: a developer can push a branch with a new workflow that requests the permission, and its token's subject (repo:codedev/platform:ref:refs/heads/that-branch, or repo:codedev/platform:pull_request for a pull_request run from a branch of the repository) matches repo:codedev/platform:*. The trust policy is the real boundary, and it accepts any ref, pull request or environment of the repository. Narrow it to repo:codedev/platform:ref:refs/heads/main, or better repo:codedev/platform:environment:production with required reviewers on that environment, and protect main so a workflow change needs review. OIDC removes long-lived keys; it does not remove the need to say exactly who may use the role. The misconception is that the workflow file, not the cloud-side condition, decides who gets credentials.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

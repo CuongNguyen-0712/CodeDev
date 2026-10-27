@@ -1,0 +1,4748 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_ssc_211",
+      "name": "package-that-didnt-exist-evidence",
+      "type": "quiz",
+      "title": "The Package That Didn't Exist: read the evidence",
+      "description": "An AI assistant suggested @codedev-ui/form-utils in a pull request; CodeDev owns @codedev, not @codedev-ui. The dependency checker passed it, and three days later a stranger registered the scope and published a version with a postinstall script that read the build's environment. Six statements on one evidence pack - the PR diff (A), the CI log (B), the registry history (C), the checker code (D) and the lockfile (E) - take you from reading the evidence to a hypothesis, past two wrong explanations, to the fix and its verification.",
+      "difficulty": "medium",
+      "outcomes": [
+        "dependency-risks"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence B - CI job \"install\" on PR #1184:\nrun 1  Mon 2026-10-12 10:52 UTC\n  [check-deps] owned scope, skipped: @codedev/ui-kit\n  [check-deps] owned scope, skipped: @codedev-ui/form-utils\n  [check-deps] 41 dependencies, 36 checked, 0 not found: PASS\n  [npm ci] npm error Missing: @codedev-ui/form-utils@^1.2.0 from lock file\nrun 2  Thu 2026-10-15 09:38 UTC (after \"update lockfile\" at 09:31)\n  [check-deps] owned scope, skipped: @codedev/ui-kit\n  [check-deps] owned scope, skipped: @codedev-ui/form-utils\n  [check-deps] 41 dependencies, 36 checked, 0 not found: PASS\n  [npm ci] npm info run @codedev-ui/form-utils@1.2.1 postinstall node_modules/@codedev-ui/form-utils node ./scripts/setup.js\n  [egress] 09:39:02 CONNECT collect.formutils-cdn.example:443 from runner ci-07\n\nEvidence D - the checker, scripts/check-deps.ts (ownedScopes = [\"@codedev\"]):\nconst NAME = /^[a-z0-9][a-z0-9._-]*$/;\nfor (const [name, spec] of Object.entries(dependencies)) {\n    if (ownedScopes.some((scope) => name.startsWith(scope))) {\n        log(`owned scope, skipped: ${name}`);\n        continue;\n    }\n    if (!NAME.test(name)) continue;\n    checked++;\n    if (!published.has(name)) notFound.push(name);\n}\n\nStatement: \"check-deps never looked @codedev-ui/form-utils up in the registry snapshot, in either run: the only line about it comes from the branch that skips owned scopes.\"",
+          "explanation": "True. In both runs the only check-deps line that names the package is \"owned scope, skipped\", and in D that log call is followed by continue, before checked++ and before published.has(name). So the package was never compared with the registry snapshot: on Monday, when it did not exist, the checker could not have reported it as not found. The misconception is to read PASS as \"every dependency was checked and is fine\"; PASS only means none of the checked ones failed.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence B - CI job \"install\" on PR #1184:\nrun 1  Mon 2026-10-12 10:52 UTC\n  [check-deps] owned scope, skipped: @codedev/ui-kit\n  [check-deps] owned scope, skipped: @codedev-ui/form-utils\n  [check-deps] 41 dependencies, 36 checked, 0 not found: PASS\n  [npm ci] npm error Missing: @codedev-ui/form-utils@^1.2.0 from lock file\nrun 2  Thu 2026-10-15 09:38 UTC (after \"update lockfile\" at 09:31)\n  [check-deps] owned scope, skipped: @codedev/ui-kit\n  [check-deps] owned scope, skipped: @codedev-ui/form-utils\n  [check-deps] 41 dependencies, 36 checked, 0 not found: PASS\n  [npm ci] npm info run @codedev-ui/form-utils@1.2.1 postinstall node_modules/@codedev-ui/form-utils node ./scripts/setup.js\n  [egress] 09:39:02 CONNECT collect.formutils-cdn.example:443 from runner ci-07\n\nEvidence D - the checker, scripts/check-deps.ts (ownedScopes = [\"@codedev\"]):\nconst NAME = /^[a-z0-9][a-z0-9._-]*$/;\nfor (const [name, spec] of Object.entries(dependencies)) {\n    if (ownedScopes.some((scope) => name.startsWith(scope))) {\n        log(`owned scope, skipped: ${name}`);\n        continue;\n    }\n    if (!NAME.test(name)) continue;\n    checked++;\n    if (!published.has(name)) notFound.push(name);\n}\n\nStatement: \"The summary line accounts for every dependency: the 36 checked plus the 2 skipped owned-scope packages make the 41 in package.json.\"",
+          "explanation": "False. 36 + 2 = 38, not 41: three entries were neither checked nor logged. They are scoped packages outside @codedev, such as @tanstack/react-query in A: they do not start with @codedev, and NAME has no room for \"@scope/\", so the second continue drops them without a word. A checker that skips silently is worse than one that fails, because its PASS looks the same either way. The habit to build: check that the counts in a CI summary add up, and make a checker report every input it saw.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence A - PR #1184 \"comments: validate the reply form\" (opened Mon 2026-10-12 10:40 UTC), package.json:\n   \"dependencies\": {\n     \"@codedev/ui-kit\": \"^3.4.0\",\n+    \"@codedev-ui/form-utils\": \"^1.2.0\",\n     \"@tanstack/react-query\": \"^5.87.1\",\n     \"next\": \"15.5.4\",\n\nEvidence D - the checker, scripts/check-deps.ts (ownedScopes = [\"@codedev\"]):\nconst NAME = /^[a-z0-9][a-z0-9._-]*$/;\nfor (const [name, spec] of Object.entries(dependencies)) {\n    if (ownedScopes.some((scope) => name.startsWith(scope))) {\n        log(`owned scope, skipped: ${name}`);\n        continue;\n    }\n    if (!NAME.test(name)) continue;\n    checked++;\n    if (!published.has(name)) notFound.push(name);\n}\n\nStatement: \"The checker trusted a scope that nobody at CodeDev owns, because \"@codedev-ui/form-utils\".startsWith(\"@codedev\") is true.\"",
+          "explanation": "True. startsWith compares characters, not scopes: \"@codedev-ui\", \"@codedevs\" and \"@codedev.ui\" all start with \"@codedev\". The scope of a scoped name is the text up to the first \"/\", and it must be compared as a whole string with the owned list. This is the root cause; the regex that silently drops other scoped names is the second bug in the same loop. The common mistake is to treat a prefix as ownership: on a public registry anyone can register any scope name nobody has taken yet, including one that looks like yours.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence C - registry history, npm view @codedev-ui/form-utils time --json:\n{\n  \"created\": \"2026-10-15T08:14:03.512Z\",\n  \"1.2.0\":   \"2026-10-15T08:14:03.512Z\",\n  \"1.2.1\":   \"2026-10-15T08:41:27.904Z\"\n}\nnpm view @codedev-ui/form-utils@1.2.0 scripts   -> (none)\nnpm view @codedev-ui/form-utils@1.2.1 scripts   -> { postinstall: 'node ./scripts/setup.js' }\n\nEvidence B - CI job \"install\" on PR #1184:\nrun 1  Mon 2026-10-12 10:52 UTC\n  [check-deps] owned scope, skipped: @codedev/ui-kit\n  [check-deps] owned scope, skipped: @codedev-ui/form-utils\n  [check-deps] 41 dependencies, 36 checked, 0 not found: PASS\n  [npm ci] npm error Missing: @codedev-ui/form-utils@^1.2.0 from lock file\nrun 2  Thu 2026-10-15 09:38 UTC (after \"update lockfile\" at 09:31)\n  [check-deps] owned scope, skipped: @codedev/ui-kit\n  [check-deps] owned scope, skipped: @codedev-ui/form-utils\n  [check-deps] 41 dependencies, 36 checked, 0 not found: PASS\n  [npm ci] npm info run @codedev-ui/form-utils@1.2.1 postinstall node_modules/@codedev-ui/form-utils node ./scripts/setup.js\n  [egress] 09:39:02 CONNECT collect.formutils-cdn.example:443 from runner ci-07\n\nStatement: \"Running npm audit in the CI job would have stopped the Thursday install, because the package ran a postinstall script that read environment variables.\"",
+          "explanation": "False. npm audit compares the installed versions with published security advisories. Version 1.2.1 had existed for under an hour when run 2 installed it (08:41 to 09:38), no advisory named it, and audit does not read install scripts or watch what they do. A new malicious package is exactly the case audit cannot see. The checks that would have caught it are about names and provenance: an unknown scope, a package created after the PR was opened, and an install script on a dependency nobody reviewed.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence E - package-lock.json in the commit \"update lockfile\" (Thu 09:31 UTC):\n\"node_modules/@codedev-ui/form-utils\": {\n  \"version\": \"1.2.1\",\n  \"resolved\": \"https://registry.npmjs.org/@codedev-ui/form-utils/-/form-utils-1.2.1.tgz\",\n  \"integrity\": \"sha512-Qm9v2xT0w6c3fK1hVb8yJpN4rL7eZaDs5uGoXiW1kE0tYqH2nBcR8mPvA3fLsU6dTzJ0gKy9oNeVh4iMbX7wQ==\",\n  \"hasInstallScript\": true\n}\n\nEvidence C - registry history, npm view @codedev-ui/form-utils time --json:\n{\n  \"created\": \"2026-10-15T08:14:03.512Z\",\n  \"1.2.0\":   \"2026-10-15T08:14:03.512Z\",\n  \"1.2.1\":   \"2026-10-15T08:41:27.904Z\"\n}\nnpm view @codedev-ui/form-utils@1.2.0 scripts   -> (none)\nnpm view @codedev-ui/form-utils@1.2.1 scripts   -> { postinstall: 'node ./scripts/setup.js' }\n\nStatement: \"The lockfile shows the install was safe: it pins @codedev-ui/form-utils to 1.2.1 with an integrity hash, so CI installed exactly the package the team had reviewed.\"",
+          "explanation": "False. The lockfile was generated by npm install on Thursday at 09:31, 50 minutes after 1.2.1 was published, so it recorded whatever the registry served then: the attacker's version. An integrity hash proves that later installs get the same bytes, not that the bytes are trustworthy; nobody reviewed them. The lockfile even carried a warning sign, \"hasInstallScript\": true, on a brand-new dependency. Lockfiles protect against drift, not against a bad first resolution.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence A - PR #1184 \"comments: validate the reply form\" (opened Mon 2026-10-12 10:40 UTC), package.json:\n   \"dependencies\": {\n     \"@codedev/ui-kit\": \"^3.4.0\",\n+    \"@codedev-ui/form-utils\": \"^1.2.0\",\n     \"@tanstack/react-query\": \"^5.87.1\",\n     \"next\": \"15.5.4\",\n\nEvidence C - registry history, npm view @codedev-ui/form-utils time --json:\n{\n  \"created\": \"2026-10-15T08:14:03.512Z\",\n  \"1.2.0\":   \"2026-10-15T08:14:03.512Z\",\n  \"1.2.1\":   \"2026-10-15T08:41:27.904Z\"\n}\nnpm view @codedev-ui/form-utils@1.2.0 scripts   -> (none)\nnpm view @codedev-ui/form-utils@1.2.1 scripts   -> { postinstall: 'node ./scripts/setup.js' }\n\nStatement: \"A regression test for the fix should run the checker on the PR's dependencies with a registry snapshot that contains @codedev-ui/form-utils, and expect it to be reported as an unknown scope.\"",
+          "explanation": "True. On Thursday the package existed, so a test that only expects \"not found\" would pass on Monday's snapshot and miss the attack three days later. Reporting the scope itself as unknown blocks the name whether or not someone has registered it yet. The same test should also expect a finding for every one of the 41 entries, so a silent skip can never come back. The misconception is to test the fix only against the evidence of the first day.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_ssc_212",
+      "name": "scoped-name-checker",
+      "type": "fix_bug",
+      "title": "Fix the dependency checker that skipped scoped names",
+      "description": "An AI assistant added \"@codedev-ui/form-utils\" to CodeDev's package.json. CodeDev owns the npm scope @codedev, not @codedev-ui. The CI step check-deps logged \"owned scope, skipped: @codedev-ui/form-utils\" and \"41 dependencies, 36 checked, 0 not found: PASS\"; three days later a stranger registered @codedev-ui and published a version whose postinstall script read the build's environment variables. Fix checkDependencies(dependencies, policy, registry) so that it returns exactly one finding per entry of dependencies, in input order: { dependency, package, status }. dependency is the key in package.json. package is the package npm installs: the key itself, or for an alias (\"key\": \"npm:<name>@<range>\", or \"npm:<name>\" without a range) the <name> after \"npm:\" - a scoped name starts with \"@\", so the \"@\" before the range is the first \"@\" after the first character; package is \"\" when the status is invalid. status is the first rule that applies: \"invalid\" when the key or the package is not a valid name (valid: \"<part>\" or \"@<part>/<part>\", where <part> starts with a-z or 0-9 and continues with a-z 0-9 . _ -, at most 214 characters in total); \"unknown_scope\" when the package is scoped and its scope (the text before the first \"/\", e.g. \"@codedev\") is not one of policy.ownedScopes or policy.knownScopes, compared as whole strings; \"not_found\" when the package is not in the registry snapshot (a list of names; scoped packages of owned or known scopes are looked up too); otherwise \"ok\". The range part of a spec is not checked. The runner reads { ownedScopes, knownScopes, registry, dependencies } and prints the findings as JSON.",
+      "difficulty": "medium",
+      "outcomes": [
+        "dependency-risks"
+      ],
+      "points": 30,
+      "hints": [
+        "How many findings come back for a package.json with 8 dependencies, and which entries never reach the registry lookup? What does it take for a scope to be yours, rather than to start with the same letters as yours?",
+        "Look at the two `continue` lines at the top of the loop: one compares scopes with startsWith, the other tests the key with a pattern that has no room for \"@scope/\". Then look at `spec`: is it ever read? An alias installs the package named after \"npm:\", not the key.",
+        "A similar case with other names: owned [\"@acme\"], known [\"@types\"]. \"@acme/core\" has the scope \"@acme\" (the text before the first \"/\"): owned. \"@acme-tools/core\" has the scope \"@acme-tools\", which is not equal to \"@acme\", so it is an unknown scope although it starts with \"@acme\". \"web\": \"npm:@acme/web-legacy@2.0.0\" installs \"@acme/web-legacy\": searching for \"@\" from the second character finds the one before 2.0.0. \"pad\": \"npm:left-pad\" installs \"left-pad\". Each of them still gets one finding."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The incident PR: a scope that only looks like CodeDev's is reported, every entry gets a finding",
+          "input": {
+            "ownedScopes": [
+              "@codedev"
+            ],
+            "knownScopes": [
+              "@types",
+              "@tanstack"
+            ],
+            "registry": [
+              "next",
+              "react",
+              "react-dom",
+              "react-hook-form",
+              "zod",
+              "@codedev/ui-kit",
+              "@codedev/eslint-config",
+              "@types/node",
+              "@types/react",
+              "@tanstack/react-query",
+              "typescript",
+              "eslint",
+              "vitest",
+              "form-utils",
+              "express",
+              "lodash",
+              "@types/express"
+            ],
+            "dependencies": {
+              "@codedev/ui-kit": "^3.4.0",
+              "@codedev-ui/form-utils": "^1.2.0",
+              "@tanstack/react-query": "^5.87.1",
+              "next": "15.5.4",
+              "react": "19.1.1",
+              "react-dom": "19.1.1",
+              "react-hook-form": "^7.62.0",
+              "zod": "^4.1.5"
+            }
+          },
+          "expected": [
+            {
+              "dependency": "@codedev/ui-kit",
+              "package": "@codedev/ui-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev-ui/form-utils",
+              "package": "@codedev-ui/form-utils",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "@tanstack/react-query",
+              "package": "@tanstack/react-query",
+              "status": "ok"
+            },
+            {
+              "dependency": "next",
+              "package": "next",
+              "status": "ok"
+            },
+            {
+              "dependency": "react",
+              "package": "react",
+              "status": "ok"
+            },
+            {
+              "dependency": "react-dom",
+              "package": "react-dom",
+              "status": "ok"
+            },
+            {
+              "dependency": "react-hook-form",
+              "package": "react-hook-form",
+              "status": "ok"
+            },
+            {
+              "dependency": "zod",
+              "package": "zod",
+              "status": "ok"
+            }
+          ],
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Unscoped and @types packages: a hallucinated name is not found, the rest are ok",
+          "input": {
+            "ownedScopes": [
+              "@codedev"
+            ],
+            "knownScopes": [
+              "@types",
+              "@tanstack"
+            ],
+            "registry": [
+              "next",
+              "react",
+              "react-dom",
+              "react-hook-form",
+              "zod",
+              "@codedev/ui-kit",
+              "@codedev/eslint-config",
+              "@types/node",
+              "@types/react",
+              "@tanstack/react-query",
+              "typescript",
+              "eslint",
+              "vitest",
+              "form-utils",
+              "express",
+              "lodash",
+              "@types/express"
+            ],
+            "dependencies": {
+              "express": "^5.1.0",
+              "express-session-redis-store": "^2.0.0",
+              "@types/express": "^5.0.3",
+              "lodash": "^4.17.21"
+            }
+          },
+          "expected": [
+            {
+              "dependency": "express",
+              "package": "express",
+              "status": "ok"
+            },
+            {
+              "dependency": "express-session-redis-store",
+              "package": "express-session-redis-store",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@types/express",
+              "package": "@types/express",
+              "status": "ok"
+            },
+            {
+              "dependency": "lodash",
+              "package": "lodash",
+              "status": "ok"
+            }
+          ],
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Lookalike scopes are unknown even after someone published them; two owned scopes are fine",
+          "input": {
+            "ownedScopes": [
+              "@codedev",
+              "@codedev-labs"
+            ],
+            "knownScopes": [
+              "@types"
+            ],
+            "registry": [
+              "@codedev-ui/form-utils",
+              "@codedevs/ui-kit",
+              "@code/dev-tools",
+              "@codedev-labs/charts",
+              "@codedev/ui-kit",
+              "@codedev.ui/form-utils",
+              "@type/node",
+              "@types/node"
+            ],
+            "dependencies": {
+              "@codedev-ui/form-utils": "^1.2.0",
+              "@codedevs/ui-kit": "^3.4.0",
+              "@code/dev-tools": "1.0.0",
+              "@codedev-labs/charts": "^0.4.0",
+              "@codedev/ui-kit": "^3.4.0",
+              "@codedev.ui/form-utils": "1.2.1",
+              "@type/node": "^22.0.0",
+              "@types/node": "^22.0.0"
+            }
+          },
+          "expected": [
+            {
+              "dependency": "@codedev-ui/form-utils",
+              "package": "@codedev-ui/form-utils",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "@codedevs/ui-kit",
+              "package": "@codedevs/ui-kit",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "@code/dev-tools",
+              "package": "@code/dev-tools",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "@codedev-labs/charts",
+              "package": "@codedev-labs/charts",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/ui-kit",
+              "package": "@codedev/ui-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev.ui/form-utils",
+              "package": "@codedev.ui/form-utils",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "@type/node",
+              "package": "@type/node",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "@types/node",
+              "package": "@types/node",
+              "status": "ok"
+            }
+          ],
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "npm: aliases are checked by the package they install, scoped or not, with or without a range",
+          "input": {
+            "ownedScopes": [
+              "@codedev"
+            ],
+            "knownScopes": [
+              "@types",
+              "@tanstack"
+            ],
+            "registry": [
+              "next",
+              "react",
+              "react-dom",
+              "react-hook-form",
+              "zod",
+              "@codedev/ui-kit",
+              "@codedev/eslint-config",
+              "@types/node",
+              "@types/react",
+              "@tanstack/react-query",
+              "typescript",
+              "eslint",
+              "vitest",
+              "form-utils",
+              "express",
+              "lodash",
+              "@types/express"
+            ],
+            "dependencies": {
+              "form-utils": "npm:@codedev-ui/form-utils@^1.2.0",
+              "lodash4": "npm:lodash@4.17.21",
+              "react-18": "npm:react@^18.3.1",
+              "@codedev/legacy-kit": "npm:@codedev/ui-kit@2.9.0",
+              "types-node": "npm:@types/node",
+              "fetch": "npm:node-fetch-native-pro@^1.0.0",
+              "ui": "npm:@codedev/ui-kitt@1.0.0",
+              "zod": "^4.1.5"
+            }
+          },
+          "expected": [
+            {
+              "dependency": "form-utils",
+              "package": "@codedev-ui/form-utils",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "lodash4",
+              "package": "lodash",
+              "status": "ok"
+            },
+            {
+              "dependency": "react-18",
+              "package": "react",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/legacy-kit",
+              "package": "@codedev/ui-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "types-node",
+              "package": "@types/node",
+              "status": "ok"
+            },
+            {
+              "dependency": "fetch",
+              "package": "node-fetch-native-pro",
+              "status": "not_found"
+            },
+            {
+              "dependency": "ui",
+              "package": "@codedev/ui-kitt",
+              "status": "not_found"
+            },
+            {
+              "dependency": "zod",
+              "package": "zod",
+              "status": "ok"
+            }
+          ],
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Owned and known scopes are still looked up: a missing @codedev package is not found",
+          "input": {
+            "ownedScopes": [
+              "@codedev"
+            ],
+            "knownScopes": [
+              "@types",
+              "@tanstack"
+            ],
+            "registry": [
+              "next",
+              "react",
+              "react-dom",
+              "react-hook-form",
+              "zod",
+              "@codedev/ui-kit",
+              "@codedev/eslint-config",
+              "@types/node",
+              "@types/react",
+              "@tanstack/react-query",
+              "typescript",
+              "eslint",
+              "vitest",
+              "form-utils",
+              "express",
+              "lodash",
+              "@types/express"
+            ],
+            "dependencies": {
+              "@codedev/billing-client": "^2.0.0",
+              "@codedev/ui-kit": "^3.4.0",
+              "@types/reactt": "^19.0.0",
+              "@tanstack/react-query": "^5.87.1",
+              "@codedev/eslint-config": "1.0.0"
+            }
+          },
+          "expected": [
+            {
+              "dependency": "@codedev/billing-client",
+              "package": "@codedev/billing-client",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@codedev/ui-kit",
+              "package": "@codedev/ui-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/reactt",
+              "package": "@types/reactt",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@tanstack/react-query",
+              "package": "@tanstack/react-query",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/eslint-config",
+              "package": "@codedev/eslint-config",
+              "status": "ok"
+            }
+          ],
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Invalid names and aliases: uppercase, empty scope or name, leading dot or underscore, 215 chars",
+          "input": {
+            "ownedScopes": [
+              "@codedev"
+            ],
+            "knownScopes": [
+              "@types",
+              "@tanstack"
+            ],
+            "registry": [
+              "next",
+              "react",
+              "react-dom",
+              "react-hook-form",
+              "zod",
+              "@codedev/ui-kit",
+              "@codedev/eslint-config",
+              "@types/node",
+              "@types/react",
+              "@tanstack/react-query",
+              "typescript",
+              "eslint",
+              "vitest",
+              "form-utils",
+              "express",
+              "lodash",
+              "@types/express",
+              "@codedev/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            ],
+            "dependencies": {
+              "@codedev": "1.0.0",
+              "@codedev/": "1.0.0",
+              "Lodash": "^4.17.21",
+              "_private": "1.0.0",
+              ".bin": "1.0.0",
+              "@/form": "1.0.0",
+              "@codedev/Form-Utils": "1.0.0",
+              "bad-alias": "npm:",
+              "bad-alias-2": "npm:@1.2.0",
+              "bad-alias-3": "npm:@codedev@1.0.0",
+              "Bad-Alias-4": "npm:react@19.1.1",
+              "@codedev/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": "1.0.0",
+              "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": "1.0.0",
+              "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": "1.0.0",
+              "react": "19.1.1"
+            }
+          },
+          "expected": [
+            {
+              "dependency": "@codedev",
+              "package": "",
+              "status": "invalid"
+            },
+            {
+              "dependency": "@codedev/",
+              "package": "",
+              "status": "invalid"
+            },
+            {
+              "dependency": "Lodash",
+              "package": "",
+              "status": "invalid"
+            },
+            {
+              "dependency": "_private",
+              "package": "",
+              "status": "invalid"
+            },
+            {
+              "dependency": ".bin",
+              "package": "",
+              "status": "invalid"
+            },
+            {
+              "dependency": "@/form",
+              "package": "",
+              "status": "invalid"
+            },
+            {
+              "dependency": "@codedev/Form-Utils",
+              "package": "",
+              "status": "invalid"
+            },
+            {
+              "dependency": "bad-alias",
+              "package": "",
+              "status": "invalid"
+            },
+            {
+              "dependency": "bad-alias-2",
+              "package": "",
+              "status": "invalid"
+            },
+            {
+              "dependency": "bad-alias-3",
+              "package": "",
+              "status": "invalid"
+            },
+            {
+              "dependency": "Bad-Alias-4",
+              "package": "",
+              "status": "invalid"
+            },
+            {
+              "dependency": "@codedev/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "package": "@codedev/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "status": "ok"
+            },
+            {
+              "dependency": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "package": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "status": "not_found"
+            },
+            {
+              "dependency": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "package": "",
+              "status": "invalid"
+            },
+            {
+              "dependency": "react",
+              "package": "react",
+              "status": "ok"
+            }
+          ],
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Large manifest: about 590 dependencies in every name form",
+          "input": {
+            "ownedScopes": [
+              "@codedev"
+            ],
+            "knownScopes": [
+              "@types",
+              "@tanstack"
+            ],
+            "registry": [
+              "form-utils",
+              "@codedev/form-utils",
+              "@types/form-utils",
+              "form-kit",
+              "@codedev/form-kit",
+              "@types/form-kit",
+              "form-core",
+              "@codedev/form-core",
+              "@types/form-core",
+              "form-client",
+              "@codedev/form-client",
+              "@types/form-client",
+              "form-react",
+              "@types/form-react",
+              "form-node",
+              "@codedev/form-node",
+              "@types/form-node",
+              "@codedev/form-server",
+              "@types/form-server",
+              "form-lite",
+              "@codedev/form-lite",
+              "@types/form-lite",
+              "date-utils",
+              "@codedev/date-utils",
+              "@types/date-utils",
+              "date-kit",
+              "@types/date-kit",
+              "date-core",
+              "@codedev/date-core",
+              "@types/date-core",
+              "date-client",
+              "@codedev/date-client",
+              "@types/date-client",
+              "date-react",
+              "@codedev/date-react",
+              "@types/date-react",
+              "@codedev/date-node",
+              "@types/date-node",
+              "date-server",
+              "@types/date-server",
+              "date-lite",
+              "@codedev/date-lite",
+              "@types/date-lite",
+              "auth-utils",
+              "@codedev/auth-utils",
+              "@types/auth-utils",
+              "auth-kit",
+              "@codedev/auth-kit",
+              "@types/auth-kit",
+              "auth-core",
+              "@codedev/auth-core",
+              "@types/auth-core",
+              "auth-client",
+              "@types/auth-client",
+              "@codedev/auth-react",
+              "@types/auth-react",
+              "auth-node",
+              "@codedev/auth-node",
+              "@types/auth-node",
+              "auth-server",
+              "@codedev/auth-server",
+              "@types/auth-server",
+              "auth-lite",
+              "@codedev/auth-lite",
+              "@types/auth-lite",
+              "chart-utils",
+              "@types/chart-utils",
+              "chart-kit",
+              "@codedev/chart-kit",
+              "@types/chart-kit",
+              "chart-core",
+              "@codedev/chart-core",
+              "@types/chart-core",
+              "@codedev/chart-client",
+              "@types/chart-client",
+              "chart-react",
+              "@codedev/chart-react",
+              "@types/chart-react",
+              "chart-node",
+              "@types/chart-node",
+              "chart-server",
+              "@codedev/chart-server",
+              "@types/chart-server",
+              "chart-lite",
+              "@codedev/chart-lite",
+              "@types/chart-lite",
+              "table-utils",
+              "@codedev/table-utils",
+              "@types/table-utils",
+              "table-kit",
+              "@codedev/table-kit",
+              "@types/table-kit",
+              "@types/table-core",
+              "table-client",
+              "@codedev/table-client",
+              "@types/table-client",
+              "table-react",
+              "@codedev/table-react",
+              "@types/table-react",
+              "table-node",
+              "@codedev/table-node",
+              "@types/table-node",
+              "table-server",
+              "@codedev/table-server",
+              "@types/table-server",
+              "table-lite",
+              "@types/table-lite",
+              "query-utils",
+              "@codedev/query-utils",
+              "@types/query-utils",
+              "@codedev/query-kit",
+              "@types/query-kit",
+              "query-core",
+              "@codedev/query-core",
+              "@types/query-core",
+              "query-client",
+              "@codedev/query-client",
+              "@types/query-client",
+              "query-react",
+              "@types/query-react",
+              "query-node",
+              "@codedev/query-node",
+              "@types/query-node",
+              "query-server",
+              "@codedev/query-server",
+              "@types/query-server",
+              "query-lite",
+              "@codedev/query-lite",
+              "@types/query-lite",
+              "@codedev/cache-utils",
+              "@types/cache-utils",
+              "cache-kit",
+              "@types/cache-kit",
+              "cache-core",
+              "@codedev/cache-core",
+              "@types/cache-core",
+              "cache-client",
+              "@codedev/cache-client",
+              "@types/cache-client",
+              "cache-react",
+              "@codedev/cache-react",
+              "@types/cache-react",
+              "cache-node",
+              "@codedev/cache-node",
+              "@types/cache-node",
+              "cache-server",
+              "@types/cache-server",
+              "@codedev/cache-lite",
+              "@types/cache-lite",
+              "mail-utils",
+              "@codedev/mail-utils",
+              "@types/mail-utils",
+              "mail-kit",
+              "@codedev/mail-kit",
+              "@types/mail-kit",
+              "mail-core",
+              "@codedev/mail-core",
+              "@types/mail-core",
+              "mail-client",
+              "@types/mail-client",
+              "mail-react",
+              "@codedev/mail-react",
+              "@types/mail-react",
+              "mail-node",
+              "@codedev/mail-node",
+              "@types/mail-node",
+              "@codedev/mail-server",
+              "@types/mail-server",
+              "mail-lite",
+              "@codedev/mail-lite",
+              "@types/mail-lite",
+              "log-utils",
+              "@types/log-utils",
+              "log-kit",
+              "@codedev/log-kit",
+              "@types/log-kit",
+              "log-core",
+              "@codedev/log-core",
+              "@types/log-core",
+              "log-client",
+              "@codedev/log-client",
+              "@types/log-client",
+              "log-react",
+              "@codedev/log-react",
+              "@types/log-react",
+              "@types/log-node",
+              "log-server",
+              "@codedev/log-server",
+              "@types/log-server",
+              "log-lite",
+              "@codedev/log-lite",
+              "@types/log-lite",
+              "queue-utils",
+              "@codedev/queue-utils",
+              "@types/queue-utils",
+              "queue-kit",
+              "@codedev/queue-kit",
+              "@types/queue-kit",
+              "queue-core",
+              "@types/queue-core",
+              "queue-client",
+              "@codedev/queue-client",
+              "@types/queue-client",
+              "@codedev/queue-react",
+              "@types/queue-react",
+              "queue-node",
+              "@codedev/queue-node",
+              "@types/queue-node",
+              "queue-server",
+              "@codedev/queue-server",
+              "@types/queue-server",
+              "queue-lite",
+              "@types/queue-lite",
+              "image-utils",
+              "@codedev/image-utils",
+              "@types/image-utils",
+              "image-kit",
+              "@codedev/image-kit",
+              "@types/image-kit",
+              "image-core",
+              "@codedev/image-core",
+              "@types/image-core",
+              "@codedev/image-client",
+              "@types/image-client",
+              "image-react",
+              "@types/image-react",
+              "image-node",
+              "@codedev/image-node",
+              "@types/image-node",
+              "image-server",
+              "@codedev/image-server",
+              "@types/image-server",
+              "image-lite",
+              "@codedev/image-lite",
+              "@types/image-lite",
+              "pdf-utils",
+              "@codedev/pdf-utils",
+              "@types/pdf-utils",
+              "pdf-kit",
+              "@types/pdf-kit",
+              "@codedev/pdf-core",
+              "@types/pdf-core",
+              "pdf-client",
+              "@codedev/pdf-client",
+              "@types/pdf-client",
+              "pdf-react",
+              "@codedev/pdf-react",
+              "@types/pdf-react",
+              "pdf-node",
+              "@codedev/pdf-node",
+              "@types/pdf-node",
+              "pdf-server",
+              "@types/pdf-server",
+              "pdf-lite",
+              "@codedev/pdf-lite",
+              "@types/pdf-lite",
+              "csv-utils",
+              "@codedev/csv-utils",
+              "@types/csv-utils",
+              "@codedev/csv-kit",
+              "@types/csv-kit",
+              "csv-core",
+              "@codedev/csv-core",
+              "@types/csv-core",
+              "csv-client",
+              "@types/csv-client",
+              "csv-react",
+              "@codedev/csv-react",
+              "@types/csv-react",
+              "csv-node",
+              "@codedev/csv-node",
+              "@types/csv-node",
+              "csv-server",
+              "@codedev/csv-server",
+              "@types/csv-server",
+              "csv-lite",
+              "@codedev/csv-lite",
+              "@types/csv-lite",
+              "@types/sse-utils",
+              "sse-kit",
+              "@codedev/sse-kit",
+              "@types/sse-kit",
+              "sse-core",
+              "@codedev/sse-core",
+              "@types/sse-core",
+              "sse-client",
+              "@codedev/sse-client",
+              "@types/sse-client",
+              "sse-react",
+              "@codedev/sse-react",
+              "@types/sse-react",
+              "sse-node",
+              "@types/sse-node",
+              "sse-server",
+              "@codedev/sse-server",
+              "@types/sse-server",
+              "@codedev/sse-lite",
+              "@types/sse-lite",
+              "ws-utils",
+              "@codedev/ws-utils",
+              "@types/ws-utils",
+              "ws-kit",
+              "@codedev/ws-kit",
+              "@types/ws-kit",
+              "ws-core",
+              "@types/ws-core",
+              "ws-client",
+              "@codedev/ws-client",
+              "@types/ws-client",
+              "ws-react",
+              "@codedev/ws-react",
+              "@types/ws-react",
+              "ws-node",
+              "@codedev/ws-node",
+              "@types/ws-node",
+              "@codedev/ws-server",
+              "@types/ws-server",
+              "ws-lite",
+              "@types/ws-lite",
+              "slug-utils",
+              "@codedev/slug-utils",
+              "@types/slug-utils",
+              "slug-kit",
+              "@codedev/slug-kit",
+              "@types/slug-kit",
+              "slug-core",
+              "@codedev/slug-core",
+              "@types/slug-core",
+              "slug-client",
+              "@codedev/slug-client",
+              "@types/slug-client",
+              "slug-react",
+              "@types/slug-react",
+              "@codedev/slug-node",
+              "@types/slug-node",
+              "slug-server",
+              "@codedev/slug-server",
+              "@types/slug-server",
+              "slug-lite",
+              "@codedev/slug-lite",
+              "@types/slug-lite",
+              "i18n-utils",
+              "@codedev/i18n-utils",
+              "@types/i18n-utils",
+              "i18n-kit",
+              "@types/i18n-kit",
+              "i18n-core",
+              "@codedev/i18n-core",
+              "@types/i18n-core",
+              "i18n-client",
+              "@codedev/i18n-client",
+              "@types/i18n-client",
+              "@codedev/i18n-react",
+              "@types/i18n-react",
+              "i18n-node",
+              "@codedev/i18n-node",
+              "@types/i18n-node",
+              "i18n-server",
+              "@types/i18n-server",
+              "i18n-lite",
+              "@codedev/i18n-lite",
+              "@types/i18n-lite",
+              "otp-utils",
+              "@codedev/otp-utils",
+              "@types/otp-utils",
+              "otp-kit",
+              "@codedev/otp-kit",
+              "@types/otp-kit",
+              "otp-core",
+              "@codedev/otp-core",
+              "@types/otp-core",
+              "@types/otp-client",
+              "otp-react",
+              "@codedev/otp-react",
+              "@types/otp-react",
+              "otp-node",
+              "@codedev/otp-node",
+              "@types/otp-node",
+              "otp-server",
+              "@codedev/otp-server",
+              "@types/otp-server",
+              "otp-lite",
+              "@codedev/otp-lite",
+              "@types/otp-lite",
+              "jwt-utils",
+              "@types/jwt-utils",
+              "jwt-kit",
+              "@codedev/jwt-kit",
+              "@types/jwt-kit",
+              "@codedev/jwt-core",
+              "@types/jwt-core",
+              "jwt-client",
+              "@codedev/jwt-client",
+              "@types/jwt-client",
+              "jwt-react",
+              "@codedev/jwt-react",
+              "@types/jwt-react",
+              "jwt-node",
+              "@types/jwt-node",
+              "jwt-server",
+              "@codedev/jwt-server",
+              "@types/jwt-server",
+              "jwt-lite",
+              "@codedev/jwt-lite",
+              "@types/jwt-lite",
+              "yaml-utils",
+              "@codedev/yaml-utils",
+              "@types/yaml-utils",
+              "@codedev/yaml-kit",
+              "@types/yaml-kit",
+              "yaml-core",
+              "@types/yaml-core",
+              "yaml-client",
+              "@codedev/yaml-client",
+              "@types/yaml-client",
+              "yaml-react",
+              "@codedev/yaml-react",
+              "@types/yaml-react",
+              "yaml-node",
+              "@codedev/yaml-node",
+              "@types/yaml-node",
+              "yaml-server",
+              "@codedev/yaml-server",
+              "@types/yaml-server",
+              "yaml-lite",
+              "@types/yaml-lite",
+              "@codedev/toml-utils",
+              "@types/toml-utils",
+              "toml-kit",
+              "@codedev/toml-kit",
+              "@types/toml-kit",
+              "toml-core",
+              "@codedev/toml-core",
+              "@types/toml-core",
+              "toml-client",
+              "@codedev/toml-client",
+              "@types/toml-client",
+              "toml-react",
+              "@types/toml-react",
+              "toml-node",
+              "@codedev/toml-node",
+              "@types/toml-node",
+              "toml-server",
+              "@codedev/toml-server",
+              "@types/toml-server",
+              "@codedev/toml-lite",
+              "@types/toml-lite",
+              "zip-utils",
+              "@codedev/zip-utils",
+              "@types/zip-utils",
+              "zip-kit",
+              "@types/zip-kit",
+              "zip-core",
+              "@codedev/zip-core",
+              "@types/zip-core",
+              "zip-client",
+              "@codedev/zip-client",
+              "@types/zip-client",
+              "zip-react",
+              "@codedev/zip-react",
+              "@types/zip-react",
+              "zip-node",
+              "@codedev/zip-node",
+              "@types/zip-node",
+              "@types/zip-server",
+              "zip-lite",
+              "@codedev/zip-lite",
+              "@types/zip-lite",
+              "md-utils",
+              "@codedev/md-utils",
+              "@types/md-utils",
+              "md-kit",
+              "@codedev/md-kit",
+              "@types/md-kit",
+              "md-core",
+              "@codedev/md-core",
+              "@types/md-core",
+              "md-client",
+              "@types/md-client",
+              "md-react",
+              "@codedev/md-react",
+              "@types/md-react",
+              "@codedev/md-node",
+              "@types/md-node",
+              "md-server",
+              "@codedev/md-server",
+              "@types/md-server",
+              "md-lite",
+              "@codedev/md-lite",
+              "@types/md-lite",
+              "svg-utils",
+              "@types/svg-utils",
+              "svg-kit",
+              "@codedev/svg-kit",
+              "@types/svg-kit",
+              "svg-core",
+              "@codedev/svg-core",
+              "@types/svg-core",
+              "svg-client",
+              "@codedev/svg-client",
+              "@types/svg-client",
+              "@codedev/svg-react",
+              "@types/svg-react",
+              "svg-node",
+              "@types/svg-node",
+              "svg-server",
+              "@codedev/svg-server",
+              "@types/svg-server",
+              "svg-lite",
+              "@codedev/svg-lite",
+              "@types/svg-lite",
+              "uuid-utils",
+              "@codedev/uuid-utils",
+              "@types/uuid-utils",
+              "uuid-kit",
+              "@codedev/uuid-kit",
+              "@types/uuid-kit",
+              "uuid-core",
+              "@types/uuid-core",
+              "@codedev/uuid-client",
+              "@types/uuid-client",
+              "uuid-react",
+              "@codedev/uuid-react",
+              "@types/uuid-react",
+              "uuid-node",
+              "@codedev/uuid-node",
+              "@types/uuid-node",
+              "uuid-server",
+              "@codedev/uuid-server",
+              "@types/uuid-server",
+              "uuid-lite",
+              "@types/uuid-lite"
+            ],
+            "dependencies": {
+              "form-utils": "^1.1.0",
+              "@codedev/form-utils": "^1.0.0",
+              "form-kit": "^2.2.0",
+              "@codedev/form-kit": "^1.0.0",
+              "form-core": "^3.3.0",
+              "@codedev/form-core": "^1.0.0",
+              "@types/form-core": "^1.0.0",
+              "form-client": "^4.4.0",
+              "@codedev/form-client": "^1.0.0",
+              "@codedev-client/form": "^1.0.0",
+              "form-react": "^5.0.0",
+              "@codedev/form-react": "^1.0.0",
+              "form-node": "^6.1.0",
+              "@codedev/form-node": "^1.0.0",
+              "@types/form-node": "^1.0.0",
+              "form-node-alias": "npm:@codedev/form-node@^1.0.0",
+              "form-server": "^7.2.0",
+              "@codedev/form-server": "^1.0.0",
+              "form-lite": "^8.3.0",
+              "@codedev/form-lite": "^1.0.0",
+              "@codedev-lite/form": "^1.0.0",
+              "form-lite-x": "npm:@tanstack/form-lite",
+              "date-utils": "^0.4.0",
+              "@codedev/date-utils": "^1.0.0",
+              "@types/date-utils": "^1.0.0",
+              "date-kit": "^1.0.0",
+              "@codedev/date-kit": "^1.0.0",
+              "date-core": "^2.1.0",
+              "@codedev/date-core": "^1.0.0",
+              "DATE-core": "1.0.0",
+              "date-client": "^3.2.0",
+              "@codedev/date-client": "^1.0.0",
+              "@types/date-client": "^1.0.0",
+              "@codedev-client/date": "^1.0.0",
+              "date-client-alias": "npm:@codedev/date-client@^1.0.0",
+              "date-react": "^4.3.0",
+              "@codedev/date-react": "^1.0.0",
+              "date-node": "^5.4.0",
+              "@codedev/date-node": "^1.0.0",
+              "date-server": "^6.0.0",
+              "@codedev/date-server": "^1.0.0",
+              "@types/date-server": "^1.0.0",
+              "date-lite": "^7.1.0",
+              "@codedev/date-lite": "^1.0.0",
+              "@codedev-lite/date": "^1.0.0",
+              "date-lite-x": "npm:@tanstack/date-lite",
+              "auth-utils": "^8.2.0",
+              "@codedev/auth-utils": "^1.0.0",
+              "auth-kit": "^0.3.0",
+              "@codedev/auth-kit": "^1.0.0",
+              "@types/auth-kit": "^1.0.0",
+              "auth-kit-alias": "npm:@codedev/auth-kit@^1.0.0",
+              "auth-core": "^1.4.0",
+              "@codedev/auth-core": "^1.0.0",
+              "auth-client": "^2.0.0",
+              "@codedev/auth-client": "^1.0.0",
+              "@codedev-client/auth": "^1.0.0",
+              "auth-react": "^3.1.0",
+              "@codedev/auth-react": "^1.0.0",
+              "@types/auth-react": "^1.0.0",
+              "auth-node": "^4.2.0",
+              "@codedev/auth-node": "^1.0.0",
+              "AUTH-node": "1.0.0",
+              "auth-server": "^5.3.0",
+              "@codedev/auth-server": "^1.0.0",
+              "auth-lite": "^6.4.0",
+              "@codedev/auth-lite": "^1.0.0",
+              "@types/auth-lite": "^1.0.0",
+              "@codedev-lite/auth": "^1.0.0",
+              "auth-lite-alias": "npm:@codedev/auth-lite@^1.0.0",
+              "auth-lite-x": "npm:@tanstack/auth-lite",
+              "chart-utils": "^7.0.0",
+              "@codedev/chart-utils": "^1.0.0",
+              "chart-kit": "^8.1.0",
+              "@codedev/chart-kit": "^1.0.0",
+              "chart-core": "^0.2.0",
+              "@codedev/chart-core": "^1.0.0",
+              "@types/chart-core": "^1.0.0",
+              "chart-client": "^1.3.0",
+              "@codedev/chart-client": "^1.0.0",
+              "@codedev-client/chart": "^1.0.0",
+              "chart-react": "^2.4.0",
+              "@codedev/chart-react": "^1.0.0",
+              "chart-node": "^3.0.0",
+              "@codedev/chart-node": "^1.0.0",
+              "@types/chart-node": "^1.0.0",
+              "chart-node-alias": "npm:@codedev/chart-node@^1.0.0",
+              "chart-server": "^4.1.0",
+              "@codedev/chart-server": "^1.0.0",
+              "chart-lite": "^5.2.0",
+              "@codedev/chart-lite": "^1.0.0",
+              "@codedev-lite/chart": "^1.0.0",
+              "chart-lite-x": "npm:@tanstack/chart-lite",
+              "table-utils": "^6.3.0",
+              "@codedev/table-utils": "^1.0.0",
+              "@types/table-utils": "^1.0.0",
+              "TABLE-utils": "1.0.0",
+              "table-kit": "^7.4.0",
+              "@codedev/table-kit": "^1.0.0",
+              "table-core": "^8.0.0",
+              "@codedev/table-core": "^1.0.0",
+              "table-client": "^0.1.0",
+              "@codedev/table-client": "^1.0.0",
+              "@types/table-client": "^1.0.0",
+              "@codedev-client/table": "^1.0.0",
+              "table-client-alias": "npm:@codedev/table-client@^1.0.0",
+              "table-react": "^1.2.0",
+              "@codedev/table-react": "^1.0.0",
+              "table-node": "^2.3.0",
+              "@codedev/table-node": "^1.0.0",
+              "table-server": "^3.4.0",
+              "@codedev/table-server": "^1.0.0",
+              "@types/table-server": "^1.0.0",
+              "table-lite": "^4.0.0",
+              "@codedev/table-lite": "^1.0.0",
+              "@codedev-lite/table": "^1.0.0",
+              "table-lite-x": "npm:@tanstack/table-lite",
+              "query-utils": "^5.1.0",
+              "@codedev/query-utils": "^1.0.0",
+              "query-kit": "^6.2.0",
+              "@codedev/query-kit": "^1.0.0",
+              "@types/query-kit": "^1.0.0",
+              "query-kit-alias": "npm:@codedev/query-kit@^1.0.0",
+              "query-core": "^7.3.0",
+              "@codedev/query-core": "^1.0.0",
+              "query-client": "^8.4.0",
+              "@codedev/query-client": "^1.0.0",
+              "@codedev-client/query": "^1.0.0",
+              "QUERY-client": "1.0.0",
+              "query-react": "^0.0.0",
+              "@codedev/query-react": "^1.0.0",
+              "@types/query-react": "^1.0.0",
+              "query-node": "^1.1.0",
+              "@codedev/query-node": "^1.0.0",
+              "query-server": "^2.2.0",
+              "@codedev/query-server": "^1.0.0",
+              "query-lite": "^3.3.0",
+              "@codedev/query-lite": "^1.0.0",
+              "@types/query-lite": "^1.0.0",
+              "@codedev-lite/query": "^1.0.0",
+              "query-lite-alias": "npm:@codedev/query-lite@^1.0.0",
+              "query-lite-x": "npm:@tanstack/query-lite",
+              "cache-utils": "^4.4.0",
+              "@codedev/cache-utils": "^1.0.0",
+              "cache-kit": "^5.0.0",
+              "@codedev/cache-kit": "^1.0.0",
+              "cache-core": "^6.1.0",
+              "@codedev/cache-core": "^1.0.0",
+              "@types/cache-core": "^1.0.0",
+              "cache-client": "^7.2.0",
+              "@codedev/cache-client": "^1.0.0",
+              "@codedev-client/cache": "^1.0.0",
+              "cache-react": "^8.3.0",
+              "@codedev/cache-react": "^1.0.0",
+              "cache-node": "^0.4.0",
+              "@codedev/cache-node": "^1.0.0",
+              "@types/cache-node": "^1.0.0",
+              "cache-node-alias": "npm:@codedev/cache-node@^1.0.0",
+              "cache-server": "^1.0.0",
+              "@codedev/cache-server": "^1.0.0",
+              "CACHE-server": "1.0.0",
+              "cache-lite": "^2.1.0",
+              "@codedev/cache-lite": "^1.0.0",
+              "@codedev-lite/cache": "^1.0.0",
+              "cache-lite-x": "npm:@tanstack/cache-lite",
+              "mail-utils": "^3.2.0",
+              "@codedev/mail-utils": "^1.0.0",
+              "@types/mail-utils": "^1.0.0",
+              "mail-kit": "^4.3.0",
+              "@codedev/mail-kit": "^1.0.0",
+              "mail-core": "^5.4.0",
+              "@codedev/mail-core": "^1.0.0",
+              "mail-client": "^6.0.0",
+              "@codedev/mail-client": "^1.0.0",
+              "@types/mail-client": "^1.0.0",
+              "@codedev-client/mail": "^1.0.0",
+              "mail-client-alias": "npm:@codedev/mail-client@^1.0.0",
+              "mail-react": "^7.1.0",
+              "@codedev/mail-react": "^1.0.0",
+              "mail-node": "^8.2.0",
+              "@codedev/mail-node": "^1.0.0",
+              "mail-server": "^0.3.0",
+              "@codedev/mail-server": "^1.0.0",
+              "@types/mail-server": "^1.0.0",
+              "mail-lite": "^1.4.0",
+              "@codedev/mail-lite": "^1.0.0",
+              "@codedev-lite/mail": "^1.0.0",
+              "mail-lite-x": "npm:@tanstack/mail-lite",
+              "log-utils": "^2.0.0",
+              "@codedev/log-utils": "^1.0.0",
+              "log-kit": "^3.1.0",
+              "@codedev/log-kit": "^1.0.0",
+              "@types/log-kit": "^1.0.0",
+              "log-kit-alias": "npm:@codedev/log-kit@^1.0.0",
+              "LOG-kit": "1.0.0",
+              "log-core": "^4.2.0",
+              "@codedev/log-core": "^1.0.0",
+              "log-client": "^5.3.0",
+              "@codedev/log-client": "^1.0.0",
+              "@codedev-client/log": "^1.0.0",
+              "log-react": "^6.4.0",
+              "@codedev/log-react": "^1.0.0",
+              "@types/log-react": "^1.0.0",
+              "log-node": "^7.0.0",
+              "@codedev/log-node": "^1.0.0",
+              "log-server": "^8.1.0",
+              "@codedev/log-server": "^1.0.0",
+              "log-lite": "^0.2.0",
+              "@codedev/log-lite": "^1.0.0",
+              "@types/log-lite": "^1.0.0",
+              "@codedev-lite/log": "^1.0.0",
+              "log-lite-alias": "npm:@codedev/log-lite@^1.0.0",
+              "log-lite-x": "npm:@tanstack/log-lite",
+              "queue-utils": "^1.3.0",
+              "@codedev/queue-utils": "^1.0.0",
+              "queue-kit": "^2.4.0",
+              "@codedev/queue-kit": "^1.0.0",
+              "queue-core": "^3.0.0",
+              "@codedev/queue-core": "^1.0.0",
+              "@types/queue-core": "^1.0.0",
+              "queue-client": "^4.1.0",
+              "@codedev/queue-client": "^1.0.0",
+              "@codedev-client/queue": "^1.0.0",
+              "queue-react": "^5.2.0",
+              "@codedev/queue-react": "^1.0.0",
+              "QUEUE-react": "1.0.0",
+              "queue-node": "^6.3.0",
+              "@codedev/queue-node": "^1.0.0",
+              "@types/queue-node": "^1.0.0",
+              "queue-node-alias": "npm:@codedev/queue-node@^1.0.0",
+              "queue-server": "^7.4.0",
+              "@codedev/queue-server": "^1.0.0",
+              "queue-lite": "^8.0.0",
+              "@codedev/queue-lite": "^1.0.0",
+              "@codedev-lite/queue": "^1.0.0",
+              "queue-lite-x": "npm:@tanstack/queue-lite",
+              "image-utils": "^0.1.0",
+              "@codedev/image-utils": "^1.0.0",
+              "@types/image-utils": "^1.0.0",
+              "image-kit": "^1.2.0",
+              "@codedev/image-kit": "^1.0.0",
+              "image-core": "^2.3.0",
+              "@codedev/image-core": "^1.0.0",
+              "image-client": "^3.4.0",
+              "@codedev/image-client": "^1.0.0",
+              "@types/image-client": "^1.0.0",
+              "@codedev-client/image": "^1.0.0",
+              "image-client-alias": "npm:@codedev/image-client@^1.0.0",
+              "image-react": "^4.0.0",
+              "@codedev/image-react": "^1.0.0",
+              "image-node": "^5.1.0",
+              "@codedev/image-node": "^1.0.0",
+              "image-server": "^6.2.0",
+              "@codedev/image-server": "^1.0.0",
+              "@types/image-server": "^1.0.0",
+              "image-lite": "^7.3.0",
+              "@codedev/image-lite": "^1.0.0",
+              "@codedev-lite/image": "^1.0.0",
+              "image-lite-x": "npm:@tanstack/image-lite",
+              "IMAGE-lite": "1.0.0",
+              "pdf-utils": "^8.4.0",
+              "@codedev/pdf-utils": "^1.0.0",
+              "pdf-kit": "^0.0.0",
+              "@codedev/pdf-kit": "^1.0.0",
+              "@types/pdf-kit": "^1.0.0",
+              "pdf-kit-alias": "npm:@codedev/pdf-kit@^1.0.0",
+              "pdf-core": "^1.1.0",
+              "@codedev/pdf-core": "^1.0.0",
+              "pdf-client": "^2.2.0",
+              "@codedev/pdf-client": "^1.0.0",
+              "@codedev-client/pdf": "^1.0.0",
+              "pdf-react": "^3.3.0",
+              "@codedev/pdf-react": "^1.0.0",
+              "@types/pdf-react": "^1.0.0",
+              "pdf-node": "^4.4.0",
+              "@codedev/pdf-node": "^1.0.0",
+              "pdf-server": "^5.0.0",
+              "@codedev/pdf-server": "^1.0.0",
+              "pdf-lite": "^6.1.0",
+              "@codedev/pdf-lite": "^1.0.0",
+              "@types/pdf-lite": "^1.0.0",
+              "@codedev-lite/pdf": "^1.0.0",
+              "pdf-lite-alias": "npm:@codedev/pdf-lite@^1.0.0",
+              "pdf-lite-x": "npm:@tanstack/pdf-lite",
+              "csv-utils": "^7.2.0",
+              "@codedev/csv-utils": "^1.0.0",
+              "csv-kit": "^8.3.0",
+              "@codedev/csv-kit": "^1.0.0",
+              "csv-core": "^0.4.0",
+              "@codedev/csv-core": "^1.0.0",
+              "@types/csv-core": "^1.0.0",
+              "CSV-core": "1.0.0",
+              "csv-client": "^1.0.0",
+              "@codedev/csv-client": "^1.0.0",
+              "@codedev-client/csv": "^1.0.0",
+              "csv-react": "^2.1.0",
+              "@codedev/csv-react": "^1.0.0",
+              "csv-node": "^3.2.0",
+              "@codedev/csv-node": "^1.0.0",
+              "@types/csv-node": "^1.0.0",
+              "csv-node-alias": "npm:@codedev/csv-node@^1.0.0",
+              "csv-server": "^4.3.0",
+              "@codedev/csv-server": "^1.0.0",
+              "csv-lite": "^5.4.0",
+              "@codedev/csv-lite": "^1.0.0",
+              "@codedev-lite/csv": "^1.0.0",
+              "csv-lite-x": "npm:@tanstack/csv-lite",
+              "sse-utils": "^6.0.0",
+              "@codedev/sse-utils": "^1.0.0",
+              "@types/sse-utils": "^1.0.0",
+              "sse-kit": "^7.1.0",
+              "@codedev/sse-kit": "^1.0.0",
+              "sse-core": "^8.2.0",
+              "@codedev/sse-core": "^1.0.0",
+              "sse-client": "^0.3.0",
+              "@codedev/sse-client": "^1.0.0",
+              "@types/sse-client": "^1.0.0",
+              "@codedev-client/sse": "^1.0.0",
+              "sse-client-alias": "npm:@codedev/sse-client@^1.0.0",
+              "sse-react": "^1.4.0",
+              "@codedev/sse-react": "^1.0.0",
+              "sse-node": "^2.0.0",
+              "@codedev/sse-node": "^1.0.0",
+              "SSE-node": "1.0.0",
+              "sse-server": "^3.1.0",
+              "@codedev/sse-server": "^1.0.0",
+              "@types/sse-server": "^1.0.0",
+              "sse-lite": "^4.2.0",
+              "@codedev/sse-lite": "^1.0.0",
+              "@codedev-lite/sse": "^1.0.0",
+              "sse-lite-x": "npm:@tanstack/sse-lite",
+              "ws-utils": "^5.3.0",
+              "@codedev/ws-utils": "^1.0.0",
+              "ws-kit": "^6.4.0",
+              "@codedev/ws-kit": "^1.0.0",
+              "@types/ws-kit": "^1.0.0",
+              "ws-kit-alias": "npm:@codedev/ws-kit@^1.0.0",
+              "ws-core": "^7.0.0",
+              "@codedev/ws-core": "^1.0.0",
+              "ws-client": "^8.1.0",
+              "@codedev/ws-client": "^1.0.0",
+              "@codedev-client/ws": "^1.0.0",
+              "ws-react": "^0.2.0",
+              "@codedev/ws-react": "^1.0.0",
+              "@types/ws-react": "^1.0.0",
+              "ws-node": "^1.3.0",
+              "@codedev/ws-node": "^1.0.0",
+              "ws-server": "^2.4.0",
+              "@codedev/ws-server": "^1.0.0",
+              "ws-lite": "^3.0.0",
+              "@codedev/ws-lite": "^1.0.0",
+              "@types/ws-lite": "^1.0.0",
+              "@codedev-lite/ws": "^1.0.0",
+              "ws-lite-alias": "npm:@codedev/ws-lite@^1.0.0",
+              "ws-lite-x": "npm:@tanstack/ws-lite",
+              "slug-utils": "^4.1.0",
+              "@codedev/slug-utils": "^1.0.0",
+              "SLUG-utils": "1.0.0",
+              "slug-kit": "^5.2.0",
+              "@codedev/slug-kit": "^1.0.0",
+              "slug-core": "^6.3.0",
+              "@codedev/slug-core": "^1.0.0",
+              "@types/slug-core": "^1.0.0",
+              "slug-client": "^7.4.0",
+              "@codedev/slug-client": "^1.0.0",
+              "@codedev-client/slug": "^1.0.0",
+              "slug-react": "^8.0.0",
+              "@codedev/slug-react": "^1.0.0",
+              "slug-node": "^0.1.0",
+              "@codedev/slug-node": "^1.0.0",
+              "@types/slug-node": "^1.0.0",
+              "slug-node-alias": "npm:@codedev/slug-node@^1.0.0",
+              "slug-server": "^1.2.0",
+              "@codedev/slug-server": "^1.0.0",
+              "slug-lite": "^2.3.0",
+              "@codedev/slug-lite": "^1.0.0",
+              "@codedev-lite/slug": "^1.0.0",
+              "slug-lite-x": "npm:@tanstack/slug-lite",
+              "i18n-utils": "^3.4.0",
+              "@codedev/i18n-utils": "^1.0.0",
+              "@types/i18n-utils": "^1.0.0",
+              "i18n-kit": "^4.0.0",
+              "@codedev/i18n-kit": "^1.0.0",
+              "i18n-core": "^5.1.0",
+              "@codedev/i18n-core": "^1.0.0",
+              "i18n-client": "^6.2.0",
+              "@codedev/i18n-client": "^1.0.0",
+              "@types/i18n-client": "^1.0.0",
+              "@codedev-client/i18n": "^1.0.0",
+              "i18n-client-alias": "npm:@codedev/i18n-client@^1.0.0",
+              "I18N-client": "1.0.0",
+              "i18n-react": "^7.3.0",
+              "@codedev/i18n-react": "^1.0.0",
+              "i18n-node": "^8.4.0",
+              "@codedev/i18n-node": "^1.0.0",
+              "i18n-server": "^0.0.0",
+              "@codedev/i18n-server": "^1.0.0",
+              "@types/i18n-server": "^1.0.0",
+              "i18n-lite": "^1.1.0",
+              "@codedev/i18n-lite": "^1.0.0",
+              "@codedev-lite/i18n": "^1.0.0",
+              "i18n-lite-x": "npm:@tanstack/i18n-lite",
+              "otp-utils": "^2.2.0",
+              "@codedev/otp-utils": "^1.0.0",
+              "otp-kit": "^3.3.0",
+              "@codedev/otp-kit": "^1.0.0",
+              "@types/otp-kit": "^1.0.0",
+              "otp-kit-alias": "npm:@codedev/otp-kit@^1.0.0",
+              "otp-core": "^4.4.0",
+              "@codedev/otp-core": "^1.0.0",
+              "otp-client": "^5.0.0",
+              "@codedev/otp-client": "^1.0.0",
+              "@codedev-client/otp": "^1.0.0",
+              "otp-react": "^6.1.0",
+              "@codedev/otp-react": "^1.0.0",
+              "@types/otp-react": "^1.0.0",
+              "otp-node": "^7.2.0",
+              "@codedev/otp-node": "^1.0.0",
+              "otp-server": "^8.3.0",
+              "@codedev/otp-server": "^1.0.0",
+              "OTP-server": "1.0.0",
+              "otp-lite": "^0.4.0",
+              "@codedev/otp-lite": "^1.0.0",
+              "@types/otp-lite": "^1.0.0",
+              "@codedev-lite/otp": "^1.0.0",
+              "otp-lite-alias": "npm:@codedev/otp-lite@^1.0.0",
+              "otp-lite-x": "npm:@tanstack/otp-lite",
+              "jwt-utils": "^1.0.0",
+              "@codedev/jwt-utils": "^1.0.0",
+              "jwt-kit": "^2.1.0",
+              "@codedev/jwt-kit": "^1.0.0",
+              "jwt-core": "^3.2.0",
+              "@codedev/jwt-core": "^1.0.0",
+              "@types/jwt-core": "^1.0.0",
+              "jwt-client": "^4.3.0",
+              "@codedev/jwt-client": "^1.0.0",
+              "@codedev-client/jwt": "^1.0.0",
+              "jwt-react": "^5.4.0",
+              "@codedev/jwt-react": "^1.0.0",
+              "jwt-node": "^6.0.0",
+              "@codedev/jwt-node": "^1.0.0",
+              "@types/jwt-node": "^1.0.0",
+              "jwt-node-alias": "npm:@codedev/jwt-node@^1.0.0",
+              "jwt-server": "^7.1.0",
+              "@codedev/jwt-server": "^1.0.0",
+              "jwt-lite": "^8.2.0",
+              "@codedev/jwt-lite": "^1.0.0",
+              "@codedev-lite/jwt": "^1.0.0",
+              "jwt-lite-x": "npm:@tanstack/jwt-lite",
+              "yaml-utils": "^0.3.0",
+              "@codedev/yaml-utils": "^1.0.0",
+              "@types/yaml-utils": "^1.0.0",
+              "yaml-kit": "^1.4.0",
+              "@codedev/yaml-kit": "^1.0.0",
+              "YAML-kit": "1.0.0",
+              "yaml-core": "^2.0.0",
+              "@codedev/yaml-core": "^1.0.0",
+              "yaml-client": "^3.1.0",
+              "@codedev/yaml-client": "^1.0.0",
+              "@types/yaml-client": "^1.0.0",
+              "@codedev-client/yaml": "^1.0.0",
+              "yaml-client-alias": "npm:@codedev/yaml-client@^1.0.0",
+              "yaml-react": "^4.2.0",
+              "@codedev/yaml-react": "^1.0.0",
+              "yaml-node": "^5.3.0",
+              "@codedev/yaml-node": "^1.0.0",
+              "yaml-server": "^6.4.0",
+              "@codedev/yaml-server": "^1.0.0",
+              "@types/yaml-server": "^1.0.0",
+              "yaml-lite": "^7.0.0",
+              "@codedev/yaml-lite": "^1.0.0",
+              "@codedev-lite/yaml": "^1.0.0",
+              "yaml-lite-x": "npm:@tanstack/yaml-lite",
+              "toml-utils": "^8.1.0",
+              "@codedev/toml-utils": "^1.0.0",
+              "toml-kit": "^0.2.0",
+              "@codedev/toml-kit": "^1.0.0",
+              "@types/toml-kit": "^1.0.0",
+              "toml-kit-alias": "npm:@codedev/toml-kit@^1.0.0",
+              "toml-core": "^1.3.0",
+              "@codedev/toml-core": "^1.0.0",
+              "toml-client": "^2.4.0",
+              "@codedev/toml-client": "^1.0.0",
+              "@codedev-client/toml": "^1.0.0",
+              "toml-react": "^3.0.0",
+              "@codedev/toml-react": "^1.0.0",
+              "@types/toml-react": "^1.0.0",
+              "TOML-react": "1.0.0",
+              "toml-node": "^4.1.0",
+              "@codedev/toml-node": "^1.0.0",
+              "toml-server": "^5.2.0",
+              "@codedev/toml-server": "^1.0.0",
+              "toml-lite": "^6.3.0",
+              "@codedev/toml-lite": "^1.0.0",
+              "@types/toml-lite": "^1.0.0",
+              "@codedev-lite/toml": "^1.0.0",
+              "toml-lite-alias": "npm:@codedev/toml-lite@^1.0.0",
+              "toml-lite-x": "npm:@tanstack/toml-lite",
+              "zip-utils": "^7.4.0",
+              "@codedev/zip-utils": "^1.0.0",
+              "zip-kit": "^8.0.0",
+              "@codedev/zip-kit": "^1.0.0",
+              "zip-core": "^0.1.0",
+              "@codedev/zip-core": "^1.0.0",
+              "@types/zip-core": "^1.0.0",
+              "zip-client": "^1.2.0",
+              "@codedev/zip-client": "^1.0.0",
+              "@codedev-client/zip": "^1.0.0",
+              "zip-react": "^2.3.0",
+              "@codedev/zip-react": "^1.0.0",
+              "zip-node": "^3.4.0",
+              "@codedev/zip-node": "^1.0.0",
+              "@types/zip-node": "^1.0.0",
+              "zip-node-alias": "npm:@codedev/zip-node@^1.0.0",
+              "zip-server": "^4.0.0",
+              "@codedev/zip-server": "^1.0.0",
+              "zip-lite": "^5.1.0",
+              "@codedev/zip-lite": "^1.0.0",
+              "@codedev-lite/zip": "^1.0.0",
+              "zip-lite-x": "npm:@tanstack/zip-lite",
+              "ZIP-lite": "1.0.0",
+              "md-utils": "^6.2.0",
+              "@codedev/md-utils": "^1.0.0",
+              "@types/md-utils": "^1.0.0",
+              "md-kit": "^7.3.0",
+              "@codedev/md-kit": "^1.0.0",
+              "md-core": "^8.4.0",
+              "@codedev/md-core": "^1.0.0",
+              "md-client": "^0.0.0",
+              "@codedev/md-client": "^1.0.0",
+              "@types/md-client": "^1.0.0",
+              "@codedev-client/md": "^1.0.0",
+              "md-client-alias": "npm:@codedev/md-client@^1.0.0",
+              "md-react": "^1.1.0",
+              "@codedev/md-react": "^1.0.0",
+              "md-node": "^2.2.0",
+              "@codedev/md-node": "^1.0.0",
+              "md-server": "^3.3.0",
+              "@codedev/md-server": "^1.0.0",
+              "@types/md-server": "^1.0.0",
+              "md-lite": "^4.4.0",
+              "@codedev/md-lite": "^1.0.0",
+              "@codedev-lite/md": "^1.0.0",
+              "md-lite-x": "npm:@tanstack/md-lite",
+              "svg-utils": "^5.0.0",
+              "@codedev/svg-utils": "^1.0.0",
+              "svg-kit": "^6.1.0",
+              "@codedev/svg-kit": "^1.0.0",
+              "@types/svg-kit": "^1.0.0",
+              "svg-kit-alias": "npm:@codedev/svg-kit@^1.0.0",
+              "svg-core": "^7.2.0",
+              "@codedev/svg-core": "^1.0.0",
+              "SVG-core": "1.0.0",
+              "svg-client": "^8.3.0",
+              "@codedev/svg-client": "^1.0.0",
+              "@codedev-client/svg": "^1.0.0",
+              "svg-react": "^0.4.0",
+              "@codedev/svg-react": "^1.0.0",
+              "@types/svg-react": "^1.0.0",
+              "svg-node": "^1.0.0",
+              "@codedev/svg-node": "^1.0.0",
+              "svg-server": "^2.1.0",
+              "@codedev/svg-server": "^1.0.0",
+              "svg-lite": "^3.2.0",
+              "@codedev/svg-lite": "^1.0.0",
+              "@types/svg-lite": "^1.0.0",
+              "@codedev-lite/svg": "^1.0.0",
+              "svg-lite-alias": "npm:@codedev/svg-lite@^1.0.0",
+              "svg-lite-x": "npm:@tanstack/svg-lite",
+              "uuid-utils": "^4.3.0",
+              "@codedev/uuid-utils": "^1.0.0",
+              "uuid-kit": "^5.4.0",
+              "@codedev/uuid-kit": "^1.0.0",
+              "uuid-core": "^6.0.0",
+              "@codedev/uuid-core": "^1.0.0",
+              "@types/uuid-core": "^1.0.0",
+              "uuid-client": "^7.1.0",
+              "@codedev/uuid-client": "^1.0.0",
+              "@codedev-client/uuid": "^1.0.0",
+              "uuid-react": "^8.2.0",
+              "@codedev/uuid-react": "^1.0.0",
+              "uuid-node": "^0.3.0",
+              "@codedev/uuid-node": "^1.0.0",
+              "@types/uuid-node": "^1.0.0",
+              "uuid-node-alias": "npm:@codedev/uuid-node@^1.0.0",
+              "UUID-node": "1.0.0",
+              "uuid-server": "^1.4.0",
+              "@codedev/uuid-server": "^1.0.0",
+              "uuid-lite": "^2.0.0",
+              "@codedev/uuid-lite": "^1.0.0",
+              "@codedev-lite/uuid": "^1.0.0",
+              "uuid-lite-x": "npm:@tanstack/uuid-lite"
+            }
+          },
+          "expected": [
+            {
+              "dependency": "form-utils",
+              "package": "form-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/form-utils",
+              "package": "@codedev/form-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "form-kit",
+              "package": "form-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/form-kit",
+              "package": "@codedev/form-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "form-core",
+              "package": "form-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/form-core",
+              "package": "@codedev/form-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/form-core",
+              "package": "@types/form-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "form-client",
+              "package": "form-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/form-client",
+              "package": "@codedev/form-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev-client/form",
+              "package": "@codedev-client/form",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "form-react",
+              "package": "form-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/form-react",
+              "package": "@codedev/form-react",
+              "status": "not_found"
+            },
+            {
+              "dependency": "form-node",
+              "package": "form-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/form-node",
+              "package": "@codedev/form-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/form-node",
+              "package": "@types/form-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "form-node-alias",
+              "package": "@codedev/form-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "form-server",
+              "package": "form-server",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@codedev/form-server",
+              "package": "@codedev/form-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "form-lite",
+              "package": "form-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/form-lite",
+              "package": "@codedev/form-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev-lite/form",
+              "package": "@codedev-lite/form",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "form-lite-x",
+              "package": "@tanstack/form-lite",
+              "status": "not_found"
+            },
+            {
+              "dependency": "date-utils",
+              "package": "date-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/date-utils",
+              "package": "@codedev/date-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/date-utils",
+              "package": "@types/date-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "date-kit",
+              "package": "date-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/date-kit",
+              "package": "@codedev/date-kit",
+              "status": "not_found"
+            },
+            {
+              "dependency": "date-core",
+              "package": "date-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/date-core",
+              "package": "@codedev/date-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "DATE-core",
+              "package": "",
+              "status": "invalid"
+            },
+            {
+              "dependency": "date-client",
+              "package": "date-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/date-client",
+              "package": "@codedev/date-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/date-client",
+              "package": "@types/date-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev-client/date",
+              "package": "@codedev-client/date",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "date-client-alias",
+              "package": "@codedev/date-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "date-react",
+              "package": "date-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/date-react",
+              "package": "@codedev/date-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "date-node",
+              "package": "date-node",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@codedev/date-node",
+              "package": "@codedev/date-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "date-server",
+              "package": "date-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/date-server",
+              "package": "@codedev/date-server",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@types/date-server",
+              "package": "@types/date-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "date-lite",
+              "package": "date-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/date-lite",
+              "package": "@codedev/date-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev-lite/date",
+              "package": "@codedev-lite/date",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "date-lite-x",
+              "package": "@tanstack/date-lite",
+              "status": "not_found"
+            },
+            {
+              "dependency": "auth-utils",
+              "package": "auth-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/auth-utils",
+              "package": "@codedev/auth-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "auth-kit",
+              "package": "auth-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/auth-kit",
+              "package": "@codedev/auth-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/auth-kit",
+              "package": "@types/auth-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "auth-kit-alias",
+              "package": "@codedev/auth-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "auth-core",
+              "package": "auth-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/auth-core",
+              "package": "@codedev/auth-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "auth-client",
+              "package": "auth-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/auth-client",
+              "package": "@codedev/auth-client",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@codedev-client/auth",
+              "package": "@codedev-client/auth",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "auth-react",
+              "package": "auth-react",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@codedev/auth-react",
+              "package": "@codedev/auth-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/auth-react",
+              "package": "@types/auth-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "auth-node",
+              "package": "auth-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/auth-node",
+              "package": "@codedev/auth-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "AUTH-node",
+              "package": "",
+              "status": "invalid"
+            },
+            {
+              "dependency": "auth-server",
+              "package": "auth-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/auth-server",
+              "package": "@codedev/auth-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "auth-lite",
+              "package": "auth-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/auth-lite",
+              "package": "@codedev/auth-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/auth-lite",
+              "package": "@types/auth-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev-lite/auth",
+              "package": "@codedev-lite/auth",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "auth-lite-alias",
+              "package": "@codedev/auth-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "auth-lite-x",
+              "package": "@tanstack/auth-lite",
+              "status": "not_found"
+            },
+            {
+              "dependency": "chart-utils",
+              "package": "chart-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/chart-utils",
+              "package": "@codedev/chart-utils",
+              "status": "not_found"
+            },
+            {
+              "dependency": "chart-kit",
+              "package": "chart-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/chart-kit",
+              "package": "@codedev/chart-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "chart-core",
+              "package": "chart-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/chart-core",
+              "package": "@codedev/chart-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/chart-core",
+              "package": "@types/chart-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "chart-client",
+              "package": "chart-client",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@codedev/chart-client",
+              "package": "@codedev/chart-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev-client/chart",
+              "package": "@codedev-client/chart",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "chart-react",
+              "package": "chart-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/chart-react",
+              "package": "@codedev/chart-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "chart-node",
+              "package": "chart-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/chart-node",
+              "package": "@codedev/chart-node",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@types/chart-node",
+              "package": "@types/chart-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "chart-node-alias",
+              "package": "@codedev/chart-node",
+              "status": "not_found"
+            },
+            {
+              "dependency": "chart-server",
+              "package": "chart-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/chart-server",
+              "package": "@codedev/chart-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "chart-lite",
+              "package": "chart-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/chart-lite",
+              "package": "@codedev/chart-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev-lite/chart",
+              "package": "@codedev-lite/chart",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "chart-lite-x",
+              "package": "@tanstack/chart-lite",
+              "status": "not_found"
+            },
+            {
+              "dependency": "table-utils",
+              "package": "table-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/table-utils",
+              "package": "@codedev/table-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/table-utils",
+              "package": "@types/table-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "TABLE-utils",
+              "package": "",
+              "status": "invalid"
+            },
+            {
+              "dependency": "table-kit",
+              "package": "table-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/table-kit",
+              "package": "@codedev/table-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "table-core",
+              "package": "table-core",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@codedev/table-core",
+              "package": "@codedev/table-core",
+              "status": "not_found"
+            },
+            {
+              "dependency": "table-client",
+              "package": "table-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/table-client",
+              "package": "@codedev/table-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/table-client",
+              "package": "@types/table-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev-client/table",
+              "package": "@codedev-client/table",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "table-client-alias",
+              "package": "@codedev/table-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "table-react",
+              "package": "table-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/table-react",
+              "package": "@codedev/table-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "table-node",
+              "package": "table-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/table-node",
+              "package": "@codedev/table-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "table-server",
+              "package": "table-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/table-server",
+              "package": "@codedev/table-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/table-server",
+              "package": "@types/table-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "table-lite",
+              "package": "table-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/table-lite",
+              "package": "@codedev/table-lite",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@codedev-lite/table",
+              "package": "@codedev-lite/table",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "table-lite-x",
+              "package": "@tanstack/table-lite",
+              "status": "not_found"
+            },
+            {
+              "dependency": "query-utils",
+              "package": "query-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/query-utils",
+              "package": "@codedev/query-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "query-kit",
+              "package": "query-kit",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@codedev/query-kit",
+              "package": "@codedev/query-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/query-kit",
+              "package": "@types/query-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "query-kit-alias",
+              "package": "@codedev/query-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "query-core",
+              "package": "query-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/query-core",
+              "package": "@codedev/query-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "query-client",
+              "package": "query-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/query-client",
+              "package": "@codedev/query-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev-client/query",
+              "package": "@codedev-client/query",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "QUERY-client",
+              "package": "",
+              "status": "invalid"
+            },
+            {
+              "dependency": "query-react",
+              "package": "query-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/query-react",
+              "package": "@codedev/query-react",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@types/query-react",
+              "package": "@types/query-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "query-node",
+              "package": "query-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/query-node",
+              "package": "@codedev/query-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "query-server",
+              "package": "query-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/query-server",
+              "package": "@codedev/query-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "query-lite",
+              "package": "query-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/query-lite",
+              "package": "@codedev/query-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/query-lite",
+              "package": "@types/query-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev-lite/query",
+              "package": "@codedev-lite/query",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "query-lite-alias",
+              "package": "@codedev/query-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "query-lite-x",
+              "package": "@tanstack/query-lite",
+              "status": "not_found"
+            },
+            {
+              "dependency": "cache-utils",
+              "package": "cache-utils",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@codedev/cache-utils",
+              "package": "@codedev/cache-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "cache-kit",
+              "package": "cache-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/cache-kit",
+              "package": "@codedev/cache-kit",
+              "status": "not_found"
+            },
+            {
+              "dependency": "cache-core",
+              "package": "cache-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/cache-core",
+              "package": "@codedev/cache-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/cache-core",
+              "package": "@types/cache-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "cache-client",
+              "package": "cache-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/cache-client",
+              "package": "@codedev/cache-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev-client/cache",
+              "package": "@codedev-client/cache",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "cache-react",
+              "package": "cache-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/cache-react",
+              "package": "@codedev/cache-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "cache-node",
+              "package": "cache-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/cache-node",
+              "package": "@codedev/cache-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/cache-node",
+              "package": "@types/cache-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "cache-node-alias",
+              "package": "@codedev/cache-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "cache-server",
+              "package": "cache-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/cache-server",
+              "package": "@codedev/cache-server",
+              "status": "not_found"
+            },
+            {
+              "dependency": "CACHE-server",
+              "package": "",
+              "status": "invalid"
+            },
+            {
+              "dependency": "cache-lite",
+              "package": "cache-lite",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@codedev/cache-lite",
+              "package": "@codedev/cache-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev-lite/cache",
+              "package": "@codedev-lite/cache",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "cache-lite-x",
+              "package": "@tanstack/cache-lite",
+              "status": "not_found"
+            },
+            {
+              "dependency": "mail-utils",
+              "package": "mail-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/mail-utils",
+              "package": "@codedev/mail-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/mail-utils",
+              "package": "@types/mail-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "mail-kit",
+              "package": "mail-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/mail-kit",
+              "package": "@codedev/mail-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "mail-core",
+              "package": "mail-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/mail-core",
+              "package": "@codedev/mail-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "mail-client",
+              "package": "mail-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/mail-client",
+              "package": "@codedev/mail-client",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@types/mail-client",
+              "package": "@types/mail-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev-client/mail",
+              "package": "@codedev-client/mail",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "mail-client-alias",
+              "package": "@codedev/mail-client",
+              "status": "not_found"
+            },
+            {
+              "dependency": "mail-react",
+              "package": "mail-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/mail-react",
+              "package": "@codedev/mail-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "mail-node",
+              "package": "mail-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/mail-node",
+              "package": "@codedev/mail-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "mail-server",
+              "package": "mail-server",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@codedev/mail-server",
+              "package": "@codedev/mail-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/mail-server",
+              "package": "@types/mail-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "mail-lite",
+              "package": "mail-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/mail-lite",
+              "package": "@codedev/mail-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev-lite/mail",
+              "package": "@codedev-lite/mail",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "mail-lite-x",
+              "package": "@tanstack/mail-lite",
+              "status": "not_found"
+            },
+            {
+              "dependency": "log-utils",
+              "package": "log-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/log-utils",
+              "package": "@codedev/log-utils",
+              "status": "not_found"
+            },
+            {
+              "dependency": "log-kit",
+              "package": "log-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/log-kit",
+              "package": "@codedev/log-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/log-kit",
+              "package": "@types/log-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "log-kit-alias",
+              "package": "@codedev/log-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "LOG-kit",
+              "package": "",
+              "status": "invalid"
+            },
+            {
+              "dependency": "log-core",
+              "package": "log-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/log-core",
+              "package": "@codedev/log-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "log-client",
+              "package": "log-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/log-client",
+              "package": "@codedev/log-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev-client/log",
+              "package": "@codedev-client/log",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "log-react",
+              "package": "log-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/log-react",
+              "package": "@codedev/log-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/log-react",
+              "package": "@types/log-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "log-node",
+              "package": "log-node",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@codedev/log-node",
+              "package": "@codedev/log-node",
+              "status": "not_found"
+            },
+            {
+              "dependency": "log-server",
+              "package": "log-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/log-server",
+              "package": "@codedev/log-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "log-lite",
+              "package": "log-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/log-lite",
+              "package": "@codedev/log-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/log-lite",
+              "package": "@types/log-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev-lite/log",
+              "package": "@codedev-lite/log",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "log-lite-alias",
+              "package": "@codedev/log-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "log-lite-x",
+              "package": "@tanstack/log-lite",
+              "status": "not_found"
+            },
+            {
+              "dependency": "queue-utils",
+              "package": "queue-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/queue-utils",
+              "package": "@codedev/queue-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "queue-kit",
+              "package": "queue-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/queue-kit",
+              "package": "@codedev/queue-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "queue-core",
+              "package": "queue-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/queue-core",
+              "package": "@codedev/queue-core",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@types/queue-core",
+              "package": "@types/queue-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "queue-client",
+              "package": "queue-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/queue-client",
+              "package": "@codedev/queue-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev-client/queue",
+              "package": "@codedev-client/queue",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "queue-react",
+              "package": "queue-react",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@codedev/queue-react",
+              "package": "@codedev/queue-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "QUEUE-react",
+              "package": "",
+              "status": "invalid"
+            },
+            {
+              "dependency": "queue-node",
+              "package": "queue-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/queue-node",
+              "package": "@codedev/queue-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/queue-node",
+              "package": "@types/queue-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "queue-node-alias",
+              "package": "@codedev/queue-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "queue-server",
+              "package": "queue-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/queue-server",
+              "package": "@codedev/queue-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "queue-lite",
+              "package": "queue-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/queue-lite",
+              "package": "@codedev/queue-lite",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@codedev-lite/queue",
+              "package": "@codedev-lite/queue",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "queue-lite-x",
+              "package": "@tanstack/queue-lite",
+              "status": "not_found"
+            },
+            {
+              "dependency": "image-utils",
+              "package": "image-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/image-utils",
+              "package": "@codedev/image-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/image-utils",
+              "package": "@types/image-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "image-kit",
+              "package": "image-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/image-kit",
+              "package": "@codedev/image-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "image-core",
+              "package": "image-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/image-core",
+              "package": "@codedev/image-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "image-client",
+              "package": "image-client",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@codedev/image-client",
+              "package": "@codedev/image-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/image-client",
+              "package": "@types/image-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev-client/image",
+              "package": "@codedev-client/image",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "image-client-alias",
+              "package": "@codedev/image-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "image-react",
+              "package": "image-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/image-react",
+              "package": "@codedev/image-react",
+              "status": "not_found"
+            },
+            {
+              "dependency": "image-node",
+              "package": "image-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/image-node",
+              "package": "@codedev/image-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "image-server",
+              "package": "image-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/image-server",
+              "package": "@codedev/image-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/image-server",
+              "package": "@types/image-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "image-lite",
+              "package": "image-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/image-lite",
+              "package": "@codedev/image-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev-lite/image",
+              "package": "@codedev-lite/image",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "image-lite-x",
+              "package": "@tanstack/image-lite",
+              "status": "not_found"
+            },
+            {
+              "dependency": "IMAGE-lite",
+              "package": "",
+              "status": "invalid"
+            },
+            {
+              "dependency": "pdf-utils",
+              "package": "pdf-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/pdf-utils",
+              "package": "@codedev/pdf-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "pdf-kit",
+              "package": "pdf-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/pdf-kit",
+              "package": "@codedev/pdf-kit",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@types/pdf-kit",
+              "package": "@types/pdf-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "pdf-kit-alias",
+              "package": "@codedev/pdf-kit",
+              "status": "not_found"
+            },
+            {
+              "dependency": "pdf-core",
+              "package": "pdf-core",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@codedev/pdf-core",
+              "package": "@codedev/pdf-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "pdf-client",
+              "package": "pdf-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/pdf-client",
+              "package": "@codedev/pdf-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev-client/pdf",
+              "package": "@codedev-client/pdf",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "pdf-react",
+              "package": "pdf-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/pdf-react",
+              "package": "@codedev/pdf-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/pdf-react",
+              "package": "@types/pdf-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "pdf-node",
+              "package": "pdf-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/pdf-node",
+              "package": "@codedev/pdf-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "pdf-server",
+              "package": "pdf-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/pdf-server",
+              "package": "@codedev/pdf-server",
+              "status": "not_found"
+            },
+            {
+              "dependency": "pdf-lite",
+              "package": "pdf-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/pdf-lite",
+              "package": "@codedev/pdf-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/pdf-lite",
+              "package": "@types/pdf-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev-lite/pdf",
+              "package": "@codedev-lite/pdf",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "pdf-lite-alias",
+              "package": "@codedev/pdf-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "pdf-lite-x",
+              "package": "@tanstack/pdf-lite",
+              "status": "not_found"
+            },
+            {
+              "dependency": "csv-utils",
+              "package": "csv-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/csv-utils",
+              "package": "@codedev/csv-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "csv-kit",
+              "package": "csv-kit",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@codedev/csv-kit",
+              "package": "@codedev/csv-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "csv-core",
+              "package": "csv-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/csv-core",
+              "package": "@codedev/csv-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/csv-core",
+              "package": "@types/csv-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "CSV-core",
+              "package": "",
+              "status": "invalid"
+            },
+            {
+              "dependency": "csv-client",
+              "package": "csv-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/csv-client",
+              "package": "@codedev/csv-client",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@codedev-client/csv",
+              "package": "@codedev-client/csv",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "csv-react",
+              "package": "csv-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/csv-react",
+              "package": "@codedev/csv-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "csv-node",
+              "package": "csv-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/csv-node",
+              "package": "@codedev/csv-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/csv-node",
+              "package": "@types/csv-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "csv-node-alias",
+              "package": "@codedev/csv-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "csv-server",
+              "package": "csv-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/csv-server",
+              "package": "@codedev/csv-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "csv-lite",
+              "package": "csv-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/csv-lite",
+              "package": "@codedev/csv-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev-lite/csv",
+              "package": "@codedev-lite/csv",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "csv-lite-x",
+              "package": "@tanstack/csv-lite",
+              "status": "not_found"
+            },
+            {
+              "dependency": "sse-utils",
+              "package": "sse-utils",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@codedev/sse-utils",
+              "package": "@codedev/sse-utils",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@types/sse-utils",
+              "package": "@types/sse-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "sse-kit",
+              "package": "sse-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/sse-kit",
+              "package": "@codedev/sse-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "sse-core",
+              "package": "sse-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/sse-core",
+              "package": "@codedev/sse-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "sse-client",
+              "package": "sse-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/sse-client",
+              "package": "@codedev/sse-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/sse-client",
+              "package": "@types/sse-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev-client/sse",
+              "package": "@codedev-client/sse",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "sse-client-alias",
+              "package": "@codedev/sse-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "sse-react",
+              "package": "sse-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/sse-react",
+              "package": "@codedev/sse-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "sse-node",
+              "package": "sse-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/sse-node",
+              "package": "@codedev/sse-node",
+              "status": "not_found"
+            },
+            {
+              "dependency": "SSE-node",
+              "package": "",
+              "status": "invalid"
+            },
+            {
+              "dependency": "sse-server",
+              "package": "sse-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/sse-server",
+              "package": "@codedev/sse-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/sse-server",
+              "package": "@types/sse-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "sse-lite",
+              "package": "sse-lite",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@codedev/sse-lite",
+              "package": "@codedev/sse-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev-lite/sse",
+              "package": "@codedev-lite/sse",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "sse-lite-x",
+              "package": "@tanstack/sse-lite",
+              "status": "not_found"
+            },
+            {
+              "dependency": "ws-utils",
+              "package": "ws-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/ws-utils",
+              "package": "@codedev/ws-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "ws-kit",
+              "package": "ws-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/ws-kit",
+              "package": "@codedev/ws-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/ws-kit",
+              "package": "@types/ws-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "ws-kit-alias",
+              "package": "@codedev/ws-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "ws-core",
+              "package": "ws-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/ws-core",
+              "package": "@codedev/ws-core",
+              "status": "not_found"
+            },
+            {
+              "dependency": "ws-client",
+              "package": "ws-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/ws-client",
+              "package": "@codedev/ws-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev-client/ws",
+              "package": "@codedev-client/ws",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "ws-react",
+              "package": "ws-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/ws-react",
+              "package": "@codedev/ws-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/ws-react",
+              "package": "@types/ws-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "ws-node",
+              "package": "ws-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/ws-node",
+              "package": "@codedev/ws-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "ws-server",
+              "package": "ws-server",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@codedev/ws-server",
+              "package": "@codedev/ws-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "ws-lite",
+              "package": "ws-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/ws-lite",
+              "package": "@codedev/ws-lite",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@types/ws-lite",
+              "package": "@types/ws-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev-lite/ws",
+              "package": "@codedev-lite/ws",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "ws-lite-alias",
+              "package": "@codedev/ws-lite",
+              "status": "not_found"
+            },
+            {
+              "dependency": "ws-lite-x",
+              "package": "@tanstack/ws-lite",
+              "status": "not_found"
+            },
+            {
+              "dependency": "slug-utils",
+              "package": "slug-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/slug-utils",
+              "package": "@codedev/slug-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "SLUG-utils",
+              "package": "",
+              "status": "invalid"
+            },
+            {
+              "dependency": "slug-kit",
+              "package": "slug-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/slug-kit",
+              "package": "@codedev/slug-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "slug-core",
+              "package": "slug-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/slug-core",
+              "package": "@codedev/slug-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/slug-core",
+              "package": "@types/slug-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "slug-client",
+              "package": "slug-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/slug-client",
+              "package": "@codedev/slug-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev-client/slug",
+              "package": "@codedev-client/slug",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "slug-react",
+              "package": "slug-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/slug-react",
+              "package": "@codedev/slug-react",
+              "status": "not_found"
+            },
+            {
+              "dependency": "slug-node",
+              "package": "slug-node",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@codedev/slug-node",
+              "package": "@codedev/slug-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/slug-node",
+              "package": "@types/slug-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "slug-node-alias",
+              "package": "@codedev/slug-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "slug-server",
+              "package": "slug-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/slug-server",
+              "package": "@codedev/slug-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "slug-lite",
+              "package": "slug-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/slug-lite",
+              "package": "@codedev/slug-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev-lite/slug",
+              "package": "@codedev-lite/slug",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "slug-lite-x",
+              "package": "@tanstack/slug-lite",
+              "status": "not_found"
+            },
+            {
+              "dependency": "i18n-utils",
+              "package": "i18n-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/i18n-utils",
+              "package": "@codedev/i18n-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/i18n-utils",
+              "package": "@types/i18n-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "i18n-kit",
+              "package": "i18n-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/i18n-kit",
+              "package": "@codedev/i18n-kit",
+              "status": "not_found"
+            },
+            {
+              "dependency": "i18n-core",
+              "package": "i18n-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/i18n-core",
+              "package": "@codedev/i18n-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "i18n-client",
+              "package": "i18n-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/i18n-client",
+              "package": "@codedev/i18n-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/i18n-client",
+              "package": "@types/i18n-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev-client/i18n",
+              "package": "@codedev-client/i18n",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "i18n-client-alias",
+              "package": "@codedev/i18n-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "I18N-client",
+              "package": "",
+              "status": "invalid"
+            },
+            {
+              "dependency": "i18n-react",
+              "package": "i18n-react",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@codedev/i18n-react",
+              "package": "@codedev/i18n-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "i18n-node",
+              "package": "i18n-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/i18n-node",
+              "package": "@codedev/i18n-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "i18n-server",
+              "package": "i18n-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/i18n-server",
+              "package": "@codedev/i18n-server",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@types/i18n-server",
+              "package": "@types/i18n-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "i18n-lite",
+              "package": "i18n-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/i18n-lite",
+              "package": "@codedev/i18n-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev-lite/i18n",
+              "package": "@codedev-lite/i18n",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "i18n-lite-x",
+              "package": "@tanstack/i18n-lite",
+              "status": "not_found"
+            },
+            {
+              "dependency": "otp-utils",
+              "package": "otp-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/otp-utils",
+              "package": "@codedev/otp-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "otp-kit",
+              "package": "otp-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/otp-kit",
+              "package": "@codedev/otp-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/otp-kit",
+              "package": "@types/otp-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "otp-kit-alias",
+              "package": "@codedev/otp-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "otp-core",
+              "package": "otp-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/otp-core",
+              "package": "@codedev/otp-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "otp-client",
+              "package": "otp-client",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@codedev/otp-client",
+              "package": "@codedev/otp-client",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@codedev-client/otp",
+              "package": "@codedev-client/otp",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "otp-react",
+              "package": "otp-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/otp-react",
+              "package": "@codedev/otp-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/otp-react",
+              "package": "@types/otp-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "otp-node",
+              "package": "otp-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/otp-node",
+              "package": "@codedev/otp-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "otp-server",
+              "package": "otp-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/otp-server",
+              "package": "@codedev/otp-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "OTP-server",
+              "package": "",
+              "status": "invalid"
+            },
+            {
+              "dependency": "otp-lite",
+              "package": "otp-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/otp-lite",
+              "package": "@codedev/otp-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/otp-lite",
+              "package": "@types/otp-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev-lite/otp",
+              "package": "@codedev-lite/otp",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "otp-lite-alias",
+              "package": "@codedev/otp-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "otp-lite-x",
+              "package": "@tanstack/otp-lite",
+              "status": "not_found"
+            },
+            {
+              "dependency": "jwt-utils",
+              "package": "jwt-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/jwt-utils",
+              "package": "@codedev/jwt-utils",
+              "status": "not_found"
+            },
+            {
+              "dependency": "jwt-kit",
+              "package": "jwt-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/jwt-kit",
+              "package": "@codedev/jwt-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "jwt-core",
+              "package": "jwt-core",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@codedev/jwt-core",
+              "package": "@codedev/jwt-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/jwt-core",
+              "package": "@types/jwt-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "jwt-client",
+              "package": "jwt-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/jwt-client",
+              "package": "@codedev/jwt-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev-client/jwt",
+              "package": "@codedev-client/jwt",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "jwt-react",
+              "package": "jwt-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/jwt-react",
+              "package": "@codedev/jwt-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "jwt-node",
+              "package": "jwt-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/jwt-node",
+              "package": "@codedev/jwt-node",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@types/jwt-node",
+              "package": "@types/jwt-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "jwt-node-alias",
+              "package": "@codedev/jwt-node",
+              "status": "not_found"
+            },
+            {
+              "dependency": "jwt-server",
+              "package": "jwt-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/jwt-server",
+              "package": "@codedev/jwt-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "jwt-lite",
+              "package": "jwt-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/jwt-lite",
+              "package": "@codedev/jwt-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev-lite/jwt",
+              "package": "@codedev-lite/jwt",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "jwt-lite-x",
+              "package": "@tanstack/jwt-lite",
+              "status": "not_found"
+            },
+            {
+              "dependency": "yaml-utils",
+              "package": "yaml-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/yaml-utils",
+              "package": "@codedev/yaml-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/yaml-utils",
+              "package": "@types/yaml-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "yaml-kit",
+              "package": "yaml-kit",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@codedev/yaml-kit",
+              "package": "@codedev/yaml-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "YAML-kit",
+              "package": "",
+              "status": "invalid"
+            },
+            {
+              "dependency": "yaml-core",
+              "package": "yaml-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/yaml-core",
+              "package": "@codedev/yaml-core",
+              "status": "not_found"
+            },
+            {
+              "dependency": "yaml-client",
+              "package": "yaml-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/yaml-client",
+              "package": "@codedev/yaml-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/yaml-client",
+              "package": "@types/yaml-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev-client/yaml",
+              "package": "@codedev-client/yaml",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "yaml-client-alias",
+              "package": "@codedev/yaml-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "yaml-react",
+              "package": "yaml-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/yaml-react",
+              "package": "@codedev/yaml-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "yaml-node",
+              "package": "yaml-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/yaml-node",
+              "package": "@codedev/yaml-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "yaml-server",
+              "package": "yaml-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/yaml-server",
+              "package": "@codedev/yaml-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/yaml-server",
+              "package": "@types/yaml-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "yaml-lite",
+              "package": "yaml-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/yaml-lite",
+              "package": "@codedev/yaml-lite",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@codedev-lite/yaml",
+              "package": "@codedev-lite/yaml",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "yaml-lite-x",
+              "package": "@tanstack/yaml-lite",
+              "status": "not_found"
+            },
+            {
+              "dependency": "toml-utils",
+              "package": "toml-utils",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@codedev/toml-utils",
+              "package": "@codedev/toml-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "toml-kit",
+              "package": "toml-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/toml-kit",
+              "package": "@codedev/toml-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/toml-kit",
+              "package": "@types/toml-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "toml-kit-alias",
+              "package": "@codedev/toml-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "toml-core",
+              "package": "toml-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/toml-core",
+              "package": "@codedev/toml-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "toml-client",
+              "package": "toml-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/toml-client",
+              "package": "@codedev/toml-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev-client/toml",
+              "package": "@codedev-client/toml",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "toml-react",
+              "package": "toml-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/toml-react",
+              "package": "@codedev/toml-react",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@types/toml-react",
+              "package": "@types/toml-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "TOML-react",
+              "package": "",
+              "status": "invalid"
+            },
+            {
+              "dependency": "toml-node",
+              "package": "toml-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/toml-node",
+              "package": "@codedev/toml-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "toml-server",
+              "package": "toml-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/toml-server",
+              "package": "@codedev/toml-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "toml-lite",
+              "package": "toml-lite",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@codedev/toml-lite",
+              "package": "@codedev/toml-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/toml-lite",
+              "package": "@types/toml-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev-lite/toml",
+              "package": "@codedev-lite/toml",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "toml-lite-alias",
+              "package": "@codedev/toml-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "toml-lite-x",
+              "package": "@tanstack/toml-lite",
+              "status": "not_found"
+            },
+            {
+              "dependency": "zip-utils",
+              "package": "zip-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/zip-utils",
+              "package": "@codedev/zip-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "zip-kit",
+              "package": "zip-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/zip-kit",
+              "package": "@codedev/zip-kit",
+              "status": "not_found"
+            },
+            {
+              "dependency": "zip-core",
+              "package": "zip-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/zip-core",
+              "package": "@codedev/zip-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/zip-core",
+              "package": "@types/zip-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "zip-client",
+              "package": "zip-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/zip-client",
+              "package": "@codedev/zip-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev-client/zip",
+              "package": "@codedev-client/zip",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "zip-react",
+              "package": "zip-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/zip-react",
+              "package": "@codedev/zip-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "zip-node",
+              "package": "zip-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/zip-node",
+              "package": "@codedev/zip-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/zip-node",
+              "package": "@types/zip-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "zip-node-alias",
+              "package": "@codedev/zip-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "zip-server",
+              "package": "zip-server",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@codedev/zip-server",
+              "package": "@codedev/zip-server",
+              "status": "not_found"
+            },
+            {
+              "dependency": "zip-lite",
+              "package": "zip-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/zip-lite",
+              "package": "@codedev/zip-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev-lite/zip",
+              "package": "@codedev-lite/zip",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "zip-lite-x",
+              "package": "@tanstack/zip-lite",
+              "status": "not_found"
+            },
+            {
+              "dependency": "ZIP-lite",
+              "package": "",
+              "status": "invalid"
+            },
+            {
+              "dependency": "md-utils",
+              "package": "md-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/md-utils",
+              "package": "@codedev/md-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/md-utils",
+              "package": "@types/md-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "md-kit",
+              "package": "md-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/md-kit",
+              "package": "@codedev/md-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "md-core",
+              "package": "md-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/md-core",
+              "package": "@codedev/md-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "md-client",
+              "package": "md-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/md-client",
+              "package": "@codedev/md-client",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@types/md-client",
+              "package": "@types/md-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev-client/md",
+              "package": "@codedev-client/md",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "md-client-alias",
+              "package": "@codedev/md-client",
+              "status": "not_found"
+            },
+            {
+              "dependency": "md-react",
+              "package": "md-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/md-react",
+              "package": "@codedev/md-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "md-node",
+              "package": "md-node",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@codedev/md-node",
+              "package": "@codedev/md-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "md-server",
+              "package": "md-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/md-server",
+              "package": "@codedev/md-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/md-server",
+              "package": "@types/md-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "md-lite",
+              "package": "md-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/md-lite",
+              "package": "@codedev/md-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev-lite/md",
+              "package": "@codedev-lite/md",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "md-lite-x",
+              "package": "@tanstack/md-lite",
+              "status": "not_found"
+            },
+            {
+              "dependency": "svg-utils",
+              "package": "svg-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/svg-utils",
+              "package": "@codedev/svg-utils",
+              "status": "not_found"
+            },
+            {
+              "dependency": "svg-kit",
+              "package": "svg-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/svg-kit",
+              "package": "@codedev/svg-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/svg-kit",
+              "package": "@types/svg-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "svg-kit-alias",
+              "package": "@codedev/svg-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "svg-core",
+              "package": "svg-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/svg-core",
+              "package": "@codedev/svg-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "SVG-core",
+              "package": "",
+              "status": "invalid"
+            },
+            {
+              "dependency": "svg-client",
+              "package": "svg-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/svg-client",
+              "package": "@codedev/svg-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev-client/svg",
+              "package": "@codedev-client/svg",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "svg-react",
+              "package": "svg-react",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@codedev/svg-react",
+              "package": "@codedev/svg-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/svg-react",
+              "package": "@types/svg-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "svg-node",
+              "package": "svg-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/svg-node",
+              "package": "@codedev/svg-node",
+              "status": "not_found"
+            },
+            {
+              "dependency": "svg-server",
+              "package": "svg-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/svg-server",
+              "package": "@codedev/svg-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "svg-lite",
+              "package": "svg-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/svg-lite",
+              "package": "@codedev/svg-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/svg-lite",
+              "package": "@types/svg-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev-lite/svg",
+              "package": "@codedev-lite/svg",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "svg-lite-alias",
+              "package": "@codedev/svg-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "svg-lite-x",
+              "package": "@tanstack/svg-lite",
+              "status": "not_found"
+            },
+            {
+              "dependency": "uuid-utils",
+              "package": "uuid-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/uuid-utils",
+              "package": "@codedev/uuid-utils",
+              "status": "ok"
+            },
+            {
+              "dependency": "uuid-kit",
+              "package": "uuid-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/uuid-kit",
+              "package": "@codedev/uuid-kit",
+              "status": "ok"
+            },
+            {
+              "dependency": "uuid-core",
+              "package": "uuid-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/uuid-core",
+              "package": "@codedev/uuid-core",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@types/uuid-core",
+              "package": "@types/uuid-core",
+              "status": "ok"
+            },
+            {
+              "dependency": "uuid-client",
+              "package": "uuid-client",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@codedev/uuid-client",
+              "package": "@codedev/uuid-client",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev-client/uuid",
+              "package": "@codedev-client/uuid",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "uuid-react",
+              "package": "uuid-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/uuid-react",
+              "package": "@codedev/uuid-react",
+              "status": "ok"
+            },
+            {
+              "dependency": "uuid-node",
+              "package": "uuid-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/uuid-node",
+              "package": "@codedev/uuid-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "@types/uuid-node",
+              "package": "@types/uuid-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "uuid-node-alias",
+              "package": "@codedev/uuid-node",
+              "status": "ok"
+            },
+            {
+              "dependency": "UUID-node",
+              "package": "",
+              "status": "invalid"
+            },
+            {
+              "dependency": "uuid-server",
+              "package": "uuid-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/uuid-server",
+              "package": "@codedev/uuid-server",
+              "status": "ok"
+            },
+            {
+              "dependency": "uuid-lite",
+              "package": "uuid-lite",
+              "status": "ok"
+            },
+            {
+              "dependency": "@codedev/uuid-lite",
+              "package": "@codedev/uuid-lite",
+              "status": "not_found"
+            },
+            {
+              "dependency": "@codedev-lite/uuid",
+              "package": "@codedev-lite/uuid",
+              "status": "unknown_scope"
+            },
+            {
+              "dependency": "uuid-lite-x",
+              "package": "@tanstack/uuid-lite",
+              "status": "not_found"
+            }
+          ],
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

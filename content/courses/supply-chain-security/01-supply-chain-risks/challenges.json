@@ -1,0 +1,50 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_ssc_111",
+      "name": "supply-chain-attack-surface-quiz",
+      "type": "quiz",
+      "title": "Where does someone else's code get in?",
+      "description": "Two pieces of evidence from the CodeDev build pipeline: a provenance attestation for a dependency release, and the same GitHub Actions step running different code on two days.",
+      "difficulty": "medium",
+      "outcomes": [
+        "dependency-risks"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The content-tools build depends on @fastgrade/runner. After installing 4.2.1:\n\n$ npm audit signatures\naudited 419 packages in 2s\n419 packages have verified registry signatures\n37 packages have verified attestations\n\nThe attestation of @fastgrade/runner@4.2.1 says:\n  source:   github.com/fastgrade/runner @ commit 9f3c2e1\n  workflow: .github/workflows/release.yml (GitHub Actions)\n\n$ git log -1 --format='%h %an %s' 9f3c2e1   (in the fastgrade/runner repository)\n9f3c2e1 maint-bot chore: bump deps\n\nThe commit was pushed directly to main; no pull request references it.\n\nStatement: \"The verified attestation shows that 4.2.1 contains only code that was reviewed in the fastgrade/runner repository.\"",
+          "explanation": "False. Provenance links the tarball to a repository, a commit and a workflow, and the signature proves that link was not forged after the build. It says nothing about whether the commit was reviewed or written by the maintainers: here commit 9f3c2e1 was pushed straight to main, which is exactly what an attacker with a stolen maintainer token can do, and the release workflow would sign the result just the same. What the attestation does give you is where to look: the commit and the workflow run. The misconception is that \"verified\" means \"safe\"; it means \"built where it says it was built\".",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Workflow of the CodeDev web app (unchanged since September):\n\njobs:\n  build:\n    permissions: write-all\n    steps:\n      - uses: actions/checkout@v4\n      - uses: cachekit/setup-cache@v3\n      - run: npm ci --ignore-scripts\n\nActions log, Monday run 18790:\n  Download action repository 'cachekit/setup-cache@v3' (SHA:4b1e0c7a92f5d3e8a1c6b0f2d9e47a3c5b8f1d20)\nActions log, Thursday run 18902:\n  Download action repository 'cachekit/setup-cache@v3' (SHA:e93d51f08a2c7b4e6f1d0a9c3b85e2f7d4a6c019)\n\nThe cachekit/setup-cache repository shows no new release between Monday and Thursday.\n\nStatement: \"The code that ran as cachekit/setup-cache@v3 changed between Monday and Thursday although the workflow file did not, and pinning the step to the full commit SHA from Monday would have kept Monday's code.\"",
+          "explanation": "True. A tag such as v3 is a movable pointer in someone else's repository: the log shows it resolved to two different commits, and with no release in between, someone moved it. A full-length commit SHA is immutable, so `uses: cachekit/setup-cache@4b1e0c7a92f5d3e8a1c6b0f2d9e47a3c5b8f1d20` runs the same code until you change the line in a reviewed pull request. With `permissions: write-all`, the changed action could also push to the repository or create a release with the job's token, which is why lesson 9 narrows permissions per job. The misconception is that a version-looking tag is as fixed as a version number on the registry.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

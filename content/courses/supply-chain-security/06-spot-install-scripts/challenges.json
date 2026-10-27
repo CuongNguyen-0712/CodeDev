@@ -1,0 +1,3114 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_ssc_231",
+      "name": "install-scripts-quiz",
+      "type": "quiz",
+      "title": "Which install scripts run?",
+      "description": "Two pieces of CodeDev's install pipeline: what --ignore-scripts plus a reviewed rebuild list does to a new package's postinstall, and whether an allowlisted name may run a new version's script.",
+      "difficulty": "medium",
+      "outcomes": [
+        "dependency-risks",
+        "ci-hardening"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "CI install job of the CodeDev web app:\n\n- run: npm ci --ignore-scripts\n- run: npm rebuild bcrypt sharp     # the packages planInstallScripts allowed: reviewed name, version and integrity\n\npackage-lock.json in the PR under test:\n\"node_modules/progress-reporter-x\": {\n  \"version\": \"0.2.0\",\n  \"resolved\": \"https://registry.npmjs.org/progress-reporter-x/-/progress-reporter-x-0.2.0.tgz\",\n  \"hasInstallScript\": true\n}\n\nStatement: \"In this job the postinstall script of progress-reporter-x does not run, while bcrypt and sharp still build their native code.\"",
+          "explanation": "True. --ignore-scripts stops npm ci from running any lifecycle script, from every dependency and from the project itself, so the new package's postinstall never runs. npm rebuild then runs the install scripts only of the packages named on its command line, which here come from the reviewed allowlist. The misconception is that blocking scripts must break native modules: they still build, but only the ones someone reviewed. The new package's script should still appear in the job's report as blocked, so the PR author knows to ask for a review if it is really needed.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Allowlist (config/install-scripts.json), reviewed in August:\n{ \"name\": \"sharp\", \"version\": \"0.34.4\", \"integrity\": \"sha512-8b4c...e1f0\", \"reviewedBy\": \"reviewer-b\" }\n\nDependency update PR in October, package-lock.json:\n-  \"node_modules/sharp\": { \"version\": \"0.34.4\", \"integrity\": \"sha512-8b4c...e1f0\", \"hasInstallScript\": true }\n+  \"node_modules/sharp\": { \"version\": \"0.34.5\", \"integrity\": \"sha512-27d9...a3c5\", \"hasInstallScript\": true }\n\nStatement: \"sharp is on the reviewed allowlist, so the install script of 0.34.5 can run without another review.\"",
+          "explanation": "False. The review covered the code of sharp 0.34.4, identified by its integrity hash. 0.34.5 is new code from the registry, and a patch release is exactly what an attacker who took over a maintainer's account would publish: in 2025 several widely used npm packages shipped malicious patch versions that way, some running their payload from an install script. Pinning the allowlist to name, version and integrity turns every version bump of a package with install scripts into a small, explicit review: diff the scripts, then add the new entry. The misconception is to trust a name; trust belongs to reviewed bytes.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_ssc_232",
+      "name": "spot-the-ai-mistake-install-scripts",
+      "type": "fix_bug",
+      "title": "Spot the AI Mistake: install scripts allowed by default",
+      "description": "CodeDev's CI ran npm ci --ignore-scripts and then npm rebuild for the packages that planInstallScripts allowed. After sharp was added the build failed, and an AI assistant was asked: \"make the CI install step faster and stop the native module build failing\". It merged the steps into npm ci --foreground-scripts --unsafe-perm (the team has reverted that line) and rewrote planInstallScripts; the build is green and the public tests pass. Fix planInstallScripts(lock, allowlist) so that it follows CodeDev's install policy and returns { run, blocked }. Scripts that count, when present with a non-empty value: preinstall, install, postinstall for registry packages; the same plus prepare for git dependencies (resolved starts with \"git+\", \"git://\" or \"github:\"); prepare of a registry package never runs and is not reported. A script runs only when the allowlist has an entry with the same name, the same version and the same non-empty integrity as the package. Every other script is blocked with the first reason that applies: \"git_dependency\" (a git dependency, never allowlisted), \"not_allowlisted\" (no entry with this name), \"version_mismatch\" (entries for this name, none with this exact version; a range such as \"^0.25.0\" matches no version), \"integrity_mismatch\" (an entry with this name and version, but none with the package's integrity, or the integrity is \"\"). run items are { package: \"<name>@<version>\", script }, blocked items add reason. Order: packages in lockfile order, then scripts in the order preinstall, install, postinstall, prepare. The runner reads { lock, allowlist } and prints the plan as JSON.",
+      "difficulty": "hard",
+      "outcomes": [
+        "dependency-risks",
+        "ci-hardening"
+      ],
+      "points": 40,
+      "hints": [
+        "What happens to a package that nobody has reviewed: which branch of the if does it take? Then ask the same question for a package whose name was reviewed at another version.",
+        "Look at the constant next to the comment that explains why the build broke, and at what `reviewed` contains: names only. Then compare INSTALL_SCRIPTS with the scripts npm runs for a git dependency, and check how a git dependency could ever match an allowlist entry pinned to an integrity hash.",
+        "A similar case on other data: allowlist [{ name: \"canvas\", version: \"2.11.2\", integrity: \"sha512-AAA\" }]. canvas 2.11.2 with integrity sha512-AAA and an install script: it runs. canvas 2.11.3: blocked, version_mismatch. canvas 2.11.2 with sha512-BBB: blocked, integrity_mismatch. A package resolved from \"git+ssh://git@github.com/acme/tool.git#c0ffee\" with a prepare script: blocked, git_dependency. A registry package with only prepare and test scripts: nothing to run, nothing to report."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A native module builds: bcrypt's reviewed install script runs",
+          "input": {
+            "lock": [
+              {
+                "name": "bcrypt",
+                "version": "5.1.1",
+                "resolved": "https://registry.npmjs.org/bcrypt/-/bcrypt-5.1.1.tgz",
+                "integrity": "sha512-dHI2xyOHgjdKq7AxqUQfnwbRuPT6fAfRelaF2Tr2/LmAcTktGC4AoucTKYVi3yOBS3uNcesgbbMBj2WAOp+9jw==",
+                "scripts": {
+                  "install": "node-pre-gyp install --fallback-to-build",
+                  "test": "jest"
+                }
+              },
+              {
+                "name": "next",
+                "version": "15.5.4",
+                "resolved": "https://registry.npmjs.org/next/-/next-15.5.4.tgz",
+                "integrity": "sha512-N6H75n+/cJOi+PjMe9oTR0vtIofsz/5J9BnshoUzB+oMUsT2yHV0+yIxYSLJRJhbl7qrZ/skRiEGCsYR2oYIqA==",
+                "scripts": {}
+              },
+              {
+                "name": "node-addon-api",
+                "version": "8.5.0",
+                "resolved": "https://registry.npmjs.org/node-addon-api/-/node-addon-api-8.5.0.tgz",
+                "integrity": "sha512-ZBSN3FuYFqfUWeJbQu3+VvtJpsXDDlALoBa/xTNy2x1sr/Dyq9WCE74pQvf8lEcq/N89bI2B0hfPn1ltdKC5fw==",
+                "scripts": {}
+              },
+              {
+                "name": "react",
+                "version": "19.1.1",
+                "resolved": "https://registry.npmjs.org/react/-/react-19.1.1.tgz",
+                "integrity": "sha512-QzDUBgKMOqS3QwTUimmDLdWrcpzKllOrRWz+szj1ofvMHGz5pytxvNCWMFN0m9Rf+kmHTrCvgHSwMGAZKZuycA==",
+                "scripts": {}
+              },
+              {
+                "name": "zod",
+                "version": "4.1.5",
+                "resolved": "https://registry.npmjs.org/zod/-/zod-4.1.5.tgz",
+                "integrity": "sha512-XF9ksKgfio1gAZzzRDvXyqrc/qJtGrfMMXs6F6HAtc6XfwEBqgK1fIcPpbsgq4plLiZmgMOoqBlLd3MkiKU8XA==",
+                "scripts": {}
+              }
+            ],
+            "allowlist": [
+              {
+                "name": "bcrypt",
+                "version": "5.1.1",
+                "integrity": "sha512-dHI2xyOHgjdKq7AxqUQfnwbRuPT6fAfRelaF2Tr2/LmAcTktGC4AoucTKYVi3yOBS3uNcesgbbMBj2WAOp+9jw==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "sharp",
+                "version": "0.34.4",
+                "integrity": "sha512-T680Of4tJKuqCXM8HxzMKhT48ctwA8iHtXRnpKvQd0Ye5N1h0zaQDDTzitvbsR6ZDKGtkfSKD7mVsL4muOXwQg==",
+                "reviewedBy": "reviewer-b"
+              },
+              {
+                "name": "esbuild",
+                "version": "0.25.9",
+                "integrity": "sha512-hW9+T/5bMUVjOlIH8vPwHB8nWUv6V7lupGar0umY6mXayQ0MHKoFod2+6XLMe1Jw4MVVjmFUNihZenWrpUYKBg==",
+                "reviewedBy": "reviewer-a"
+              }
+            ]
+          },
+          "expected": {
+            "run": [
+              {
+                "package": "bcrypt@5.1.1",
+                "script": "install"
+              }
+            ],
+            "blocked": []
+          },
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "sharp and esbuild, reviewed at these exact versions, run their scripts",
+          "input": {
+            "lock": [
+              {
+                "name": "@img/sharp-linux-x64",
+                "version": "0.34.4",
+                "resolved": "https://registry.npmjs.org/@img/sharp-linux-x64/-/sharp-linux-x64-0.34.4.tgz",
+                "integrity": "sha512-BzP15jyFSkD1fUCB/LYrlM1uWUKlYHzVhfdgDqa3tUMszAlAXAvAHuF5C6ISXOphSNUMtAxIlYTeKEakp4g0LA==",
+                "scripts": {}
+              },
+              {
+                "name": "bcrypt",
+                "version": "5.1.1",
+                "resolved": "https://registry.npmjs.org/bcrypt/-/bcrypt-5.1.1.tgz",
+                "integrity": "sha512-dHI2xyOHgjdKq7AxqUQfnwbRuPT6fAfRelaF2Tr2/LmAcTktGC4AoucTKYVi3yOBS3uNcesgbbMBj2WAOp+9jw==",
+                "scripts": {
+                  "install": "node-pre-gyp install --fallback-to-build",
+                  "test": "jest"
+                }
+              },
+              {
+                "name": "next",
+                "version": "15.5.4",
+                "resolved": "https://registry.npmjs.org/next/-/next-15.5.4.tgz",
+                "integrity": "sha512-N6H75n+/cJOi+PjMe9oTR0vtIofsz/5J9BnshoUzB+oMUsT2yHV0+yIxYSLJRJhbl7qrZ/skRiEGCsYR2oYIqA==",
+                "scripts": {}
+              },
+              {
+                "name": "node-addon-api",
+                "version": "8.5.0",
+                "resolved": "https://registry.npmjs.org/node-addon-api/-/node-addon-api-8.5.0.tgz",
+                "integrity": "sha512-ZBSN3FuYFqfUWeJbQu3+VvtJpsXDDlALoBa/xTNy2x1sr/Dyq9WCE74pQvf8lEcq/N89bI2B0hfPn1ltdKC5fw==",
+                "scripts": {}
+              },
+              {
+                "name": "react",
+                "version": "19.1.1",
+                "resolved": "https://registry.npmjs.org/react/-/react-19.1.1.tgz",
+                "integrity": "sha512-QzDUBgKMOqS3QwTUimmDLdWrcpzKllOrRWz+szj1ofvMHGz5pytxvNCWMFN0m9Rf+kmHTrCvgHSwMGAZKZuycA==",
+                "scripts": {}
+              },
+              {
+                "name": "sharp",
+                "version": "0.34.4",
+                "resolved": "https://registry.npmjs.org/sharp/-/sharp-0.34.4.tgz",
+                "integrity": "sha512-T680Of4tJKuqCXM8HxzMKhT48ctwA8iHtXRnpKvQd0Ye5N1h0zaQDDTzitvbsR6ZDKGtkfSKD7mVsL4muOXwQg==",
+                "scripts": {
+                  "install": "node install/check.js",
+                  "build": "node-gyp rebuild"
+                }
+              },
+              {
+                "name": "zod",
+                "version": "4.1.5",
+                "resolved": "https://registry.npmjs.org/zod/-/zod-4.1.5.tgz",
+                "integrity": "sha512-XF9ksKgfio1gAZzzRDvXyqrc/qJtGrfMMXs6F6HAtc6XfwEBqgK1fIcPpbsgq4plLiZmgMOoqBlLd3MkiKU8XA==",
+                "scripts": {}
+              },
+              {
+                "name": "esbuild",
+                "version": "0.25.9",
+                "resolved": "https://registry.npmjs.org/esbuild/-/esbuild-0.25.9.tgz",
+                "integrity": "sha512-hW9+T/5bMUVjOlIH8vPwHB8nWUv6V7lupGar0umY6mXayQ0MHKoFod2+6XLMe1Jw4MVVjmFUNihZenWrpUYKBg==",
+                "scripts": {
+                  "postinstall": "node install.js"
+                }
+              }
+            ],
+            "allowlist": [
+              {
+                "name": "bcrypt",
+                "version": "5.1.1",
+                "integrity": "sha512-dHI2xyOHgjdKq7AxqUQfnwbRuPT6fAfRelaF2Tr2/LmAcTktGC4AoucTKYVi3yOBS3uNcesgbbMBj2WAOp+9jw==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "sharp",
+                "version": "0.34.4",
+                "integrity": "sha512-T680Of4tJKuqCXM8HxzMKhT48ctwA8iHtXRnpKvQd0Ye5N1h0zaQDDTzitvbsR6ZDKGtkfSKD7mVsL4muOXwQg==",
+                "reviewedBy": "reviewer-b"
+              },
+              {
+                "name": "esbuild",
+                "version": "0.25.9",
+                "integrity": "sha512-hW9+T/5bMUVjOlIH8vPwHB8nWUv6V7lupGar0umY6mXayQ0MHKoFod2+6XLMe1Jw4MVVjmFUNihZenWrpUYKBg==",
+                "reviewedBy": "reviewer-a"
+              }
+            ]
+          },
+          "expected": {
+            "run": [
+              {
+                "package": "bcrypt@5.1.1",
+                "script": "install"
+              },
+              {
+                "package": "sharp@0.34.4",
+                "script": "install"
+              },
+              {
+                "package": "esbuild@0.25.9",
+                "script": "postinstall"
+              }
+            ],
+            "blocked": []
+          },
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "A newly added package with a postinstall script is blocked by default",
+          "input": {
+            "lock": [
+              {
+                "name": "@img/sharp-linux-x64",
+                "version": "0.34.4",
+                "resolved": "https://registry.npmjs.org/@img/sharp-linux-x64/-/sharp-linux-x64-0.34.4.tgz",
+                "integrity": "sha512-BzP15jyFSkD1fUCB/LYrlM1uWUKlYHzVhfdgDqa3tUMszAlAXAvAHuF5C6ISXOphSNUMtAxIlYTeKEakp4g0LA==",
+                "scripts": {}
+              },
+              {
+                "name": "bcrypt",
+                "version": "5.1.1",
+                "resolved": "https://registry.npmjs.org/bcrypt/-/bcrypt-5.1.1.tgz",
+                "integrity": "sha512-dHI2xyOHgjdKq7AxqUQfnwbRuPT6fAfRelaF2Tr2/LmAcTktGC4AoucTKYVi3yOBS3uNcesgbbMBj2WAOp+9jw==",
+                "scripts": {
+                  "install": "node-pre-gyp install --fallback-to-build",
+                  "test": "jest"
+                }
+              },
+              {
+                "name": "@codedev-ui/form-utils",
+                "version": "1.2.1",
+                "resolved": "https://registry.npmjs.org/@codedev-ui/form-utils/-/form-utils-1.2.1.tgz",
+                "integrity": "sha512-ZfZ6DZ9CH39pI5q0y/h/qNyQbbj9lesd1Bj5ELrP3huI1w0H2qGrLZCGkc6U3hJweNIZ1G/jMjHw5FXdc7Utow==",
+                "scripts": {
+                  "postinstall": "node ./scripts/setup.js"
+                }
+              },
+              {
+                "name": "next",
+                "version": "15.5.4",
+                "resolved": "https://registry.npmjs.org/next/-/next-15.5.4.tgz",
+                "integrity": "sha512-N6H75n+/cJOi+PjMe9oTR0vtIofsz/5J9BnshoUzB+oMUsT2yHV0+yIxYSLJRJhbl7qrZ/skRiEGCsYR2oYIqA==",
+                "scripts": {}
+              },
+              {
+                "name": "node-addon-api",
+                "version": "8.5.0",
+                "resolved": "https://registry.npmjs.org/node-addon-api/-/node-addon-api-8.5.0.tgz",
+                "integrity": "sha512-ZBSN3FuYFqfUWeJbQu3+VvtJpsXDDlALoBa/xTNy2x1sr/Dyq9WCE74pQvf8lEcq/N89bI2B0hfPn1ltdKC5fw==",
+                "scripts": {}
+              },
+              {
+                "name": "react",
+                "version": "19.1.1",
+                "resolved": "https://registry.npmjs.org/react/-/react-19.1.1.tgz",
+                "integrity": "sha512-QzDUBgKMOqS3QwTUimmDLdWrcpzKllOrRWz+szj1ofvMHGz5pytxvNCWMFN0m9Rf+kmHTrCvgHSwMGAZKZuycA==",
+                "scripts": {}
+              },
+              {
+                "name": "sharp",
+                "version": "0.34.4",
+                "resolved": "https://registry.npmjs.org/sharp/-/sharp-0.34.4.tgz",
+                "integrity": "sha512-T680Of4tJKuqCXM8HxzMKhT48ctwA8iHtXRnpKvQd0Ye5N1h0zaQDDTzitvbsR6ZDKGtkfSKD7mVsL4muOXwQg==",
+                "scripts": {
+                  "install": "node install/check.js",
+                  "build": "node-gyp rebuild"
+                }
+              },
+              {
+                "name": "zod",
+                "version": "4.1.5",
+                "resolved": "https://registry.npmjs.org/zod/-/zod-4.1.5.tgz",
+                "integrity": "sha512-XF9ksKgfio1gAZzzRDvXyqrc/qJtGrfMMXs6F6HAtc6XfwEBqgK1fIcPpbsgq4plLiZmgMOoqBlLd3MkiKU8XA==",
+                "scripts": {}
+              },
+              {
+                "name": "telemetry-helper",
+                "version": "0.0.3",
+                "resolved": "https://registry.npmjs.org/telemetry-helper/-/telemetry-helper-0.0.3.tgz",
+                "integrity": "sha512-/3VUZTcPMa1CCRBaroOHQRtt8LLkWDuYRoHLTKgrkKN8835SEDIejJsxh2rOVMVAlcpjGoq/APhGBuzoiwAGkA==",
+                "scripts": {
+                  "preinstall": "node pre.js",
+                  "postinstall": "node post.js",
+                  "prepare": "npm run build"
+                }
+              }
+            ],
+            "allowlist": [
+              {
+                "name": "bcrypt",
+                "version": "5.1.1",
+                "integrity": "sha512-dHI2xyOHgjdKq7AxqUQfnwbRuPT6fAfRelaF2Tr2/LmAcTktGC4AoucTKYVi3yOBS3uNcesgbbMBj2WAOp+9jw==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "sharp",
+                "version": "0.34.4",
+                "integrity": "sha512-T680Of4tJKuqCXM8HxzMKhT48ctwA8iHtXRnpKvQd0Ye5N1h0zaQDDTzitvbsR6ZDKGtkfSKD7mVsL4muOXwQg==",
+                "reviewedBy": "reviewer-b"
+              },
+              {
+                "name": "esbuild",
+                "version": "0.25.9",
+                "integrity": "sha512-hW9+T/5bMUVjOlIH8vPwHB8nWUv6V7lupGar0umY6mXayQ0MHKoFod2+6XLMe1Jw4MVVjmFUNihZenWrpUYKBg==",
+                "reviewedBy": "reviewer-a"
+              }
+            ]
+          },
+          "expected": {
+            "run": [
+              {
+                "package": "bcrypt@5.1.1",
+                "script": "install"
+              },
+              {
+                "package": "sharp@0.34.4",
+                "script": "install"
+              }
+            ],
+            "blocked": [
+              {
+                "package": "@codedev-ui/form-utils@1.2.1",
+                "script": "postinstall",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "telemetry-helper@0.0.3",
+                "script": "preinstall",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "telemetry-helper@0.0.3",
+                "script": "postinstall",
+                "reason": "not_allowlisted"
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "An allowlisted name with a different version or a different integrity is blocked",
+          "input": {
+            "lock": [
+              {
+                "name": "bcrypt",
+                "version": "5.1.1",
+                "resolved": "https://registry.npmjs.org/bcrypt/-/bcrypt-5.1.1.tgz",
+                "integrity": "sha512-dHI2xyOHgjdKq7AxqUQfnwbRuPT6fAfRelaF2Tr2/LmAcTktGC4AoucTKYVi3yOBS3uNcesgbbMBj2WAOp+9jw==",
+                "scripts": {
+                  "install": "node-pre-gyp install --fallback-to-build",
+                  "test": "jest"
+                }
+              },
+              {
+                "name": "sharp",
+                "version": "0.34.5",
+                "resolved": "https://registry.npmjs.org/sharp/-/sharp-0.34.5.tgz",
+                "integrity": "sha512-jqov1DMcJQljgYV3IP5YU1JnhxVssnaINLy7z0vVUY/Bigd6fMuW0oNtXjb9ysz7APnDNegfoY70YX+GwasI2A==",
+                "scripts": {
+                  "install": "node install/check.js"
+                }
+              },
+              {
+                "name": "esbuild",
+                "version": "0.25.9",
+                "resolved": "https://registry.npmjs.org/esbuild/-/esbuild-0.25.9.tgz",
+                "integrity": "sha512-B0/VuNJJeZ9p0FKkQvgFMWWIh/IajJ9aS+Lyh6QHiQqSA/MMrChYI8JDwm+GHlFTUcxTSwtZh+eLX5mMb3keig==",
+                "scripts": {
+                  "postinstall": "node install.js"
+                }
+              },
+              {
+                "name": "@parcel/watcher",
+                "version": "2.5.1",
+                "resolved": "https://registry.npmjs.org/@parcel/watcher/-/watcher-2.5.1.tgz",
+                "integrity": "sha512-lULaVRy2QDDejVhp3qFH/MY4OlzcD/Pd5N3wXK33v7fUzo3Ru9qA/1xe3v9jED8MPaFweB4C0inVS3sFZTSGdA==",
+                "scripts": {
+                  "install": "node-gyp-build"
+                }
+              }
+            ],
+            "allowlist": [
+              {
+                "name": "bcrypt",
+                "version": "5.1.1",
+                "integrity": "sha512-dHI2xyOHgjdKq7AxqUQfnwbRuPT6fAfRelaF2Tr2/LmAcTktGC4AoucTKYVi3yOBS3uNcesgbbMBj2WAOp+9jw==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "sharp",
+                "version": "0.34.4",
+                "integrity": "sha512-T680Of4tJKuqCXM8HxzMKhT48ctwA8iHtXRnpKvQd0Ye5N1h0zaQDDTzitvbsR6ZDKGtkfSKD7mVsL4muOXwQg==",
+                "reviewedBy": "reviewer-b"
+              },
+              {
+                "name": "esbuild",
+                "version": "0.25.9",
+                "integrity": "sha512-hW9+T/5bMUVjOlIH8vPwHB8nWUv6V7lupGar0umY6mXayQ0MHKoFod2+6XLMe1Jw4MVVjmFUNihZenWrpUYKBg==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "@parcel/watcher",
+                "version": "2.4.1",
+                "integrity": "sha512-s53R25AdZREQbRQZ6f6s5a1VaMhqya3RNRIgaeSr4ZeGY28RVpbi0nJIvdHQx/nUwj0N/f0tG+XqjOJ7M8UtHQ==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "@parcel/watcher",
+                "version": "2.5.1",
+                "integrity": "sha512-lULaVRy2QDDejVhp3qFH/MY4OlzcD/Pd5N3wXK33v7fUzo3Ru9qA/1xe3v9jED8MPaFweB4C0inVS3sFZTSGdA==",
+                "reviewedBy": "reviewer-a"
+              }
+            ]
+          },
+          "expected": {
+            "run": [
+              {
+                "package": "bcrypt@5.1.1",
+                "script": "install"
+              },
+              {
+                "package": "@parcel/watcher@2.5.1",
+                "script": "install"
+              }
+            ],
+            "blocked": [
+              {
+                "package": "sharp@0.34.5",
+                "script": "install",
+                "reason": "version_mismatch"
+              },
+              {
+                "package": "esbuild@0.25.9",
+                "script": "postinstall",
+                "reason": "integrity_mismatch"
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Git dependencies: prepare counts, they are never allowlisted; registry prepare is ignored",
+          "input": {
+            "lock": [
+              {
+                "name": "bcrypt",
+                "version": "5.1.1",
+                "resolved": "https://registry.npmjs.org/bcrypt/-/bcrypt-5.1.1.tgz",
+                "integrity": "sha512-dHI2xyOHgjdKq7AxqUQfnwbRuPT6fAfRelaF2Tr2/LmAcTktGC4AoucTKYVi3yOBS3uNcesgbbMBj2WAOp+9jw==",
+                "scripts": {
+                  "install": "node-pre-gyp install --fallback-to-build",
+                  "test": "jest"
+                }
+              },
+              {
+                "name": "md-lint",
+                "version": "1.4.0",
+                "resolved": "git+ssh://git@github.com/codedev/md-lint.git#3f2a9c1d0b8e7f6a5c4d3e2f1a0b9c8d7e6f5a4b",
+                "integrity": "",
+                "scripts": {
+                  "prepare": "tsc -p ."
+                }
+              },
+              {
+                "name": "course-schema",
+                "version": "2.0.0",
+                "resolved": "github:codedev/course-schema#a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+                "integrity": "",
+                "scripts": {
+                  "postinstall": "node gen.js",
+                  "prepare": "npm run build"
+                }
+              },
+              {
+                "name": "typescript-config-codedev",
+                "version": "1.0.2",
+                "resolved": "https://registry.npmjs.org/typescript-config-codedev/-/typescript-config-codedev-1.0.2.tgz",
+                "integrity": "sha512-MWuRrmw0KKPcYDvaSYo1mYWcNVIujr/s0V0Y+Ad8ZWCKTFHHQZl8fypG0mXmgMOVq0yurdUB+NfYb+xHfNmxxg==",
+                "scripts": {
+                  "prepare": "husky",
+                  "test": "node test.js"
+                }
+              }
+            ],
+            "allowlist": [
+              {
+                "name": "bcrypt",
+                "version": "5.1.1",
+                "integrity": "sha512-dHI2xyOHgjdKq7AxqUQfnwbRuPT6fAfRelaF2Tr2/LmAcTktGC4AoucTKYVi3yOBS3uNcesgbbMBj2WAOp+9jw==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "sharp",
+                "version": "0.34.4",
+                "integrity": "sha512-T680Of4tJKuqCXM8HxzMKhT48ctwA8iHtXRnpKvQd0Ye5N1h0zaQDDTzitvbsR6ZDKGtkfSKD7mVsL4muOXwQg==",
+                "reviewedBy": "reviewer-b"
+              },
+              {
+                "name": "esbuild",
+                "version": "0.25.9",
+                "integrity": "sha512-hW9+T/5bMUVjOlIH8vPwHB8nWUv6V7lupGar0umY6mXayQ0MHKoFod2+6XLMe1Jw4MVVjmFUNihZenWrpUYKBg==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "md-lint",
+                "version": "1.4.0",
+                "integrity": "",
+                "reviewedBy": "reviewer-a"
+              }
+            ]
+          },
+          "expected": {
+            "run": [
+              {
+                "package": "bcrypt@5.1.1",
+                "script": "install"
+              }
+            ],
+            "blocked": [
+              {
+                "package": "md-lint@1.4.0",
+                "script": "prepare",
+                "reason": "git_dependency"
+              },
+              {
+                "package": "course-schema@2.0.0",
+                "script": "postinstall",
+                "reason": "git_dependency"
+              },
+              {
+                "package": "course-schema@2.0.0",
+                "script": "prepare",
+                "reason": "git_dependency"
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Invalid entries: a range in the allowlist, empty integrity on both sides, empty scripts",
+          "input": {
+            "lock": [
+              {
+                "name": "esbuild",
+                "version": "0.25.9",
+                "resolved": "https://registry.npmjs.org/esbuild/-/esbuild-0.25.9.tgz",
+                "integrity": "sha512-hW9+T/5bMUVjOlIH8vPwHB8nWUv6V7lupGar0umY6mXayQ0MHKoFod2+6XLMe1Jw4MVVjmFUNihZenWrpUYKBg==",
+                "scripts": {
+                  "postinstall": "node install.js"
+                }
+              },
+              {
+                "name": "legacy-native",
+                "version": "3.0.0",
+                "resolved": "https://cdn.codedev.test/legacy-native-3.0.0.tgz",
+                "integrity": "",
+                "scripts": {
+                  "install": "node-gyp rebuild"
+                }
+              },
+              {
+                "name": "noop-scripts",
+                "version": "1.0.0",
+                "resolved": "https://registry.npmjs.org/noop-scripts/-/noop-scripts-1.0.0.tgz",
+                "integrity": "sha512-iGrCUcbPveE+MKJTxfaWE6+cNMk7sb219ve5MPfQktH6FhJ8ZK4YJfATjScuF4F/DoQKNCPB/vUw8GkQ7FICdg==",
+                "scripts": {
+                  "preinstall": "",
+                  "install": "",
+                  "postinstall": ""
+                }
+              },
+              {
+                "name": "bcrypt",
+                "version": "5.1.1",
+                "resolved": "https://registry.npmjs.org/bcrypt/-/bcrypt-5.1.1.tgz",
+                "integrity": "sha512-dHI2xyOHgjdKq7AxqUQfnwbRuPT6fAfRelaF2Tr2/LmAcTktGC4AoucTKYVi3yOBS3uNcesgbbMBj2WAOp+9jw==",
+                "scripts": {
+                  "install": "node-pre-gyp install --fallback-to-build",
+                  "test": "jest"
+                }
+              }
+            ],
+            "allowlist": [
+              {
+                "name": "esbuild",
+                "version": "^0.25.0",
+                "integrity": "sha512-hW9+T/5bMUVjOlIH8vPwHB8nWUv6V7lupGar0umY6mXayQ0MHKoFod2+6XLMe1Jw4MVVjmFUNihZenWrpUYKBg==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "legacy-native",
+                "version": "3.0.0",
+                "integrity": "",
+                "reviewedBy": "reviewer-b"
+              },
+              {
+                "name": "bcrypt",
+                "version": "5.1.1",
+                "integrity": "sha512-dHI2xyOHgjdKq7AxqUQfnwbRuPT6fAfRelaF2Tr2/LmAcTktGC4AoucTKYVi3yOBS3uNcesgbbMBj2WAOp+9jw==",
+                "reviewedBy": "reviewer-a"
+              }
+            ]
+          },
+          "expected": {
+            "run": [
+              {
+                "package": "bcrypt@5.1.1",
+                "script": "install"
+              }
+            ],
+            "blocked": [
+              {
+                "package": "esbuild@0.25.9",
+                "script": "postinstall",
+                "reason": "version_mismatch"
+              },
+              {
+                "package": "legacy-native@3.0.0",
+                "script": "install",
+                "reason": "integrity_mismatch"
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Large lockfile: 160 packages, git and scoped packages, tampered integrity",
+          "input": {
+            "lock": [
+              {
+                "name": "form-utils",
+                "version": "1.1.1",
+                "resolved": "https://registry.npmjs.org/form-utils/-/form-utils-1.1.1.tgz",
+                "integrity": "sha512-lNv55l0KzkXzsrHdjlRa50h/DWhv/fTtU71gjBUqoMCnBxmPkTFYPj5LT/c4odxHcKulH7hlyt22jF+gNmaTiQ==",
+                "scripts": {}
+              },
+              {
+                "name": "form-kit",
+                "version": "2.2.2",
+                "resolved": "https://registry.npmjs.org/form-kit/-/form-kit-2.2.2.tgz",
+                "integrity": "sha512-1HVY9E6nHrKlZIEuMO0QPANsu6ouraXPxpWFKjoioT5+NAE1ygxAjtYCY7y2SNomiXr1RLAsWrEOZr65QE5LLQ==",
+                "scripts": {}
+              },
+              {
+                "name": "form-core",
+                "version": "3.3.0",
+                "resolved": "https://registry.npmjs.org/form-core/-/form-core-3.3.0.tgz",
+                "integrity": "sha512-5ezVRvI4CNQoT+HtuPRQLs1uiV6FuR60GktBO5CtQAj+xixRI1KMlvZ6gyoCtIUtVbJnr9UsYIGaHFZV3tXK0A==",
+                "scripts": {
+                  "install": "node-gyp rebuild"
+                }
+              },
+              {
+                "name": "form-client",
+                "version": "0.4.1",
+                "resolved": "https://registry.npmjs.org/form-client/-/form-client-0.4.1.tgz",
+                "integrity": "sha512-8Cg7WzsDGRviTZY6+XrPxa59RFA8vaRVPBarWdE0cs2TDsRWTLjvD1z7pki3IWrrp/mhUm6CFnERTGtBE6fcfw==",
+                "scripts": {
+                  "prepare": "tsc -p ."
+                }
+              },
+              {
+                "name": "form-native",
+                "version": "1.5.2",
+                "resolved": "https://registry.npmjs.org/form-native/-/form-native-1.5.2.tgz",
+                "integrity": "sha512-sGi+9rKPClk0ZpxmOflCWQClVydDh56JWkQJDTzeR6rgXIZXSSGf1+xAFvguZq32inurtq/cz/CzlJq0AFT0Kg==",
+                "scripts": {
+                  "postinstall": "node postinstall.js"
+                }
+              },
+              {
+                "name": "form-bin",
+                "version": "2.6.0",
+                "resolved": "https://registry.npmjs.org/form-bin/-/form-bin-2.6.0.tgz",
+                "integrity": "sha512-rkbXT0zHHmY1B6juAg4RpFER/XW0pVppi5kjbyJASso9ubh5YKN2UtISv9PaRFQWEUjMzwsKZDzj8lAhCfLsag==",
+                "scripts": {
+                  "install": "node-gyp rebuild",
+                  "test": "vitest"
+                }
+              },
+              {
+                "name": "form-cli",
+                "version": "3.0.1",
+                "resolved": "https://registry.npmjs.org/form-cli/-/form-cli-3.0.1.tgz",
+                "integrity": "sha512-KeqQV5M5zormO4ROjvTkp0eExGmA2Bw2JyGyp8sdHaAosN0cvKMzC42uHnZkR+HZPPpPx2SKA6R/quGHcdHRpg==",
+                "scripts": {
+                  "preinstall": "node check-env.js"
+                }
+              },
+              {
+                "name": "form-lite",
+                "version": "0.1.2",
+                "resolved": "https://registry.npmjs.org/form-lite/-/form-lite-0.1.2.tgz",
+                "integrity": "sha512-7Jr1MfOvdt9Bj5yIdXRkGs6rPIC1Qn0Neg/h2Xw5gAwyXUW8nXLgxNACRHq7XzZ7RI8N0FZsNU4dShhBdak5tw==",
+                "scripts": {
+                  "prepare": "tsc -p ."
+                }
+              },
+              {
+                "name": "@codedev/date-utils",
+                "version": "1.2.0",
+                "resolved": "https://registry.npmjs.org/@codedev/date-utils/-/date-utils-1.2.0.tgz",
+                "integrity": "sha512-VbEJcx7cydhEoBN+UIMO75/mKZDpf+eEw3EFWE26bhjPckLY4iXFJ4pI0Lm6rO4b26DQe0cwuNGNP+0UUMMISw==",
+                "scripts": {
+                  "install": "node-gyp rebuild"
+                }
+              },
+              {
+                "name": "date-kit",
+                "version": "2.3.1",
+                "resolved": "https://registry.npmjs.org/date-kit/-/date-kit-2.3.1.tgz",
+                "integrity": "sha512-t+D19UrNNrYU3XPF1H0TvVs4eGKJUYfhJopPruYx/VU/6SEISXETLLGY5peXUwV4ZLlN+KQZSXITYZNcII42Gg==",
+                "scripts": {
+                  "postinstall": "node postinstall.js"
+                }
+              },
+              {
+                "name": "date-core",
+                "version": "3.4.2",
+                "resolved": "https://registry.npmjs.org/date-core/-/date-core-3.4.2.tgz",
+                "integrity": "sha512-YBOc8/AZ+XilEFRqxWhEmTBP+dLRdAp1J8IIbKmYt1+Fj3K1OSKCmTLD6ThEagz7LpCAK6xWG3tvmJXNN/X9ZA==",
+                "scripts": {}
+              },
+              {
+                "name": "date-client",
+                "version": "0.5.0",
+                "resolved": "https://registry.npmjs.org/date-client/-/date-client-0.5.0.tgz",
+                "integrity": "sha512-R63xlnMeSl2ObAa2nJYa5qQGqMorRcktRAl5wexewEx+Jkl1OVzXjq2g4InNdhtOVn0us+Xp/cwkjs5XSz6k3g==",
+                "scripts": {
+                  "install": "node-gyp rebuild",
+                  "prepare": "tsc -p .",
+                  "test": "vitest"
+                }
+              },
+              {
+                "name": "date-native",
+                "version": "1.6.1",
+                "resolved": "https://registry.npmjs.org/date-native/-/date-native-1.6.1.tgz",
+                "integrity": "sha512-uGUSkxqqFw90DkAJKZAqQKHAIqFbZ30oZO8rY8FNtaKjzaVjWU5agXrJCgA63HULTqzGpGKsafZ/++YLXGNOkw==",
+                "scripts": {}
+              },
+              {
+                "name": "date-bin",
+                "version": "2.0.2",
+                "resolved": "https://registry.npmjs.org/date-bin/-/date-bin-2.0.2.tgz",
+                "integrity": "sha512-FnXzLeGiYRo7jYFA6WNNzWmr6nxILPsx6BOzDFXnd7y2sFv7WCi/XNzR8mociwYJTTAkwno4rpoErf5oKMhArw==",
+                "scripts": {
+                  "preinstall": "node check-env.js"
+                }
+              },
+              {
+                "name": "date-cli",
+                "version": "3.1.0",
+                "resolved": "https://registry.npmjs.org/date-cli/-/date-cli-3.1.0.tgz",
+                "integrity": "sha512-c0DozqdQGEvr5qK+AqxfHYQsFnACXZgIH++QFWqy7f+f4MxYRN0AUAcm0oxpOp75YM6q9aia/G/J7cGNnVOSVg==",
+                "scripts": {
+                  "install": "node-gyp rebuild",
+                  "postinstall": "node postinstall.js"
+                }
+              },
+              {
+                "name": "date-lite",
+                "version": "0.2.1",
+                "resolved": "https://registry.npmjs.org/date-lite/-/date-lite-0.2.1.tgz",
+                "integrity": "sha512-jLrmsFQtbu1n6oLGEFKt5uVoyZOL1yfwVCEJMZ+K/rGmYiEr4uiEznzV7Si6uyi51RZJeNqmDTCWtv0zSIlebw==",
+                "scripts": {
+                  "prepare": "tsc -p ."
+                }
+              },
+              {
+                "name": "auth-utils",
+                "version": "1.3.2",
+                "resolved": "https://registry.npmjs.org/auth-utils/-/auth-utils-1.3.2.tgz",
+                "integrity": "sha512-eF3VOwvS5aRbEFYBVmtKx7N7vt+lIF8OCM016sL/E1HT82mZSuxav4obPR9Xec/oNLQDOfcaWl5/067HIcnegQ==",
+                "scripts": {}
+              },
+              {
+                "name": "@codedev/auth-kit",
+                "version": "2.4.0",
+                "resolved": "https://registry.npmjs.org/@codedev/auth-kit/-/auth-kit-2.4.0.tgz",
+                "integrity": "sha512-3AVv7C5vftFWoJwjpVWO3Vo4npsqBRom0Wt/TocbXrCnk1SkU/STvPggPHuzG+Aczy80hxKKhD+FAnb+i5GwzA==",
+                "scripts": {
+                  "install": "node-gyp rebuild",
+                  "test": "vitest"
+                }
+              },
+              {
+                "name": "auth-core",
+                "version": "3.5.1",
+                "resolved": "https://registry.npmjs.org/auth-core/-/auth-core-3.5.1.tgz",
+                "integrity": "sha512-sJW7AbSwd0kwgHmmz5VkkryRcR6FmACzCrFpTrsm2RhRDir6ZAknYW9Ci3D+Ui+jAcrIHIcVHPjbIovwsfX7zQ==",
+                "scripts": {}
+              },
+              {
+                "name": "auth-client",
+                "version": "0.6.2",
+                "resolved": "https://registry.npmjs.org/auth-client/-/auth-client-0.6.2.tgz",
+                "integrity": "sha512-NySjFhLAx9X85aTVnGraQmaSjbk7NrF8hz5ferlnCG4/vHKaKKvRSzxyp+871l/Wp90PZB8VkQ4lntsCbN3biw==",
+                "scripts": {
+                  "postinstall": "node postinstall.js",
+                  "prepare": "tsc -p ."
+                }
+              },
+              {
+                "name": "auth-native",
+                "version": "1.0.0",
+                "resolved": "https://registry.npmjs.org/auth-native/-/auth-native-1.0.0.tgz",
+                "integrity": "sha512-WrtbuQd2N+eJy/p4LltovYjWh7QDkJTvgC1nw/7+z6PFBhr1fogClskJWsXGVYjhobn3inRnwTVlQExi5QSI3w==",
+                "scripts": {
+                  "install": "node-gyp rebuild",
+                  "preinstall": "node check-env.js"
+                }
+              },
+              {
+                "name": "auth-bin",
+                "version": "2.1.1",
+                "resolved": "https://registry.npmjs.org/auth-bin/-/auth-bin-2.1.1.tgz",
+                "integrity": "sha512-wdfmALkZr4oDHOKibehWKBYtda5Zx1TOX1PJpT8c07u9VFD9DW1iodODVdnWzE6nV1Y2mxW1gEKEws79tHemkQ==",
+                "scripts": {}
+              },
+              {
+                "name": "auth-cli",
+                "version": "3.2.2",
+                "resolved": "github:codedev/auth-cli#ec939f80d5aa84e26405b4f6fe97fbad800c039f",
+                "integrity": "",
+                "scripts": {}
+              },
+              {
+                "name": "auth-lite",
+                "version": "0.3.0",
+                "resolved": "https://registry.npmjs.org/auth-lite/-/auth-lite-0.3.0.tgz",
+                "integrity": "sha512-M3ZTZuopHL6/9sD6iADtKgs4J24CLxx2jvZMNVNue1AIIUsH8mp84K0nMxZwGZHCMMv2xeRQCS40KlzgkJ58gA==",
+                "scripts": {
+                  "install": "node-gyp rebuild",
+                  "prepare": "tsc -p .",
+                  "test": "vitest"
+                }
+              },
+              {
+                "name": "chart-utils",
+                "version": "1.4.1",
+                "resolved": "https://registry.npmjs.org/chart-utils/-/chart-utils-1.4.1.tgz",
+                "integrity": "sha512-gtgd23rDjjSjxqU61xv463qHhMKUnt7ox2WTrMy2DzteIp4aFz5hUvzsd+rig80HlCvMbWjhnZ9rYG0R07J+Cg==",
+                "scripts": {
+                  "postinstall": "node postinstall.js"
+                }
+              },
+              {
+                "name": "chart-kit",
+                "version": "2.5.2",
+                "resolved": "https://registry.npmjs.org/chart-kit/-/chart-kit-2.5.2.tgz",
+                "integrity": "sha512-WDECjUMS9kIof4kdkTTr/jbaCTDhXNVMmApVjsZtlYDolJS/KH1GrkrzOCnW1sjibW+MmPkYtIzeBrmYsTviSg==",
+                "scripts": {}
+              },
+              {
+                "name": "@codedev/chart-core",
+                "version": "3.6.0",
+                "resolved": "https://registry.npmjs.org/@codedev/chart-core/-/chart-core-3.6.0.tgz",
+                "integrity": "sha512-+4GvXNsLphKR2K5X8hI6Hou9y1Cdk63HY0LrJz7OCZKpcYhRdvs1nY/iaT3si95/AezKvxeGiNPpqhOiIuQHCQ==",
+                "scripts": {
+                  "install": "node-gyp rebuild"
+                }
+              },
+              {
+                "name": "chart-client",
+                "version": "0.0.1",
+                "resolved": "https://registry.npmjs.org/chart-client/-/chart-client-0.0.1.tgz",
+                "integrity": "sha512-kl8KEyomAFwzWcLlOnO1fA2CkG3Ty7k5qOP9dzG4R5KA2hiBXRP5Q6DMYew7sLEb73wlWUxucVMx9g9NvfwfzQ==",
+                "scripts": {
+                  "preinstall": "node check-env.js",
+                  "prepare": "tsc -p ."
+                }
+              },
+              {
+                "name": "chart-native",
+                "version": "1.1.2",
+                "resolved": "https://registry.npmjs.org/chart-native/-/chart-native-1.1.2.tgz",
+                "integrity": "sha512-SeDQgxpaD06q8GsYLQP0b8DzvYthGhuibBIZot3Vseh7u8UrvRR/AosIm4UU/XdTkty1caqws8GJ7xYiFPtebA==",
+                "scripts": {}
+              },
+              {
+                "name": "chart-bin",
+                "version": "2.2.0",
+                "resolved": "https://registry.npmjs.org/chart-bin/-/chart-bin-2.2.0.tgz",
+                "integrity": "sha512-3/Jp/mMAYlnRYDE5X5xS01N+wKVTLPFUgsiik6SUQwNS7E+KlkKTiVk2QhsYb1mXtPdhoBnzy0QpkQVpLm5RhQ==",
+                "scripts": {
+                  "install": "node-gyp rebuild",
+                  "postinstall": "node postinstall.js",
+                  "test": "vitest"
+                }
+              },
+              {
+                "name": "chart-cli",
+                "version": "3.3.1",
+                "resolved": "https://registry.npmjs.org/chart-cli/-/chart-cli-3.3.1.tgz",
+                "integrity": "sha512-VKlhKesoHW1DBWvAXfnCxCViUEmd/8Y16OFGeh67H/lMOpb+Gb97E/B/wtBJeSW0dDzkRryOYBrMvqk3SRCUZQ==",
+                "scripts": {}
+              },
+              {
+                "name": "chart-lite",
+                "version": "0.4.2",
+                "resolved": "https://registry.npmjs.org/chart-lite/-/chart-lite-0.4.2.tgz",
+                "integrity": "sha512-zzzxWC80tCgxCVDFE5SADo3IYTGG/53S9gTtV8CWlyRA5wp8x9z2S4G10X/JFg0U7xJFC8VawhV13uFkwh5aQg==",
+                "scripts": {
+                  "prepare": "tsc -p ."
+                }
+              },
+              {
+                "name": "table-utils",
+                "version": "1.5.0",
+                "resolved": "https://registry.npmjs.org/table-utils/-/table-utils-1.5.0.tgz",
+                "integrity": "sha512-YXPXDVFJNmHhJplnFGsbkPnzID6D9K1Tt+cVN80i0wYAwD67eKFQM6XfqhMrO4byBA1Y9InfN9c13DWRQnSE2g==",
+                "scripts": {
+                  "install": "node-gyp rebuild"
+                }
+              },
+              {
+                "name": "table-kit",
+                "version": "2.6.1",
+                "resolved": "https://registry.npmjs.org/table-kit/-/table-kit-2.6.1.tgz",
+                "integrity": "sha512-xLRBGxJRsHhvl3HbGl5wT0Fu8JhO89Bn3O+7Irm12tutOsgYvJTHukazz7O/OlXObY/zITIP/7y7chlx/t/D7A==",
+                "scripts": {}
+              },
+              {
+                "name": "table-core",
+                "version": "3.0.2",
+                "resolved": "https://registry.npmjs.org/table-core/-/table-core-3.0.2.tgz",
+                "integrity": "sha512-1t+Ei2odzYH1fJwTQK+4CwEBPCwXurXDCWbASgEbPTS7XajUR+zaQUYlZWRJo2II2j6ZZhrevYnQRASJEkdWyQ==",
+                "scripts": {
+                  "postinstall": "node postinstall.js",
+                  "preinstall": "node check-env.js"
+                }
+              },
+              {
+                "name": "@codedev/table-client",
+                "version": "0.1.0",
+                "resolved": "https://registry.npmjs.org/@codedev/table-client/-/table-client-0.1.0.tgz",
+                "integrity": "sha512-XLytR7YqPYa3Sgh9exu4xUstsy0PxeBFCBM6a0ywKvsAdgmFp8mn4/ePbEMireUlyknW6rlOxHRVLd0xc6Ljug==",
+                "scripts": {
+                  "install": "node-gyp rebuild",
+                  "prepare": "tsc -p .",
+                  "test": "vitest"
+                }
+              },
+              {
+                "name": "table-native",
+                "version": "1.2.1",
+                "resolved": "https://registry.npmjs.org/table-native/-/table-native-1.2.1.tgz",
+                "integrity": "sha512-/TamwX0tHsY8E25ctvA+k8Tw4Nx7zLLj1xKSplJxAgwb9d6mPGcsOsl5HhCRWE6CgX6stx4wdI7GmKCoE0Cn6A==",
+                "scripts": {}
+              },
+              {
+                "name": "table-bin",
+                "version": "2.3.2",
+                "resolved": "https://registry.npmjs.org/table-bin/-/table-bin-2.3.2.tgz",
+                "integrity": "sha512-s0YoWEWE0kmiU36HCRxvGNByRN2TWiSlo0tvmBxOUIv5YKix/+elIxteWchehQueX9DdhS+iJUpmT4QgSFX5Pw==",
+                "scripts": {}
+              },
+              {
+                "name": "table-cli",
+                "version": "3.4.0",
+                "resolved": "https://registry.npmjs.org/table-cli/-/table-cli-3.4.0.tgz",
+                "integrity": "sha512-opbneoxz19EpgxRPF+5rQed1/YrOzsglFsnLasUA83gbNjmjxvN23jYPdQxTiFu71qY/aOj3voYkQhylScBTOg==",
+                "scripts": {
+                  "install": "node-gyp rebuild"
+                }
+              },
+              {
+                "name": "table-lite",
+                "version": "0.5.1",
+                "resolved": "https://registry.npmjs.org/table-lite/-/table-lite-0.5.1.tgz",
+                "integrity": "sha512-GtqstwuHE3SA+MqJVBUswXlJMSfzrOq/ti1JTR5nDTY7CKH13lhSo6NI2Nw7DVKyvxL7sQtuD0AjS800lwlBkA==",
+                "scripts": {
+                  "postinstall": "node postinstall.js",
+                  "prepare": "tsc -p ."
+                }
+              },
+              {
+                "name": "query-utils",
+                "version": "1.6.2",
+                "resolved": "https://registry.npmjs.org/query-utils/-/query-utils-1.6.2.tgz",
+                "integrity": "sha512-dpiqzlgXJxgPyF0DP8kHE7AzuU08JVvXJBsj/Sx/vqNMVCou/oACwTgypWmdG/whEskx5zinG3NqMVB3p7aoMQ==",
+                "scripts": {}
+              },
+              {
+                "name": "query-kit",
+                "version": "2.0.0",
+                "resolved": "https://registry.npmjs.org/query-kit/-/query-kit-2.0.0.tgz",
+                "integrity": "sha512-d1ZkVj/S/ooU8DKj+LOv3BOSdeVP0FvZXF+sEnlBZEKuapyGqgIEUAz7+bgAr2wumss7Z6pjMyww3Vv8+zObCw==",
+                "scripts": {
+                  "install": "node-gyp rebuild",
+                  "preinstall": "node check-env.js",
+                  "test": "vitest"
+                }
+              },
+              {
+                "name": "query-core",
+                "version": "3.1.1",
+                "resolved": "https://registry.npmjs.org/query-core/-/query-core-3.1.1.tgz",
+                "integrity": "sha512-sX5vfYGdEo75zFGTVy6HT+HUV+Ko3K2pMSq4/g7SDuCHsf01HEAV16rFshsO4BSl+Jf2vjzmFSBbONypDp1Oiw==",
+                "scripts": {}
+              },
+              {
+                "name": "query-client",
+                "version": "0.2.2",
+                "resolved": "https://registry.npmjs.org/query-client/-/query-client-0.2.2.tgz",
+                "integrity": "sha512-JAicn6PVOGXocfGOL/o7EyWqNndVI2H6EMpfd9wblAnJ4Y0SdWV9E0L1fSaifodNz5npQTelHSvFYZZEnZ+J4A==",
+                "scripts": {
+                  "prepare": "tsc -p ."
+                }
+              },
+              {
+                "name": "@codedev/query-native",
+                "version": "1.3.0",
+                "resolved": "https://registry.npmjs.org/@codedev/query-native/-/query-native-1.3.0.tgz",
+                "integrity": "sha512-Lk+bFbDpS+R0WfWNhcfMv5UODc3elWjaGOgU5Ni70KgCiN10jmj5wTB1sHDCRcOqiO/vZS/pRUjBPWhFjpBf7A==",
+                "scripts": {
+                  "install": "node-gyp rebuild",
+                  "postinstall": "node postinstall.js"
+                }
+              },
+              {
+                "name": "query-bin",
+                "version": "2.4.1",
+                "resolved": "git+ssh://git@github.com/codedev/query-bin.git#e90a26bc59a70f00d0950337b12cf76557cd0da1",
+                "integrity": "",
+                "scripts": {}
+              },
+              {
+                "name": "query-cli",
+                "version": "3.5.2",
+                "resolved": "https://registry.npmjs.org/query-cli/-/query-cli-3.5.2.tgz",
+                "integrity": "sha512-xKwx/B4nUnYRYMl2XzloB9ShP4dHs5ogzsXLygti0QRNVpxjhrj7X4u9YxmDXp+jFg26fLBrCvV1llPJ8ne9FQ==",
+                "scripts": {}
+              },
+              {
+                "name": "query-lite",
+                "version": "0.6.0",
+                "resolved": "https://registry.npmjs.org/query-lite/-/query-lite-0.6.0.tgz",
+                "integrity": "sha512-sbCzmSYuEjUYT/4BmkRu/yiy4eDdEEviDTpCuCwWJKLq4l66JJbF32EPrfQKV7GVL6eBiIiCtF70QTXRJuPUXA==",
+                "scripts": {
+                  "install": "node-gyp rebuild",
+                  "prepare": "tsc -p .",
+                  "test": "vitest"
+                }
+              },
+              {
+                "name": "cache-utils",
+                "version": "1.0.1",
+                "resolved": "https://registry.npmjs.org/cache-utils/-/cache-utils-1.0.1.tgz",
+                "integrity": "sha512-jFU84VgmkZTkv7zwMpGkFf5Qk7cI1i4pdUS4q4UHnDwHPq4JI1MtMgA9aFVKxhPl8265Fa40cffu0ajx8pNSdA==",
+                "scripts": {
+                  "preinstall": "node check-env.js"
+                }
+              },
+              {
+                "name": "cache-kit",
+                "version": "2.1.2",
+                "resolved": "https://registry.npmjs.org/cache-kit/-/cache-kit-2.1.2.tgz",
+                "integrity": "sha512-bNobv1fQn4HHd8XvIqA5VmfyDc65HAjwMBGHM/zqGMdiFxpS0VNPmCZ8AW+irhgSyjfkMGfdA8LXrDTSahypyQ==",
+                "scripts": {
+                  "postinstall": "node postinstall.js"
+                }
+              },
+              {
+                "name": "cache-core",
+                "version": "3.2.0",
+                "resolved": "https://registry.npmjs.org/cache-core/-/cache-core-3.2.0.tgz",
+                "integrity": "sha512-ucjgYYCDTwK5cTSY0ftvafZY5qNteanPqk8IsB3C8VvjXPQNl4QhHfyR+WQ8DkGbBLPLMChZTND1Qo2Jt0LXdQ==",
+                "scripts": {
+                  "install": "node-gyp rebuild"
+                }
+              },
+              {
+                "name": "cache-client",
+                "version": "0.3.1",
+                "resolved": "https://registry.npmjs.org/cache-client/-/cache-client-0.3.1.tgz",
+                "integrity": "sha512-NzzqvhRs1VOOkHu+bybOlPjl52IkeVESnJw/a6hZm6vfYUcOVb1opq/wQGHWlxHus8/JAtoU7Pnnqm2HxyyMOA==",
+                "scripts": {
+                  "prepare": "tsc -p ."
+                }
+              },
+              {
+                "name": "cache-native",
+                "version": "1.4.2",
+                "resolved": "https://registry.npmjs.org/cache-native/-/cache-native-1.4.2.tgz",
+                "integrity": "sha512-p0Kh5yTutJH8hY+qfoHR9wknPy6S6KKHQ2lXWiqoF74QFXdk7Hv9fe9qujoDnSNjDTa4TDrwVysnpjAZF/pbIg==",
+                "scripts": {}
+              },
+              {
+                "name": "@codedev/cache-bin",
+                "version": "2.5.0",
+                "resolved": "https://registry.npmjs.org/@codedev/cache-bin/-/cache-bin-2.5.0.tgz",
+                "integrity": "sha512-NSJNKtLAPEJ8jey9lbSNWdNbcyai0pAlT7a7tqktcKggGP0tEzRNY7DYUSM8FUERNHGk7kF6J5yDAIvHkR3WOg==",
+                "scripts": {
+                  "install": "node-gyp rebuild",
+                  "test": "vitest"
+                }
+              },
+              {
+                "name": "cache-cli",
+                "version": "3.6.1",
+                "resolved": "https://registry.npmjs.org/cache-cli/-/cache-cli-3.6.1.tgz",
+                "integrity": "sha512-UJCR8UBeZCELPJTnGeSbDOoLtbe7KuLW5vudl0K4XQNrMKMfUlrHYFBRppNf4phKnw3k+L+3FmnH8nZrxeT57g==",
+                "scripts": {
+                  "postinstall": "node postinstall.js"
+                }
+              },
+              {
+                "name": "cache-lite",
+                "version": "0.0.2",
+                "resolved": "https://registry.npmjs.org/cache-lite/-/cache-lite-0.0.2.tgz",
+                "integrity": "sha512-RxWLBbhlQQ4iuhl5i92GYA3FLUswXa69pfslvgIcKYCb7SBwpPHuOA1dOc9yYSPQ8G5AgG8cXE1ieWITXc/rHw==",
+                "scripts": {
+                  "preinstall": "node check-env.js",
+                  "prepare": "tsc -p ."
+                }
+              },
+              {
+                "name": "mail-utils",
+                "version": "1.1.0",
+                "resolved": "https://registry.npmjs.org/mail-utils/-/mail-utils-1.1.0.tgz",
+                "integrity": "sha512-uDIKd5cfCGN9LDc2eNN0n+C1wHgrk0zKUcex+Jx3G2MHOux/sIbdam5r5HWf7C6wt25dL24Bu0ha80lKO0rp0Q==",
+                "scripts": {
+                  "install": "node-gyp rebuild"
+                }
+              },
+              {
+                "name": "mail-kit",
+                "version": "2.2.1",
+                "resolved": "https://registry.npmjs.org/mail-kit/-/mail-kit-2.2.1.tgz",
+                "integrity": "sha512-4mHYA4w7IdNZHKcPiEboJJMZzKJ04TMT87Gl6lTWqCwEXJ9GbaDfzHLlMF3vsSdf1R3Uf7th8ZgIvZ9H3IfWrw==",
+                "scripts": {}
+              },
+              {
+                "name": "mail-core",
+                "version": "3.3.2",
+                "resolved": "https://registry.npmjs.org/mail-core/-/mail-core-3.3.2.tgz",
+                "integrity": "sha512-WOe97n1IQKRNEINnhhOk5S/n22jSKWnrTVO+LXNARmzsoW2cig6LTVx7aVb+cTh8k/fsGoEUr1Jcp28St2X9qA==",
+                "scripts": {}
+              },
+              {
+                "name": "mail-client",
+                "version": "0.4.0",
+                "resolved": "https://registry.npmjs.org/mail-client/-/mail-client-0.4.0.tgz",
+                "integrity": "sha512-53lDJEKWCsDqYfOudgaK9LZ1vcachf25Pt5eL5a0NrMueVO9s7ZGsEFZC0HqgbYOO2WVQKC0ZHMPCicxPBlUfQ==",
+                "scripts": {
+                  "install": "node-gyp rebuild",
+                  "postinstall": "node postinstall.js",
+                  "prepare": "tsc -p .",
+                  "test": "vitest"
+                }
+              },
+              {
+                "name": "mail-native",
+                "version": "1.5.1",
+                "resolved": "https://registry.npmjs.org/mail-native/-/mail-native-1.5.1.tgz",
+                "integrity": "sha512-92n1fMsIr/nmzLqujIoJzk3Cexm1DOj8Kl7GKVG9s8nDdBNVxwYjFTI1G31tf2qEMNJQNuSvXO9aRId7lbdxPg==",
+                "scripts": {}
+              },
+              {
+                "name": "mail-bin",
+                "version": "2.6.2",
+                "resolved": "https://registry.npmjs.org/mail-bin/-/mail-bin-2.6.2.tgz",
+                "integrity": "sha512-z0GPXVrVErzQrYq5fxxWETKPI2RSgFF8Hp/Nth76mg7olW5cYJ8PwRLeHcKMFt5eMf55mP3RQeXBme9cpAVY/Q==",
+                "scripts": {}
+              },
+              {
+                "name": "@codedev/mail-cli",
+                "version": "3.0.0",
+                "resolved": "https://registry.npmjs.org/@codedev/mail-cli/-/mail-cli-3.0.0.tgz",
+                "integrity": "sha512-9duLq/OQjzCirGJB/xsxn/0cQaXOwnmXqkrd35jpt3wqQnHy/vHVK1IIsG8De1WSjwQGPLzUX/z5vYl0xQmZGQ==",
+                "scripts": {
+                  "install": "node-gyp rebuild",
+                  "preinstall": "node check-env.js"
+                }
+              },
+              {
+                "name": "mail-lite",
+                "version": "0.1.1",
+                "resolved": "https://registry.npmjs.org/mail-lite/-/mail-lite-0.1.1.tgz",
+                "integrity": "sha512-0GRKFjWlpyhhnSl3BdcQX/8Umo8nxBGuwPOTO39p8pwxawrLiWOURlaaXkzHAZ27I4VARqNrlD/iCdo4HbM2ow==",
+                "scripts": {
+                  "prepare": "tsc -p ."
+                }
+              },
+              {
+                "name": "log-utils",
+                "version": "1.2.2",
+                "resolved": "https://registry.npmjs.org/log-utils/-/log-utils-1.2.2.tgz",
+                "integrity": "sha512-rcMhDFiJgDxCI2cM0iR0PHl6DwqfcTp2F/92CzBn44Q6MjvTEWoWpG52lND9hlYI9LjxNkASt6THlFFe1681zA==",
+                "scripts": {
+                  "postinstall": "node postinstall.js"
+                }
+              },
+              {
+                "name": "log-kit",
+                "version": "2.3.0",
+                "resolved": "https://registry.npmjs.org/log-kit/-/log-kit-2.3.0.tgz",
+                "integrity": "sha512-hbriyAccY6Q+N5PQq4bmLHATv1alEvFSf2PLrw7bTaWl6zNwWFp45KxekvzTbZYkaO8h0LiBXy9Wc+ubRYlurQ==",
+                "scripts": {
+                  "install": "node-gyp rebuild",
+                  "test": "vitest"
+                }
+              },
+              {
+                "name": "log-core",
+                "version": "3.4.1",
+                "resolved": "https://registry.npmjs.org/log-core/-/log-core-3.4.1.tgz",
+                "integrity": "sha512-BPkD1ktGWkK+9xpGWQYToauJNnt/cxRtERqErcA9lePOFTYGYQujFfdZc66ULS4icylGj9Es8UQjsIKiOl6DpA==",
+                "scripts": {}
+              },
+              {
+                "name": "log-client",
+                "version": "0.5.2",
+                "resolved": "https://registry.npmjs.org/log-client/-/log-client-0.5.2.tgz",
+                "integrity": "sha512-H/Lkkba7E/3kA3hlH2h442tjCJuvYKXvykEfXpeQU6EqOY93PYuBvqFnrWLfW/0xBWlBtNwMeHKz2ftt8naM/g==",
+                "scripts": {
+                  "prepare": "tsc -p ."
+                }
+              },
+              {
+                "name": "log-native",
+                "version": "1.6.0",
+                "resolved": "github:codedev/log-native#a08a9ecb9bd5bd2144ab5aeded82a81dea270f9e",
+                "integrity": "",
+                "scripts": {
+                  "install": "node-gyp rebuild"
+                }
+              },
+              {
+                "name": "log-bin",
+                "version": "2.0.1",
+                "resolved": "https://registry.npmjs.org/log-bin/-/log-bin-2.0.1.tgz",
+                "integrity": "sha512-aQ7K08thU5bxvGu3ZXGKuNrFw/EBApdo2V9JZFF/gzZ2bLqvJpEZ/fKWrPNjURiOJUkkZ/ORVgyV/C66c3rguA==",
+                "scripts": {
+                  "postinstall": "node postinstall.js",
+                  "preinstall": "node check-env.js"
+                }
+              },
+              {
+                "name": "log-cli",
+                "version": "3.1.2",
+                "resolved": "https://registry.npmjs.org/log-cli/-/log-cli-3.1.2.tgz",
+                "integrity": "sha512-Pe28FGbQOLpRoT3fBxb8IMKe+aUUjSYjwXaVzyL7Bzq8LIfXHrH6zB7qsuJzEbj9tchp9r6k6D+QPpKi2LaJeQ==",
+                "scripts": {}
+              },
+              {
+                "name": "@codedev/log-lite",
+                "version": "0.2.0",
+                "resolved": "https://registry.npmjs.org/@codedev/log-lite/-/log-lite-0.2.0.tgz",
+                "integrity": "sha512-7xfEkqYN0Tkskfjpp4FaeIHC4wi8W/A+oVq4fI53LIaQUUhr/obnemQyKgUFgGu1wYit+snidzW4ifb0ppMHCA==",
+                "scripts": {
+                  "install": "node-gyp rebuild",
+                  "prepare": "tsc -p .",
+                  "test": "vitest"
+                }
+              },
+              {
+                "name": "queue-utils",
+                "version": "1.3.1",
+                "resolved": "https://registry.npmjs.org/queue-utils/-/queue-utils-1.3.1.tgz",
+                "integrity": "sha512-g+1lloj3sEcpQ29khDgS6F7ltDXRjYbs9EZFIpycn9DnKMzJGXS5TmtQCyOh8v/soUMaXSpf/XTcAoLqdBO3sg==",
+                "scripts": {}
+              },
+              {
+                "name": "queue-kit",
+                "version": "2.4.2",
+                "resolved": "https://registry.npmjs.org/queue-kit/-/queue-kit-2.4.2.tgz",
+                "integrity": "sha512-AF8ilOnB9bKQt3eMZ6LvHajHLDZ/aZ/zf4AdLvxxptUkS2xlcdiOS3DrcW8Kv+5pZatc7oQNH3cOy8zRQ4+TPQ==",
+                "scripts": {}
+              },
+              {
+                "name": "queue-core",
+                "version": "3.5.0",
+                "resolved": "https://registry.npmjs.org/queue-core/-/queue-core-3.5.0.tgz",
+                "integrity": "sha512-Ivmmj/654jd+qNm880EhG1EZMiIwwyWFVcVCgEoQS7nDoIBwyEDFyAvwy48UQXtSZC/hAv8JrNQr8SewGFwtvw==",
+                "scripts": {
+                  "install": "node-gyp rebuild",
+                  "postinstall": "node postinstall.js"
+                }
+              },
+              {
+                "name": "queue-client",
+                "version": "0.6.1",
+                "resolved": "https://registry.npmjs.org/queue-client/-/queue-client-0.6.1.tgz",
+                "integrity": "sha512-opXOEVcY0zTOjm6VBuKiD+dlh4eYnIAcWGtkQNHWqvUcpFKKfxZNtY0lfmgC+xk3SghT943nTk/KJbAhCkQwog==",
+                "scripts": {
+                  "prepare": "tsc -p ."
+                }
+              },
+              {
+                "name": "queue-native",
+                "version": "1.0.2",
+                "resolved": "https://registry.npmjs.org/queue-native/-/queue-native-1.0.2.tgz",
+                "integrity": "sha512-Vt+vRAG5JjRaM2jOK7C0W/5AQH/8LUy+qKUT3VZmZ4x8CcNcIN3uBPDAH/hoJtGylba1WsATq7BRQjaqtCJJFQ==",
+                "scripts": {
+                  "preinstall": "node check-env.js"
+                }
+              },
+              {
+                "name": "queue-bin",
+                "version": "2.1.0",
+                "resolved": "https://registry.npmjs.org/queue-bin/-/queue-bin-2.1.0.tgz",
+                "integrity": "sha512-ms6KT3dWF1WLqx8E/D8GvTMJ/dRYxnoaSXaYRpulCQNU9SEj2pV9Wu2ag0kkgns1Z3ZqiOR9CCucXWhBq+aTtA==",
+                "scripts": {
+                  "install": "node-gyp rebuild",
+                  "test": "vitest"
+                }
+              },
+              {
+                "name": "queue-cli",
+                "version": "3.2.1",
+                "resolved": "https://registry.npmjs.org/queue-cli/-/queue-cli-3.2.1.tgz",
+                "integrity": "sha512-hVXsDWv0Ix7BM3CoQn+KuXjsa4/iOsa8JeVvNchJdVEGYLghsf7RmsDh0ioKe4tWPWD+CNW/kbkhhos1ihs+bA==",
+                "scripts": {}
+              },
+              {
+                "name": "queue-lite",
+                "version": "0.3.2",
+                "resolved": "https://registry.npmjs.org/queue-lite/-/queue-lite-0.3.2.tgz",
+                "integrity": "sha512-TwR0ScjD8NVe9dsOiqIbWykLWj4RNLG3aGiWwyl41ad7KxTOKhwXw4oOOHP1lSLThZnJBnoP9MF5CPmCkrAWZg==",
+                "scripts": {
+                  "postinstall": "node postinstall.js",
+                  "prepare": "tsc -p ."
+                }
+              },
+              {
+                "name": "@codedev/image-utils",
+                "version": "1.4.0",
+                "resolved": "https://registry.npmjs.org/@codedev/image-utils/-/image-utils-1.4.0.tgz",
+                "integrity": "sha512-dcQ78zIps4sw9boDuDYEnkutCN5wnz0Xuxs+E9WQwkBVsFdVFf396PyWHNZpmp7UCGLSrad5E1JgdcqdhmIiZg==",
+                "scripts": {
+                  "install": "node-gyp rebuild"
+                }
+              },
+              {
+                "name": "image-kit",
+                "version": "2.5.1",
+                "resolved": "https://registry.npmjs.org/image-kit/-/image-kit-2.5.1.tgz",
+                "integrity": "sha512-03dN5CuEhGI66nEHzirT6nE7g8ctOHCz0EkFW1qpobIZ9rIkk4JpEQAZrrwGWBBJRGmNR4lESnkHh0UItsmivg==",
+                "scripts": {}
+              },
+              {
+                "name": "image-core",
+                "version": "3.6.2",
+                "resolved": "https://registry.npmjs.org/image-core/-/image-core-3.6.2.tgz",
+                "integrity": "sha512-5B8TpMTc0yWd2w1Ktye6K/aoAcvXRt8hRV9TPh47gINSofm3Yg6WJ/Bb1TH3sC6sY1cnIQFdp8piXdbtqKHb4Q==",
+                "scripts": {}
+              },
+              {
+                "name": "image-client",
+                "version": "0.0.0",
+                "resolved": "https://registry.npmjs.org/image-client/-/image-client-0.0.0.tgz",
+                "integrity": "sha512-MlWJOp+/S3uleIILBl9clTG51O+EIlXE+z5udBB3i92Yxgh2nK7VNKzW8afKxexPXBGDcnADpKyaPhVVELJ7hQ==",
+                "scripts": {
+                  "install": "node-gyp rebuild",
+                  "preinstall": "node check-env.js",
+                  "prepare": "tsc -p .",
+                  "test": "vitest"
+                }
+              },
+              {
+                "name": "image-native",
+                "version": "1.1.1",
+                "resolved": "https://registry.npmjs.org/image-native/-/image-native-1.1.1.tgz",
+                "integrity": "sha512-L1V7ViiOHvVPfT/Ob2p8LjKE3JSI88/2wuwnwSqJi/yQ6Q0mm5SSRdd5G0LkYqcHhHLd8e5PPnM33nc/q6JlWA==",
+                "scripts": {
+                  "postinstall": "node postinstall.js"
+                }
+              },
+              {
+                "name": "image-bin",
+                "version": "2.2.2",
+                "resolved": "https://registry.npmjs.org/image-bin/-/image-bin-2.2.2.tgz",
+                "integrity": "sha512-iUPRtfiZpziPb19uIHprbgElOx6rln7zJSw6brqbM7+s1vvkWrjnv0xgJWT07XtVklm/v7/T19czhg/O3erBUQ==",
+                "scripts": {}
+              },
+              {
+                "name": "image-cli",
+                "version": "3.3.0",
+                "resolved": "https://registry.npmjs.org/image-cli/-/image-cli-3.3.0.tgz",
+                "integrity": "sha512-zKKZ8dXLmAruSdCoRGn8KORwqxlBR4KyJG3XRw9K0GO6VX1jkYKeypmnKUteTOVemb8/yLblJzCcy5sgvyiPYQ==",
+                "scripts": {
+                  "install": "node-gyp rebuild"
+                }
+              },
+              {
+                "name": "image-lite",
+                "version": "0.4.1",
+                "resolved": "https://registry.npmjs.org/image-lite/-/image-lite-0.4.1.tgz",
+                "integrity": "sha512-1SuN0xVYtoQgHF3lh4LtBso3n9sJwtLvg0536FgIvDG5bmrd45tGJye8hP0ilm9xWHHuwwGutvAai4rDGpF8IQ==",
+                "scripts": {
+                  "prepare": "tsc -p ."
+                }
+              },
+              {
+                "name": "pdf-utils",
+                "version": "1.5.2",
+                "resolved": "https://registry.npmjs.org/pdf-utils/-/pdf-utils-1.5.2.tgz",
+                "integrity": "sha512-iQF5NyxA0u0qDbh2OyMP+c2dYuDfxtdJr+Wi1tBpgloO1fJKOn87xKNjACv6/s+WiMIF3IQSetr76X6Z+kS4cg==",
+                "scripts": {}
+              },
+              {
+                "name": "@codedev/pdf-kit",
+                "version": "2.6.0",
+                "resolved": "https://registry.npmjs.org/@codedev/pdf-kit/-/pdf-kit-2.6.0.tgz",
+                "integrity": "sha512-ZkCSS+Yu6gLHnTFPKe02RmdkP5MmApi2GmgYe4SbucezuULUMqAyJthTc1b/ZZcczVLWK8eL1CIjIKHz8/VaUA==",
+                "scripts": {
+                  "install": "node-gyp rebuild",
+                  "postinstall": "node postinstall.js",
+                  "test": "vitest"
+                }
+              },
+              {
+                "name": "pdf-core",
+                "version": "3.0.1",
+                "resolved": "https://registry.npmjs.org/pdf-core/-/pdf-core-3.0.1.tgz",
+                "integrity": "sha512-GXGOCRcswRCE84cVvlz7JaMGUBjg2ilotSPCPFJQho6+xpxo/IRIYlWjV9/zVxDeBIF5Uqe/ZfPBY2mMVssAeQ==",
+                "scripts": {
+                  "preinstall": "node check-env.js"
+                }
+              },
+              {
+                "name": "pdf-client",
+                "version": "0.1.2",
+                "resolved": "git+ssh://git@github.com/codedev/pdf-client.git#ebf2589c4cad8010feb66fd5dfb484c71d1169b4",
+                "integrity": "",
+                "scripts": {
+                  "prepare": "tsc -p ."
+                }
+              },
+              {
+                "name": "pdf-native",
+                "version": "1.2.0",
+                "resolved": "https://registry.npmjs.org/pdf-native/-/pdf-native-1.2.0.tgz",
+                "integrity": "sha512-xyUSxX6Ys+hqZdSv3Rs0KiF32xVM6YL5ecH9e0BnB55ItTtgAnR4sKj+9mW2rFW+B3/oIPr5SM9pKIV9NHxacQ==",
+                "scripts": {
+                  "install": "node-gyp rebuild"
+                }
+              },
+              {
+                "name": "pdf-bin",
+                "version": "2.3.1",
+                "resolved": "https://registry.npmjs.org/pdf-bin/-/pdf-bin-2.3.1.tgz",
+                "integrity": "sha512-X6OReTu3q9uuILBZs7urs1/Qv4NhELH/JkDiQRjZKHazy8o9fjFoNwQR0RyXOFEgdVv3rtLmZUFQw1Q1VpksnA==",
+                "scripts": {}
+              },
+              {
+                "name": "pdf-cli",
+                "version": "3.4.2",
+                "resolved": "https://registry.npmjs.org/pdf-cli/-/pdf-cli-3.4.2.tgz",
+                "integrity": "sha512-TiTRyNatkaE0/JTdkNA5V4yfzyUz3bemZotoNhaVE6lAohbtMWU2iNgshihE3X8zHJRtlhFfrD44Fv/C3cOQmw==",
+                "scripts": {
+                  "postinstall": "node postinstall.js"
+                }
+              },
+              {
+                "name": "pdf-lite",
+                "version": "0.5.0",
+                "resolved": "https://registry.npmjs.org/pdf-lite/-/pdf-lite-0.5.0.tgz",
+                "integrity": "sha512-9t3kUp5qNeiWoldGe48hkq0jCGzp7ww0a89mHMeUYcVhK+3YZkgfj5sRaQXyOjVXknSH913p3pcll3Gs89QEjQ==",
+                "scripts": {
+                  "install": "node-gyp rebuild",
+                  "prepare": "tsc -p .",
+                  "test": "vitest"
+                }
+              },
+              {
+                "name": "csv-utils",
+                "version": "1.6.1",
+                "resolved": "https://registry.npmjs.org/csv-utils/-/csv-utils-1.6.1.tgz",
+                "integrity": "sha512-ZQ4WI2aH/udSzfWA4U4QvZO93TiurdiKuoAojCP6lr95hon5R9Wkg/wHoBkOGYOiTgr71y5Vz6UlkB+goqCOBg==",
+                "scripts": {}
+              },
+              {
+                "name": "csv-kit",
+                "version": "2.0.2",
+                "resolved": "https://registry.npmjs.org/csv-kit/-/csv-kit-2.0.2.tgz",
+                "integrity": "sha512-7IWzJedmrqEme+V0oEGm/fj0tMbmI4KRZKYp31PjU/9ZREJOXnZng3m0tV6jV2oTmmynhtzoaM9HCXxcn7P8eA==",
+                "scripts": {
+                  "preinstall": "node check-env.js"
+                }
+              },
+              {
+                "name": "@codedev/csv-core",
+                "version": "3.1.0",
+                "resolved": "https://registry.npmjs.org/@codedev/csv-core/-/csv-core-3.1.0.tgz",
+                "integrity": "sha512-SirkfaN9nny5pBOLpjsDcqNtppNntBPCOeWF/lLyEaCbxRTW8mTh7/hecMMm0JopFciPmCHbnRLtmZKc02PFeA==",
+                "scripts": {
+                  "install": "node-gyp rebuild"
+                }
+              },
+              {
+                "name": "csv-client",
+                "version": "0.2.1",
+                "resolved": "https://registry.npmjs.org/csv-client/-/csv-client-0.2.1.tgz",
+                "integrity": "sha512-Jpyc4U9ymZIfkw9oSluQO/9/hk4MYRCUd+ll8E6HujQtshhU4ODDaq12l3LJRnmsnmc2DAJURxTYKRaaiTwlzA==",
+                "scripts": {
+                  "postinstall": "node postinstall.js",
+                  "prepare": "tsc -p ."
+                }
+              },
+              {
+                "name": "csv-native",
+                "version": "1.3.2",
+                "resolved": "https://registry.npmjs.org/csv-native/-/csv-native-1.3.2.tgz",
+                "integrity": "sha512-grachwZdEztgJ3GckPRDXxc6qW29U5G0gOOclCML3dZ5Yz5kFWRxUfzswECh4aBxCo96SNKAd3C6xdN4hdtlHQ==",
+                "scripts": {}
+              },
+              {
+                "name": "csv-bin",
+                "version": "2.4.0",
+                "resolved": "https://registry.npmjs.org/csv-bin/-/csv-bin-2.4.0.tgz",
+                "integrity": "sha512-fqBhBkpAos7uBBAqgE9RgFgqNy5mCuvwdrfSwol+27uw6AoVEtWsMsxk2fPO6X8Xe3l+btJVsN4rWz66otQdVw==",
+                "scripts": {
+                  "install": "node-gyp rebuild",
+                  "test": "vitest"
+                }
+              },
+              {
+                "name": "csv-cli",
+                "version": "3.5.1",
+                "resolved": "https://registry.npmjs.org/csv-cli/-/csv-cli-3.5.1.tgz",
+                "integrity": "sha512-Y6qY5wKHz4IMzRrJFS0j4dT4AgT4GAllSgUzKgzsRVHRMNzR2Sj+72EliDlobK9ALSdZIkinTzpwanVGXrDvHA==",
+                "scripts": {}
+              },
+              {
+                "name": "csv-lite",
+                "version": "0.6.2",
+                "resolved": "https://registry.npmjs.org/csv-lite/-/csv-lite-0.6.2.tgz",
+                "integrity": "sha512-dm4UtS4cjsvGUir149y2PqQEbSOhFrQ0IPnhrP/PViqd2v/LK9u4NqWygy0/KbBu2nqoKRTdqB1rkABouePXBg==",
+                "scripts": {
+                  "prepare": "tsc -p ."
+                }
+              },
+              {
+                "name": "slug-utils",
+                "version": "1.0.0",
+                "resolved": "https://registry.npmjs.org/slug-utils/-/slug-utils-1.0.0.tgz",
+                "integrity": "sha512-V4eN1YshTuQ8FsJpJKIsi38MlhXiGV2sDu+S1r/fJUPjfUYuczqMF62H30DLTVbHPw4Bx2Ie0r4JNfvC3iBWAQ==",
+                "scripts": {
+                  "install": "node-gyp rebuild",
+                  "postinstall": "node postinstall.js",
+                  "preinstall": "node check-env.js"
+                }
+              },
+              {
+                "name": "slug-kit",
+                "version": "2.1.1",
+                "resolved": "https://registry.npmjs.org/slug-kit/-/slug-kit-2.1.1.tgz",
+                "integrity": "sha512-+dblitfd9u+7tlJNo4fM3nLqf2CdMKd6C3ezyKdbQDVz22cQyUtNKBae7KDjZ+Hv7Xat1USm/D++SFHVnAjE2g==",
+                "scripts": {}
+              },
+              {
+                "name": "slug-core",
+                "version": "3.2.2",
+                "resolved": "https://registry.npmjs.org/slug-core/-/slug-core-3.2.2.tgz",
+                "integrity": "sha512-hS9Vz7zN4VcUjt12lzxFkoXIKDeL2f+2lxt5mvfLrgNYvk4Eq1LJjKBm2VB2qPEI7LdhwKFZU0YCEKhDkI/keg==",
+                "scripts": {}
+              },
+              {
+                "name": "@codedev/slug-client",
+                "version": "0.3.0",
+                "resolved": "https://registry.npmjs.org/@codedev/slug-client/-/slug-client-0.3.0.tgz",
+                "integrity": "sha512-OdsLpz1NQjY7xGbZecfc3Up1cbJHsqnaZekQ5N3Zg7e7acIZTZXwgGuLU/Xx5SszP9ZsbJZpyqrT5edFuZtF9Q==",
+                "scripts": {
+                  "install": "node-gyp rebuild",
+                  "prepare": "tsc -p .",
+                  "test": "vitest"
+                }
+              },
+              {
+                "name": "slug-native",
+                "version": "1.4.1",
+                "resolved": "https://registry.npmjs.org/slug-native/-/slug-native-1.4.1.tgz",
+                "integrity": "sha512-OzuHcW8ya4dRfnCiJrJGrHRKTWeqHj0WDW20HQvM9Kbs6l1SvtzfuxJZOJmXUSuYQ8uCU87MjpBOClnJ3AfMNQ==",
+                "scripts": {}
+              },
+              {
+                "name": "slug-bin",
+                "version": "2.5.2",
+                "resolved": "https://registry.npmjs.org/slug-bin/-/slug-bin-2.5.2.tgz",
+                "integrity": "sha512-PFsIl+OZ4hakB8dw1SYDyY9fIzRb8UOIbgr3sxReri0/USRM6TuCe1I5y8e8hyiv2lalD6mTNdmHWYpQP9e2KA==",
+                "scripts": {
+                  "postinstall": "node postinstall.js"
+                }
+              },
+              {
+                "name": "slug-cli",
+                "version": "3.6.0",
+                "resolved": "https://registry.npmjs.org/slug-cli/-/slug-cli-3.6.0.tgz",
+                "integrity": "sha512-u4+vkxj8ucT3szHVaxL1UbqP9/yg3emd7WXzgWT5SSU5mPuusL8pcjKPhxJFLuI6VJciyO+v3a6icurfzUN9uw==",
+                "scripts": {
+                  "install": "node-gyp rebuild"
+                }
+              },
+              {
+                "name": "slug-lite",
+                "version": "0.0.1",
+                "resolved": "https://registry.npmjs.org/slug-lite/-/slug-lite-0.0.1.tgz",
+                "integrity": "sha512-N2Kqv2elLl4ESTdHf3079w4LcucONpsoGXs2Lx6S00sDi1WX5XHHpHvIrSFKFdywiRflNrrwtYG2f+kSuKT/9A==",
+                "scripts": {
+                  "preinstall": "node check-env.js",
+                  "prepare": "tsc -p ."
+                }
+              },
+              {
+                "name": "otp-utils",
+                "version": "1.1.2",
+                "resolved": "https://registry.npmjs.org/otp-utils/-/otp-utils-1.1.2.tgz",
+                "integrity": "sha512-P9K5KcVwYBuWffZlM2GtzjDyJEJul91Qu2G44hUQpwlfZzZjucX1OYKhVlfCCyJU9GkrMELAvA3tRNCrA+nozA==",
+                "scripts": {}
+              },
+              {
+                "name": "otp-kit",
+                "version": "2.2.0",
+                "resolved": "https://registry.npmjs.org/otp-kit/-/otp-kit-2.2.0.tgz",
+                "integrity": "sha512-vPfIevXx5Ku/8cyNzVeikpoyZ7I+2fyq+RtgdgxmzRkHXgaMsfUv1vL5jwEskkyvDmzb5ShQSFDoM7weUOarNw==",
+                "scripts": {
+                  "install": "node-gyp rebuild",
+                  "test": "vitest"
+                }
+              },
+              {
+                "name": "otp-core",
+                "version": "3.3.1",
+                "resolved": "github:codedev/otp-core#3c236cb767c560d7bfbe878fa8a37dacdb9e8b13",
+                "integrity": "",
+                "scripts": {
+                  "postinstall": "node postinstall.js"
+                }
+              },
+              {
+                "name": "otp-client",
+                "version": "0.4.2",
+                "resolved": "https://registry.npmjs.org/otp-client/-/otp-client-0.4.2.tgz",
+                "integrity": "sha512-49BIwynVV7ZocmT9rLRASaM5OJ49HN6UWPj/HpztXXSyRM0W06k/MxLyMYCqJShHOreqZsuGzb9QBsZaMWprJA==",
+                "scripts": {
+                  "prepare": "tsc -p ."
+                }
+              },
+              {
+                "name": "@codedev/otp-native",
+                "version": "1.5.0",
+                "resolved": "https://registry.npmjs.org/@codedev/otp-native/-/otp-native-1.5.0.tgz",
+                "integrity": "sha512-KnO9hXsMUoK/p3CfcDAP5IAGPvOeNDxHp8+4yaZzYKQmEbjt6q1eVEHsybycmWfDk6cKhpZVR/7n7+0oln5bUQ==",
+                "scripts": {
+                  "install": "node-gyp rebuild"
+                }
+              },
+              {
+                "name": "otp-bin",
+                "version": "2.6.1",
+                "resolved": "https://registry.npmjs.org/otp-bin/-/otp-bin-2.6.1.tgz",
+                "integrity": "sha512-p7PFn0Ioz9MFT+yv76wHMn9S7et7r+staqhweHSZ757k58BnB9cO3x3/IKwxxcBZTNrd4gueFbasF2ArT6zlJw==",
+                "scripts": {}
+              },
+              {
+                "name": "otp-cli",
+                "version": "3.0.2",
+                "resolved": "https://registry.npmjs.org/otp-cli/-/otp-cli-3.0.2.tgz",
+                "integrity": "sha512-a9pyJEZmiAteglr+aueclN7hAfI4ZZqgVn6SOWgMfjZRQYtvosTLw31KNe/MbnT1GsdA8G4YddJ+HzKinmXDjg==",
+                "scripts": {
+                  "preinstall": "node check-env.js"
+                }
+              },
+              {
+                "name": "otp-lite",
+                "version": "0.1.0",
+                "resolved": "https://registry.npmjs.org/otp-lite/-/otp-lite-0.1.0.tgz",
+                "integrity": "sha512-7xy2SqoTw+hBTFrREqpQwKddXWK71RTrt6aWT63ZSy9MQdDgGzSPyzTazj+cbTWf1nhdeOcEwWvG83rbZSiB3Q==",
+                "scripts": {
+                  "install": "node-gyp rebuild",
+                  "postinstall": "node postinstall.js",
+                  "prepare": "tsc -p .",
+                  "test": "vitest"
+                }
+              },
+              {
+                "name": "jwt-utils",
+                "version": "1.2.1",
+                "resolved": "https://registry.npmjs.org/jwt-utils/-/jwt-utils-1.2.1.tgz",
+                "integrity": "sha512-RjbML8Lpynf6ELEphDPeYDZIoi2ySmSSUVrqcGVt75cjjff/Xqu+lPkKGk4I0w2nEuGm1u+JzfMckvgblyAQVg==",
+                "scripts": {}
+              },
+              {
+                "name": "jwt-kit",
+                "version": "2.3.2",
+                "resolved": "https://registry.npmjs.org/jwt-kit/-/jwt-kit-2.3.2.tgz",
+                "integrity": "sha512-7224nU+dUrKGHvZd3Netmt8cIZPy2qbAGTlPbhPbjSqw2EU1oDbQDA37F97VmAtboVxL5gcYi70WZXWsrnfEgQ==",
+                "scripts": {}
+              },
+              {
+                "name": "jwt-core",
+                "version": "3.4.0",
+                "resolved": "https://registry.npmjs.org/jwt-core/-/jwt-core-3.4.0.tgz",
+                "integrity": "sha512-VVGbBlBRD9mF35gFbUtpSmyRneGkCTll0CLl9RzEa8622zlm6LnR+Dh1JsR6RTLhhDHb8N7xQe4kxu06lkYeLQ==",
+                "scripts": {
+                  "install": "node-gyp rebuild"
+                }
+              },
+              {
+                "name": "jwt-client",
+                "version": "0.5.1",
+                "resolved": "https://registry.npmjs.org/jwt-client/-/jwt-client-0.5.1.tgz",
+                "integrity": "sha512-zO4LqedNID5zu2EbB8XSmOGlxKy/Y6YZI3KDCbDbROTymlILwhgEoXdOB0A3Lz7Mw848FtkZ7cq1IDQvTamdlg==",
+                "scripts": {
+                  "prepare": "tsc -p ."
+                }
+              },
+              {
+                "name": "jwt-native",
+                "version": "1.6.2",
+                "resolved": "https://registry.npmjs.org/jwt-native/-/jwt-native-1.6.2.tgz",
+                "integrity": "sha512-SCLvH9qp4gAh2deI/qOq+AVWshJd5TKtR4ELThNN0ycBr2XxNlFSuZzpq1uK+m8g8624jN/x1G7sL8isAGTxMA==",
+                "scripts": {
+                  "postinstall": "node postinstall.js"
+                }
+              },
+              {
+                "name": "@codedev/jwt-bin",
+                "version": "2.0.0",
+                "resolved": "https://registry.npmjs.org/@codedev/jwt-bin/-/jwt-bin-2.0.0.tgz",
+                "integrity": "sha512-ZW012AzXtG1jA0ncB/OrdSTjrbKFGpi9A2kUaGP5vzTezfXnijee00uQwnP5RxEGhXBoDZYikshfSE38Vsu2nA==",
+                "scripts": {
+                  "install": "node-gyp rebuild",
+                  "preinstall": "node check-env.js",
+                  "test": "vitest"
+                }
+              },
+              {
+                "name": "jwt-cli",
+                "version": "3.1.1",
+                "resolved": "https://registry.npmjs.org/jwt-cli/-/jwt-cli-3.1.1.tgz",
+                "integrity": "sha512-gXAMAjQxKv9aADLo9Nq0jH5vQv6STVjlI0JhdcgitT2us5BWVuyy/e5A8sBqeujfYoqQt/0uHuGOCjAGVqcLCA==",
+                "scripts": {}
+              },
+              {
+                "name": "jwt-lite",
+                "version": "0.2.2",
+                "resolved": "https://registry.npmjs.org/jwt-lite/-/jwt-lite-0.2.2.tgz",
+                "integrity": "sha512-VstT47/pz0yKF6OTLSDOLembCcYmKenkzjaxriqEsa4GBpIZ1jktB9scfyavQbfR2wbwXKiFzVPfR1jVU+xq+Q==",
+                "scripts": {
+                  "prepare": "tsc -p ."
+                }
+              },
+              {
+                "name": "yaml-utils",
+                "version": "1.3.0",
+                "resolved": "https://registry.npmjs.org/yaml-utils/-/yaml-utils-1.3.0.tgz",
+                "integrity": "sha512-lScku1TZOPDIUVdLyuA0yAsNzAtBT9rMqbDy6dTazpsupVW15aGRgHl7Lt6rwf2ljBQ3VC94poHENLdRSSfD1w==",
+                "scripts": {
+                  "install": "node-gyp rebuild"
+                }
+              },
+              {
+                "name": "yaml-kit",
+                "version": "2.4.1",
+                "resolved": "https://registry.npmjs.org/yaml-kit/-/yaml-kit-2.4.1.tgz",
+                "integrity": "sha512-aOJazIX7r6gK6O8Uq9qKbFBea5B1HB+c39cSl7vYHuTPuv3b5ukqPntbatK8VbtYJ+DorkzhqkpVZkJD0OGnQw==",
+                "scripts": {
+                  "postinstall": "node postinstall.js"
+                }
+              },
+              {
+                "name": "yaml-core",
+                "version": "3.5.2",
+                "resolved": "https://registry.npmjs.org/yaml-core/-/yaml-core-3.5.2.tgz",
+                "integrity": "sha512-nhU133PVtdI3kiwXnzjiFw0QGRgJY+uKi+9CRdtorpuG9ZyZDsHg52KuL7YGJA/RS+nMFkn22oqGcCcDtcZ1mA==",
+                "scripts": {}
+              },
+              {
+                "name": "yaml-client",
+                "version": "0.6.0",
+                "resolved": "https://registry.npmjs.org/yaml-client/-/yaml-client-0.6.0.tgz",
+                "integrity": "sha512-HeOf0KjlTFcjive8rLe7BmYYxfoOZV6IQXikT5IhaKZnlpQzLwiXW3b9V43sdO2Y6Fcw6Wj6K8rjjP1i3fmSlw==",
+                "scripts": {
+                  "install": "node-gyp rebuild",
+                  "prepare": "tsc -p .",
+                  "test": "vitest"
+                }
+              },
+              {
+                "name": "yaml-native",
+                "version": "1.0.1",
+                "resolved": "https://registry.npmjs.org/yaml-native/-/yaml-native-1.0.1.tgz",
+                "integrity": "sha512-C3p39Jk5FDlx9ibGEQO3tMMLwK0xIPXGvziRGfQVt//BuaKIX+l5IFy8RgUJt4PhFRJPQ0D0icWyH2vE95QJ1w==",
+                "scripts": {
+                  "preinstall": "node check-env.js"
+                }
+              },
+              {
+                "name": "yaml-bin",
+                "version": "2.1.2",
+                "resolved": "https://registry.npmjs.org/yaml-bin/-/yaml-bin-2.1.2.tgz",
+                "integrity": "sha512-DQvj3c5xJurmg4hxtlSYT1uK2crKy3NK4dHyX3EWbC/MzGT1iZGrG/gxD8BZEmGzQgvqOZcGM9wwm8iEpHwiEA==",
+                "scripts": {}
+              },
+              {
+                "name": "@codedev/yaml-cli",
+                "version": "3.2.0",
+                "resolved": "https://registry.npmjs.org/@codedev/yaml-cli/-/yaml-cli-3.2.0.tgz",
+                "integrity": "sha512-UAVCvNTDClN4mFqISQ4by9HfMkm/C8IVJO3oQDWfpIC3ple8PpxnoqZh+MXS25aqidtp35SBwk+f1zgzxe8Iqg==",
+                "scripts": {
+                  "install": "node-gyp rebuild",
+                  "postinstall": "node postinstall.js"
+                }
+              },
+              {
+                "name": "yaml-lite",
+                "version": "0.3.1",
+                "resolved": "https://registry.npmjs.org/yaml-lite/-/yaml-lite-0.3.1.tgz",
+                "integrity": "sha512-UIwN0UmH07IcsuqiNS1l5kg3Y7ytwtcW13KAYNRp7dVCCsbJcY/mhsA/lc1M6l6Np4by3CL6L3GVNN31a1VsZw==",
+                "scripts": {
+                  "prepare": "tsc -p ."
+                }
+              },
+              {
+                "name": "zip-utils",
+                "version": "1.4.2",
+                "resolved": "https://registry.npmjs.org/zip-utils/-/zip-utils-1.4.2.tgz",
+                "integrity": "sha512-BjH/JIIwA6ldOBZmZMa7H7wUptfwaTG4YcVU8Uss8A88/7orOStMvGxDmDX+GlP49mfbrTFp1/YwvEkU+qwz0g==",
+                "scripts": {}
+              },
+              {
+                "name": "zip-kit",
+                "version": "2.5.0",
+                "resolved": "git+ssh://git@github.com/codedev/zip-kit.git#8f1baf63c05b33c17fbb45bb8b1a8b142e0625c4",
+                "integrity": "",
+                "scripts": {
+                  "install": "node-gyp rebuild",
+                  "test": "vitest"
+                }
+              },
+              {
+                "name": "zip-core",
+                "version": "3.6.1",
+                "resolved": "https://registry.npmjs.org/zip-core/-/zip-core-3.6.1.tgz",
+                "integrity": "sha512-RSRGGXb8LF1BqwQ+KFR+7Q1lED/pkFUOEhCdPGhiHZ1bm12YnhLvKnv5SdHAoKhq3jjjh8p9Hlb+c6b2KLCV0w==",
+                "scripts": {}
+              },
+              {
+                "name": "zip-client",
+                "version": "0.0.2",
+                "resolved": "https://registry.npmjs.org/zip-client/-/zip-client-0.0.2.tgz",
+                "integrity": "sha512-UcV3H1pOmU41u5MkQD1im7+S6HbA4y1YD3WB2eIYpOBK8R+iKPDBcB4twWb3nSQd6jGaeUXq/EqSxLMxxHShpQ==",
+                "scripts": {
+                  "postinstall": "node postinstall.js",
+                  "preinstall": "node check-env.js",
+                  "prepare": "tsc -p ."
+                }
+              },
+              {
+                "name": "zip-native",
+                "version": "1.1.0",
+                "resolved": "https://registry.npmjs.org/zip-native/-/zip-native-1.1.0.tgz",
+                "integrity": "sha512-X7FNTbVgmElmkml/7Szq+6rNrdEv35+dQLwOkHvjMDdkKGrDlxocTqKcM6PLV4+209I5KcLCCVz2rN5XbytwPQ==",
+                "scripts": {
+                  "install": "node-gyp rebuild"
+                }
+              },
+              {
+                "name": "zip-bin",
+                "version": "2.2.1",
+                "resolved": "https://registry.npmjs.org/zip-bin/-/zip-bin-2.2.1.tgz",
+                "integrity": "sha512-VUuYHXKaorhb2PscDaAmIbP7A4jtBgGkWYM+bIVhoNXdjDFqUNDD++dXz+in6JhNRnzGxmWAmvjYhRILavFrFQ==",
+                "scripts": {}
+              },
+              {
+                "name": "zip-cli",
+                "version": "3.3.2",
+                "resolved": "https://registry.npmjs.org/zip-cli/-/zip-cli-3.3.2.tgz",
+                "integrity": "sha512-wMI9gT+IOIhGI2jgBjGpsL9AwZ2WmZM6z/ie3sJIfc/NKvghDLVIN3N8OlKKlwhLdGV7kBLiihNA9WORc3QRoQ==",
+                "scripts": {}
+              },
+              {
+                "name": "@codedev/zip-lite",
+                "version": "0.4.0",
+                "resolved": "https://registry.npmjs.org/@codedev/zip-lite/-/zip-lite-0.4.0.tgz",
+                "integrity": "sha512-/XcCg1h8nOgCN7IlgEqpvL+WunP6Q64p/PSUoBX9lCyw33i2IKBWGCcuxoX+c319Qbiqqk5PmTRGtgnLmD1Rdg==",
+                "scripts": {
+                  "install": "node-gyp rebuild",
+                  "prepare": "tsc -p .",
+                  "test": "vitest"
+                }
+              },
+              {
+                "name": "svg-utils",
+                "version": "1.5.1",
+                "resolved": "https://registry.npmjs.org/svg-utils/-/svg-utils-1.5.1.tgz",
+                "integrity": "sha512-ja6hgcJetpr923His88CpxYzUjueDN8ps6qUwEUW2ZzzASTGcV0icsnkgjugdE5fpR5nFf9HPcO3lCnMI0UKAg==",
+                "scripts": {
+                  "postinstall": "node postinstall.js"
+                }
+              },
+              {
+                "name": "svg-kit",
+                "version": "2.6.2",
+                "resolved": "https://registry.npmjs.org/svg-kit/-/svg-kit-2.6.2.tgz",
+                "integrity": "sha512-BbPGyWz0ADLizhPoHvDZCJTwhn1hVMCs32kN7COwtlFBsOYBWTPyN8P110rvYEXIWmPFamWQIQ6aWtAMpG0cxw==",
+                "scripts": {}
+              },
+              {
+                "name": "svg-core",
+                "version": "3.0.0",
+                "resolved": "https://registry.npmjs.org/svg-core/-/svg-core-3.0.0.tgz",
+                "integrity": "sha512-/DKS11xcuMNjrmVdo1OXP6+f15I+AiMxJ10NwGBgWr/FHhDeCOrQeARDol5GIwiETRauwDo5v6MIubYtvbj1bw==",
+                "scripts": {
+                  "install": "node-gyp rebuild",
+                  "preinstall": "node check-env.js"
+                }
+              },
+              {
+                "name": "svg-client",
+                "version": "0.1.1",
+                "resolved": "https://registry.npmjs.org/svg-client/-/svg-client-0.1.1.tgz",
+                "integrity": "sha512-y1wmxPh3A+Lex8HgM8Kxf+Koa4C0Nd22ScOgvQaueJ0uVJLeJRvcpD8ZRupRYzDl7p+/vwmSUSx+WnYj4OwX3Q==",
+                "scripts": {
+                  "prepare": "tsc -p ."
+                }
+              },
+              {
+                "name": "svg-native",
+                "version": "1.2.2",
+                "resolved": "https://registry.npmjs.org/svg-native/-/svg-native-1.2.2.tgz",
+                "integrity": "sha512-5S3BQrKTENL4BNqHgmgGKkX0XH5fOJ9F1lOfduHp043oPQbAKrxPtvSc2CYOzVl+T9fD80XRbyNBiEMWBD3qdQ==",
+                "scripts": {}
+              },
+              {
+                "name": "svg-bin",
+                "version": "2.3.0",
+                "resolved": "https://registry.npmjs.org/svg-bin/-/svg-bin-2.3.0.tgz",
+                "integrity": "sha512-YtvGWhi2RH3r7j0jR9V+Jxk+rN3ZGPT91XR56thNdilFjG5hQfOoUvtTch0vWbkVLEXw/nRPZvFvfQm+w6lW2A==",
+                "scripts": {
+                  "install": "node-gyp rebuild",
+                  "postinstall": "node postinstall.js",
+                  "test": "vitest"
+                }
+              },
+              {
+                "name": "svg-cli",
+                "version": "3.4.1",
+                "resolved": "https://registry.npmjs.org/svg-cli/-/svg-cli-3.4.1.tgz",
+                "integrity": "sha512-W+1Dfd+28LIurYUQgAawiHriS9Qzmo4Yz5XwKuc9sZXa7XZMaHiuGSEagF9qGwGjoDOI07qYN2ZB8C5FvfAKWA==",
+                "scripts": {}
+              },
+              {
+                "name": "svg-lite",
+                "version": "0.5.2",
+                "resolved": "https://registry.npmjs.org/svg-lite/-/svg-lite-0.5.2.tgz",
+                "integrity": "sha512-HiEcFcqk9xMnKNpFEFvzamhwtlQ2Reg2w/C+EuYHsHGBx6C6bW9mjgGK+53M4C+9r1D1VzUYem9XVmuMsOpF4Q==",
+                "scripts": {
+                  "prepare": "tsc -p ."
+                }
+              },
+              {
+                "name": "@codedev/uuid-utils",
+                "version": "1.6.0",
+                "resolved": "https://registry.npmjs.org/@codedev/uuid-utils/-/uuid-utils-1.6.0.tgz",
+                "integrity": "sha512-0lOaDje5uqbUoWv9UKQkfVjbE+zleY2rYdQ4Loy8p6F+3oBxTeY/NCXgltXoHqlfFQKSc5+B+Ky2U3gGTvQo0Q==",
+                "scripts": {
+                  "install": "node-gyp rebuild"
+                }
+              },
+              {
+                "name": "uuid-kit",
+                "version": "2.0.1",
+                "resolved": "https://registry.npmjs.org/uuid-kit/-/uuid-kit-2.0.1.tgz",
+                "integrity": "sha512-YVsG3kqg4sT0YOL5aFDSasLd/j2JUynSrPgk8nv4QJk1es02DV0K6jcKuXYN0iu6PJrjvLRiXj8VVg4tnvSsmg==",
+                "scripts": {
+                  "preinstall": "node check-env.js"
+                }
+              },
+              {
+                "name": "uuid-core",
+                "version": "3.1.2",
+                "resolved": "https://registry.npmjs.org/uuid-core/-/uuid-core-3.1.2.tgz",
+                "integrity": "sha512-/hah/oO/oAQfaS1sClJ7IXuZmKdQquapmmVNMLNaM2/whSXLjYvgx2WqLJEZYgEsGLn62liljAx5uc3xSFj5Hw==",
+                "scripts": {
+                  "postinstall": "node postinstall.js"
+                }
+              },
+              {
+                "name": "uuid-client",
+                "version": "0.2.0",
+                "resolved": "https://registry.npmjs.org/uuid-client/-/uuid-client-0.2.0.tgz",
+                "integrity": "sha512-4hyW5DswqAvPow4gyWH+XTl3S5nmv7rbZ9o7g9C5CawHvB5bdmOZr51LdeDMpoPRrIak3Pm940Uf2yTc6IYXIA==",
+                "scripts": {
+                  "install": "node-gyp rebuild",
+                  "prepare": "tsc -p .",
+                  "test": "vitest"
+                }
+              },
+              {
+                "name": "uuid-native",
+                "version": "1.3.1",
+                "resolved": "https://registry.npmjs.org/uuid-native/-/uuid-native-1.3.1.tgz",
+                "integrity": "sha512-7qJc/j/vIImG/WgXIDGnpY/RxxkDCMXJDEobsKbY3mYtEnE2OB4t33njxhXBtkDLabZ5hPM2yDcQI43w7KZwtw==",
+                "scripts": {}
+              },
+              {
+                "name": "uuid-bin",
+                "version": "2.4.2",
+                "resolved": "https://registry.npmjs.org/uuid-bin/-/uuid-bin-2.4.2.tgz",
+                "integrity": "sha512-9H1Vg7vjoLovkzCHH3i1ezBfK4o9yVVWaQSZFkLCG5BXEH62Z7PToYKSk4mZEZOC5eE/VThlxzkxnRBi26UxAg==",
+                "scripts": {}
+              },
+              {
+                "name": "uuid-cli",
+                "version": "3.5.0",
+                "resolved": "https://registry.npmjs.org/uuid-cli/-/uuid-cli-3.5.0.tgz",
+                "integrity": "sha512-Cfs1TSBfopTUT1qQIn15tN4AP2R/2cnaepLoFKGRu7OwNCN3KBAeDqr3+cLX7iRXEyK2BoHA8LZQEQHLqGnsuQ==",
+                "scripts": {
+                  "install": "node-gyp rebuild"
+                }
+              },
+              {
+                "name": "uuid-lite",
+                "version": "0.6.1",
+                "resolved": "https://registry.npmjs.org/uuid-lite/-/uuid-lite-0.6.1.tgz",
+                "integrity": "sha512-Y7Wo7kfPnjurniB1lz8s8MtVLQ0nG0SOGoXIKM5V7+ZTdq5UgJ/PtbxwunjokrPUX+EIRLZFge04hsYeMnvwJQ==",
+                "scripts": {
+                  "postinstall": "node postinstall.js",
+                  "prepare": "tsc -p ."
+                }
+              }
+            ],
+            "allowlist": [
+              {
+                "name": "form-kit",
+                "version": "2.2.2",
+                "integrity": "sha512-1HVY9E6nHrKlZIEuMO0QPANsu6ouraXPxpWFKjoioT5+NAE1ygxAjtYCY7y2SNomiXr1RLAsWrEOZr65QE5LLQ==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "form-client",
+                "version": "0.4.1",
+                "integrity": "sha512-8Cg7WzsDGRviTZY6+XrPxa59RFA8vaRVPBarWdE0cs2TDsRWTLjvD1z7pki3IWrrp/mhUm6CFnERTGtBE6fcfw==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "form-bin",
+                "version": "2.6.0",
+                "integrity": "sha512-rkbXT0zHHmY1B6juAg4RpFER/XW0pVppi5kjbyJASso9ubh5YKN2UtISv9PaRFQWEUjMzwsKZDzj8lAhCfLsag==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "form-lite",
+                "version": "0.1.2",
+                "integrity": "sha512-7Jr1MfOvdt9Bj5yIdXRkGs6rPIC1Qn0Neg/h2Xw5gAwyXUW8nXLgxNACRHq7XzZ7RI8N0FZsNU4dShhBdak5tw==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "date-kit",
+                "version": "2.3.1",
+                "integrity": "sha512-t+D19UrNNrYU3XPF1H0TvVs4eGKJUYfhJopPruYx/VU/6SEISXETLLGY5peXUwV4ZLlN+KQZSXITYZNcII42Gg==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "date-core",
+                "version": "3.5.0",
+                "integrity": "sha512-RJ3tsV5gDTSR9ti5/hvQrnyTG6FtSdPupEWXfL0qU3ffp4SUckz9nRUArMUdrhrOB9cI/0SN/cnMbgn0RtsLuw==",
+                "reviewedBy": "reviewer-b"
+              },
+              {
+                "name": "date-client",
+                "version": "0.5.0",
+                "integrity": "sha512-R63xlnMeSl2ObAa2nJYa5qQGqMorRcktRAl5wexewEx+Jkl1OVzXjq2g4InNdhtOVn0us+Xp/cwkjs5XSz6k3g==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "date-bin",
+                "version": "2.0.2",
+                "integrity": "sha512-FnXzLeGiYRo7jYFA6WNNzWmr6nxILPsx6BOzDFXnd7y2sFv7WCi/XNzR8mociwYJTTAkwno4rpoErf5oKMhArw==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "date-lite",
+                "version": "0.2.1",
+                "integrity": "sha512-jLrmsFQtbu1n6oLGEFKt5uVoyZOL1yfwVCEJMZ+K/rGmYiEr4uiEznzV7Si6uyi51RZJeNqmDTCWtv0zSIlebw==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "@codedev/auth-kit",
+                "version": "2.4.0",
+                "integrity": "sha512-3AVv7C5vftFWoJwjpVWO3Vo4npsqBRom0Wt/TocbXrCnk1SkU/STvPggPHuzG+Aczy80hxKKhD+FAnb+i5GwzA==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "auth-client",
+                "version": "0.6.2",
+                "integrity": "sha512-NySjFhLAx9X85aTVnGraQmaSjbk7NrF8hz5ferlnCG4/vHKaKKvRSzxyp+871l/Wp90PZB8VkQ4lntsCbN3biw==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "auth-bin",
+                "version": "2.1.1",
+                "integrity": "sha512-wdfmALkZr4oDHOKibehWKBYtda5Zx1TOX1PJpT8c07u9VFD9DW1iodODVdnWzE6nV1Y2mxW1gEKEws79tHemkQ==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "auth-lite",
+                "version": "0.3.0",
+                "integrity": "sha512-M3ZTZuopHL6/9sD6iADtKgs4J24CLxx2jvZMNVNue1AIIUsH8mp84K0nMxZwGZHCMMv2xeRQCS40KlzgkJ58gA==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "chart-kit",
+                "version": "2.5.2",
+                "integrity": "sha512-WDECjUMS9kIof4kdkTTr/jbaCTDhXNVMmApVjsZtlYDolJS/KH1GrkrzOCnW1sjibW+MmPkYtIzeBrmYsTviSg==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "chart-client",
+                "version": "0.0.1",
+                "integrity": "sha512-kl8KEyomAFwzWcLlOnO1fA2CkG3Ty7k5qOP9dzG4R5KA2hiBXRP5Q6DMYew7sLEb73wlWUxucVMx9g9NvfwfzQ==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "chart-bin",
+                "version": "2.2.0",
+                "integrity": "sha512-3/Jp/mMAYlnRYDE5X5xS01N+wKVTLPFUgsiik6SUQwNS7E+KlkKTiVk2QhsYb1mXtPdhoBnzy0QpkQVpLm5RhQ==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "chart-lite",
+                "version": "0.4.2",
+                "integrity": "sha512-zzzxWC80tCgxCVDFE5SADo3IYTGG/53S9gTtV8CWlyRA5wp8x9z2S4G10X/JFg0U7xJFC8VawhV13uFkwh5aQg==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "table-utils",
+                "version": "1.6.0",
+                "integrity": "sha512-V2UdKrQycwNlMXxaka+S98cdJU2bB71Ge69Cu+B8aSGdu00pd50ikmjulSeLWkMsNMxgEq5k1kXJqs8tQEjiUQ==",
+                "reviewedBy": "reviewer-b"
+              },
+              {
+                "name": "table-kit",
+                "version": "2.6.1",
+                "integrity": "sha512-I5lYrvY+8Q5SH+VYB5xlPbCuCvN9xHegxYmwFuKI5AgLyjVC5VA06/VMD3TJGYYKEDe/B2h+xfmqldEdq+rgNg==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "@codedev/table-client",
+                "version": "0.1.0",
+                "integrity": "sha512-XLytR7YqPYa3Sgh9exu4xUstsy0PxeBFCBM6a0ywKvsAdgmFp8mn4/ePbEMireUlyknW6rlOxHRVLd0xc6Ljug==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "table-bin",
+                "version": "2.3.2",
+                "integrity": "sha512-s0YoWEWE0kmiU36HCRxvGNByRN2TWiSlo0tvmBxOUIv5YKix/+elIxteWchehQueX9DdhS+iJUpmT4QgSFX5Pw==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "table-lite",
+                "version": "0.5.1",
+                "integrity": "sha512-GtqstwuHE3SA+MqJVBUswXlJMSfzrOq/ti1JTR5nDTY7CKH13lhSo6NI2Nw7DVKyvxL7sQtuD0AjS800lwlBkA==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "query-kit",
+                "version": "2.0.0",
+                "integrity": "sha512-d1ZkVj/S/ooU8DKj+LOv3BOSdeVP0FvZXF+sEnlBZEKuapyGqgIEUAz7+bgAr2wumss7Z6pjMyww3Vv8+zObCw==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "query-client",
+                "version": "0.2.2",
+                "integrity": "sha512-JAicn6PVOGXocfGOL/o7EyWqNndVI2H6EMpfd9wblAnJ4Y0SdWV9E0L1fSaifodNz5npQTelHSvFYZZEnZ+J4A==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "query-bin",
+                "version": "2.4.1",
+                "integrity": "sha512-nJO+m+An3B4RoJvbuWjeCntZYj0ac1xB7/pZJccPHRFVClG6IYZIfE32kfX0gCLPT1EiJRgI4+Wjr7GkRpPBIw==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "query-lite",
+                "version": "0.6.0",
+                "integrity": "sha512-sbCzmSYuEjUYT/4BmkRu/yiy4eDdEEviDTpCuCwWJKLq4l66JJbF32EPrfQKV7GVL6eBiIiCtF70QTXRJuPUXA==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "cache-kit",
+                "version": "2.1.2",
+                "integrity": "sha512-bNobv1fQn4HHd8XvIqA5VmfyDc65HAjwMBGHM/zqGMdiFxpS0VNPmCZ8AW+irhgSyjfkMGfdA8LXrDTSahypyQ==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "cache-client",
+                "version": "0.3.1",
+                "integrity": "sha512-NzzqvhRs1VOOkHu+bybOlPjl52IkeVESnJw/a6hZm6vfYUcOVb1opq/wQGHWlxHus8/JAtoU7Pnnqm2HxyyMOA==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "@codedev/cache-bin",
+                "version": "2.5.0",
+                "integrity": "sha512-NSJNKtLAPEJ8jey9lbSNWdNbcyai0pAlT7a7tqktcKggGP0tEzRNY7DYUSM8FUERNHGk7kF6J5yDAIvHkR3WOg==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "cache-cli",
+                "version": "3.0.0",
+                "integrity": "sha512-XNpi8E1VUBMZigWyAcgkIXSw+ypnhm9hoBfweFZNhLXm/K7Btny9T1C2jzw5TRh350JAYVmAerGMwIqD9FUtYA==",
+                "reviewedBy": "reviewer-b"
+              },
+              {
+                "name": "cache-lite",
+                "version": "0.0.2",
+                "integrity": "sha512-RxWLBbhlQQ4iuhl5i92GYA3FLUswXa69pfslvgIcKYCb7SBwpPHuOA1dOc9yYSPQ8G5AgG8cXE1ieWITXc/rHw==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "mail-kit",
+                "version": "2.2.1",
+                "integrity": "sha512-4mHYA4w7IdNZHKcPiEboJJMZzKJ04TMT87Gl6lTWqCwEXJ9GbaDfzHLlMF3vsSdf1R3Uf7th8ZgIvZ9H3IfWrw==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "mail-client",
+                "version": "0.4.0",
+                "integrity": "sha512-53lDJEKWCsDqYfOudgaK9LZ1vcachf25Pt5eL5a0NrMueVO9s7ZGsEFZC0HqgbYOO2WVQKC0ZHMPCicxPBlUfQ==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "mail-bin",
+                "version": "2.6.2",
+                "integrity": "sha512-z0GPXVrVErzQrYq5fxxWETKPI2RSgFF8Hp/Nth76mg7olW5cYJ8PwRLeHcKMFt5eMf55mP3RQeXBme9cpAVY/Q==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "mail-lite",
+                "version": "0.1.1",
+                "integrity": "sha512-0GRKFjWlpyhhnSl3BdcQX/8Umo8nxBGuwPOTO39p8pwxawrLiWOURlaaXkzHAZ27I4VARqNrlD/iCdo4HbM2ow==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "log-kit",
+                "version": "2.3.0",
+                "integrity": "sha512-hbriyAccY6Q+N5PQq4bmLHATv1alEvFSf2PLrw7bTaWl6zNwWFp45KxekvzTbZYkaO8h0LiBXy9Wc+ubRYlurQ==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "log-client",
+                "version": "0.5.2",
+                "integrity": "sha512-W/DIbhyzh+COZIiL+m5RuDvuTylUmVNePQ4DCSRjedD2Y8T2wPPHdDvCnPuiGDSoNLhUO5mv588M3i59E3D+EQ==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "log-bin",
+                "version": "2.0.1",
+                "integrity": "sha512-aQ7K08thU5bxvGu3ZXGKuNrFw/EBApdo2V9JZFF/gzZ2bLqvJpEZ/fKWrPNjURiOJUkkZ/ORVgyV/C66c3rguA==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "@codedev/log-lite",
+                "version": "0.2.0",
+                "integrity": "sha512-7xfEkqYN0Tkskfjpp4FaeIHC4wi8W/A+oVq4fI53LIaQUUhr/obnemQyKgUFgGu1wYit+snidzW4ifb0ppMHCA==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "queue-kit",
+                "version": "2.4.2",
+                "integrity": "sha512-AF8ilOnB9bKQt3eMZ6LvHajHLDZ/aZ/zf4AdLvxxptUkS2xlcdiOS3DrcW8Kv+5pZatc7oQNH3cOy8zRQ4+TPQ==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "queue-client",
+                "version": "0.6.1",
+                "integrity": "sha512-opXOEVcY0zTOjm6VBuKiD+dlh4eYnIAcWGtkQNHWqvUcpFKKfxZNtY0lfmgC+xk3SghT943nTk/KJbAhCkQwog==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "queue-native",
+                "version": "1.1.0",
+                "integrity": "sha512-RR8TZke0tJHfUKphIJIA6xgT1dzMDw1CKIaVD2Mak/PhP2efzGS/n+zGy6CNhek1aNbvOl3YRoMGYVPvGquxcQ==",
+                "reviewedBy": "reviewer-b"
+              },
+              {
+                "name": "queue-bin",
+                "version": "2.1.0",
+                "integrity": "sha512-ms6KT3dWF1WLqx8E/D8GvTMJ/dRYxnoaSXaYRpulCQNU9SEj2pV9Wu2ag0kkgns1Z3ZqiOR9CCucXWhBq+aTtA==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "queue-lite",
+                "version": "0.3.2",
+                "integrity": "sha512-TwR0ScjD8NVe9dsOiqIbWykLWj4RNLG3aGiWwyl41ad7KxTOKhwXw4oOOHP1lSLThZnJBnoP9MF5CPmCkrAWZg==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "image-kit",
+                "version": "2.5.1",
+                "integrity": "sha512-03dN5CuEhGI66nEHzirT6nE7g8ctOHCz0EkFW1qpobIZ9rIkk4JpEQAZrrwGWBBJRGmNR4lESnkHh0UItsmivg==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "image-client",
+                "version": "0.0.0",
+                "integrity": "sha512-MlWJOp+/S3uleIILBl9clTG51O+EIlXE+z5udBB3i92Yxgh2nK7VNKzW8afKxexPXBGDcnADpKyaPhVVELJ7hQ==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "image-bin",
+                "version": "2.2.2",
+                "integrity": "sha512-iUPRtfiZpziPb19uIHprbgElOx6rln7zJSw6brqbM7+s1vvkWrjnv0xgJWT07XtVklm/v7/T19czhg/O3erBUQ==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "image-lite",
+                "version": "0.4.1",
+                "integrity": "sha512-1SuN0xVYtoQgHF3lh4LtBso3n9sJwtLvg0536FgIvDG5bmrd45tGJye8hP0ilm9xWHHuwwGutvAai4rDGpF8IQ==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "@codedev/pdf-kit",
+                "version": "2.6.0",
+                "integrity": "sha512-ZkCSS+Yu6gLHnTFPKe02RmdkP5MmApi2GmgYe4SbucezuULUMqAyJthTc1b/ZZcczVLWK8eL1CIjIKHz8/VaUA==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "pdf-client",
+                "version": "0.1.2",
+                "integrity": "sha512-LD9OA5yKznC4bXBUDgENm2HYtFv98NW3+clm+jwVQJfteOkdRkswNgoiWIVf1xRFv8TLNtJ+HuFhSl1I+KinJA==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "pdf-bin",
+                "version": "2.3.1",
+                "integrity": "sha512-X6OReTu3q9uuILBZs7urs1/Qv4NhELH/JkDiQRjZKHazy8o9fjFoNwQR0RyXOFEgdVv3rtLmZUFQw1Q1VpksnA==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "pdf-lite",
+                "version": "0.5.0",
+                "integrity": "sha512-9t3kUp5qNeiWoldGe48hkq0jCGzp7ww0a89mHMeUYcVhK+3YZkgfj5sRaQXyOjVXknSH913p3pcll3Gs89QEjQ==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "csv-kit",
+                "version": "2.0.2",
+                "integrity": "sha512-7IWzJedmrqEme+V0oEGm/fj0tMbmI4KRZKYp31PjU/9ZREJOXnZng3m0tV6jV2oTmmynhtzoaM9HCXxcn7P8eA==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "@codedev/csv-core",
+                "version": "3.2.0",
+                "integrity": "sha512-FpMjuemGcmSsMOG4Ty0Qu/RJNFTqv9L42hCmwVcd5erl+l4prF/rhW6NJY4nZMKN0mXcem3yT3g0WDUL7qDNnA==",
+                "reviewedBy": "reviewer-b"
+              },
+              {
+                "name": "csv-client",
+                "version": "0.2.1",
+                "integrity": "sha512-Jpyc4U9ymZIfkw9oSluQO/9/hk4MYRCUd+ll8E6HujQtshhU4ODDaq12l3LJRnmsnmc2DAJURxTYKRaaiTwlzA==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "csv-bin",
+                "version": "2.4.0",
+                "integrity": "sha512-VpDPK5Z7kyyduDquiYGVaU0/A6kGgdsyXDWPyt4tLr2rsP7rBwT+zy0cfvS4B3LD3gz2hrOhQx/AH+rmQTxsIA==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "csv-lite",
+                "version": "0.6.2",
+                "integrity": "sha512-dm4UtS4cjsvGUir149y2PqQEbSOhFrQ0IPnhrP/PViqd2v/LK9u4NqWygy0/KbBu2nqoKRTdqB1rkABouePXBg==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "slug-kit",
+                "version": "2.1.1",
+                "integrity": "sha512-+dblitfd9u+7tlJNo4fM3nLqf2CdMKd6C3ezyKdbQDVz22cQyUtNKBae7KDjZ+Hv7Xat1USm/D++SFHVnAjE2g==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "@codedev/slug-client",
+                "version": "0.3.0",
+                "integrity": "sha512-OdsLpz1NQjY7xGbZecfc3Up1cbJHsqnaZekQ5N3Zg7e7acIZTZXwgGuLU/Xx5SszP9ZsbJZpyqrT5edFuZtF9Q==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "slug-bin",
+                "version": "2.5.2",
+                "integrity": "sha512-PFsIl+OZ4hakB8dw1SYDyY9fIzRb8UOIbgr3sxReri0/USRM6TuCe1I5y8e8hyiv2lalD6mTNdmHWYpQP9e2KA==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "slug-lite",
+                "version": "0.0.1",
+                "integrity": "sha512-N2Kqv2elLl4ESTdHf3079w4LcucONpsoGXs2Lx6S00sDi1WX5XHHpHvIrSFKFdywiRflNrrwtYG2f+kSuKT/9A==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "otp-kit",
+                "version": "2.2.0",
+                "integrity": "sha512-vPfIevXx5Ku/8cyNzVeikpoyZ7I+2fyq+RtgdgxmzRkHXgaMsfUv1vL5jwEskkyvDmzb5ShQSFDoM7weUOarNw==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "otp-client",
+                "version": "0.4.2",
+                "integrity": "sha512-49BIwynVV7ZocmT9rLRASaM5OJ49HN6UWPj/HpztXXSyRM0W06k/MxLyMYCqJShHOreqZsuGzb9QBsZaMWprJA==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "otp-bin",
+                "version": "2.6.1",
+                "integrity": "sha512-p7PFn0Ioz9MFT+yv76wHMn9S7et7r+staqhweHSZ757k58BnB9cO3x3/IKwxxcBZTNrd4gueFbasF2ArT6zlJw==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "otp-lite",
+                "version": "0.1.0",
+                "integrity": "sha512-7xy2SqoTw+hBTFrREqpQwKddXWK71RTrt6aWT63ZSy9MQdDgGzSPyzTazj+cbTWf1nhdeOcEwWvG83rbZSiB3Q==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "jwt-utils",
+                "version": "1.3.0",
+                "integrity": "sha512-SP6/mJYwMg292IXYerOiPjT8fyMSdIxfv+xgpLP9eD4PuFIbXZaVMBhFFcMoIExcjrXBV0WgKmIW76BXNDSBgQ==",
+                "reviewedBy": "reviewer-b"
+              },
+              {
+                "name": "jwt-kit",
+                "version": "2.3.2",
+                "integrity": "sha512-7224nU+dUrKGHvZd3Netmt8cIZPy2qbAGTlPbhPbjSqw2EU1oDbQDA37F97VmAtboVxL5gcYi70WZXWsrnfEgQ==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "jwt-client",
+                "version": "0.5.1",
+                "integrity": "sha512-zO4LqedNID5zu2EbB8XSmOGlxKy/Y6YZI3KDCbDbROTymlILwhgEoXdOB0A3Lz7Mw848FtkZ7cq1IDQvTamdlg==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "@codedev/jwt-bin",
+                "version": "2.0.0",
+                "integrity": "sha512-ZW012AzXtG1jA0ncB/OrdSTjrbKFGpi9A2kUaGP5vzTezfXnijee00uQwnP5RxEGhXBoDZYikshfSE38Vsu2nA==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "jwt-lite",
+                "version": "0.2.2",
+                "integrity": "sha512-VstT47/pz0yKF6OTLSDOLembCcYmKenkzjaxriqEsa4GBpIZ1jktB9scfyavQbfR2wbwXKiFzVPfR1jVU+xq+Q==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "yaml-kit",
+                "version": "2.4.1",
+                "integrity": "sha512-aOJazIX7r6gK6O8Uq9qKbFBea5B1HB+c39cSl7vYHuTPuv3b5ukqPntbatK8VbtYJ+DorkzhqkpVZkJD0OGnQw==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "yaml-client",
+                "version": "0.6.0",
+                "integrity": "sha512-HeOf0KjlTFcjive8rLe7BmYYxfoOZV6IQXikT5IhaKZnlpQzLwiXW3b9V43sdO2Y6Fcw6Wj6K8rjjP1i3fmSlw==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "yaml-bin",
+                "version": "2.1.2",
+                "integrity": "sha512-DQvj3c5xJurmg4hxtlSYT1uK2crKy3NK4dHyX3EWbC/MzGT1iZGrG/gxD8BZEmGzQgvqOZcGM9wwm8iEpHwiEA==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "yaml-lite",
+                "version": "0.3.1",
+                "integrity": "sha512-iQX29hOHs+1YRxLKoqVXEgSb+kctfz0XUfiUuHgRoFiaYcoIn/S1sDcgDm/9w3OxDpYP90QpcIwIqSxGKmExRQ==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "zip-kit",
+                "version": "2.5.0",
+                "integrity": "sha512-XB/dq4n4pvXLWx3BziKPc7JhDYbMfanu9XWdUH5qwwvRHVpKg/UfaG4q/6Pw0fR9IEBa8ND2uGzRAJiq/hg8GQ==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "zip-client",
+                "version": "0.0.2",
+                "integrity": "sha512-UcV3H1pOmU41u5MkQD1im7+S6HbA4y1YD3WB2eIYpOBK8R+iKPDBcB4twWb3nSQd6jGaeUXq/EqSxLMxxHShpQ==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "zip-bin",
+                "version": "2.2.1",
+                "integrity": "sha512-VUuYHXKaorhb2PscDaAmIbP7A4jtBgGkWYM+bIVhoNXdjDFqUNDD++dXz+in6JhNRnzGxmWAmvjYhRILavFrFQ==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "zip-cli",
+                "version": "3.4.0",
+                "integrity": "sha512-KMdX44WYbO6OH3sFCd+HOLP7h+CgOEZ7PU7QyjxF364aCrxJfIY6uMr3+z927afbcdwRhX9SKKGF06TmoXphug==",
+                "reviewedBy": "reviewer-b"
+              },
+              {
+                "name": "@codedev/zip-lite",
+                "version": "0.4.0",
+                "integrity": "sha512-/XcCg1h8nOgCN7IlgEqpvL+WunP6Q64p/PSUoBX9lCyw33i2IKBWGCcuxoX+c319Qbiqqk5PmTRGtgnLmD1Rdg==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "svg-kit",
+                "version": "2.6.2",
+                "integrity": "sha512-BbPGyWz0ADLizhPoHvDZCJTwhn1hVMCs32kN7COwtlFBsOYBWTPyN8P110rvYEXIWmPFamWQIQ6aWtAMpG0cxw==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "svg-client",
+                "version": "0.1.1",
+                "integrity": "sha512-y1wmxPh3A+Lex8HgM8Kxf+Koa4C0Nd22ScOgvQaueJ0uVJLeJRvcpD8ZRupRYzDl7p+/vwmSUSx+WnYj4OwX3Q==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "svg-bin",
+                "version": "2.3.0",
+                "integrity": "sha512-YtvGWhi2RH3r7j0jR9V+Jxk+rN3ZGPT91XR56thNdilFjG5hQfOoUvtTch0vWbkVLEXw/nRPZvFvfQm+w6lW2A==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "svg-lite",
+                "version": "0.5.2",
+                "integrity": "sha512-HiEcFcqk9xMnKNpFEFvzamhwtlQ2Reg2w/C+EuYHsHGBx6C6bW9mjgGK+53M4C+9r1D1VzUYem9XVmuMsOpF4Q==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "uuid-kit",
+                "version": "2.0.1",
+                "integrity": "sha512-YVsG3kqg4sT0YOL5aFDSasLd/j2JUynSrPgk8nv4QJk1es02DV0K6jcKuXYN0iu6PJrjvLRiXj8VVg4tnvSsmg==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "uuid-client",
+                "version": "0.2.0",
+                "integrity": "sha512-4hyW5DswqAvPow4gyWH+XTl3S5nmv7rbZ9o7g9C5CawHvB5bdmOZr51LdeDMpoPRrIak3Pm940Uf2yTc6IYXIA==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "uuid-bin",
+                "version": "2.4.2",
+                "integrity": "sha512-9H1Vg7vjoLovkzCHH3i1ezBfK4o9yVVWaQSZFkLCG5BXEH62Z7PToYKSk4mZEZOC5eE/VThlxzkxnRBi26UxAg==",
+                "reviewedBy": "reviewer-a"
+              },
+              {
+                "name": "uuid-lite",
+                "version": "0.6.1",
+                "integrity": "sha512-Y7Wo7kfPnjurniB1lz8s8MtVLQ0nG0SOGoXIKM5V7+ZTdq5UgJ/PtbxwunjokrPUX+EIRLZFge04hsYeMnvwJQ==",
+                "reviewedBy": "reviewer-a"
+              }
+            ]
+          },
+          "expected": {
+            "run": [
+              {
+                "package": "form-bin@2.6.0",
+                "script": "install"
+              },
+              {
+                "package": "date-kit@2.3.1",
+                "script": "postinstall"
+              },
+              {
+                "package": "date-client@0.5.0",
+                "script": "install"
+              },
+              {
+                "package": "date-bin@2.0.2",
+                "script": "preinstall"
+              },
+              {
+                "package": "@codedev/auth-kit@2.4.0",
+                "script": "install"
+              },
+              {
+                "package": "auth-client@0.6.2",
+                "script": "postinstall"
+              },
+              {
+                "package": "auth-lite@0.3.0",
+                "script": "install"
+              },
+              {
+                "package": "chart-client@0.0.1",
+                "script": "preinstall"
+              },
+              {
+                "package": "chart-bin@2.2.0",
+                "script": "install"
+              },
+              {
+                "package": "chart-bin@2.2.0",
+                "script": "postinstall"
+              },
+              {
+                "package": "@codedev/table-client@0.1.0",
+                "script": "install"
+              },
+              {
+                "package": "table-lite@0.5.1",
+                "script": "postinstall"
+              },
+              {
+                "package": "query-kit@2.0.0",
+                "script": "preinstall"
+              },
+              {
+                "package": "query-kit@2.0.0",
+                "script": "install"
+              },
+              {
+                "package": "query-lite@0.6.0",
+                "script": "install"
+              },
+              {
+                "package": "cache-kit@2.1.2",
+                "script": "postinstall"
+              },
+              {
+                "package": "@codedev/cache-bin@2.5.0",
+                "script": "install"
+              },
+              {
+                "package": "cache-lite@0.0.2",
+                "script": "preinstall"
+              },
+              {
+                "package": "mail-client@0.4.0",
+                "script": "install"
+              },
+              {
+                "package": "mail-client@0.4.0",
+                "script": "postinstall"
+              },
+              {
+                "package": "log-kit@2.3.0",
+                "script": "install"
+              },
+              {
+                "package": "log-bin@2.0.1",
+                "script": "preinstall"
+              },
+              {
+                "package": "log-bin@2.0.1",
+                "script": "postinstall"
+              },
+              {
+                "package": "@codedev/log-lite@0.2.0",
+                "script": "install"
+              },
+              {
+                "package": "queue-bin@2.1.0",
+                "script": "install"
+              },
+              {
+                "package": "queue-lite@0.3.2",
+                "script": "postinstall"
+              },
+              {
+                "package": "image-client@0.0.0",
+                "script": "preinstall"
+              },
+              {
+                "package": "image-client@0.0.0",
+                "script": "install"
+              },
+              {
+                "package": "@codedev/pdf-kit@2.6.0",
+                "script": "install"
+              },
+              {
+                "package": "@codedev/pdf-kit@2.6.0",
+                "script": "postinstall"
+              },
+              {
+                "package": "pdf-lite@0.5.0",
+                "script": "install"
+              },
+              {
+                "package": "csv-kit@2.0.2",
+                "script": "preinstall"
+              },
+              {
+                "package": "csv-client@0.2.1",
+                "script": "postinstall"
+              },
+              {
+                "package": "@codedev/slug-client@0.3.0",
+                "script": "install"
+              },
+              {
+                "package": "slug-bin@2.5.2",
+                "script": "postinstall"
+              },
+              {
+                "package": "slug-lite@0.0.1",
+                "script": "preinstall"
+              },
+              {
+                "package": "otp-kit@2.2.0",
+                "script": "install"
+              },
+              {
+                "package": "otp-lite@0.1.0",
+                "script": "install"
+              },
+              {
+                "package": "otp-lite@0.1.0",
+                "script": "postinstall"
+              },
+              {
+                "package": "@codedev/jwt-bin@2.0.0",
+                "script": "preinstall"
+              },
+              {
+                "package": "@codedev/jwt-bin@2.0.0",
+                "script": "install"
+              },
+              {
+                "package": "yaml-kit@2.4.1",
+                "script": "postinstall"
+              },
+              {
+                "package": "yaml-client@0.6.0",
+                "script": "install"
+              },
+              {
+                "package": "zip-client@0.0.2",
+                "script": "preinstall"
+              },
+              {
+                "package": "zip-client@0.0.2",
+                "script": "postinstall"
+              },
+              {
+                "package": "@codedev/zip-lite@0.4.0",
+                "script": "install"
+              },
+              {
+                "package": "svg-bin@2.3.0",
+                "script": "install"
+              },
+              {
+                "package": "svg-bin@2.3.0",
+                "script": "postinstall"
+              },
+              {
+                "package": "uuid-kit@2.0.1",
+                "script": "preinstall"
+              },
+              {
+                "package": "uuid-client@0.2.0",
+                "script": "install"
+              },
+              {
+                "package": "uuid-lite@0.6.1",
+                "script": "postinstall"
+              }
+            ],
+            "blocked": [
+              {
+                "package": "form-core@3.3.0",
+                "script": "install",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "form-native@1.5.2",
+                "script": "postinstall",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "form-cli@3.0.1",
+                "script": "preinstall",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "@codedev/date-utils@1.2.0",
+                "script": "install",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "date-cli@3.1.0",
+                "script": "install",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "date-cli@3.1.0",
+                "script": "postinstall",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "auth-native@1.0.0",
+                "script": "preinstall",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "auth-native@1.0.0",
+                "script": "install",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "chart-utils@1.4.1",
+                "script": "postinstall",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "@codedev/chart-core@3.6.0",
+                "script": "install",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "table-utils@1.5.0",
+                "script": "install",
+                "reason": "version_mismatch"
+              },
+              {
+                "package": "table-core@3.0.2",
+                "script": "preinstall",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "table-core@3.0.2",
+                "script": "postinstall",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "table-cli@3.4.0",
+                "script": "install",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "@codedev/query-native@1.3.0",
+                "script": "install",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "@codedev/query-native@1.3.0",
+                "script": "postinstall",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "cache-utils@1.0.1",
+                "script": "preinstall",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "cache-core@3.2.0",
+                "script": "install",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "cache-cli@3.6.1",
+                "script": "postinstall",
+                "reason": "version_mismatch"
+              },
+              {
+                "package": "mail-utils@1.1.0",
+                "script": "install",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "@codedev/mail-cli@3.0.0",
+                "script": "preinstall",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "@codedev/mail-cli@3.0.0",
+                "script": "install",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "log-utils@1.2.2",
+                "script": "postinstall",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "log-native@1.6.0",
+                "script": "install",
+                "reason": "git_dependency"
+              },
+              {
+                "package": "queue-core@3.5.0",
+                "script": "install",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "queue-core@3.5.0",
+                "script": "postinstall",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "queue-native@1.0.2",
+                "script": "preinstall",
+                "reason": "version_mismatch"
+              },
+              {
+                "package": "@codedev/image-utils@1.4.0",
+                "script": "install",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "image-native@1.1.1",
+                "script": "postinstall",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "image-cli@3.3.0",
+                "script": "install",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "pdf-core@3.0.1",
+                "script": "preinstall",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "pdf-client@0.1.2",
+                "script": "prepare",
+                "reason": "git_dependency"
+              },
+              {
+                "package": "pdf-native@1.2.0",
+                "script": "install",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "pdf-cli@3.4.2",
+                "script": "postinstall",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "@codedev/csv-core@3.1.0",
+                "script": "install",
+                "reason": "version_mismatch"
+              },
+              {
+                "package": "csv-bin@2.4.0",
+                "script": "install",
+                "reason": "integrity_mismatch"
+              },
+              {
+                "package": "slug-utils@1.0.0",
+                "script": "preinstall",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "slug-utils@1.0.0",
+                "script": "install",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "slug-utils@1.0.0",
+                "script": "postinstall",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "slug-cli@3.6.0",
+                "script": "install",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "otp-core@3.3.1",
+                "script": "postinstall",
+                "reason": "git_dependency"
+              },
+              {
+                "package": "@codedev/otp-native@1.5.0",
+                "script": "install",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "otp-cli@3.0.2",
+                "script": "preinstall",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "jwt-core@3.4.0",
+                "script": "install",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "jwt-native@1.6.2",
+                "script": "postinstall",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "yaml-utils@1.3.0",
+                "script": "install",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "yaml-native@1.0.1",
+                "script": "preinstall",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "@codedev/yaml-cli@3.2.0",
+                "script": "install",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "@codedev/yaml-cli@3.2.0",
+                "script": "postinstall",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "zip-kit@2.5.0",
+                "script": "install",
+                "reason": "git_dependency"
+              },
+              {
+                "package": "zip-native@1.1.0",
+                "script": "install",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "svg-utils@1.5.1",
+                "script": "postinstall",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "svg-core@3.0.0",
+                "script": "preinstall",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "svg-core@3.0.0",
+                "script": "install",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "@codedev/uuid-utils@1.6.0",
+                "script": "install",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "uuid-core@3.1.2",
+                "script": "postinstall",
+                "reason": "not_allowlisted"
+              },
+              {
+                "package": "uuid-cli@3.5.0",
+                "script": "install",
+                "reason": "not_allowlisted"
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

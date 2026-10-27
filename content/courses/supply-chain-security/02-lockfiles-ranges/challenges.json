@@ -1,0 +1,2558 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_ssc_121",
+      "name": "lockfile-ranges-quiz",
+      "type": "quiz",
+      "title": "What does the lockfile really guarantee?",
+      "description": "Two pieces of evidence from CodeDev pull requests: a range with a newer matching release, and a lockfile diff that moved a download to another host.",
+      "difficulty": "medium",
+      "outcomes": [
+        "dependency-checks"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "package.json:\n  \"marked\": \"^14.1.0\"\n\npackage-lock.json:\n  \"node_modules/marked\": {\n    \"version\": \"14.1.2\",\n    \"resolved\": \"https://registry.npmjs.org/marked/-/marked-14.1.2.tgz\",\n    \"integrity\": \"sha512-FAKE...==\"\n  }\n\nRegistry snapshot (npm view marked versions):\n  [ ..., \"14.1.2\", \"14.1.3\", \"15.0.0\" ]\n\nThe CI build job runs: npm ci\n\nStatement: \"CI installs marked 14.1.2, although 14.1.3 also satisfies ^14.1.0.\"",
+          "explanation": "True. npm ci installs exactly the versions in the lockfile and never resolves ranges again; it only uses package.json to check that the two files agree, and 14.1.2 satisfies ^14.1.0, so they do. 14.1.3 arrives only when someone runs npm install or npm update on purpose and commits the new lockfile. Even npm install would keep 14.1.2 here, because the locked version still satisfies the range. The misconception is that a caret range floats to the newest match on every install; with a committed lockfile, the range only matters when the lockfile changes.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Lockfile diff in pull request #2304 (\"chore: speed up installs\"):\n\n   \"node_modules/left-pad\": {\n     \"version\": \"1.3.0\",\n-    \"resolved\": \"https://registry.npmjs.org/left-pad/-/left-pad-1.3.0.tgz\",\n-    \"integrity\": \"sha512-FAKEoriginal...==\",\n+    \"resolved\": \"https://npm-mirror.codedev-cdn.test/left-pad/-/left-pad-1.3.0.tgz\",\n+    \"integrity\": \"sha512-FAKEchanged...==\",\n\nCI log:\n  Run npm ci\n  added 913 packages in 9s\n\nStatement: \"Because npm ci reported no integrity error, the left-pad tarball it installed is identical to the one registry.npmjs.org serves for 1.3.0.\"",
+          "explanation": "False. npm ci compares the downloaded tarball with the integrity value in the lockfile, and the pull request changed that value together with the URL. The check therefore proves that the tarball matches the new lockfile, which points at a host the team does not control; it says nothing about what registry.npmjs.org serves. Only the old hash, or a check that resolved URLs start with an allowed registry, would catch this. The misconception is that integrity anchors a package to the public registry; it anchors it to whatever the lockfile says, so the lockfile itself must be checked.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_ssc_122",
+      "name": "lockfile-check",
+      "type": "mini_coding",
+      "title": "Check the lockfile before npm ci",
+      "description": "CI for the CodeDev web app runs npm ci, which installs exactly what package-lock.json says - so the lockfile itself must be checked first. Write checkLockfile(manifest, lock, policy) in TypeScript. It returns findings { kind, package, detail }. missing: a name from dependencies or devDependencies has no \"node_modules/<name>\" entry with a version in lock.packages; detail = the spec. wide-range: the spec parses but has no upper bound (detail \"<spec> (no upper bound)\"), or it is outside the range subset below (detail \"<spec> (not a version range)\": dist-tags such as latest, git and URL specs, ||, hyphen ranges, ^1.2, v1.2.3 ...). mismatch: the locked version does not satisfy the spec; only checked when the spec parses and has an upper bound; detail \"<spec> but locked <version>\". A spec can give both wide-range and missing. registry: an installed package - every key of packages that contains \"node_modules/\", except entries with link: true - whose resolved is missing (detail \"no resolved URL\") or does not start with one of policy.allowedRegistries (detail = the URL). integrity: an installed package whose integrity is missing or empty; detail \"missing\". For registry and integrity, package = the key without a leading \"node_modules/\" (\"express/node_modules/qs\"). Range subset (spaces around a spec are ignored): \"*\", \"x\", \"X\" or \"\" = any version, no upper bound; 1.2.3 = exactly that version; 1.2, 1.2.x, 1.2.* = >=1.2.0 <1.3.0; 1, 1.x, 1.x.x, 1.* = >=1.0.0 <2.0.0; ^1.2.3 = >=1.2.3 <2.0.0, ^0.2.3 = >=0.2.3 <0.3.0, ^0.0.3 = >=0.0.3 <0.0.4; ~1.2.3 = >=1.2.3 <1.3.0 (^ and ~ need a full MAJOR.MINOR.PATCH); one or two comparators separated by spaces, each >=, >, <= or < followed by a full version, at most one lower (>=, >) and one upper (<=, <) bound, in any order. Version numbers are plain digits. A locked version with a prerelease (2.0.0-rc.1) never satisfies a range of this subset. Sort the findings by package (plain string comparison), then by kind in the order missing, wide-range, mismatch, registry, integrity. If lockfileVersion is not 2 or 3, return only { kind: \"unsupported-lockfile\", package: \"package-lock.json\", detail: \"lockfileVersion <value>\" } (\"lockfileVersion missing\" when absent); if the version is 2 or 3 but packages is missing, the detail is \"no packages map\". A name appears in at most one of dependencies and devDependencies. The runner prints one line per finding, then the count.",
+      "difficulty": "medium",
+      "outcomes": [
+        "dependency-checks"
+      ],
+      "points": 30,
+      "hints": [
+        "For each dependency there are three separate questions: is there a lock entry, does the policy accept the spec, and does the locked version fall inside it? Which of them can you still answer when the spec is \"latest\" or a git URL - and which findings come from the lock entries alone, without looking at package.json?",
+        "Turn every spec into a lower and an upper bound, each with an inclusive flag, or into null when it is outside the subset; \"no upper bound\" and \"null\" both become wide-range findings with different details. Then satisfies(version, range) is two comparisons of [major, minor, patch] tuples, after rejecting versions that are not plain digits. For hosts, startsWith against the whole allowed prefix, trailing slash included.",
+        "A worked example on other data: ~3.4.1 gives lower 3.4.1 inclusive and upper 3.5.0 exclusive, so 3.4.9 satisfies it while 3.5.0 and 3.4.0 do not. ^0.5.2 gives upper 0.6.0 exclusive, so 0.9.0 is a mismatch. >=5.0.0 parses but has no upper bound; 5.0.0 || 6.0.0 does not parse. A lock entry resolved from http://registry.npmjs.org/... fails an allowed prefix of https://registry.npmjs.org/ because the scheme differs. Two findings for the package \"zod\" print wide-range before mismatch; \"@a/b\" sorts before \"a\"."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The incident: a dependency missing from the lock, wide ranges, a lock that drifted",
+          "input": {
+            "packageJson": {
+              "name": "codedev-web",
+              "dependencies": {
+                "next": "15.5.4",
+                "react": "^19.1.0",
+                "marked": "^14.1.0",
+                "sanitize-html": ">=2.11.0",
+                "date-fns": "latest"
+              },
+              "devDependencies": {
+                "typescript": "~5.9.2",
+                "vitest": "^3.2.0",
+                "eslint": "*"
+              }
+            },
+            "lockfile": {
+              "name": "codedev-web",
+              "version": "1.0.0",
+              "lockfileVersion": 3,
+              "requires": true,
+              "packages": {
+                "": {
+                  "name": "codedev-web",
+                  "version": "1.0.0",
+                  "dependencies": {
+                    "next": "15.5.4",
+                    "react": "^19.1.0",
+                    "marked": "^14.1.0",
+                    "sanitize-html": ">=2.11.0",
+                    "date-fns": "latest"
+                  },
+                  "devDependencies": {
+                    "typescript": "~5.9.2",
+                    "vitest": "^3.2.0",
+                    "eslint": "*"
+                  }
+                },
+                "node_modules/next": {
+                  "version": "15.5.4",
+                  "resolved": "https://registry.npmjs.org/next/-/next-15.5.4.tgz",
+                  "integrity": "sha512-z2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtona=="
+                },
+                "node_modules/react": {
+                  "version": "19.1.1",
+                  "resolved": "https://registry.npmjs.org/react/-/react-19.1.1.tgz",
+                  "integrity": "sha512-onaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb=="
+                },
+                "node_modules/marked": {
+                  "version": "14.1.2",
+                  "resolved": "https://npm-mirror.codedev-cdn.test/marked/-/marked-14.1.2.tgz",
+                  "integrity": "sha512-943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8=="
+                },
+                "node_modules/date-fns": {
+                  "version": "4.1.0",
+                  "resolved": "https://registry.npmjs.org/date-fns/-/date-fns-4.1.0.tgz",
+                  "integrity": "sha512-onaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb=="
+                },
+                "node_modules/typescript": {
+                  "version": "5.9.3",
+                  "resolved": "https://registry.npmjs.org/typescript/-/typescript-5.9.3.tgz",
+                  "integrity": "sha512-/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2==",
+                  "dev": true
+                },
+                "node_modules/vitest": {
+                  "version": "4.0.1",
+                  "resolved": "https://registry.npmjs.org/vitest/-/vitest-4.0.1.tgz",
+                  "integrity": "sha512-jmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXK==",
+                  "dev": true
+                },
+                "node_modules/eslint": {
+                  "version": "9.36.0",
+                  "resolved": "https://registry.npmjs.org/eslint/-/eslint-9.36.0.tgz",
+                  "integrity": "sha512-OVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp==",
+                  "dev": true
+                },
+                "node_modules/scheduler": {
+                  "version": "0.26.0",
+                  "resolved": "https://registry.npmjs.org/scheduler/-/scheduler-0.26.0.tgz"
+                }
+              }
+            },
+            "policy": {
+              "allowedRegistries": [
+                "https://registry.npmjs.org/",
+                "https://npm.codedev.test/"
+              ]
+            }
+          },
+          "expected": "wide-range date-fns: latest (not a version range)\nwide-range eslint: * (no upper bound)\nregistry marked: https://npm-mirror.codedev-cdn.test/marked/-/marked-14.1.2.tgz\nmissing sanitize-html: >=2.11.0\nwide-range sanitize-html: >=2.11.0 (no upper bound)\nintegrity scheduler: missing\nmismatch vitest: ^3.2.0 but locked 4.0.1\n7 finding(s)",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Exact, caret, tilde, x-ranges and >=/< pairs: two locked versions fall outside their range",
+          "input": {
+            "packageJson": {
+              "name": "codedev-api",
+              "dependencies": {
+                "pg": "8.16.3",
+                "zod": "^4.1.0",
+                "ioredis": "~5.8.0",
+                "nanoid": "5.x",
+                "jose": "6",
+                "pino": "9.11.*",
+                "undici": ">=7.10.0 <8.0.0",
+                "ms": "<3.0.0",
+                "bcryptjs": "^3.0.2",
+                "dotenv": "~17.2.1",
+                "uuid": "^13.0.0"
+              }
+            },
+            "lockfile": {
+              "name": "codedev-api",
+              "version": "1.0.0",
+              "lockfileVersion": 3,
+              "requires": true,
+              "packages": {
+                "": {
+                  "name": "codedev-api",
+                  "version": "1.0.0",
+                  "dependencies": {
+                    "pg": "8.16.3",
+                    "zod": "^4.1.0",
+                    "ioredis": "~5.8.0",
+                    "nanoid": "5.x",
+                    "jose": "6",
+                    "pino": "9.11.*",
+                    "undici": ">=7.10.0 <8.0.0",
+                    "ms": "<3.0.0",
+                    "bcryptjs": "^3.0.2",
+                    "dotenv": "~17.2.1",
+                    "uuid": "^13.0.0"
+                  }
+                },
+                "node_modules/pg": {
+                  "version": "8.16.3",
+                  "resolved": "https://registry.npmjs.org/pg/-/pg-8.16.3.tgz",
+                  "integrity": "sha512-KhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1=="
+                },
+                "node_modules/zod": {
+                  "version": "4.1.11",
+                  "resolved": "https://registry.npmjs.org/zod/-/zod-4.1.11.tgz",
+                  "integrity": "sha512-tonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBs=="
+                },
+                "node_modules/ioredis": {
+                  "version": "5.9.0",
+                  "resolved": "https://registry.npmjs.org/ioredis/-/ioredis-5.9.0.tgz",
+                  "integrity": "sha512-IH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7=="
+                },
+                "node_modules/nanoid": {
+                  "version": "5.1.6",
+                  "resolved": "https://registry.npmjs.org/nanoid/-/nanoid-5.1.6.tgz",
+                  "integrity": "sha512-8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAf=="
+                },
+                "node_modules/jose": {
+                  "version": "6.1.0",
+                  "resolved": "https://registry.npmjs.org/jose/-/jose-6.1.0.tgz",
+                  "integrity": "sha512-TW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6=="
+                },
+                "node_modules/pino": {
+                  "version": "9.11.0",
+                  "resolved": "https://registry.npmjs.org/pino/-/pino-9.11.0.tgz",
+                  "integrity": "sha512-cLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/=="
+                },
+                "node_modules/undici": {
+                  "version": "7.16.0",
+                  "resolved": "https://registry.npmjs.org/undici/-/undici-7.16.0.tgz",
+                  "integrity": "sha512-5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNI=="
+                },
+                "node_modules/ms": {
+                  "version": "2.1.3",
+                  "resolved": "https://registry.npmjs.org/ms/-/ms-2.1.3.tgz",
+                  "integrity": "sha512-jmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXK=="
+                },
+                "node_modules/bcryptjs": {
+                  "version": "3.0.1",
+                  "resolved": "https://registry.npmjs.org/bcryptjs/-/bcryptjs-3.0.1.tgz",
+                  "integrity": "sha512-GtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qB=="
+                },
+                "node_modules/dotenv": {
+                  "version": "17.2.3",
+                  "resolved": "https://registry.npmjs.org/dotenv/-/dotenv-17.2.3.tgz",
+                  "integrity": "sha512-2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonax=="
+                },
+                "node_modules/uuid": {
+                  "version": "13.0.0",
+                  "resolved": "https://registry.npmjs.org/uuid/-/uuid-13.0.0.tgz",
+                  "integrity": "sha512-M7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1Qv=="
+                }
+              }
+            },
+            "policy": {
+              "allowedRegistries": [
+                "https://registry.npmjs.org/",
+                "https://npm.codedev.test/"
+              ]
+            }
+          },
+          "expected": "mismatch bcryptjs: ^3.0.2 but locked 3.0.1\nmismatch ioredis: ~5.8.0 but locked 5.9.0\n2 finding(s)",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Zero-major carets, prereleases, inclusive and exclusive bounds at the edge of each range",
+          "input": {
+            "packageJson": {
+              "dependencies": {
+                "alpha-zero": "^0.2.3",
+                "beta-zero": "^0.2.3",
+                "gamma-zero": "^0.0.3",
+                "delta-zero": "^0.0.3",
+                "tilde-edge": "~1.2.3",
+                "tilde-in": "~1.2.3",
+                "incl-upper": ">=1.2.0 <=1.4.0",
+                "excl-lower": ">1.2.0 <2.0.0",
+                "swapped": "<=2.0.0 >=1.0.0",
+                "rc-caret": "^2.0.0",
+                "rc-exact": "2.0.0",
+                "major-x": "1.x",
+                "major-only": "2",
+                "below-caret": "^1.2.3",
+                "exact-off": "1.2.3",
+                "upper-only": "<2.0.0",
+                "minor-star": "3.4.*",
+                "caret-big": "^10.2.0"
+              }
+            },
+            "lockfile": {
+              "name": "edges",
+              "version": "1.0.0",
+              "lockfileVersion": 3,
+              "requires": true,
+              "packages": {
+                "": {
+                  "name": "edges",
+                  "version": "1.0.0"
+                },
+                "node_modules/alpha-zero": {
+                  "version": "0.3.0",
+                  "resolved": "https://registry.npmjs.org/alpha-zero/-/alpha-zero-0.3.0.tgz",
+                  "integrity": "sha512-/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2=="
+                },
+                "node_modules/beta-zero": {
+                  "version": "0.2.9",
+                  "resolved": "https://registry.npmjs.org/beta-zero/-/beta-zero-0.2.9.tgz",
+                  "integrity": "sha512-R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elA=="
+                },
+                "node_modules/gamma-zero": {
+                  "version": "0.0.4",
+                  "resolved": "https://registry.npmjs.org/gamma-zero/-/gamma-zero-0.0.4.tgz",
+                  "integrity": "sha512-Bsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVw=="
+                },
+                "node_modules/delta-zero": {
+                  "version": "0.0.3",
+                  "resolved": "https://registry.npmjs.org/delta-zero/-/delta-zero-0.0.3.tgz",
+                  "integrity": "sha512-R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elA=="
+                },
+                "node_modules/tilde-edge": {
+                  "version": "1.3.0",
+                  "resolved": "https://registry.npmjs.org/tilde-edge/-/tilde-edge-1.3.0.tgz",
+                  "integrity": "sha512-NIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM=="
+                },
+                "node_modules/tilde-in": {
+                  "version": "1.2.99",
+                  "resolved": "https://registry.npmjs.org/tilde-in/-/tilde-in-1.2.99.tgz",
+                  "integrity": "sha512-2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonax=="
+                },
+                "node_modules/incl-upper": {
+                  "version": "1.4.0",
+                  "resolved": "https://registry.npmjs.org/incl-upper/-/incl-upper-1.4.0.tgz",
+                  "integrity": "sha512-dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxc=="
+                },
+                "node_modules/excl-lower": {
+                  "version": "1.2.0",
+                  "resolved": "https://registry.npmjs.org/excl-lower/-/excl-lower-1.2.0.tgz",
+                  "integrity": "sha512-axcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+F=="
+                },
+                "node_modules/swapped": {
+                  "version": "2.0.0",
+                  "resolved": "https://registry.npmjs.org/swapped/-/swapped-2.0.0.tgz",
+                  "integrity": "sha512-xcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg=="
+                },
+                "node_modules/rc-caret": {
+                  "version": "2.0.0-rc.1",
+                  "resolved": "https://registry.npmjs.org/rc-caret/-/rc-caret-2.0.0-rc.1.tgz",
+                  "integrity": "sha512-JUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dY=="
+                },
+                "node_modules/rc-exact": {
+                  "version": "2.0.0-beta.3",
+                  "resolved": "https://registry.npmjs.org/rc-exact/-/rc-exact-2.0.0-beta.3.tgz",
+                  "integrity": "sha512-iZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGt=="
+                },
+                "node_modules/major-x": {
+                  "version": "1.99.0",
+                  "resolved": "https://registry.npmjs.org/major-x/-/major-x-1.99.0.tgz",
+                  "integrity": "sha512-mNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKh=="
+                },
+                "node_modules/major-only": {
+                  "version": "3.0.0",
+                  "resolved": "https://registry.npmjs.org/major-only/-/major-only-3.0.0.tgz",
+                  "integrity": "sha512-qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOV=="
+                },
+                "node_modules/below-caret": {
+                  "version": "1.2.2",
+                  "resolved": "https://registry.npmjs.org/below-caret/-/below-caret-1.2.2.tgz",
+                  "integrity": "sha512-p0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW94=="
+                },
+                "node_modules/exact-off": {
+                  "version": "1.2.4",
+                  "resolved": "https://registry.npmjs.org/exact-off/-/exact-off-1.2.4.tgz",
+                  "integrity": "sha512-R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elA=="
+                },
+                "node_modules/upper-only": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/upper-only/-/upper-only-1.0.0.tgz",
+                  "integrity": "sha512-lAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5E=="
+                },
+                "node_modules/minor-star": {
+                  "version": "3.5.0",
+                  "resolved": "https://registry.npmjs.org/minor-star/-/minor-star-3.5.0.tgz",
+                  "integrity": "sha512-JUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dY=="
+                },
+                "node_modules/caret-big": {
+                  "version": "10.11.1",
+                  "resolved": "https://registry.npmjs.org/caret-big/-/caret-big-10.11.1.tgz",
+                  "integrity": "sha512-Lu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/S=="
+                }
+              }
+            },
+            "policy": {
+              "allowedRegistries": [
+                "https://registry.npmjs.org/",
+                "https://npm.codedev.test/"
+              ]
+            }
+          },
+          "expected": "mismatch alpha-zero: ^0.2.3 but locked 0.3.0\nmismatch below-caret: ^1.2.3 but locked 1.2.2\nmismatch exact-off: 1.2.3 but locked 1.2.4\nmismatch excl-lower: >1.2.0 <2.0.0 but locked 1.2.0\nmismatch gamma-zero: ^0.0.3 but locked 0.0.4\nmismatch major-only: 2 but locked 3.0.0\nmismatch minor-star: 3.4.* but locked 3.5.0\nmismatch rc-caret: ^2.0.0 but locked 2.0.0-rc.1\nmismatch rc-exact: 2.0.0 but locked 2.0.0-beta.3\nmismatch tilde-edge: ~1.2.3 but locked 1.3.0\n10 finding(s)",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Lookalike hosts, plain http, git URLs, nested entries, empty integrity; workspace links skipped",
+          "input": {
+            "packageJson": {
+              "name": "codedev-web",
+              "workspaces": [
+                "packages/*"
+              ],
+              "dependencies": {
+                "express": "^4.21.0",
+                "left-pad": "1.3.0",
+                "is-odd": "^3.0.1",
+                "@codedev/grading-core": "^2.4.0",
+                "chalk": "^5.6.0"
+              },
+              "devDependencies": {
+                "lodash.merge": "^4.6.2",
+                "fast-glob": "^3.3.3"
+              }
+            },
+            "lockfile": {
+              "name": "codedev-web",
+              "version": "1.0.0",
+              "lockfileVersion": 3,
+              "requires": true,
+              "packages": {
+                "": {
+                  "name": "codedev-web",
+                  "version": "1.0.0"
+                },
+                "node_modules/@codedev/ui": {
+                  "resolved": "packages/ui",
+                  "link": true
+                },
+                "packages/ui": {
+                  "name": "@codedev/ui",
+                  "version": "1.0.0"
+                },
+                "packages/ui/node_modules/clsx": {
+                  "version": "2.1.1",
+                  "resolved": "https://registry.npmjs.org.evil.test/clsx/-/clsx-2.1.1.tgz",
+                  "integrity": "sha512-VwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0=="
+                },
+                "node_modules/express": {
+                  "version": "4.21.2",
+                  "resolved": "https://registry.npmjs.org/express/-/express-4.21.2.tgz",
+                  "integrity": "sha512-onaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb=="
+                },
+                "node_modules/express/node_modules/qs": {
+                  "version": "6.13.0",
+                  "resolved": "https://registry.npmjs.org/qs/-/qs-6.13.0.tgz"
+                },
+                "node_modules/express/node_modules/debug": {
+                  "version": "2.6.9",
+                  "resolved": "https://registry.npmjs.org/debug/-/debug-2.6.9.tgz",
+                  "integrity": ""
+                },
+                "node_modules/left-pad": {
+                  "version": "1.3.0",
+                  "resolved": "http://registry.npmjs.org/left-pad/-/left-pad-1.3.0.tgz",
+                  "integrity": "sha512-u1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJ=="
+                },
+                "node_modules/is-odd": {
+                  "version": "3.0.1",
+                  "resolved": "https://evil.test/https://registry.npmjs.org/is-odd/-/is-odd-3.0.1.tgz",
+                  "integrity": "sha512-b+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPi=="
+                },
+                "node_modules/@codedev/grading-core": {
+                  "version": "2.4.1",
+                  "resolved": "https://npm.codedev.test/@codedev/grading-core/-/grading-core-2.4.1.tgz",
+                  "integrity": "sha512-rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfy=="
+                },
+                "node_modules/chalk": {
+                  "version": "5.6.2",
+                  "resolved": "git+ssh://git@github.com/chalk/chalk.git#5dbc1e2",
+                  "integrity": "sha512-tonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBs=="
+                },
+                "node_modules/lodash.merge": {
+                  "version": "4.6.2",
+                  "integrity": "sha512-yp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW9==",
+                  "dev": true
+                },
+                "node_modules/fast-glob": {
+                  "version": "3.3.3",
+                  "resolved": "https://registry.npmjs.org/fast-glob/-/fast-glob-3.3.3.tgz",
+                  "integrity": "sha512-jmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXK==",
+                  "dev": true
+                }
+              }
+            },
+            "policy": {
+              "allowedRegistries": [
+                "https://registry.npmjs.org/",
+                "https://npm.codedev.test/"
+              ]
+            }
+          },
+          "expected": "registry chalk: git+ssh://git@github.com/chalk/chalk.git#5dbc1e2\nintegrity express/node_modules/debug: missing\nintegrity express/node_modules/qs: missing\nregistry is-odd: https://evil.test/https://registry.npmjs.org/is-odd/-/is-odd-3.0.1.tgz\nregistry left-pad: http://registry.npmjs.org/left-pad/-/left-pad-1.3.0.tgz\nregistry lodash.merge: no resolved URL\nregistry packages/ui/node_modules/clsx: https://registry.npmjs.org.evil.test/clsx/-/clsx-2.1.1.tgz\n7 finding(s)",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Dist-tags, git and URL specs, OR and hyphen ranges, partial carets and open lower bounds",
+          "input": {
+            "packageJson": {
+              "dependencies": {
+                "date-fns": "next",
+                "md-render": "github:codedev/md-render#main",
+                "tarball-dep": "https://cdn.codedev.test/pkgs/tarball-dep-1.0.0.tgz",
+                "either": "^1.0.0 || ^2.0.0",
+                "hyphen": "1.0.0 - 2.0.0",
+                "partial-caret": "^1.2",
+                "open-lower": ">=2.0.0",
+                "open-gt": ">3.0.0",
+                "star": "*",
+                "two-lowers": ">=1.0.0 >=2.0.0",
+                "x-patch": "1.x.3",
+                "alias": "npm:string-width@4.2.3",
+                "v-prefix": "v1.2.3",
+                "bounded": ">=1.0.0 <1.5.0"
+              }
+            },
+            "lockfile": {
+              "name": "wide",
+              "version": "1.0.0",
+              "lockfileVersion": 3,
+              "requires": true,
+              "packages": {
+                "": {
+                  "name": "wide",
+                  "version": "1.0.0"
+                },
+                "node_modules/date-fns": {
+                  "version": "9.9.9",
+                  "resolved": "https://registry.npmjs.org/date-fns/-/date-fns-9.9.9.tgz",
+                  "integrity": "sha512-GtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qB=="
+                },
+                "node_modules/md-render": {
+                  "version": "9.9.9",
+                  "resolved": "https://registry.npmjs.org/md-render/-/md-render-9.9.9.tgz",
+                  "integrity": "sha512-GtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qB=="
+                },
+                "node_modules/tarball-dep": {
+                  "version": "9.9.9",
+                  "resolved": "https://registry.npmjs.org/tarball-dep/-/tarball-dep-9.9.9.tgz",
+                  "integrity": "sha512-0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943=="
+                },
+                "node_modules/either": {
+                  "version": "9.9.9",
+                  "resolved": "https://registry.npmjs.org/either/-/either-9.9.9.tgz",
+                  "integrity": "sha512-Bsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVw=="
+                },
+                "node_modules/hyphen": {
+                  "version": "9.9.9",
+                  "resolved": "https://registry.npmjs.org/hyphen/-/hyphen-9.9.9.tgz",
+                  "integrity": "sha512-YXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcL=="
+                },
+                "node_modules/partial-caret": {
+                  "version": "9.9.9",
+                  "resolved": "https://registry.npmjs.org/partial-caret/-/partial-caret-9.9.9.tgz",
+                  "integrity": "sha512-3qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rO=="
+                },
+                "node_modules/open-lower": {
+                  "version": "9.9.9",
+                  "resolved": "https://registry.npmjs.org/open-lower/-/open-lower-9.9.9.tgz",
+                  "integrity": "sha512-8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAf=="
+                },
+                "node_modules/open-gt": {
+                  "version": "9.9.9",
+                  "resolved": "https://registry.npmjs.org/open-gt/-/open-gt-9.9.9.tgz",
+                  "integrity": "sha512-SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2d=="
+                },
+                "node_modules/star": {
+                  "version": "9.9.9",
+                  "resolved": "https://registry.npmjs.org/star/-/star-9.9.9.tgz",
+                  "integrity": "sha512-43qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8r=="
+                },
+                "node_modules/two-lowers": {
+                  "version": "9.9.9",
+                  "resolved": "https://registry.npmjs.org/two-lowers/-/two-lowers-9.9.9.tgz",
+                  "integrity": "sha512-rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfy=="
+                },
+                "node_modules/x-patch": {
+                  "version": "9.9.9",
+                  "resolved": "https://registry.npmjs.org/x-patch/-/x-patch-9.9.9.tgz",
+                  "integrity": "sha512-rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfy=="
+                },
+                "node_modules/alias": {
+                  "version": "9.9.9",
+                  "resolved": "https://registry.npmjs.org/alias/-/alias-9.9.9.tgz",
+                  "integrity": "sha512-SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2d=="
+                },
+                "node_modules/v-prefix": {
+                  "version": "9.9.9",
+                  "resolved": "https://registry.npmjs.org/v-prefix/-/v-prefix-9.9.9.tgz",
+                  "integrity": "sha512-NIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM=="
+                },
+                "node_modules/bounded": {
+                  "version": "1.5.0",
+                  "resolved": "https://registry.npmjs.org/bounded/-/bounded-1.5.0.tgz",
+                  "integrity": "sha512-43qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8r=="
+                }
+              }
+            },
+            "policy": {
+              "allowedRegistries": [
+                "https://registry.npmjs.org/",
+                "https://npm.codedev.test/"
+              ]
+            }
+          },
+          "expected": "wide-range alias: npm:string-width@4.2.3 (not a version range)\nmismatch bounded: >=1.0.0 <1.5.0 but locked 1.5.0\nwide-range date-fns: next (not a version range)\nwide-range either: ^1.0.0 || ^2.0.0 (not a version range)\nwide-range hyphen: 1.0.0 - 2.0.0 (not a version range)\nwide-range md-render: github:codedev/md-render#main (not a version range)\nwide-range open-gt: >3.0.0 (no upper bound)\nwide-range open-lower: >=2.0.0 (no upper bound)\nwide-range partial-caret: ^1.2 (not a version range)\nwide-range star: * (no upper bound)\nwide-range tarball-dep: https://cdn.codedev.test/pkgs/tarball-dep-1.0.0.tgz (not a version range)\nwide-range two-lowers: >=1.0.0 >=2.0.0 (not a version range)\nwide-range v-prefix: v1.2.3 (not a version range)\nwide-range x-patch: 1.x.3 (not a version range)\n14 finding(s)",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Invalid input: a lockfileVersion 1 file (no packages map) is rejected with one finding",
+          "input": {
+            "packageJson": {
+              "dependencies": {
+                "express": "^4.21.0"
+              }
+            },
+            "lockfile": {
+              "name": "legacy",
+              "version": "1.0.0",
+              "lockfileVersion": 1,
+              "requires": true,
+              "dependencies": {
+                "express": {
+                  "version": "4.21.2",
+                  "resolved": "https://registry.npmjs.org/express/-/express-4.21.2.tgz",
+                  "integrity": "sha512-Afyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ET=="
+                }
+              }
+            },
+            "policy": {
+              "allowedRegistries": [
+                "https://registry.npmjs.org/",
+                "https://npm.codedev.test/"
+              ]
+            }
+          },
+          "expected": "unsupported-lockfile package-lock.json: lockfileVersion 1\n1 finding(s)",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Large: 260 dependencies and their nested packages, findings sorted by package then kind",
+          "input": {
+            "packageJson": {
+              "name": "codedev-monorepo",
+              "dependencies": {
+                "lib-001": "4.15.4",
+                "lib-002": "^5.5.6",
+                "lib-003": "12.12.x",
+                "lib-005": ">=4.0.0",
+                "lib-006": "~2.7.8",
+                "lib-007": ">=11.0.0",
+                "@codedev/pkg-009": ">=9.17.2 <10.0.0",
+                "lib-010": "^2.1.8",
+                "lib-011": ">=9.15.8 <10.0.0",
+                "lib-013": "1.18.7",
+                "lib-014": ">=9.12.3 <10.0.0",
+                "lib-015": "8.0.6",
+                "lib-017": "~10.19.3",
+                "@codedev/pkg-018": "^9.18.8",
+                "lib-019": "1.1.0",
+                "lib-021": "8.11.4",
+                "lib-022": "4.11.x",
+                "lib-023": ">=3.0.0",
+                "lib-025": "3.7.x",
+                "lib-026": "~1.12.5",
+                "@codedev/pkg-027": "~12.2.4",
+                "lib-029": "~3.13.6",
+                "lib-030": ">=2.13.4 <3.0.0",
+                "lib-031": "5.11.0",
+                "lib-033": ">=6.0.0",
+                "lib-034": ">=4.4.7 <5.0.0",
+                "lib-035": ">=11.0.0",
+                "lib-037": ">=2.2.2 <3.0.0",
+                "lib-038": "^8.11.5",
+                "lib-039": ">=3.18.9 <4.0.0",
+                "lib-041": "~9.2.6",
+                "lib-042": ">=6.17.4 <7.0.0",
+                "lib-043": "^11.13.6",
+                "@codedev/pkg-045": "^1.8.4",
+                "lib-046": ">=3.3.2 <4.0.0",
+                "lib-047": "^3.1.8",
+                "lib-049": "10.1.x",
+                "lib-050": "~2.4.0",
+                "lib-051": "^6.8.5",
+                "lib-053": "^1.15.8",
+                "@codedev/pkg-054": "~1.14.0",
+                "lib-055": ">=1.0.0",
+                "lib-057": ">=12.12.4 <13.0.0",
+                "lib-058": "6.19.0",
+                "lib-059": ">=12.8.2 <13.0.0",
+                "lib-061": ">=2.0.0",
+                "lib-062": "1.2.0",
+                "@codedev/pkg-063": "6.18.x",
+                "lib-065": ">=8.12.9 <9.0.0",
+                "lib-066": "^12.3.3",
+                "lib-067": "11.17.x",
+                "lib-069": "5.11.5",
+                "lib-070": "^6.5.8",
+                "lib-071": "3.12.3",
+                "lib-073": ">=3.0.0",
+                "lib-074": ">=1.2.5 <2.0.0",
+                "lib-075": "^10.19.1",
+                "lib-077": "~11.3.5",
+                "lib-078": "^11.10.0",
+                "lib-079": "^10.9.0",
+                "@codedev/pkg-081": "^8.12.5",
+                "lib-082": "12.10.0",
+                "lib-083": "^2.13.5",
+                "lib-085": "5.11.3",
+                "lib-086": "3.9.x",
+                "lib-087": "^9.18.0",
+                "lib-089": "10.17.x",
+                "@codedev/pkg-090": "^11.19.3",
+                "lib-091": ">=3.0.0",
+                "lib-093": "^9.8.7",
+                "lib-094": "~7.12.0",
+                "lib-095": "^8.10.1",
+                "lib-097": ">=4.3.5 <5.0.0",
+                "lib-098": "^4.4.1",
+                "@codedev/pkg-099": "9.18.x",
+                "lib-101": "4.1.9",
+                "lib-102": "10.6.5",
+                "lib-103": "12.3.4",
+                "lib-105": "^11.13.3",
+                "lib-106": "^8.7.7",
+                "lib-107": "~10.12.8",
+                "lib-109": ">=6.0.0",
+                "lib-110": "^6.4.5",
+                "lib-111": "~2.11.9",
+                "lib-113": "~5.5.2",
+                "lib-114": "9.1.3",
+                "lib-115": "^7.11.4",
+                "@codedev/pkg-117": "~10.1.9",
+                "lib-118": ">=10.0.0",
+                "lib-119": "5.2.x",
+                "lib-121": ">=11.0.0",
+                "lib-122": "2.19.x",
+                "lib-123": ">=2.16.5 <3.0.0",
+                "lib-125": ">=11.18.8 <12.0.0",
+                "@codedev/pkg-126": "6.4.0",
+                "lib-127": "^1.8.3",
+                "lib-129": "~12.10.3",
+                "lib-130": ">=6.0.0",
+                "lib-131": ">=1.0.0",
+                "lib-133": "4.18.x",
+                "lib-134": "9.13.x",
+                "@codedev/pkg-135": "~11.5.3",
+                "lib-137": "^4.4.5",
+                "lib-138": "10.15.5",
+                "lib-139": "5.11.x",
+                "lib-141": "^8.7.4",
+                "lib-142": ">=6.15.7 <7.0.0",
+                "lib-143": "~10.4.9",
+                "lib-145": "~1.17.3",
+                "lib-146": ">=8.0.0",
+                "lib-147": "^6.6.3",
+                "lib-149": "^8.12.0",
+                "lib-150": "~1.2.4",
+                "lib-151": "9.11.8",
+                "@codedev/pkg-153": "1.0.5",
+                "lib-154": "~4.9.6",
+                "lib-155": "~4.18.2",
+                "lib-157": "10.0.7",
+                "lib-158": "~11.2.7",
+                "lib-159": "3.10.x",
+                "lib-161": ">=8.0.0",
+                "@codedev/pkg-162": ">=6.5.6 <7.0.0",
+                "lib-163": "~1.16.6",
+                "lib-165": "11.1.9",
+                "lib-166": ">=2.4.4 <3.0.0",
+                "lib-167": "^10.17.9",
+                "lib-169": "~1.8.9",
+                "lib-170": "^8.18.2",
+                "@codedev/pkg-171": "~7.3.4",
+                "lib-173": "^11.18.7",
+                "lib-174": "5.4.x",
+                "lib-175": "^3.13.9",
+                "lib-177": ">=8.11.8 <9.0.0",
+                "lib-178": "2.13.8",
+                "lib-179": "1.4.x",
+                "lib-181": ">=5.7.9 <6.0.0",
+                "lib-182": "^11.6.4",
+                "lib-183": "10.14.8",
+                "lib-185": "^7.0.9",
+                "lib-186": "7.12.x",
+                "lib-187": "4.9.x",
+                "@codedev/pkg-189": "7.16.x",
+                "lib-190": "10.19.4",
+                "lib-191": "6.5.0",
+                "lib-193": "~12.0.2",
+                "lib-194": "~2.3.1",
+                "lib-195": "2.4.6",
+                "lib-197": ">=10.0.0",
+                "@codedev/pkg-198": "~5.12.5",
+                "lib-199": "5.13.x",
+                "lib-201": "^4.19.7",
+                "lib-202": "2.3.x",
+                "lib-203": "~8.11.6",
+                "lib-205": "5.14.x",
+                "lib-206": "6.11.x",
+                "@codedev/pkg-207": ">=1.0.0",
+                "lib-209": ">=9.0.0",
+                "lib-210": "^6.18.9",
+                "lib-211": ">=10.0.0",
+                "lib-213": "~9.0.2",
+                "lib-214": ">=4.13.4 <5.0.0",
+                "lib-215": "~2.12.2",
+                "lib-217": "^9.17.5",
+                "lib-218": "7.19.x",
+                "lib-219": "2.1.x",
+                "lib-221": "2.10.2",
+                "lib-222": ">=3.0.0",
+                "lib-223": "~12.12.9",
+                "@codedev/pkg-225": "^7.6.7",
+                "lib-226": "^7.9.5",
+                "lib-227": "12.8.x",
+                "lib-229": "^8.17.1",
+                "lib-230": "~8.3.3",
+                "lib-231": "7.5.x",
+                "lib-233": "^4.19.8",
+                "@codedev/pkg-234": "^9.15.4",
+                "lib-235": "7.0.x",
+                "lib-237": "4.16.5",
+                "lib-238": "2.18.8",
+                "lib-239": ">=1.4.9 <2.0.0",
+                "lib-241": "5.0.x",
+                "lib-242": "~10.17.1",
+                "@codedev/pkg-243": "^2.1.5",
+                "lib-245": "^5.17.3",
+                "lib-246": "12.19.x",
+                "lib-247": "1.2.0",
+                "lib-249": "8.1.x",
+                "lib-250": "3.7.x",
+                "lib-251": "3.16.x",
+                "lib-253": "1.7.3",
+                "lib-254": "^11.11.8",
+                "lib-255": ">=7.6.2 <8.0.0",
+                "lib-257": "~11.1.4",
+                "lib-258": "5.0.x",
+                "lib-259": ">=1.11.0 <2.0.0"
+              },
+              "devDependencies": {
+                "@codedev/pkg-000": "^7.3.1",
+                "lib-004": "^8.15.2",
+                "lib-008": "~4.13.0",
+                "lib-012": "^5.0.6",
+                "lib-016": "2.17.x",
+                "lib-020": "~2.6.4",
+                "lib-024": "10.19.x",
+                "lib-028": ">=12.0.0",
+                "lib-032": "8.6.7",
+                "@codedev/pkg-036": ">=12.0.0",
+                "lib-040": "5.1.x",
+                "lib-044": "7.0.9",
+                "lib-048": "~11.18.6",
+                "lib-052": "^8.16.1",
+                "lib-056": "^2.13.3",
+                "lib-060": "^6.8.2",
+                "lib-064": ">=6.0.0",
+                "lib-068": "12.16.9",
+                "@codedev/pkg-072": "9.19.x",
+                "lib-076": "9.2.x",
+                "lib-080": "^4.9.5",
+                "lib-084": ">=3.0.0",
+                "lib-088": "5.9.5",
+                "lib-092": "6.18.x",
+                "lib-096": "12.13.9",
+                "lib-100": ">=7.0.0",
+                "lib-104": "~9.8.2",
+                "@codedev/pkg-108": "~4.17.2",
+                "lib-112": "~4.3.4",
+                "lib-116": "~9.16.1",
+                "lib-120": "~6.4.3",
+                "lib-124": "^9.8.6",
+                "lib-128": "~2.19.5",
+                "lib-132": "^8.12.2",
+                "lib-136": "1.18.x",
+                "lib-140": "6.8.2",
+                "@codedev/pkg-144": "9.19.x",
+                "lib-148": "^7.14.0",
+                "lib-152": "3.15.7",
+                "lib-156": "^4.8.6",
+                "lib-160": ">=7.0.0",
+                "lib-164": "^1.0.6",
+                "lib-168": ">=7.7.6 <8.0.0",
+                "lib-172": "^7.0.0",
+                "lib-176": ">=1.6.0 <2.0.0",
+                "@codedev/pkg-180": ">=2.0.0",
+                "lib-184": "~7.11.7",
+                "lib-188": "9.9.x",
+                "lib-192": ">=6.8.3 <7.0.0",
+                "lib-196": "9.9.3",
+                "lib-200": ">=12.13.4 <13.0.0",
+                "lib-204": "~1.8.0",
+                "lib-208": "^6.1.3",
+                "lib-212": "^10.1.2",
+                "@codedev/pkg-216": "8.16.x",
+                "lib-220": ">=7.0.0",
+                "lib-224": ">=8.0.0",
+                "lib-228": "2.2.4",
+                "lib-232": "^3.12.7",
+                "lib-236": "10.0.7",
+                "lib-240": "~11.19.1",
+                "lib-244": "~6.4.7",
+                "lib-248": "~2.6.7",
+                "@codedev/pkg-252": "6.3.x",
+                "lib-256": "^2.3.2"
+              }
+            },
+            "lockfile": {
+              "name": "codedev-monorepo",
+              "version": "1.0.0",
+              "lockfileVersion": 3,
+              "requires": true,
+              "packages": {
+                "": {
+                  "name": "codedev-monorepo",
+                  "version": "1.0.0"
+                },
+                "node_modules/@codedev/pkg-000": {
+                  "version": "8.0.0",
+                  "resolved": "https://npm.codedev.test.mirror.test/@codedev/pkg-000/-/pkg-000-8.0.0.tgz",
+                  "integrity": "sha512-jmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXK=="
+                },
+                "node_modules/@codedev/pkg-000/node_modules/dep-0": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-0/-/dep-0-1.0.0.tgz",
+                  "integrity": "sha512-C5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmN=="
+                },
+                "node_modules/lib-001": {
+                  "version": "4.15.4",
+                  "resolved": "https://registry.npmjs.org/lib-001/-/lib-001-4.15.4.tgz",
+                  "integrity": "sha512-IH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7=="
+                },
+                "node_modules/lib-002": {
+                  "version": "5.5.8",
+                  "resolved": "https://registry.npmjs.org/lib-002/-/lib-002-5.5.8.tgz"
+                },
+                "node_modules/lib-003": {
+                  "version": "12.12.6",
+                  "resolved": "https://registry.npmjs.org/lib-003/-/lib-003-12.12.6.tgz",
+                  "integrity": "sha512-u1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJ=="
+                },
+                "node_modules/lib-004": {
+                  "version": "8.15.4",
+                  "resolved": "https://registry.npmjs.org/lib-004/-/lib-004-8.15.4.tgz",
+                  "integrity": "sha512-7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC=="
+                },
+                "node_modules/lib-004/node_modules/dep-4": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-4/-/dep-4-1.0.0.tgz",
+                  "integrity": "sha512-kz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGton=="
+                },
+                "node_modules/lib-005": {
+                  "version": "4.17.6",
+                  "resolved": "https://registry.npmjs.org/lib-005/-/lib-005-4.17.6.tgz",
+                  "integrity": "sha512-wPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0D=="
+                },
+                "node_modules/lib-006": {
+                  "version": "2.7.10",
+                  "resolved": "https://registry.npmjs.org/lib-006/-/lib-006-2.7.10.tgz",
+                  "integrity": "sha512-/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2=="
+                },
+                "node_modules/lib-007": {
+                  "version": "11.4.8",
+                  "resolved": "https://registry.npmjs.org/lib-007/-/lib-007-11.4.8.tgz",
+                  "integrity": "sha512-yp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW9=="
+                },
+                "node_modules/lib-008": {
+                  "version": "4.13.0",
+                  "resolved": "https://registry.npmjs.org/lib-008/-/lib-008-4.13.0.tgz",
+                  "integrity": "sha512-VwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0=="
+                },
+                "node_modules/@codedev/pkg-009": {
+                  "version": "9.17.2",
+                  "resolved": "https://npm.codedev.test/@codedev/pkg-009/-/pkg-009-9.17.2.tgz",
+                  "integrity": "sha512-PiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DG=="
+                },
+                "node_modules/@codedev/pkg-009/node_modules/dep-9": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-9/-/dep-9-1.0.0.tgz",
+                  "integrity": "sha512-iZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGt=="
+                },
+                "node_modules/lib-010": {
+                  "version": "2.1.8",
+                  "resolved": "https://registry.npmjs.org/lib-010/-/lib-010-2.1.8.tgz",
+                  "integrity": "sha512-XKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu=="
+                },
+                "node_modules/lib-010/node_modules/dep-10": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-10/-/dep-10-1.0.0.tgz",
+                  "integrity": "sha512-QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUj=="
+                },
+                "node_modules/lib-011": {
+                  "version": "9.16.0",
+                  "resolved": "https://registry.npmjs.org/lib-011/-/lib-011-9.16.0.tgz",
+                  "integrity": "sha512-TW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6=="
+                },
+                "node_modules/lib-012": {
+                  "version": "5.0.8",
+                  "resolved": "https://registry.npmjs.org/lib-012/-/lib-012-5.0.8.tgz",
+                  "integrity": "sha512-XKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu=="
+                },
+                "node_modules/lib-013": {
+                  "version": "2.0.0",
+                  "resolved": "https://registry.npmjs.org/lib-013/-/lib-013-2.0.0.tgz",
+                  "integrity": "sha512-b+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPi=="
+                },
+                "node_modules/lib-013/node_modules/dep-13": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-13/-/dep-13-1.0.0.tgz",
+                  "integrity": "sha512-elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5=="
+                },
+                "node_modules/lib-014": {
+                  "version": "9.12.3",
+                  "resolved": "https://registry.npmjs.org/lib-014/-/lib-014-9.12.3.tgz",
+                  "integrity": "sha512-tonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBs=="
+                },
+                "node_modules/lib-014/node_modules/dep-14": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-14/-/dep-14-1.0.0.tgz",
+                  "integrity": "sha512-43qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8r=="
+                },
+                "node_modules/lib-015": {
+                  "version": "8.0.6",
+                  "resolved": "https://registry.npmjs.org/lib-015/-/lib-015-8.0.6.tgz",
+                  "integrity": "sha512-dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxc=="
+                },
+                "node_modules/lib-016": {
+                  "version": "2.17.4",
+                  "resolved": "https://registry.npmjs.org/lib-016/-/lib-016-2.17.4.tgz",
+                  "integrity": "sha512-QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUj=="
+                },
+                "node_modules/lib-017": {
+                  "version": "11.0.0",
+                  "resolved": "https://registry.npmjs.org/lib-017/-/lib-017-11.0.0.tgz",
+                  "integrity": "sha512-p0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW94=="
+                },
+                "node_modules/@codedev/pkg-018": {
+                  "version": "9.18.10",
+                  "resolved": "https://npm.codedev.test/@codedev/pkg-018/-/pkg-018-9.18.10.tgz",
+                  "integrity": "sha512-Zkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGto=="
+                },
+                "node_modules/@codedev/pkg-018/node_modules/dep-18": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-18/-/dep-18-1.0.0.tgz",
+                  "integrity": "sha512-C5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmN=="
+                },
+                "node_modules/lib-019": {
+                  "version": "1.1.0",
+                  "resolved": "https://registry.npmjs.org/lib-019/-/lib-019-1.1.0.tgz",
+                  "integrity": "sha512-NIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM=="
+                },
+                "node_modules/lib-020": {
+                  "version": "2.6.4",
+                  "resolved": "https://registry.npmjs.org/lib-020/-/lib-020-2.6.4.tgz",
+                  "integrity": "sha512-xcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg=="
+                },
+                "node_modules/lib-021": {
+                  "version": "9.0.0",
+                  "resolved": "https://registry.npmjs.org/lib-021/-/lib-021-9.0.0.tgz",
+                  "integrity": "sha512-dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxc=="
+                },
+                "node_modules/lib-022": {
+                  "version": "4.11.11",
+                  "resolved": "https://registry.npmjs.org/lib-022/-/lib-022-4.11.11.tgz",
+                  "integrity": "sha512-7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC=="
+                },
+                "node_modules/lib-023": {
+                  "version": "3.17.2",
+                  "resolved": "https://registry.npmjs.org/lib-023/-/lib-023-3.17.2.tgz",
+                  "integrity": "sha512-1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJU=="
+                },
+                "node_modules/lib-023/node_modules/dep-23": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-23/-/dep-23-1.0.0.tgz",
+                  "integrity": "sha512-ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH=="
+                },
+                "node_modules/lib-024": {
+                  "version": "10.19.7",
+                  "resolved": "https://registry.npmjs.org/lib-024/-/lib-024-10.19.7.tgz",
+                  "integrity": "sha512-dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxc=="
+                },
+                "node_modules/lib-025": {
+                  "version": "4.0.0",
+                  "resolved": "https://registry.npmjs.org/lib-025/-/lib-025-4.0.0.tgz",
+                  "integrity": "sha512-onaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb=="
+                },
+                "node_modules/lib-026": {
+                  "version": "2.0.0",
+                  "resolved": "https://registry.npmjs.org/lib-026/-/lib-026-2.0.0.tgz",
+                  "integrity": "sha512-hM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1Q=="
+                },
+                "node_modules/@codedev/pkg-027": {
+                  "version": "12.2.6",
+                  "resolved": "https://npm.codedev.test/@codedev/pkg-027/-/pkg-027-12.2.6.tgz",
+                  "integrity": "sha512-xcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg=="
+                },
+                "node_modules/lib-028": {
+                  "version": "12.7.8",
+                  "resolved": "https://registry.npmjs.org/lib-028/-/lib-028-12.7.8.tgz",
+                  "integrity": "sha512-Zkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGto=="
+                },
+                "node_modules/lib-029": {
+                  "version": "3.13.8",
+                  "resolved": "https://registry.npmjs.org/lib-029/-/lib-029-3.13.8.tgz",
+                  "integrity": "sha512-dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxc=="
+                },
+                "node_modules/lib-030": {
+                  "version": "2.13.6",
+                  "resolved": "https://registry.npmjs.org/lib-030/-/lib-030-2.13.6.tgz",
+                  "integrity": "sha512-OVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp=="
+                },
+                "node_modules/lib-031": {
+                  "version": "5.11.0",
+                  "resolved": "https://registry.npmjs.org/lib-031/-/lib-031-5.11.0.tgz",
+                  "integrity": "sha512-sb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwP=="
+                },
+                "node_modules/lib-032": {
+                  "version": "8.6.7",
+                  "resolved": "https://registry.npmjs.org/lib-032/-/lib-032-8.6.7.tgz",
+                  "integrity": "sha512-Zkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGto=="
+                },
+                "node_modules/lib-033": {
+                  "version": "6.9.7",
+                  "resolved": "https://registry.npmjs.org/lib-033/-/lib-033-6.9.7.tgz",
+                  "integrity": "sha512-5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNI=="
+                },
+                "node_modules/lib-034": {
+                  "version": "4.4.8",
+                  "resolved": "https://registry.npmjs.org/lib-034/-/lib-034-4.4.8.tgz",
+                  "integrity": "sha512-+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZ=="
+                },
+                "node_modules/lib-035": {
+                  "version": "11.19.2",
+                  "resolved": "https://registry.npmjs.org/lib-035/-/lib-035-11.19.2.tgz",
+                  "integrity": "sha512-PiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DG=="
+                },
+                "node_modules/lib-035/node_modules/dep-35": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-35/-/dep-35-1.0.0.tgz",
+                  "integrity": "sha512-elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5=="
+                },
+                "node_modules/@codedev/pkg-036": {
+                  "version": "12.6.9",
+                  "resolved": "https://npm.codedev.test/@codedev/pkg-036/-/pkg-036-12.6.9.tgz",
+                  "integrity": "sha512-SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2d=="
+                },
+                "node_modules/lib-037": {
+                  "version": "2.2.3",
+                  "resolved": "https://registry.npmjs.org/lib-037/-/lib-037-2.2.3.tgz",
+                  "integrity": "sha512-C5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmN=="
+                },
+                "node_modules/lib-037/node_modules/dep-37": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-37/-/dep-37-1.0.0.tgz",
+                  "integrity": "sha512-SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2d=="
+                },
+                "node_modules/lib-038": {
+                  "version": "8.11.7",
+                  "resolved": "https://registry.npmjs.org/lib-038/-/lib-038-8.11.7.tgz",
+                  "integrity": "sha512-b+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPi=="
+                },
+                "node_modules/lib-039": {
+                  "version": "3.18.11",
+                  "resolved": "https://registry.npmjs.org/lib-039/-/lib-039-3.18.11.tgz",
+                  "integrity": "sha512-Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZk=="
+                },
+                "node_modules/lib-040": {
+                  "version": "5.1.0",
+                  "resolved": "https://registry.npmjs.org/lib-040/-/lib-040-5.1.0.tgz",
+                  "integrity": "sha512-943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8=="
+                },
+                "node_modules/lib-041": {
+                  "version": "9.2.8",
+                  "resolved": "https://registry.npmjs.org/lib-041/-/lib-041-9.2.8.tgz",
+                  "integrity": "sha512-5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNI=="
+                },
+                "node_modules/lib-041/node_modules/dep-41": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-41/-/dep-41-1.0.0.tgz",
+                  "integrity": "sha512-cLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/=="
+                },
+                "node_modules/lib-042": {
+                  "version": "7.0.0",
+                  "resolved": "https://registry.npmjs.org/lib-042/-/lib-042-7.0.0.tgz",
+                  "integrity": "sha512-wPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0D=="
+                },
+                "node_modules/lib-042/node_modules/dep-42": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-42/-/dep-42-1.0.0.tgz"
+                },
+                "node_modules/@codedev/pkg-045": {
+                  "version": "1.8.4",
+                  "resolved": "https://npm.codedev.test/@codedev/pkg-045/-/pkg-045-1.8.4.tgz",
+                  "integrity": "sha512-3qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rO=="
+                },
+                "node_modules/@codedev/pkg-045/node_modules/dep-45": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-45/-/dep-45-1.0.0.tgz",
+                  "integrity": "sha512-mNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKh=="
+                },
+                "node_modules/lib-046": {
+                  "version": "3.3.2",
+                  "resolved": "https://registry.npmjs.org/lib-046/-/lib-046-3.3.2.tgz",
+                  "integrity": "sha512-JUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dY=="
+                },
+                "node_modules/lib-047": {
+                  "version": "3.1.10",
+                  "resolved": "https://registry.npmjs.org/lib-047/-/lib-047-3.1.10.tgz",
+                  "integrity": "sha512-5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNI=="
+                },
+                "node_modules/lib-048": {
+                  "version": "11.18.8",
+                  "resolved": "https://registry.npmjs.org/lib-048/-/lib-048-11.18.8.tgz",
+                  "integrity": "sha512-W943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R=="
+                },
+                "node_modules/lib-049": {
+                  "version": "10.1.4",
+                  "resolved": "https://registry.npmjs.org/lib-049/-/lib-049-10.1.4.tgz",
+                  "integrity": "sha512-wPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0D=="
+                },
+                "node_modules/lib-050": {
+                  "version": "2.4.1",
+                  "resolved": "https://registry.npmjs.org/lib-050/-/lib-050-2.4.1.tgz"
+                },
+                "node_modules/lib-050/node_modules/dep-50": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-50/-/dep-50-1.0.0.tgz",
+                  "integrity": "sha512-onaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb=="
+                },
+                "node_modules/lib-051": {
+                  "version": "7.0.0",
+                  "resolved": "https://registry.npmjs.org/lib-051/-/lib-051-7.0.0.tgz",
+                  "integrity": "sha512-qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOV=="
+                },
+                "node_modules/lib-052": {
+                  "version": "8.16.1",
+                  "resolved": "https://registry.npmjs.org/lib-052/-/lib-052-8.16.1.tgz",
+                  "integrity": "sha512-mNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKh=="
+                },
+                "node_modules/lib-053": {
+                  "version": "1.15.8",
+                  "resolved": "https://registry.npmjs.org/lib-053/-/lib-053-1.15.8.tgz",
+                  "integrity": "sha512-8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAf=="
+                },
+                "node_modules/@codedev/pkg-054": {
+                  "version": "1.14.0",
+                  "resolved": "https://npm.codedev.test/@codedev/pkg-054/-/pkg-054-1.14.0.tgz",
+                  "integrity": "sha512-UjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYX=="
+                },
+                "node_modules/lib-055": {
+                  "version": "1.9.0",
+                  "resolved": "https://registry.npmjs.org/lib-055/-/lib-055-1.9.0.tgz",
+                  "integrity": "sha512-dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxc=="
+                },
+                "node_modules/lib-055/node_modules/dep-55": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-55/-/dep-55-1.0.0.tgz",
+                  "integrity": "sha512-qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOV=="
+                },
+                "node_modules/lib-056": {
+                  "version": "2.14.0",
+                  "resolved": "https://registry.npmjs.org/lib-056/-/lib-056-2.14.0.tgz",
+                  "integrity": "sha512-Bsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVw=="
+                },
+                "node_modules/lib-057": {
+                  "version": "12.12.4",
+                  "resolved": "https://registry.npmjs.org/lib-057/-/lib-057-12.12.4.tgz",
+                  "integrity": "sha512-hM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1Q=="
+                },
+                "node_modules/lib-058": {
+                  "version": "6.19.0",
+                  "resolved": "https://registry.npmjs.org/lib-058/-/lib-058-6.19.0.tgz",
+                  "integrity": "sha512-onaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb=="
+                },
+                "node_modules/lib-059": {
+                  "version": "12.8.2",
+                  "resolved": "https://registry.npmjs.org/lib-059/-/lib-059-12.8.2.tgz",
+                  "integrity": "sha512-elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5=="
+                },
+                "node_modules/lib-061": {
+                  "version": "2.17.0",
+                  "resolved": "https://registry.npmjs.org/lib-061/-/lib-061-2.17.0.tgz",
+                  "integrity": "sha512-6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7el=="
+                },
+                "node_modules/lib-062": {
+                  "version": "1.2.0",
+                  "resolved": "https://registry.npmjs.org/lib-062/-/lib-062-1.2.0.tgz",
+                  "integrity": "sha512-W943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R=="
+                },
+                "node_modules/lib-064": {
+                  "version": "6.8.2",
+                  "resolved": "https://registry.npmjs.org/lib-064/-/lib-064-6.8.2.tgz",
+                  "integrity": "sha512-lAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5E=="
+                },
+                "node_modules/lib-064/node_modules/dep-64": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-64/-/dep-64-1.0.0.tgz",
+                  "integrity": "sha512-2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonax=="
+                },
+                "node_modules/lib-065": {
+                  "version": "8.12.10",
+                  "resolved": "https://registry.npmjs.org/lib-065/-/lib-065-8.12.10.tgz"
+                },
+                "node_modules/lib-066": {
+                  "version": "12.3.3",
+                  "resolved": "https://registry.npmjs.org/lib-066/-/lib-066-12.3.3.tgz",
+                  "integrity": "sha512-W943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R=="
+                },
+                "node_modules/lib-067": {
+                  "version": "11.17.7",
+                  "resolved": "https://registry.npmjs.org/lib-067/-/lib-067-11.17.7.tgz",
+                  "integrity": "sha512-DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943q=="
+                },
+                "node_modules/lib-068": {
+                  "version": "12.16.9",
+                  "resolved": "https://registry.npmjs.org/lib-068/-/lib-068-12.16.9.tgz",
+                  "integrity": "sha512-2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonax=="
+                },
+                "node_modules/lib-069": {
+                  "version": "5.11.5",
+                  "resolved": "https://registry.npmjs.org/lib-069/-/lib-069-5.11.5.tgz",
+                  "integrity": "sha512-OVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp=="
+                },
+                "node_modules/lib-070": {
+                  "version": "6.5.10",
+                  "resolved": "https://registry.npmjs.org/lib-070/-/lib-070-6.5.10.tgz"
+                },
+                "node_modules/lib-071": {
+                  "version": "3.12.3",
+                  "resolved": "https://registry.npmjs.org/lib-071/-/lib-071-3.12.3.tgz",
+                  "integrity": "sha512-GtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qB=="
+                },
+                "node_modules/@codedev/pkg-072": {
+                  "version": "9.19.0",
+                  "resolved": "https://npm.codedev.test/@codedev/pkg-072/-/pkg-072-9.19.0.tgz",
+                  "integrity": "sha512-5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNI=="
+                },
+                "node_modules/lib-073": {
+                  "version": "3.11.7",
+                  "resolved": "https://registry.npmjs.org/lib-073/-/lib-073-3.11.7.tgz",
+                  "integrity": "sha512-H6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7e=="
+                },
+                "node_modules/lib-073/node_modules/dep-73": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-73/-/dep-73-1.0.0.tgz",
+                  "integrity": "sha512-C5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmN=="
+                },
+                "node_modules/lib-074": {
+                  "version": "1.2.5",
+                  "resolved": "https://registry.npmjs.org/lib-074/-/lib-074-1.2.5.tgz"
+                },
+                "node_modules/lib-075": {
+                  "version": "10.19.2",
+                  "resolved": "https://registry.npmjs.org/lib-075/-/lib-075-10.19.2.tgz",
+                  "integrity": "sha512-wPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0D=="
+                },
+                "node_modules/lib-075/node_modules/dep-75": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-75/-/dep-75-1.0.0.tgz",
+                  "integrity": "sha512-2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonax=="
+                },
+                "node_modules/lib-077": {
+                  "version": "11.3.5",
+                  "resolved": "https://registry.npmjs.org/lib-077/-/lib-077-11.3.5.tgz",
+                  "integrity": "sha512-DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943q=="
+                },
+                "node_modules/lib-078": {
+                  "version": "11.10.2",
+                  "resolved": "https://registry.npmjs.org/lib-078/-/lib-078-11.10.2.tgz",
+                  "integrity": "sha512-H6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7e=="
+                },
+                "node_modules/lib-079": {
+                  "version": "10.9.1",
+                  "resolved": "https://registry.npmjs.org/lib-079/-/lib-079-10.9.1.tgz",
+                  "integrity": "sha512-qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOV=="
+                },
+                "node_modules/lib-079/node_modules/dep-79": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-79/-/dep-79-1.0.0.tgz",
+                  "integrity": "sha512-elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5=="
+                },
+                "node_modules/@codedev/pkg-081": {
+                  "version": "8.12.6",
+                  "resolved": "https://npm.codedev.test/@codedev/pkg-081/-/pkg-081-8.12.6.tgz",
+                  "integrity": "sha512-fyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW=="
+                },
+                "node_modules/lib-082": {
+                  "version": "12.10.0",
+                  "resolved": "https://registry.npmjs.org/lib-082/-/lib-082-12.10.0.tgz",
+                  "integrity": "sha512-b+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPi=="
+                },
+                "node_modules/lib-082/node_modules/dep-82": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-82/-/dep-82-1.0.0.tgz"
+                },
+                "node_modules/lib-083": {
+                  "version": "2.13.7",
+                  "resolved": "https://registry.npmjs.org/lib-083/-/lib-083-2.13.7.tgz",
+                  "integrity": "sha512-hM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1Q=="
+                },
+                "node_modules/lib-083/node_modules/dep-83": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-83/-/dep-83-1.0.0.tgz",
+                  "integrity": "sha512-onaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb=="
+                },
+                "node_modules/lib-084": {
+                  "version": "3.16.4",
+                  "resolved": "https://registry.npmjs.org/lib-084/-/lib-084-3.16.4.tgz",
+                  "integrity": "sha512-Bsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVw=="
+                },
+                "node_modules/lib-085": {
+                  "version": "5.11.3",
+                  "resolved": "https://registry.npmjs.org/lib-085/-/lib-085-5.11.3.tgz",
+                  "integrity": "sha512-mNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKh=="
+                },
+                "node_modules/lib-085/node_modules/dep-85": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-85/-/dep-85-1.0.0.tgz",
+                  "integrity": "sha512-cLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/=="
+                },
+                "node_modules/lib-086": {
+                  "version": "3.10.0",
+                  "resolved": "https://registry.npmjs.org/lib-086/-/lib-086-3.10.0.tgz",
+                  "integrity": "sha512-Zkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGto=="
+                },
+                "node_modules/lib-086/node_modules/dep-86": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-86/-/dep-86-1.0.0.tgz"
+                },
+                "node_modules/lib-087": {
+                  "version": "9.18.1",
+                  "resolved": "https://registry.npmjs.org/lib-087/-/lib-087-9.18.1.tgz",
+                  "integrity": "sha512-NIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM=="
+                },
+                "node_modules/lib-087/node_modules/dep-87": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-87/-/dep-87-1.0.0.tgz",
+                  "integrity": "sha512-QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUj=="
+                },
+                "node_modules/lib-088": {
+                  "version": "5.9.5",
+                  "resolved": "https://registry.npmjs.org/lib-088/-/lib-088-5.9.5.tgz",
+                  "integrity": "sha512-yp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW9=="
+                },
+                "node_modules/lib-089": {
+                  "version": "10.17.7",
+                  "resolved": "https://registry.npmjs.org/lib-089/-/lib-089-10.17.7.tgz",
+                  "integrity": "sha512-wPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0D=="
+                },
+                "node_modules/lib-089/node_modules/dep-89": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-89/-/dep-89-1.0.0.tgz",
+                  "integrity": "sha512-ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH=="
+                },
+                "node_modules/@codedev/pkg-090": {
+                  "version": "11.19.4",
+                  "resolved": "https://npm.codedev.test/@codedev/pkg-090/-/pkg-090-11.19.4.tgz",
+                  "integrity": "sha512-YXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcL=="
+                },
+                "node_modules/lib-091": {
+                  "version": "3.8.0",
+                  "resolved": "https://npm.codedev.test.mirror.test/lib-091/-/lib-091-3.8.0.tgz",
+                  "integrity": "sha512-SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2d=="
+                },
+                "node_modules/lib-091/node_modules/dep-91": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-91/-/dep-91-1.0.0.tgz"
+                },
+                "node_modules/lib-092": {
+                  "version": "6.18.7",
+                  "resolved": "https://registry.npmjs.org/lib-092/-/lib-092-6.18.7.tgz",
+                  "integrity": "sha512-0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943=="
+                },
+                "node_modules/lib-092/node_modules/dep-92": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-92/-/dep-92-1.0.0.tgz"
+                },
+                "node_modules/lib-093": {
+                  "version": "9.8.8",
+                  "resolved": "https://registry.npmjs.org/lib-093/-/lib-093-9.8.8.tgz",
+                  "integrity": "sha512-u1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJ=="
+                },
+                "node_modules/lib-094": {
+                  "version": "7.12.1",
+                  "resolved": "https://registry.npmjs.org/lib-094/-/lib-094-7.12.1.tgz",
+                  "integrity": "sha512-Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZk=="
+                },
+                "node_modules/lib-095": {
+                  "version": "8.10.1",
+                  "resolved": "https://registry.npmjs.org/lib-095/-/lib-095-8.10.1.tgz",
+                  "integrity": "sha512-Lu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/S=="
+                },
+                "node_modules/lib-095/node_modules/dep-95": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-95/-/dep-95-1.0.0.tgz",
+                  "integrity": "sha512-C5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmN=="
+                },
+                "node_modules/lib-096": {
+                  "version": "12.14.0",
+                  "resolved": "https://registry.npmjs.org/lib-096/-/lib-096-12.14.0.tgz",
+                  "integrity": "sha512-onaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb=="
+                },
+                "node_modules/lib-098": {
+                  "version": "4.4.1",
+                  "resolved": "https://registry.npmjs.org/lib-098/-/lib-098-4.4.1.tgz",
+                  "integrity": "sha512-943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8=="
+                },
+                "node_modules/@codedev/pkg-099": {
+                  "version": "9.18.8",
+                  "resolved": "https://npm.codedev.test/@codedev/pkg-099/-/pkg-099-9.18.8.tgz",
+                  "integrity": "sha512-VwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0=="
+                },
+                "node_modules/@codedev/pkg-099/node_modules/dep-99": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-99/-/dep-99-1.0.0.tgz",
+                  "integrity": "sha512-M7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1Qv=="
+                },
+                "node_modules/lib-100": {
+                  "version": "7.6.0",
+                  "resolved": "https://registry.npmjs.org/lib-100/-/lib-100-7.6.0.tgz",
+                  "integrity": "sha512-3qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rO=="
+                },
+                "node_modules/lib-100/node_modules/dep-100": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-100/-/dep-100-1.0.0.tgz",
+                  "integrity": "sha512-ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH=="
+                },
+                "node_modules/lib-101": {
+                  "version": "4.2.0",
+                  "resolved": "https://registry.npmjs.org/lib-101/-/lib-101-4.2.0.tgz",
+                  "integrity": "sha512-vC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjm=="
+                },
+                "node_modules/lib-101/node_modules/dep-101": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-101/-/dep-101-1.0.0.tgz",
+                  "integrity": "sha512-kz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGton=="
+                },
+                "node_modules/lib-102": {
+                  "version": "10.6.5",
+                  "resolved": "https://registry.npmjs.org/lib-102/-/lib-102-10.6.5.tgz",
+                  "integrity": "sha512-kz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGton=="
+                },
+                "node_modules/lib-103": {
+                  "version": "12.3.4",
+                  "resolved": "https://registry.npmjs.org/lib-103/-/lib-103-12.3.4.tgz",
+                  "integrity": "sha512-XKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu=="
+                },
+                "node_modules/lib-104": {
+                  "version": "9.8.3",
+                  "resolved": "https://registry.npmjs.org/lib-104/-/lib-104-9.8.3.tgz",
+                  "integrity": "sha512-elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5=="
+                },
+                "node_modules/lib-105": {
+                  "version": "11.13.4",
+                  "resolved": "https://registry.npmjs.org/lib-105/-/lib-105-11.13.4.tgz",
+                  "integrity": "sha512-H6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7e=="
+                },
+                "node_modules/lib-107": {
+                  "version": "10.13.0",
+                  "resolved": "https://registry.npmjs.org/lib-107/-/lib-107-10.13.0.tgz",
+                  "integrity": "sha512-mNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKh=="
+                },
+                "node_modules/@codedev/pkg-108": {
+                  "version": "5.0.0",
+                  "resolved": "https://npm.codedev.test/@codedev/pkg-108/-/pkg-108-5.0.0.tgz",
+                  "integrity": "sha512-naxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+=="
+                },
+                "node_modules/lib-109": {
+                  "version": "6.1.11",
+                  "resolved": "https://registry.npmjs.org/lib-109/-/lib-109-6.1.11.tgz",
+                  "integrity": "sha512-axcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+F=="
+                },
+                "node_modules/lib-110": {
+                  "version": "6.4.6",
+                  "resolved": "https://registry.npmjs.org/lib-110/-/lib-110-6.4.6.tgz",
+                  "integrity": "sha512-rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfy=="
+                },
+                "node_modules/lib-111": {
+                  "version": "2.11.10",
+                  "resolved": "https://registry.npmjs.org/lib-111/-/lib-111-2.11.10.tgz",
+                  "integrity": "sha512-H6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7e=="
+                },
+                "node_modules/lib-111/node_modules/dep-111": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-111/-/dep-111-1.0.0.tgz"
+                },
+                "node_modules/lib-112": {
+                  "version": "4.3.5",
+                  "resolved": "https://registry.npmjs.org/lib-112/-/lib-112-4.3.5.tgz",
+                  "integrity": "sha512-dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxc=="
+                },
+                "node_modules/lib-113": {
+                  "version": "5.5.2",
+                  "resolved": "https://registry.npmjs.org/lib-113/-/lib-113-5.5.2.tgz",
+                  "integrity": "sha512-wPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0D=="
+                },
+                "node_modules/lib-114": {
+                  "version": "9.1.3",
+                  "resolved": "https://registry.npmjs.org/lib-114/-/lib-114-9.1.3.tgz",
+                  "integrity": "sha512-QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUj=="
+                },
+                "node_modules/lib-115": {
+                  "version": "7.11.4",
+                  "resolved": "https://registry.npmjs.org/lib-115/-/lib-115-7.11.4.tgz",
+                  "integrity": "sha512-hM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1Q=="
+                },
+                "node_modules/lib-115/node_modules/dep-115": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-115/-/dep-115-1.0.0.tgz",
+                  "integrity": "sha512-ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH=="
+                },
+                "node_modules/lib-116": {
+                  "version": "9.16.3",
+                  "resolved": "https://registry.npmjs.org/lib-116/-/lib-116-9.16.3.tgz",
+                  "integrity": "sha512-IH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7=="
+                },
+                "node_modules/lib-116/node_modules/dep-116": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-116/-/dep-116-1.0.0.tgz",
+                  "integrity": "sha512-kz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGton=="
+                },
+                "node_modules/@codedev/pkg-117": {
+                  "version": "10.1.11",
+                  "resolved": "https://npm.codedev.test/@codedev/pkg-117/-/pkg-117-10.1.11.tgz",
+                  "integrity": "sha512-43qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8r=="
+                },
+                "node_modules/lib-119": {
+                  "version": "5.2.4",
+                  "resolved": "https://registry.npmjs.org/lib-119/-/lib-119-5.2.4.tgz",
+                  "integrity": "sha512-VwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0=="
+                },
+                "node_modules/lib-120": {
+                  "version": "7.0.0",
+                  "resolved": "https://registry.npmjs.org/lib-120/-/lib-120-7.0.0.tgz",
+                  "integrity": "sha512-DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943q=="
+                },
+                "node_modules/lib-121": {
+                  "version": "11.16.7",
+                  "resolved": "https://registry.npmjs.org/lib-121/-/lib-121-11.16.7.tgz",
+                  "integrity": "sha512-jmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXK=="
+                },
+                "node_modules/lib-122": {
+                  "version": "2.20.0",
+                  "resolved": "https://registry.npmjs.org/lib-122/-/lib-122-2.20.0.tgz",
+                  "integrity": "sha512-Afyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ET=="
+                },
+                "node_modules/lib-123": {
+                  "version": "2.16.7",
+                  "resolved": "https://registry.npmjs.org/lib-123/-/lib-123-2.16.7.tgz",
+                  "integrity": "sha512-jmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXK=="
+                },
+                "node_modules/lib-123/node_modules/dep-123": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-123/-/dep-123-1.0.0.tgz",
+                  "integrity": "sha512-kz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGton=="
+                },
+                "node_modules/lib-124": {
+                  "version": "9.8.7",
+                  "resolved": "https://registry.npmjs.org/lib-124/-/lib-124-9.8.7.tgz",
+                  "integrity": "sha512-sb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwP=="
+                },
+                "node_modules/lib-124/node_modules/dep-124": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-124/-/dep-124-1.0.0.tgz",
+                  "integrity": "sha512-ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH=="
+                },
+                "node_modules/lib-125": {
+                  "version": "11.18.9",
+                  "resolved": "https://registry.npmjs.org/lib-125/-/lib-125-11.18.9.tgz",
+                  "integrity": "sha512-jmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXK=="
+                },
+                "node_modules/@codedev/pkg-126": {
+                  "version": "6.4.0",
+                  "resolved": "https://npm.codedev.test/@codedev/pkg-126/-/pkg-126-6.4.0.tgz",
+                  "integrity": "sha512-cLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/=="
+                },
+                "node_modules/lib-127": {
+                  "version": "1.8.4",
+                  "resolved": "https://registry.npmjs.org/lib-127/-/lib-127-1.8.4.tgz",
+                  "integrity": "sha512-W943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R=="
+                },
+                "node_modules/lib-128": {
+                  "version": "3.0.0",
+                  "resolved": "https://registry.npmjs.org/lib-128/-/lib-128-3.0.0.tgz",
+                  "integrity": "sha512-naxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+=="
+                },
+                "node_modules/lib-128/node_modules/dep-128": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-128/-/dep-128-1.0.0.tgz",
+                  "integrity": "sha512-ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH=="
+                },
+                "node_modules/lib-129": {
+                  "version": "12.10.5",
+                  "resolved": "https://registry.npmjs.org/lib-129/-/lib-129-12.10.5.tgz",
+                  "integrity": "sha512-mNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKh=="
+                },
+                "node_modules/lib-130": {
+                  "version": "6.18.1",
+                  "resolved": "https://registry.npmjs.org/lib-130/-/lib-130-6.18.1.tgz",
+                  "integrity": "sha512-naxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+=="
+                },
+                "node_modules/lib-130/node_modules/dep-130": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-130/-/dep-130-1.0.0.tgz"
+                },
+                "node_modules/lib-131": {
+                  "version": "1.12.0",
+                  "resolved": "https://npm.codedev.test.mirror.test/lib-131/-/lib-131-1.12.0.tgz"
+                },
+                "node_modules/lib-132": {
+                  "version": "8.13.0",
+                  "resolved": "https://registry.npmjs.org/lib-132/-/lib-132-8.13.0.tgz"
+                },
+                "node_modules/lib-132/node_modules/dep-132": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-132/-/dep-132-1.0.0.tgz",
+                  "integrity": "sha512-kz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGton=="
+                },
+                "node_modules/lib-133": {
+                  "version": "4.18.11",
+                  "resolved": "https://registry.npmjs.org/lib-133/-/lib-133-4.18.11.tgz",
+                  "integrity": "sha512-z2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtona=="
+                },
+                "node_modules/lib-134": {
+                  "version": "9.13.2",
+                  "resolved": "https://registry.npmjs.org/lib-134/-/lib-134-9.13.2.tgz",
+                  "integrity": "sha512-g/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz=="
+                },
+                "node_modules/@codedev/pkg-135": {
+                  "version": "11.5.3",
+                  "resolved": "https://npm.codedev.test/@codedev/pkg-135/-/pkg-135-11.5.3.tgz"
+                },
+                "node_modules/@codedev/pkg-135/node_modules/dep-135": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-135/-/dep-135-1.0.0.tgz",
+                  "integrity": "sha512-iZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGt=="
+                },
+                "node_modules/lib-136": {
+                  "version": "1.18.8",
+                  "resolved": "https://registry.npmjs.org/lib-136/-/lib-136-1.18.8.tgz",
+                  "integrity": "sha512-xcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg=="
+                },
+                "node_modules/lib-136/node_modules/dep-136": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-136/-/dep-136-1.0.0.tgz",
+                  "integrity": "sha512-kz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGton=="
+                },
+                "node_modules/lib-137": {
+                  "version": "4.4.7",
+                  "resolved": "https://registry.npmjs.org/lib-137/-/lib-137-4.4.7.tgz",
+                  "integrity": "sha512-943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8=="
+                },
+                "node_modules/lib-138": {
+                  "version": "11.0.0",
+                  "resolved": "https://registry.npmjs.org/lib-138/-/lib-138-11.0.0.tgz",
+                  "integrity": "sha512-p0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW94=="
+                },
+                "node_modules/lib-139": {
+                  "version": "5.11.9",
+                  "resolved": "https://registry.npmjs.org/lib-139/-/lib-139-5.11.9.tgz",
+                  "integrity": "sha512-W943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R=="
+                },
+                "node_modules/lib-140": {
+                  "version": "6.8.2",
+                  "resolved": "https://registry.npmjs.org/lib-140/-/lib-140-6.8.2.tgz",
+                  "integrity": "sha512-SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2d=="
+                },
+                "node_modules/lib-141": {
+                  "version": "8.7.4",
+                  "resolved": "https://registry.npmjs.org/lib-141/-/lib-141-8.7.4.tgz",
+                  "integrity": "sha512-M7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1Qv=="
+                },
+                "node_modules/lib-142": {
+                  "version": "6.15.7",
+                  "resolved": "https://registry.npmjs.org/lib-142/-/lib-142-6.15.7.tgz"
+                },
+                "node_modules/lib-143": {
+                  "version": "10.4.11",
+                  "resolved": "https://registry.npmjs.org/lib-143/-/lib-143-10.4.11.tgz",
+                  "integrity": "sha512-M7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1Qv=="
+                },
+                "node_modules/@codedev/pkg-144": {
+                  "version": "9.19.6",
+                  "resolved": "https://npm.codedev.test/@codedev/pkg-144/-/pkg-144-9.19.6.tgz",
+                  "integrity": "sha512-1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJU=="
+                },
+                "node_modules/lib-145": {
+                  "version": "1.17.3",
+                  "resolved": "https://registry.npmjs.org/lib-145/-/lib-145-1.17.3.tgz",
+                  "integrity": "sha512-p0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW94=="
+                },
+                "node_modules/lib-146": {
+                  "version": "8.11.6",
+                  "resolved": "https://registry.npmjs.org/lib-146/-/lib-146-8.11.6.tgz",
+                  "integrity": "sha512-UjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYX=="
+                },
+                "node_modules/lib-147": {
+                  "version": "6.6.5",
+                  "resolved": "https://registry.npmjs.org/lib-147/-/lib-147-6.6.5.tgz",
+                  "integrity": "sha512-kz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGton=="
+                },
+                "node_modules/lib-147/node_modules/dep-147": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-147/-/dep-147-1.0.0.tgz"
+                },
+                "node_modules/lib-148": {
+                  "version": "7.14.0",
+                  "resolved": "https://registry.npmjs.org/lib-148/-/lib-148-7.14.0.tgz",
+                  "integrity": "sha512-0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943=="
+                },
+                "node_modules/lib-149": {
+                  "version": "8.12.2",
+                  "resolved": "https://registry.npmjs.org/lib-149/-/lib-149-8.12.2.tgz",
+                  "integrity": "sha512-UjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYX=="
+                },
+                "node_modules/lib-149/node_modules/dep-149": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-149/-/dep-149-1.0.0.tgz",
+                  "integrity": "sha512-kz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGton=="
+                },
+                "node_modules/lib-150": {
+                  "version": "1.2.4",
+                  "resolved": "https://registry.npmjs.org/lib-150/-/lib-150-1.2.4.tgz",
+                  "integrity": "sha512-qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOV=="
+                },
+                "node_modules/lib-151": {
+                  "version": "9.11.8",
+                  "resolved": "https://registry.npmjs.org/lib-151/-/lib-151-9.11.8.tgz",
+                  "integrity": "sha512-TW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6=="
+                },
+                "node_modules/lib-152": {
+                  "version": "4.0.0",
+                  "resolved": "https://registry.npmjs.org/lib-152/-/lib-152-4.0.0.tgz",
+                  "integrity": "sha512-p0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW94=="
+                },
+                "node_modules/lib-152/node_modules/dep-152": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-152/-/dep-152-1.0.0.tgz",
+                  "integrity": "sha512-kz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGton=="
+                },
+                "node_modules/@codedev/pkg-153": {
+                  "version": "1.0.5",
+                  "resolved": "https://npm.codedev.test/@codedev/pkg-153/-/pkg-153-1.0.5.tgz",
+                  "integrity": "sha512-W943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R=="
+                },
+                "node_modules/lib-154": {
+                  "version": "4.9.8",
+                  "resolved": "https://registry.npmjs.org/lib-154/-/lib-154-4.9.8.tgz",
+                  "integrity": "sha512-sb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwP=="
+                },
+                "node_modules/lib-155": {
+                  "version": "4.18.2",
+                  "resolved": "https://registry.npmjs.org/lib-155/-/lib-155-4.18.2.tgz",
+                  "integrity": "sha512-1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJU=="
+                },
+                "node_modules/lib-155/node_modules/dep-155": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-155/-/dep-155-1.0.0.tgz",
+                  "integrity": "sha512-ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH=="
+                },
+                "node_modules/lib-156": {
+                  "version": "4.8.8",
+                  "resolved": "https://registry.npmjs.org/lib-156/-/lib-156-4.8.8.tgz",
+                  "integrity": "sha512-Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZk=="
+                },
+                "node_modules/lib-157": {
+                  "version": "10.0.7",
+                  "resolved": "https://registry.npmjs.org/lib-157/-/lib-157-10.0.7.tgz",
+                  "integrity": "sha512-QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUj=="
+                },
+                "node_modules/lib-158": {
+                  "version": "11.2.8",
+                  "resolved": "https://registry.npmjs.org/lib-158/-/lib-158-11.2.8.tgz",
+                  "integrity": "sha512-R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elA=="
+                },
+                "node_modules/lib-159": {
+                  "version": "3.10.8",
+                  "resolved": "https://registry.npmjs.org/lib-159/-/lib-159-3.10.8.tgz",
+                  "integrity": "sha512-8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAf=="
+                },
+                "node_modules/lib-161": {
+                  "version": "8.0.0",
+                  "resolved": "https://registry.npmjs.org/lib-161/-/lib-161-8.0.0.tgz",
+                  "integrity": "sha512-XKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu=="
+                },
+                "node_modules/@codedev/pkg-162": {
+                  "version": "6.5.8",
+                  "resolved": "https://npm.codedev.test/@codedev/pkg-162/-/pkg-162-6.5.8.tgz",
+                  "integrity": "sha512-5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNI=="
+                },
+                "node_modules/lib-164": {
+                  "version": "2.0.0",
+                  "resolved": "https://registry.npmjs.org/lib-164/-/lib-164-2.0.0.tgz",
+                  "integrity": "sha512-C5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmN=="
+                },
+                "node_modules/lib-165": {
+                  "version": "11.1.9",
+                  "resolved": "https://registry.npmjs.org/lib-165/-/lib-165-11.1.9.tgz",
+                  "integrity": "sha512-943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8=="
+                },
+                "node_modules/lib-166": {
+                  "version": "2.4.6",
+                  "resolved": "https://registry.npmjs.org/lib-166/-/lib-166-2.4.6.tgz",
+                  "integrity": "sha512-qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOV=="
+                },
+                "node_modules/lib-167": {
+                  "version": "10.18.0",
+                  "resolved": "https://registry.npmjs.org/lib-167/-/lib-167-10.18.0.tgz",
+                  "integrity": "sha512-1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJU=="
+                },
+                "node_modules/lib-167/node_modules/dep-167": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-167/-/dep-167-1.0.0.tgz",
+                  "integrity": "sha512-kz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGton=="
+                },
+                "node_modules/lib-168": {
+                  "version": "7.7.7",
+                  "resolved": "https://registry.npmjs.org/lib-168/-/lib-168-7.7.7.tgz",
+                  "integrity": "sha512-Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZk=="
+                },
+                "node_modules/lib-169": {
+                  "version": "1.8.9",
+                  "resolved": "https://registry.npmjs.org/lib-169/-/lib-169-1.8.9.tgz",
+                  "integrity": "sha512-xcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg=="
+                },
+                "node_modules/lib-170": {
+                  "version": "8.18.2",
+                  "resolved": "https://registry.npmjs.org/lib-170/-/lib-170-8.18.2.tgz",
+                  "integrity": "sha512-mNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKh=="
+                },
+                "node_modules/lib-172": {
+                  "version": "7.0.1",
+                  "resolved": "https://registry.npmjs.org/lib-172/-/lib-172-7.0.1.tgz",
+                  "integrity": "sha512-3qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rO=="
+                },
+                "node_modules/lib-173": {
+                  "version": "12.0.0",
+                  "resolved": "https://registry.npmjs.org/lib-173/-/lib-173-12.0.0.tgz",
+                  "integrity": "sha512-Bsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVw=="
+                },
+                "node_modules/lib-174": {
+                  "version": "5.4.9",
+                  "resolved": "https://registry.npmjs.org/lib-174/-/lib-174-5.4.9.tgz",
+                  "integrity": "sha512-fyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW=="
+                },
+                "node_modules/lib-175": {
+                  "version": "3.13.11",
+                  "resolved": "https://registry.npmjs.org/lib-175/-/lib-175-3.13.11.tgz",
+                  "integrity": "sha512-hM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1Q=="
+                },
+                "node_modules/lib-176": {
+                  "version": "1.6.0",
+                  "resolved": "https://registry.npmjs.org/lib-176/-/lib-176-1.6.0.tgz",
+                  "integrity": "sha512-2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonax=="
+                },
+                "node_modules/lib-176/node_modules/dep-176": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-176/-/dep-176-1.0.0.tgz",
+                  "integrity": "sha512-kz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGton=="
+                },
+                "node_modules/lib-177": {
+                  "version": "8.12.0",
+                  "resolved": "https://registry.npmjs.org/lib-177/-/lib-177-8.12.0.tgz",
+                  "integrity": "sha512-Zkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGto=="
+                },
+                "node_modules/lib-177/node_modules/dep-177": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-177/-/dep-177-1.0.0.tgz",
+                  "integrity": "sha512-ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH=="
+                },
+                "node_modules/lib-178": {
+                  "version": "2.13.8",
+                  "resolved": "https://registry.npmjs.org/lib-178/-/lib-178-2.13.8.tgz",
+                  "integrity": "sha512-p0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW94=="
+                },
+                "node_modules/lib-179": {
+                  "version": "1.4.2",
+                  "resolved": "https://registry.npmjs.org/lib-179/-/lib-179-1.4.2.tgz",
+                  "integrity": "sha512-vC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjm=="
+                },
+                "node_modules/@codedev/pkg-180": {
+                  "version": "2.3.0",
+                  "resolved": "https://npm.codedev.test/@codedev/pkg-180/-/pkg-180-2.3.0.tgz",
+                  "integrity": "sha512-3qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rO=="
+                },
+                "node_modules/lib-181": {
+                  "version": "5.7.9",
+                  "resolved": "https://registry.npmjs.org/lib-181/-/lib-181-5.7.9.tgz",
+                  "integrity": "sha512-axcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+F=="
+                },
+                "node_modules/lib-182": {
+                  "version": "11.6.4",
+                  "resolved": "https://registry.npmjs.org/lib-182/-/lib-182-11.6.4.tgz",
+                  "integrity": "sha512-8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAf=="
+                },
+                "node_modules/lib-183": {
+                  "version": "10.14.8",
+                  "resolved": "https://registry.npmjs.org/lib-183/-/lib-183-10.14.8.tgz",
+                  "integrity": "sha512-3qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rO=="
+                },
+                "node_modules/lib-183/node_modules/dep-183": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-183/-/dep-183-1.0.0.tgz"
+                },
+                "node_modules/lib-184": {
+                  "version": "7.11.7",
+                  "resolved": "https://registry.npmjs.org/lib-184/-/lib-184-7.11.7.tgz",
+                  "integrity": "sha512-Afyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ET=="
+                },
+                "node_modules/lib-185": {
+                  "version": "7.0.11",
+                  "resolved": "https://registry.npmjs.org/lib-185/-/lib-185-7.0.11.tgz",
+                  "integrity": "sha512-+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZ=="
+                },
+                "node_modules/lib-185/node_modules/dep-185": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-185/-/dep-185-1.0.0.tgz",
+                  "integrity": "sha512-kz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGton=="
+                },
+                "node_modules/lib-186": {
+                  "version": "7.12.4",
+                  "resolved": "https://registry.npmjs.org/lib-186/-/lib-186-7.12.4.tgz",
+                  "integrity": "sha512-Afyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ET=="
+                },
+                "node_modules/lib-188": {
+                  "version": "10.0.0",
+                  "resolved": "https://registry.npmjs.org/lib-188/-/lib-188-10.0.0.tgz",
+                  "integrity": "sha512-7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC=="
+                },
+                "node_modules/@codedev/pkg-189": {
+                  "version": "7.16.3",
+                  "resolved": "https://npm.codedev.test/@codedev/pkg-189/-/pkg-189-7.16.3.tgz",
+                  "integrity": "sha512-OVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp=="
+                },
+                "node_modules/lib-190": {
+                  "version": "10.19.4",
+                  "resolved": "https://registry.npmjs.org/lib-190/-/lib-190-10.19.4.tgz",
+                  "integrity": "sha512-YXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcL=="
+                },
+                "node_modules/lib-192": {
+                  "version": "6.8.5",
+                  "resolved": "https://registry.npmjs.org/lib-192/-/lib-192-6.8.5.tgz",
+                  "integrity": "sha512-g/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz=="
+                },
+                "node_modules/lib-193": {
+                  "version": "12.0.2",
+                  "resolved": "https://npm.codedev.test.mirror.test/lib-193/-/lib-193-12.0.2.tgz",
+                  "integrity": "sha512-Bsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVw=="
+                },
+                "node_modules/lib-194": {
+                  "version": "3.0.0",
+                  "resolved": "https://registry.npmjs.org/lib-194/-/lib-194-3.0.0.tgz",
+                  "integrity": "sha512-2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonax=="
+                },
+                "node_modules/lib-195": {
+                  "version": "2.4.6",
+                  "resolved": "https://registry.npmjs.org/lib-195/-/lib-195-2.4.6.tgz",
+                  "integrity": "sha512-+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZ=="
+                },
+                "node_modules/lib-196": {
+                  "version": "9.9.3",
+                  "resolved": "https://registry.npmjs.org/lib-196/-/lib-196-9.9.3.tgz",
+                  "integrity": "sha512-GtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qB=="
+                },
+                "node_modules/lib-196/node_modules/dep-196": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-196/-/dep-196-1.0.0.tgz",
+                  "integrity": "sha512-kz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGton=="
+                },
+                "node_modules/lib-197": {
+                  "version": "10.11.2",
+                  "resolved": "https://registry.npmjs.org/lib-197/-/lib-197-10.11.2.tgz",
+                  "integrity": "sha512-b+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPi=="
+                },
+                "node_modules/@codedev/pkg-198": {
+                  "version": "5.12.6",
+                  "resolved": "https://npm.codedev.test/@codedev/pkg-198/-/pkg-198-5.12.6.tgz",
+                  "integrity": "sha512-hM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1Q=="
+                },
+                "node_modules/lib-199": {
+                  "version": "5.13.2",
+                  "resolved": "https://registry.npmjs.org/lib-199/-/lib-199-5.13.2.tgz",
+                  "integrity": "sha512-H6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7e=="
+                },
+                "node_modules/lib-200": {
+                  "version": "12.13.4",
+                  "resolved": "https://npm.codedev.test.mirror.test/lib-200/-/lib-200-12.13.4.tgz",
+                  "integrity": "sha512-OVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp=="
+                },
+                "node_modules/lib-201": {
+                  "version": "4.19.8",
+                  "resolved": "https://registry.npmjs.org/lib-201/-/lib-201-4.19.8.tgz",
+                  "integrity": "sha512-KhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1=="
+                },
+                "node_modules/lib-202": {
+                  "version": "2.3.8",
+                  "resolved": "https://registry.npmjs.org/lib-202/-/lib-202-2.3.8.tgz",
+                  "integrity": "sha512-wPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0D=="
+                },
+                "node_modules/lib-203": {
+                  "version": "8.11.8",
+                  "resolved": "https://registry.npmjs.org/lib-203/-/lib-203-8.11.8.tgz",
+                  "integrity": "sha512-IH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7=="
+                },
+                "node_modules/lib-203/node_modules/dep-203": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-203/-/dep-203-1.0.0.tgz",
+                  "integrity": "sha512-ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH=="
+                },
+                "node_modules/lib-204": {
+                  "version": "1.8.1",
+                  "resolved": "https://npm.codedev.test.mirror.test/lib-204/-/lib-204-1.8.1.tgz",
+                  "integrity": "sha512-vC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjm=="
+                },
+                "node_modules/lib-205": {
+                  "version": "5.15.0",
+                  "resolved": "https://registry.npmjs.org/lib-205/-/lib-205-5.15.0.tgz",
+                  "integrity": "sha512-1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJU=="
+                },
+                "node_modules/lib-206": {
+                  "version": "6.11.1",
+                  "resolved": "https://registry.npmjs.org/lib-206/-/lib-206-6.11.1.tgz",
+                  "integrity": "sha512-u1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJ=="
+                },
+                "node_modules/lib-206/node_modules/dep-206": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-206/-/dep-206-1.0.0.tgz",
+                  "integrity": "sha512-kz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGton=="
+                },
+                "node_modules/lib-208": {
+                  "version": "6.1.3",
+                  "resolved": "https://registry.npmjs.org/lib-208/-/lib-208-6.1.3.tgz",
+                  "integrity": "sha512-7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC=="
+                },
+                "node_modules/lib-209": {
+                  "version": "9.6.9",
+                  "resolved": "https://registry.npmjs.org/lib-209/-/lib-209-9.6.9.tgz",
+                  "integrity": "sha512-ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH=="
+                },
+                "node_modules/lib-209/node_modules/dep-209": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-209/-/dep-209-1.0.0.tgz",
+                  "integrity": "sha512-ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH=="
+                },
+                "node_modules/lib-210": {
+                  "version": "6.18.9",
+                  "resolved": "https://registry.npmjs.org/lib-210/-/lib-210-6.18.9.tgz",
+                  "integrity": "sha512-2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonax=="
+                },
+                "node_modules/lib-211": {
+                  "version": "10.11.7",
+                  "resolved": "https://registry.npmjs.org/lib-211/-/lib-211-10.11.7.tgz",
+                  "integrity": "sha512-VwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0=="
+                },
+                "node_modules/lib-211/node_modules/dep-211": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-211/-/dep-211-1.0.0.tgz",
+                  "integrity": "sha512-kz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGton=="
+                },
+                "node_modules/lib-212": {
+                  "version": "10.1.3",
+                  "resolved": "https://registry.npmjs.org/lib-212/-/lib-212-10.1.3.tgz",
+                  "integrity": "sha512-p0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW94=="
+                },
+                "node_modules/lib-213": {
+                  "version": "9.0.4",
+                  "resolved": "https://registry.npmjs.org/lib-213/-/lib-213-9.0.4.tgz",
+                  "integrity": "sha512-QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUj=="
+                },
+                "node_modules/lib-213/node_modules/dep-213": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-213/-/dep-213-1.0.0.tgz",
+                  "integrity": "sha512-kz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGton=="
+                },
+                "node_modules/lib-214": {
+                  "version": "4.13.5",
+                  "resolved": "https://registry.npmjs.org/lib-214/-/lib-214-4.13.5.tgz",
+                  "integrity": "sha512-PiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DG=="
+                },
+                "node_modules/lib-215": {
+                  "version": "2.12.2",
+                  "resolved": "https://registry.npmjs.org/lib-215/-/lib-215-2.12.2.tgz",
+                  "integrity": "sha512-C5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmN=="
+                },
+                "node_modules/@codedev/pkg-216": {
+                  "version": "8.16.9",
+                  "resolved": "https://npm.codedev.test/@codedev/pkg-216/-/pkg-216-8.16.9.tgz",
+                  "integrity": "sha512-QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUj=="
+                },
+                "node_modules/@codedev/pkg-216/node_modules/dep-216": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-216/-/dep-216-1.0.0.tgz",
+                  "integrity": "sha512-iZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGt=="
+                },
+                "node_modules/lib-217": {
+                  "version": "9.17.7",
+                  "resolved": "https://registry.npmjs.org/lib-217/-/lib-217-9.17.7.tgz"
+                },
+                "node_modules/lib-218": {
+                  "version": "7.19.2",
+                  "resolved": "https://registry.npmjs.org/lib-218/-/lib-218-7.19.2.tgz",
+                  "integrity": "sha512-jmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXK=="
+                },
+                "node_modules/lib-219": {
+                  "version": "2.1.11",
+                  "resolved": "https://registry.npmjs.org/lib-219/-/lib-219-2.1.11.tgz"
+                },
+                "node_modules/lib-220": {
+                  "version": "7.13.8",
+                  "resolved": "https://registry.npmjs.org/lib-220/-/lib-220-7.13.8.tgz",
+                  "integrity": "sha512-OVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp=="
+                },
+                "node_modules/lib-221": {
+                  "version": "2.10.2",
+                  "resolved": "https://registry.npmjs.org/lib-221/-/lib-221-2.10.2.tgz",
+                  "integrity": "sha512-H6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7e=="
+                },
+                "node_modules/lib-222": {
+                  "version": "3.17.4",
+                  "resolved": "https://registry.npmjs.org/lib-222/-/lib-222-3.17.4.tgz",
+                  "integrity": "sha512-cLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/=="
+                },
+                "node_modules/lib-222/node_modules/dep-222": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-222/-/dep-222-1.0.0.tgz",
+                  "integrity": "sha512-kz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGton=="
+                },
+                "node_modules/lib-223": {
+                  "version": "12.12.10",
+                  "resolved": "https://registry.npmjs.org/lib-223/-/lib-223-12.12.10.tgz",
+                  "integrity": "sha512-Bsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVw=="
+                },
+                "node_modules/lib-223/node_modules/dep-223": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-223/-/dep-223-1.0.0.tgz"
+                },
+                "node_modules/lib-224": {
+                  "version": "8.4.10",
+                  "resolved": "https://registry.npmjs.org/lib-224/-/lib-224-8.4.10.tgz",
+                  "integrity": "sha512-elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5=="
+                },
+                "node_modules/@codedev/pkg-225": {
+                  "version": "7.7.0",
+                  "resolved": "https://npm.codedev.test/@codedev/pkg-225/-/pkg-225-7.7.0.tgz",
+                  "integrity": "sha512-QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUj=="
+                },
+                "node_modules/lib-226": {
+                  "version": "7.9.7",
+                  "resolved": "https://registry.npmjs.org/lib-226/-/lib-226-7.9.7.tgz",
+                  "integrity": "sha512-YXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcL=="
+                },
+                "node_modules/lib-226/node_modules/dep-226": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-226/-/dep-226-1.0.0.tgz",
+                  "integrity": "sha512-kz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGton=="
+                },
+                "node_modules/lib-227": {
+                  "version": "12.8.9",
+                  "resolved": "https://registry.npmjs.org/lib-227/-/lib-227-12.8.9.tgz",
+                  "integrity": "sha512-Afyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ET=="
+                },
+                "node_modules/lib-227/node_modules/dep-227": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-227/-/dep-227-1.0.0.tgz",
+                  "integrity": "sha512-ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH=="
+                },
+                "node_modules/lib-228": {
+                  "version": "2.2.4",
+                  "resolved": "https://registry.npmjs.org/lib-228/-/lib-228-2.2.4.tgz",
+                  "integrity": "sha512-7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC=="
+                },
+                "node_modules/lib-229": {
+                  "version": "8.17.3",
+                  "resolved": "https://registry.npmjs.org/lib-229/-/lib-229-8.17.3.tgz",
+                  "integrity": "sha512-JUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dY=="
+                },
+                "node_modules/lib-230": {
+                  "version": "8.3.5",
+                  "resolved": "https://registry.npmjs.org/lib-230/-/lib-230-8.3.5.tgz"
+                },
+                "node_modules/lib-231": {
+                  "version": "7.5.6",
+                  "resolved": "https://registry.npmjs.org/lib-231/-/lib-231-7.5.6.tgz",
+                  "integrity": "sha512-Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZk=="
+                },
+                "node_modules/lib-232": {
+                  "version": "3.12.7",
+                  "resolved": "https://registry.npmjs.org/lib-232/-/lib-232-3.12.7.tgz"
+                },
+                "node_modules/lib-232/node_modules/dep-232": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-232/-/dep-232-1.0.0.tgz",
+                  "integrity": "sha512-ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH=="
+                },
+                "node_modules/lib-233": {
+                  "version": "4.19.8",
+                  "resolved": "https://registry.npmjs.org/lib-233/-/lib-233-4.19.8.tgz",
+                  "integrity": "sha512-dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxc=="
+                },
+                "node_modules/@codedev/pkg-234": {
+                  "version": "9.15.4",
+                  "resolved": "https://npm.codedev.test/@codedev/pkg-234/-/pkg-234-9.15.4.tgz",
+                  "integrity": "sha512-hM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1Q=="
+                },
+                "node_modules/lib-235": {
+                  "version": "7.0.3",
+                  "resolved": "https://registry.npmjs.org/lib-235/-/lib-235-7.0.3.tgz",
+                  "integrity": "sha512-p0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW94=="
+                },
+                "node_modules/lib-236": {
+                  "version": "10.0.7",
+                  "resolved": "https://registry.npmjs.org/lib-236/-/lib-236-10.0.7.tgz",
+                  "integrity": "sha512-qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOV=="
+                },
+                "node_modules/lib-237": {
+                  "version": "4.16.5",
+                  "resolved": "https://registry.npmjs.org/lib-237/-/lib-237-4.16.5.tgz",
+                  "integrity": "sha512-DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943q=="
+                },
+                "node_modules/lib-238": {
+                  "version": "2.18.8",
+                  "resolved": "https://registry.npmjs.org/lib-238/-/lib-238-2.18.8.tgz",
+                  "integrity": "sha512-rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfy=="
+                },
+                "node_modules/lib-240": {
+                  "version": "11.19.2",
+                  "resolved": "https://registry.npmjs.org/lib-240/-/lib-240-11.19.2.tgz"
+                },
+                "node_modules/lib-241": {
+                  "version": "5.0.8",
+                  "resolved": "https://registry.npmjs.org/lib-241/-/lib-241-5.0.8.tgz",
+                  "integrity": "sha512-R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elA=="
+                },
+                "node_modules/lib-242": {
+                  "version": "10.17.1",
+                  "resolved": "https://registry.npmjs.org/lib-242/-/lib-242-10.17.1.tgz",
+                  "integrity": "sha512-PiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DG=="
+                },
+                "node_modules/@codedev/pkg-243": {
+                  "version": "2.1.7",
+                  "resolved": "https://npm.codedev.test/@codedev/pkg-243/-/pkg-243-2.1.7.tgz",
+                  "integrity": "sha512-QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUj=="
+                },
+                "node_modules/@codedev/pkg-243/node_modules/dep-243": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-243/-/dep-243-1.0.0.tgz",
+                  "integrity": "sha512-iZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGt=="
+                },
+                "node_modules/lib-244": {
+                  "version": "6.5.0",
+                  "resolved": "https://registry.npmjs.org/lib-244/-/lib-244-6.5.0.tgz",
+                  "integrity": "sha512-wPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0D=="
+                },
+                "node_modules/lib-244/node_modules/dep-244": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-244/-/dep-244-1.0.0.tgz",
+                  "integrity": "sha512-kz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGton=="
+                },
+                "node_modules/lib-245": {
+                  "version": "5.17.5",
+                  "resolved": "https://registry.npmjs.org/lib-245/-/lib-245-5.17.5.tgz",
+                  "integrity": "sha512-cLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/=="
+                },
+                "node_modules/lib-245/node_modules/dep-245": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-245/-/dep-245-1.0.0.tgz",
+                  "integrity": "sha512-ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH=="
+                },
+                "node_modules/lib-246": {
+                  "version": "12.19.5",
+                  "resolved": "https://registry.npmjs.org/lib-246/-/lib-246-12.19.5.tgz",
+                  "integrity": "sha512-PiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DG=="
+                },
+                "node_modules/lib-247": {
+                  "version": "1.2.0",
+                  "resolved": "https://registry.npmjs.org/lib-247/-/lib-247-1.2.0.tgz",
+                  "integrity": "sha512-Bsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVw=="
+                },
+                "node_modules/lib-248": {
+                  "version": "2.6.7",
+                  "resolved": "https://registry.npmjs.org/lib-248/-/lib-248-2.6.7.tgz",
+                  "integrity": "sha512-wPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0D=="
+                },
+                "node_modules/lib-248/node_modules/dep-248": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-248/-/dep-248-1.0.0.tgz",
+                  "integrity": "sha512-kz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGton=="
+                },
+                "node_modules/lib-249": {
+                  "version": "8.1.2",
+                  "resolved": "https://registry.npmjs.org/lib-249/-/lib-249-8.1.2.tgz",
+                  "integrity": "sha512-PiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DG=="
+                },
+                "node_modules/lib-249/node_modules/dep-249": {
+                  "version": "1.0.0",
+                  "resolved": "https://registry.npmjs.org/dep-249/-/dep-249-1.0.0.tgz",
+                  "integrity": "sha512-ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH=="
+                },
+                "node_modules/lib-250": {
+                  "version": "3.7.11",
+                  "resolved": "https://registry.npmjs.org/lib-250/-/lib-250-3.7.11.tgz",
+                  "integrity": "sha512-KhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1=="
+                },
+                "node_modules/lib-251": {
+                  "version": "3.16.9",
+                  "resolved": "https://registry.npmjs.org/lib-251/-/lib-251-3.16.9.tgz",
+                  "integrity": "sha512-8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAf=="
+                },
+                "node_modules/@codedev/pkg-252": {
+                  "version": "6.3.4",
+                  "resolved": "https://npm.codedev.test/@codedev/pkg-252/-/pkg-252-6.3.4.tgz",
+                  "integrity": "sha512-xcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg=="
+                },
+                "node_modules/lib-253": {
+                  "version": "1.7.3",
+                  "resolved": "https://registry.npmjs.org/lib-253/-/lib-253-1.7.3.tgz",
+                  "integrity": "sha512-qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOV=="
+                },
+                "node_modules/lib-254": {
+                  "version": "11.11.9",
+                  "resolved": "https://registry.npmjs.org/lib-254/-/lib-254-11.11.9.tgz",
+                  "integrity": "sha512-vC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjm=="
+                },
+                "node_modules/lib-255": {
+                  "version": "7.6.4",
+                  "resolved": "https://registry.npmjs.org/lib-255/-/lib-255-7.6.4.tgz",
+                  "integrity": "sha512-elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5=="
+                },
+                "node_modules/lib-256": {
+                  "version": "2.3.3",
+                  "resolved": "https://registry.npmjs.org/lib-256/-/lib-256-2.3.3.tgz",
+                  "integrity": "sha512-8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAf=="
+                },
+                "node_modules/lib-258": {
+                  "version": "5.0.7",
+                  "resolved": "https://registry.npmjs.org/lib-258/-/lib-258-5.0.7.tgz",
+                  "integrity": "sha512-W943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R=="
+                },
+                "node_modules/lib-259": {
+                  "version": "2.0.0",
+                  "resolved": "https://registry.npmjs.org/lib-259/-/lib-259-2.0.0.tgz",
+                  "integrity": "sha512-naxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+=="
+                }
+              }
+            },
+            "policy": {
+              "allowedRegistries": [
+                "https://registry.npmjs.org/",
+                "https://npm.codedev.test/"
+              ]
+            }
+          },
+          "expected": "mismatch @codedev/pkg-000: ^7.3.1 but locked 8.0.0\nregistry @codedev/pkg-000: https://npm.codedev.test.mirror.test/@codedev/pkg-000/-/pkg-000-8.0.0.tgz\nwide-range @codedev/pkg-036: >=12.0.0 (no upper bound)\nmissing @codedev/pkg-063: 6.18.x\nmismatch @codedev/pkg-108: ~4.17.2 but locked 5.0.0\nintegrity @codedev/pkg-135: missing\nmissing @codedev/pkg-171: ~7.3.4\nwide-range @codedev/pkg-180: >=2.0.0 (no upper bound)\nmissing @codedev/pkg-207: >=1.0.0\nwide-range @codedev/pkg-207: >=1.0.0 (no upper bound)\nintegrity lib-002: missing\nwide-range lib-005: >=4.0.0 (no upper bound)\nwide-range lib-007: >=11.0.0 (no upper bound)\nmismatch lib-013: 1.18.7 but locked 2.0.0\nmismatch lib-017: ~10.19.3 but locked 11.0.0\nmismatch lib-021: 8.11.4 but locked 9.0.0\nwide-range lib-023: >=3.0.0 (no upper bound)\nmismatch lib-025: 3.7.x but locked 4.0.0\nmismatch lib-026: ~1.12.5 but locked 2.0.0\nwide-range lib-028: >=12.0.0 (no upper bound)\nwide-range lib-033: >=6.0.0 (no upper bound)\nwide-range lib-035: >=11.0.0 (no upper bound)\nmismatch lib-042: >=6.17.4 <7.0.0 but locked 7.0.0\nintegrity lib-042/node_modules/dep-42: missing\nmissing lib-043: ^11.13.6\nmissing lib-044: 7.0.9\nintegrity lib-050: missing\nmismatch lib-051: ^6.8.5 but locked 7.0.0\nwide-range lib-055: >=1.0.0 (no upper bound)\nmissing lib-060: ^6.8.2\nwide-range lib-061: >=2.0.0 (no upper bound)\nwide-range lib-064: >=6.0.0 (no upper bound)\nintegrity lib-065: missing\nintegrity lib-070: missing\nwide-range lib-073: >=3.0.0 (no upper bound)\nintegrity lib-074: missing\nmissing lib-076: 9.2.x\nmissing lib-080: ^4.9.5\nintegrity lib-082/node_modules/dep-82: missing\nwide-range lib-084: >=3.0.0 (no upper bound)\nmismatch lib-086: 3.9.x but locked 3.10.0\nintegrity lib-086/node_modules/dep-86: missing\nwide-range lib-091: >=3.0.0 (no upper bound)\nregistry lib-091: https://npm.codedev.test.mirror.test/lib-091/-/lib-091-3.8.0.tgz\nintegrity lib-091/node_modules/dep-91: missing\nintegrity lib-092/node_modules/dep-92: missing\nmismatch lib-096: 12.13.9 but locked 12.14.0\nmissing lib-097: >=4.3.5 <5.0.0\nwide-range lib-100: >=7.0.0 (no upper bound)\nmismatch lib-101: 4.1.9 but locked 4.2.0\nmissing lib-106: ^8.7.7\nmismatch lib-107: ~10.12.8 but locked 10.13.0\nwide-range lib-109: >=6.0.0 (no upper bound)\nintegrity lib-111/node_modules/dep-111: missing\nmissing lib-118: >=10.0.0\nwide-range lib-118: >=10.0.0 (no upper bound)\nmismatch lib-120: ~6.4.3 but locked 7.0.0\nwide-range lib-121: >=11.0.0 (no upper bound)\nmismatch lib-122: 2.19.x but locked 2.20.0\nmismatch lib-128: ~2.19.5 but locked 3.0.0\nwide-range lib-130: >=6.0.0 (no upper bound)\nintegrity lib-130/node_modules/dep-130: missing\nwide-range lib-131: >=1.0.0 (no upper bound)\nregistry lib-131: https://npm.codedev.test.mirror.test/lib-131/-/lib-131-1.12.0.tgz\nintegrity lib-131: missing\nintegrity lib-132: missing\nmismatch lib-138: 10.15.5 but locked 11.0.0\nintegrity lib-142: missing\nwide-range lib-146: >=8.0.0 (no upper bound)\nintegrity lib-147/node_modules/dep-147: missing\nmismatch lib-152: 3.15.7 but locked 4.0.0\nmissing lib-160: >=7.0.0\nwide-range lib-160: >=7.0.0 (no upper bound)\nwide-range lib-161: >=8.0.0 (no upper bound)\nmissing lib-163: ~1.16.6\nmismatch lib-164: ^1.0.6 but locked 2.0.0\nmismatch lib-173: ^11.18.7 but locked 12.0.0\nintegrity lib-183/node_modules/dep-183: missing\nmissing lib-187: 4.9.x\nmismatch lib-188: 9.9.x but locked 10.0.0\nmissing lib-191: 6.5.0\nregistry lib-193: https://npm.codedev.test.mirror.test/lib-193/-/lib-193-12.0.2.tgz\nmismatch lib-194: ~2.3.1 but locked 3.0.0\nwide-range lib-197: >=10.0.0 (no upper bound)\nregistry lib-200: https://npm.codedev.test.mirror.test/lib-200/-/lib-200-12.13.4.tgz\nregistry lib-204: https://npm.codedev.test.mirror.test/lib-204/-/lib-204-1.8.1.tgz\nmismatch lib-205: 5.14.x but locked 5.15.0\nwide-range lib-209: >=9.0.0 (no upper bound)\nwide-range lib-211: >=10.0.0 (no upper bound)\nintegrity lib-217: missing\nintegrity lib-219: missing\nwide-range lib-220: >=7.0.0 (no upper bound)\nwide-range lib-222: >=3.0.0 (no upper bound)\nintegrity lib-223/node_modules/dep-223: missing\nwide-range lib-224: >=8.0.0 (no upper bound)\nintegrity lib-230: missing\nintegrity lib-232: missing\nmissing lib-239: >=1.4.9 <2.0.0\nintegrity lib-240: missing\nmismatch lib-244: ~6.4.7 but locked 6.5.0\nmissing lib-257: ~11.1.4\nmismatch lib-259: >=1.11.0 <2.0.0 but locked 2.0.0\n102 finding(s)",
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "A clean lockfile from our own registries gives no findings",
+          "input": {
+            "packageJson": {
+              "name": "codedev-docs",
+              "dependencies": {
+                "next": "15.5.4",
+                "react": "^19.1.0",
+                "react-dom": "^19.1.0"
+              },
+              "devDependencies": {
+                "typescript": "~5.9.2"
+              }
+            },
+            "lockfile": {
+              "name": "codedev-docs",
+              "version": "1.0.0",
+              "lockfileVersion": 3,
+              "requires": true,
+              "packages": {
+                "": {
+                  "name": "codedev-docs",
+                  "version": "1.0.0",
+                  "dependencies": {
+                    "next": "15.5.4",
+                    "react": "^19.1.0",
+                    "react-dom": "^19.1.0"
+                  },
+                  "devDependencies": {
+                    "typescript": "~5.9.2"
+                  }
+                },
+                "node_modules/next": {
+                  "version": "15.5.4",
+                  "resolved": "https://registry.npmjs.org/next/-/next-15.5.4.tgz",
+                  "integrity": "sha512-z2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtona=="
+                },
+                "node_modules/react": {
+                  "version": "19.1.1",
+                  "resolved": "https://registry.npmjs.org/react/-/react-19.1.1.tgz",
+                  "integrity": "sha512-onaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb=="
+                },
+                "node_modules/react-dom": {
+                  "version": "19.1.1",
+                  "resolved": "https://registry.npmjs.org/react-dom/-/react-dom-19.1.1.tgz",
+                  "integrity": "sha512-Zkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGto=="
+                },
+                "node_modules/scheduler": {
+                  "version": "0.26.0",
+                  "resolved": "https://registry.npmjs.org/scheduler/-/scheduler-0.26.0.tgz",
+                  "integrity": "sha512-SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2d=="
+                },
+                "node_modules/typescript": {
+                  "version": "5.9.3",
+                  "resolved": "https://registry.npmjs.org/typescript/-/typescript-5.9.3.tgz",
+                  "integrity": "sha512-/SJUjmNIH6R8rOVwPiZkz2dYXKhM7elAfyp0DGtonaxcLu1QvC5ETW943qBsb+Fg/SJUjmNIH6R8rOVwPiZkz2==",
+                  "dev": true
+                }
+              }
+            },
+            "policy": {
+              "allowedRegistries": [
+                "https://registry.npmjs.org/",
+                "https://npm.codedev.test/"
+              ]
+            }
+          },
+          "expected": "0 finding(s)",
+          "hidden": true,
+          "score": 2
+        }
+      ]
+    }
+  ]
+}
