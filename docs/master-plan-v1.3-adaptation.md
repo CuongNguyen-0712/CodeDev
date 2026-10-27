@@ -193,3 +193,23 @@ Thứ tự: P5 → B1, B3 → P6–P9 (trước pilot) → các AI wave. P10 khi
 
 Mỗi course: viết local, `build-course`, verify, publish local; rollout prod theo `content/README.md`
 (storage trước, seed thử trên Neon branch).
+
+**Trạng thái 27/10/2026: toàn bộ catalog V1.3 đã viết, pass `verify-course`, publish local và commit.**
+Sanity dataset `production` dùng chung nên lesson đã publish cho cả prod. Còn lại cho production: migration
+`20261026_002`, upload storage, apply seed từng course, publish SQL, roadmaps seed (lệnh trong `content/README.md`).
+
+| Course | Tier / level | Ghi chú |
+|---|---|---|
+| A1–A4, B1–B5, C1–C3, E1–E3, E7 | xem commit từng course | Xong trước 27/10 |
+| C4 `data-consistency-events` | T4 expert | 15 lesson, 36 Đ/S, scenario "DB Commit Succeeded, Publish Failed" |
+| D2 `observability-opentelemetry` | T3 advanced | 12 lesson, 30 Đ/S, scenario "Find the Missing 800 ms" |
+| D3 `qa-performance-reliability` | T4 expert (Python) | Đổ vào outline, 15 lesson, 36 Đ/S, scenario "Find the First Bottleneck" |
+| D4 `system-design-capstone` | T4 expert | 15 lesson, 36 Đ/S, scenario "Architecture Review Board" |
+| D5 `supply-chain-security` | T3 advanced | 12 lesson, 30 Đ/S, scenario "The Package That Didn't Exist" |
+| E5 `llm-evaluation-guardrails` | T3 advanced | 12 lesson, 30 Đ/S, scenario "Prompt Injection via Student Submission" |
+| E6 `ai-agents-mcp` | T4 expert | 15 lesson, 36 Đ/S, scenario "The Agent Went Rogue"; MCP spec 2026-07-28 ghi kèm "kiểm tra modelcontextprotocol.io" |
+| D1 add-on `devops-foundations-ci-containers` | beginner (không theo tier) | +2 lesson: scenario "Bad Release, Fast Rollback", SBOM & secret scan |
+| E4 add-on `python-rag-from-scratch` | intermediate (không theo tier) | +2 lesson: "Spot the AI mistake" cosine, scenario "Right Docs, Wrong Answer?" |
+
+Chưa làm: tác giả thứ hai giải lại challenge (V1.3 §11.1); đối chiếu các fact có ghi "check current docs" với tài
+liệu hiện hành; bài pgvector / `EXPLAIN` PostgreSQL (cần runner có PostgreSQL); P10.
