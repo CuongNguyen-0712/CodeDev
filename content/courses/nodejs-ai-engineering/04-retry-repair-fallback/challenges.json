@@ -1,0 +1,307 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nae_211",
+      "name": "retry-repair-fallback-evidence",
+      "type": "quiz",
+      "title": "Retry, repair or give up? Read the hint service log",
+      "description": "Two statements on real output of the CodeDev hint service: a repair request after a schema error, and a retry loop that met a 401.",
+      "difficulty": "medium",
+      "outcomes": [
+        "resilience"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Hint service log, one hint request (fake model in staging, token counts from the provider's usage field):\n14:21:07.412 hint req=h_51c2 call=1 kind=hint   messages=2 input_tokens=2318 output_tokens=64 validation=invalid errors=[\"level: must be 1, 2 or 3\"]\n14:21:08.020 hint req=h_51c2 call=2 kind=repair messages=2 input_tokens=131  output_tokens=41 validation=valid\n\nThe repair request that was sent as call 2:\n[system] Your previous answer did not match the schema {\"level\": 1 | 2 | 3, \"hint\": \"<at most 300 characters>\"}. Return only the corrected JSON object.\n[user]   Previous answer:\n         {\"level\": \"two\", \"hint\": \"Check which branch of your ternary runs for a sum of 600000.\"}\n         Errors:\n         - level: must be 1, 2 or 3\n\nStatement: \"Call 2 cost about 6% of the input tokens of call 1 because the repair request carried only the invalid answer and the validator's error, not the system prompt, the failing test and the learner's code again.\"",
+          "explanation": "True. 131 input tokens against 2318 is about 6%. The repair request has two short messages: the repair instruction with the schema, and the invalid answer plus the exact error from validateHint. That is all the model needs to fix a shape problem: the hint text is already there, only the level is wrong. The common mistake is to append the repair to the whole conversation (system prompt, learner code, first answer, repair), which pays for the learner's code a second time on every repair and gives the model more text to get wrong.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "callModel() in the hint service:\nasync function callModel(messages: Message[]): Promise<Reply> {\n  for (let attempt = 1; attempt <= 3; attempt++) {\n    try {\n      return await llm.complete(messages);\n    } catch (err) {\n      if (attempt === 3) throw err;\n      await sleep(500 * 2 ** (attempt - 1));\n    }\n  }\n  throw new Error(\"unreachable\");\n}\n\nLog after the provider key was rotated on Friday (the new key had not reached the hint service yet):\n18:02:11.000 hint req=h_9a01 call=1 status=401 error=invalid_api_key\n18:02:11.512 hint req=h_9a01 call=2 status=401 error=invalid_api_key\n18:02:12.519 hint req=h_9a01 call=3 status=401 error=invalid_api_key\n18:02:12.523 hint req=h_9a01 -> 500 Internal Server Error\n\nStatement: \"Because the loop is bounded to 3 attempts and backs off, retrying the 401 is a reasonable choice: the key may become valid on a later attempt.\"",
+          "explanation": "False. A 401 says the credentials are wrong; the same request with the same key gets the same answer half a second later, so every hint request now costs three calls and 1.5 s of waiting before the learner sees a 500. A limit and backoff make a retry cheaper, not useful. Classify first: retry only transient failures (429, 502, 503, 504, timeouts), and for 400/401/403 return the fallback hint at once and raise an alert, because a human has to fix the key. The misconception is that a bounded retry is harmless for any error.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_nae_212",
+      "name": "retry-repair-fallback",
+      "type": "mini_coding",
+      "title": "Retry, repair & fallback for the AI hint",
+      "description": "The CodeDev AI hint must always give the lesson page something it can render. Write getHint(req, llm, clock, opts):\n\n1. Send hintMessages(req) with llm.complete(messages).\n2. If complete() throws an LlmError with a transient status (429, 502, 503 or 504) and fewer than opts.maxRetries retries were used in this getHint call, await clock.sleep(opts.baseDelayMs * 2 ** (n - 1)), where n is the number of this retry counted over the whole call (1, 2, 3 ...), then send the same messages again. Any other status (400, 401, 403 ...), or a transient one with no retry left, ends with the fallback and reason \"error <status>\".\n3. Check a reply with validateHint(reply.text). No errors: return the parsed hint with source \"model\" (answer to the first request) or \"repair\" (answer to a repair request). Errors and fewer than opts.maxRepairs repairs sent: send repairMessages(reply.text, errors) - only those two messages, not the original conversation - and check that reply the same way. Errors and no repair left: fallback with reason \"invalid output\".\n4. The fallback is FALLBACK_HINT with source \"fallback\"; reason is null when the hint came from the model.\n5. Return calls (every call to complete, including those that threw) and inputTokens / outputTokens (sums of reply.usage over the replies that came back).\n\nThe test runner replays a script on a fake model (no real LLM is called) and a fake clock, then prints every call (time, kind, messages, tokens sent, outcome), your result line and the hint. Input: { options: { maxRetries, maxRepairs, baseDelayMs }, request, script }.",
+      "difficulty": "medium",
+      "outcomes": [
+        "resilience"
+      ],
+      "points": 30,
+      "hints": [
+        "Three different things can happen on each call: it throws a transient error, it throws a permanent error, or it returns text that may or may not pass validateHint. Which counter does each case use up, and which messages does the next call send?",
+        "Look at what you pass to llm.complete after an invalid reply: repairMessages(reply.text, errors) replaces the messages, it is not appended to them. Then look at where you increase calls: before the try, so a call that throws is counted too.",
+        "A similar loop on other data: an image service that retries 'busy' with waits of 200 and 400 ms, and on a 'blurry' result sends one 'sharpen' request with only that image, then gives up with a placeholder. One loop, two counters (retries, sharpen requests), each checked before it is used, and the placeholder returned from every exit that is not a success."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Valid JSON on the first call: one call, source model",
+          "input": {
+            "options": {
+              "maxRetries": 2,
+              "maxRepairs": 1,
+              "baseDelayMs": 500
+            },
+            "request": {
+              "challenge": "Cart total with discount (TypeScript Foundations 2.3)",
+              "failingTest": "applies the 10% discount above 500000 VND: expected 540000, got 600000",
+              "code": "function total(items: Item[]): number {\n  const sum = items.reduce((s, i) => s + i.price * i.qty, 0);\n  return sum > 500000 ? sum : sum * 0.9;\n}"
+            },
+            "script": [
+              {
+                "text": "{\"level\":1,\"hint\":\"Your sum is right. Look at the condition that decides when the discount applies: for a sum of 600000, which branch of your ternary runs?\"}"
+              }
+            ]
+          },
+          "expected": "call 1 at 0ms: hint, 2 messages, 116 tokens -> valid\nresult: model, calls 1, tokens in 116 out 40, waited 0ms\nhint (level 1): Your sum is right. Look at the condition that decides when the discount applies: for a sum of 600000, which branch of your ternary runs?",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Truncated JSON, then one repair request with the validator's errors",
+          "input": {
+            "options": {
+              "maxRetries": 2,
+              "maxRepairs": 1,
+              "baseDelayMs": 500
+            },
+            "request": {
+              "challenge": "Cart total with discount (TypeScript Foundations 2.3)",
+              "failingTest": "applies the 10% discount above 500000 VND: expected 540000, got 600000",
+              "code": "function total(items: Item[]): number {\n  const sum = items.reduce((s, i) => s + i.price * i.qty, 0);\n  return sum > 500000 ? sum : sum * 0.9;\n}"
+            },
+            "script": [
+              {
+                "text": "{\"level\": 1, \"hint\": \"Your sum is right. Look at the condition that dec"
+              },
+              {
+                "text": "{\"level\":1,\"hint\":\"Your sum is right. Look at the condition that decides when the discount applies: for a sum of 600000, which branch of your ternary runs?\"}"
+              }
+            ]
+          },
+          "expected": "call 1 at 0ms: hint, 2 messages, 116 tokens -> invalid (not valid JSON)\ncall 2 at 0ms: repair, 2 messages, 65 tokens -> valid\nresult: repair, calls 2, tokens in 181 out 58, waited 0ms\nhint (level 1): Your sum is right. Look at the condition that decides when the discount applies: for a sum of 600000, which branch of your ternary runs?",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "503 then 429: retries after 500 ms and 1000 ms, then a valid hint",
+          "input": {
+            "options": {
+              "maxRetries": 2,
+              "maxRepairs": 1,
+              "baseDelayMs": 500
+            },
+            "request": {
+              "challenge": "Cart total with discount (TypeScript Foundations 2.3)",
+              "failingTest": "applies the 10% discount above 500000 VND: expected 540000, got 600000",
+              "code": "function total(items: Item[]): number {\n  const sum = items.reduce((s, i) => s + i.price * i.qty, 0);\n  return sum > 500000 ? sum : sum * 0.9;\n}"
+            },
+            "script": [
+              {
+                "status": 503
+              },
+              {
+                "status": 429
+              },
+              {
+                "text": "{\"level\":2,\"hint\":\"The discount branch and the full-price branch look swapped. Read the ternary aloud for a sum above 500000 and compare with the test name.\"}"
+              }
+            ]
+          },
+          "expected": "call 1 at 0ms: hint, 2 messages, 116 tokens -> 503\ncall 2 at 500ms: hint, 2 messages, 116 tokens -> 429\ncall 3 at 1500ms: hint, 2 messages, 116 tokens -> valid\nresult: model, calls 3, tokens in 116 out 40, waited 1500ms\nhint (level 2): The discount branch and the full-price branch look swapped. Read the ternary aloud for a sum above 500000 and compare with the test name.",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "401 is permanent: no retry and no wait, fallback at once",
+          "input": {
+            "options": {
+              "maxRetries": 2,
+              "maxRepairs": 1,
+              "baseDelayMs": 500
+            },
+            "request": {
+              "challenge": "Cart total with discount (TypeScript Foundations 2.3)",
+              "failingTest": "applies the 10% discount above 500000 VND: expected 540000, got 600000",
+              "code": "function total(items: Item[]): number {\n  const sum = items.reduce((s, i) => s + i.price * i.qty, 0);\n  return sum > 500000 ? sum : sum * 0.9;\n}"
+            },
+            "script": [
+              {
+                "status": 401
+              },
+              {
+                "text": "{\"level\":1,\"hint\":\"Your sum is right. Look at the condition that decides when the discount applies: for a sum of 600000, which branch of your ternary runs?\"}"
+              }
+            ]
+          },
+          "expected": "call 1 at 0ms: hint, 2 messages, 116 tokens -> 401\nresult: fallback (error 401), calls 1, tokens in 0 out 0, waited 0ms\nhint (level 1): Compare the expected and the actual output of the failing test line by line and start from the first line that differs.",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Invalid model output (fenced JSON, level 4, extra field, empty hint): fallback after 2 repairs",
+          "input": {
+            "options": {
+              "maxRetries": 2,
+              "maxRepairs": 2,
+              "baseDelayMs": 500
+            },
+            "request": {
+              "challenge": "Cart total with discount (TypeScript Foundations 2.3)",
+              "failingTest": "applies the 10% discount above 500000 VND: expected 540000, got 600000",
+              "code": "function total(items: Item[]): number {\n  const sum = items.reduce((s, i) => s + i.price * i.qty, 0);\n  return sum > 500000 ? sum : sum * 0.9;\n}"
+            },
+            "script": [
+              {
+                "text": "```json\n{\"level\":1,\"hint\":\"Your sum is right. Look at the condition that decides when the discount applies: for a sum of 600000, which branch of your ternary runs?\"}\n```"
+              },
+              {
+                "text": "{\"level\":4,\"hint\":\"Check the ternary.\",\"solution\":\"return sum > 500000 ? sum * 0.9 : sum;\"}"
+              },
+              {
+                "text": "{\"level\":2,\"hint\":\"   \"}"
+              },
+              {
+                "text": "{\"level\":1,\"hint\":\"Your sum is right. Look at the condition that decides when the discount applies: for a sum of 600000, which branch of your ternary runs?\"}"
+              }
+            ]
+          },
+          "expected": "call 1 at 0ms: hint, 2 messages, 116 tokens -> invalid (not valid JSON)\ncall 2 at 0ms: repair, 2 messages, 89 tokens -> invalid (level: must be 1, 2 or 3; solution: unknown property)\ncall 3 at 0ms: repair, 2 messages, 79 tokens -> invalid (hint: must be a non-empty string)\nresult: fallback (invalid output), calls 3, tokens in 284 out 72, waited 0ms\nhint (level 1): Compare the expected and the actual output of the failing test line by line and start from the first line that differs.",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Repeated 503: maxRetries 3 gives 4 calls, 3500 ms of backoff, then the fallback",
+          "input": {
+            "options": {
+              "maxRetries": 3,
+              "maxRepairs": 1,
+              "baseDelayMs": 500
+            },
+            "request": {
+              "challenge": "Cart total with discount (TypeScript Foundations 2.3)",
+              "failingTest": "applies the 10% discount above 500000 VND: expected 540000, got 600000",
+              "code": "function total(items: Item[]): number {\n  const sum = items.reduce((s, i) => s + i.price * i.qty, 0);\n  return sum > 500000 ? sum : sum * 0.9;\n}"
+            },
+            "script": [
+              {
+                "status": 503
+              },
+              {
+                "status": 503
+              },
+              {
+                "status": 503
+              },
+              {
+                "status": 503
+              },
+              {
+                "text": "{\"level\":1,\"hint\":\"Your sum is right. Look at the condition that decides when the discount applies: for a sum of 600000, which branch of your ternary runs?\"}"
+              }
+            ]
+          },
+          "expected": "call 1 at 0ms: hint, 2 messages, 116 tokens -> 503\ncall 2 at 500ms: hint, 2 messages, 116 tokens -> 503\ncall 3 at 1500ms: hint, 2 messages, 116 tokens -> 503\ncall 4 at 3500ms: hint, 2 messages, 116 tokens -> 503\nresult: fallback (error 503), calls 4, tokens in 0 out 0, waited 3500ms\nhint (level 1): Compare the expected and the actual output of the failing test line by line and start from the first line that differs.",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Large learner code (40 KB): the repair does not resend it; a 503 on the repair is retried",
+          "input": {
+            "options": {
+              "maxRetries": 2,
+              "maxRepairs": 1,
+              "baseDelayMs": 250
+            },
+            "request": {
+              "challenge": "Cart total with discount (TypeScript Foundations 2.3)",
+              "failingTest": "applies the 10% discount above 500000 VND: expected 540000, got 600000",
+              "code": "export function rule0(items: Item[]): number {\n  // pricing rule 0: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 0).reduce((s, x) => s + Math.round(x.price * 1.00), 0);\n}\nexport function rule1(items: Item[]): number {\n  // pricing rule 1: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 1).reduce((s, x) => s + Math.round(x.price * 1.01), 0);\n}\nexport function rule2(items: Item[]): number {\n  // pricing rule 2: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 2).reduce((s, x) => s + Math.round(x.price * 1.02), 0);\n}\nexport function rule3(items: Item[]): number {\n  // pricing rule 3: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 3).reduce((s, x) => s + Math.round(x.price * 1.03), 0);\n}\nexport function rule4(items: Item[]): number {\n  // pricing rule 4: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 4).reduce((s, x) => s + Math.round(x.price * 1.04), 0);\n}\nexport function rule5(items: Item[]): number {\n  // pricing rule 5: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 5).reduce((s, x) => s + Math.round(x.price * 1.00), 0);\n}\nexport function rule6(items: Item[]): number {\n  // pricing rule 6: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 6).reduce((s, x) => s + Math.round(x.price * 1.01), 0);\n}\nexport function rule7(items: Item[]): number {\n  // pricing rule 7: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 0).reduce((s, x) => s + Math.round(x.price * 1.02), 0);\n}\nexport function rule8(items: Item[]): number {\n  // pricing rule 8: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 1).reduce((s, x) => s + Math.round(x.price * 1.03), 0);\n}\nexport function rule9(items: Item[]): number {\n  // pricing rule 9: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 2).reduce((s, x) => s + Math.round(x.price * 1.04), 0);\n}\nexport function rule10(items: Item[]): number {\n  // pricing rule 10: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 3).reduce((s, x) => s + Math.round(x.price * 1.00), 0);\n}\nexport function rule11(items: Item[]): number {\n  // pricing rule 11: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 4).reduce((s, x) => s + Math.round(x.price * 1.01), 0);\n}\nexport function rule12(items: Item[]): number {\n  // pricing rule 12: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 5).reduce((s, x) => s + Math.round(x.price * 1.02), 0);\n}\nexport function rule13(items: Item[]): number {\n  // pricing rule 13: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 6).reduce((s, x) => s + Math.round(x.price * 1.03), 0);\n}\nexport function rule14(items: Item[]): number {\n  // pricing rule 14: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 0).reduce((s, x) => s + Math.round(x.price * 1.04), 0);\n}\nexport function rule15(items: Item[]): number {\n  // pricing rule 15: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 1).reduce((s, x) => s + Math.round(x.price * 1.00), 0);\n}\nexport function rule16(items: Item[]): number {\n  // pricing rule 16: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 2).reduce((s, x) => s + Math.round(x.price * 1.01), 0);\n}\nexport function rule17(items: Item[]): number {\n  // pricing rule 17: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 3).reduce((s, x) => s + Math.round(x.price * 1.02), 0);\n}\nexport function rule18(items: Item[]): number {\n  // pricing rule 18: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 4).reduce((s, x) => s + Math.round(x.price * 1.03), 0);\n}\nexport function rule19(items: Item[]): number {\n  // pricing rule 19: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 5).reduce((s, x) => s + Math.round(x.price * 1.04), 0);\n}\nexport function rule20(items: Item[]): number {\n  // pricing rule 20: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 6).reduce((s, x) => s + Math.round(x.price * 1.00), 0);\n}\nexport function rule21(items: Item[]): number {\n  // pricing rule 21: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 0).reduce((s, x) => s + Math.round(x.price * 1.01), 0);\n}\nexport function rule22(items: Item[]): number {\n  // pricing rule 22: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 1).reduce((s, x) => s + Math.round(x.price * 1.02), 0);\n}\nexport function rule23(items: Item[]): number {\n  // pricing rule 23: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 2).reduce((s, x) => s + Math.round(x.price * 1.03), 0);\n}\nexport function rule24(items: Item[]): number {\n  // pricing rule 24: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 3).reduce((s, x) => s + Math.round(x.price * 1.04), 0);\n}\nexport function rule25(items: Item[]): number {\n  // pricing rule 25: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 4).reduce((s, x) => s + Math.round(x.price * 1.00), 0);\n}\nexport function rule26(items: Item[]): number {\n  // pricing rule 26: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 5).reduce((s, x) => s + Math.round(x.price * 1.01), 0);\n}\nexport function rule27(items: Item[]): number {\n  // pricing rule 27: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 6).reduce((s, x) => s + Math.round(x.price * 1.02), 0);\n}\nexport function rule28(items: Item[]): number {\n  // pricing rule 28: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 0).reduce((s, x) => s + Math.round(x.price * 1.03), 0);\n}\nexport function rule29(items: Item[]): number {\n  // pricing rule 29: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 1).reduce((s, x) => s + Math.round(x.price * 1.04), 0);\n}\nexport function rule30(items: Item[]): number {\n  // pricing rule 30: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 2).reduce((s, x) => s + Math.round(x.price * 1.00), 0);\n}\nexport function rule31(items: Item[]): number {\n  // pricing rule 31: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 3).reduce((s, x) => s + Math.round(x.price * 1.01), 0);\n}\nexport function rule32(items: Item[]): number {\n  // pricing rule 32: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 4).reduce((s, x) => s + Math.round(x.price * 1.02), 0);\n}\nexport function rule33(items: Item[]): number {\n  // pricing rule 33: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 5).reduce((s, x) => s + Math.round(x.price * 1.03), 0);\n}\nexport function rule34(items: Item[]): number {\n  // pricing rule 34: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 6).reduce((s, x) => s + Math.round(x.price * 1.04), 0);\n}\nexport function rule35(items: Item[]): number {\n  // pricing rule 35: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 0).reduce((s, x) => s + Math.round(x.price * 1.00), 0);\n}\nexport function rule36(items: Item[]): number {\n  // pricing rule 36: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 1).reduce((s, x) => s + Math.round(x.price * 1.01), 0);\n}\nexport function rule37(items: Item[]): number {\n  // pricing rule 37: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 2).reduce((s, x) => s + Math.round(x.price * 1.02), 0);\n}\nexport function rule38(items: Item[]): number {\n  // pricing rule 38: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 3).reduce((s, x) => s + Math.round(x.price * 1.03), 0);\n}\nexport function rule39(items: Item[]): number {\n  // pricing rule 39: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 4).reduce((s, x) => s + Math.round(x.price * 1.04), 0);\n}\nexport function rule40(items: Item[]): number {\n  // pricing rule 40: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 5).reduce((s, x) => s + Math.round(x.price * 1.00), 0);\n}\nexport function rule41(items: Item[]): number {\n  // pricing rule 41: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 6).reduce((s, x) => s + Math.round(x.price * 1.01), 0);\n}\nexport function rule42(items: Item[]): number {\n  // pricing rule 42: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 0).reduce((s, x) => s + Math.round(x.price * 1.02), 0);\n}\nexport function rule43(items: Item[]): number {\n  // pricing rule 43: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 1).reduce((s, x) => s + Math.round(x.price * 1.03), 0);\n}\nexport function rule44(items: Item[]): number {\n  // pricing rule 44: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 2).reduce((s, x) => s + Math.round(x.price * 1.04), 0);\n}\nexport function rule45(items: Item[]): number {\n  // pricing rule 45: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 3).reduce((s, x) => s + Math.round(x.price * 1.00), 0);\n}\nexport function rule46(items: Item[]): number {\n  // pricing rule 46: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 4).reduce((s, x) => s + Math.round(x.price * 1.01), 0);\n}\nexport function rule47(items: Item[]): number {\n  // pricing rule 47: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 5).reduce((s, x) => s + Math.round(x.price * 1.02), 0);\n}\nexport function rule48(items: Item[]): number {\n  // pricing rule 48: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 6).reduce((s, x) => s + Math.round(x.price * 1.03), 0);\n}\nexport function rule49(items: Item[]): number {\n  // pricing rule 49: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 0).reduce((s, x) => s + Math.round(x.price * 1.04), 0);\n}\nexport function rule50(items: Item[]): number {\n  // pricing rule 50: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 1).reduce((s, x) => s + Math.round(x.price * 1.00), 0);\n}\nexport function rule51(items: Item[]): number {\n  // pricing rule 51: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 2).reduce((s, x) => s + Math.round(x.price * 1.01), 0);\n}\nexport function rule52(items: Item[]): number {\n  // pricing rule 52: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 3).reduce((s, x) => s + Math.round(x.price * 1.02), 0);\n}\nexport function rule53(items: Item[]): number {\n  // pricing rule 53: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 4).reduce((s, x) => s + Math.round(x.price * 1.03), 0);\n}\nexport function rule54(items: Item[]): number {\n  // pricing rule 54: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 5).reduce((s, x) => s + Math.round(x.price * 1.04), 0);\n}\nexport function rule55(items: Item[]): number {\n  // pricing rule 55: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 6).reduce((s, x) => s + Math.round(x.price * 1.00), 0);\n}\nexport function rule56(items: Item[]): number {\n  // pricing rule 56: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 0).reduce((s, x) => s + Math.round(x.price * 1.01), 0);\n}\nexport function rule57(items: Item[]): number {\n  // pricing rule 57: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 1).reduce((s, x) => s + Math.round(x.price * 1.02), 0);\n}\nexport function rule58(items: Item[]): number {\n  // pricing rule 58: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 2).reduce((s, x) => s + Math.round(x.price * 1.03), 0);\n}\nexport function rule59(items: Item[]): number {\n  // pricing rule 59: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 3).reduce((s, x) => s + Math.round(x.price * 1.04), 0);\n}\nexport function rule60(items: Item[]): number {\n  // pricing rule 60: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 4).reduce((s, x) => s + Math.round(x.price * 1.00), 0);\n}\nexport function rule61(items: Item[]): number {\n  // pricing rule 61: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 5).reduce((s, x) => s + Math.round(x.price * 1.01), 0);\n}\nexport function rule62(items: Item[]): number {\n  // pricing rule 62: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 6).reduce((s, x) => s + Math.round(x.price * 1.02), 0);\n}\nexport function rule63(items: Item[]): number {\n  // pricing rule 63: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 0).reduce((s, x) => s + Math.round(x.price * 1.03), 0);\n}\nexport function rule64(items: Item[]): number {\n  // pricing rule 64: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 1).reduce((s, x) => s + Math.round(x.price * 1.04), 0);\n}\nexport function rule65(items: Item[]): number {\n  // pricing rule 65: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 2).reduce((s, x) => s + Math.round(x.price * 1.00), 0);\n}\nexport function rule66(items: Item[]): number {\n  // pricing rule 66: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 3).reduce((s, x) => s + Math.round(x.price * 1.01), 0);\n}\nexport function rule67(items: Item[]): number {\n  // pricing rule 67: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 4).reduce((s, x) => s + Math.round(x.price * 1.02), 0);\n}\nexport function rule68(items: Item[]): number {\n  // pricing rule 68: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 5).reduce((s, x) => s + Math.round(x.price * 1.03), 0);\n}\nexport function rule69(items: Item[]): number {\n  // pricing rule 69: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 6).reduce((s, x) => s + Math.round(x.price * 1.04), 0);\n}\nexport function rule70(items: Item[]): number {\n  // pricing rule 70: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 0).reduce((s, x) => s + Math.round(x.price * 1.00), 0);\n}\nexport function rule71(items: Item[]): number {\n  // pricing rule 71: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 1).reduce((s, x) => s + Math.round(x.price * 1.01), 0);\n}\nexport function rule72(items: Item[]): number {\n  // pricing rule 72: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 2).reduce((s, x) => s + Math.round(x.price * 1.02), 0);\n}\nexport function rule73(items: Item[]): number {\n  // pricing rule 73: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 3).reduce((s, x) => s + Math.round(x.price * 1.03), 0);\n}\nexport function rule74(items: Item[]): number {\n  // pricing rule 74: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 4).reduce((s, x) => s + Math.round(x.price * 1.04), 0);\n}\nexport function rule75(items: Item[]): number {\n  // pricing rule 75: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 5).reduce((s, x) => s + Math.round(x.price * 1.00), 0);\n}\nexport function rule76(items: Item[]): number {\n  // pricing rule 76: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 6).reduce((s, x) => s + Math.round(x.price * 1.01), 0);\n}\nexport function rule77(items: Item[]): number {\n  // pricing rule 77: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 0).reduce((s, x) => s + Math.round(x.price * 1.02), 0);\n}\nexport function rule78(items: Item[]): number {\n  // pricing rule 78: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 1).reduce((s, x) => s + Math.round(x.price * 1.03), 0);\n}\nexport function rule79(items: Item[]): number {\n  // pricing rule 79: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 2).reduce((s, x) => s + Math.round(x.price * 1.04), 0);\n}\nexport function rule80(items: Item[]): number {\n  // pricing rule 80: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 3).reduce((s, x) => s + Math.round(x.price * 1.00), 0);\n}\nexport function rule81(items: Item[]): number {\n  // pricing rule 81: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 4).reduce((s, x) => s + Math.round(x.price * 1.01), 0);\n}\nexport function rule82(items: Item[]): number {\n  // pricing rule 82: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 5).reduce((s, x) => s + Math.round(x.price * 1.02), 0);\n}\nexport function rule83(items: Item[]): number {\n  // pricing rule 83: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 6).reduce((s, x) => s + Math.round(x.price * 1.03), 0);\n}\nexport function rule84(items: Item[]): number {\n  // pricing rule 84: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 0).reduce((s, x) => s + Math.round(x.price * 1.04), 0);\n}\nexport function rule85(items: Item[]): number {\n  // pricing rule 85: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 1).reduce((s, x) => s + Math.round(x.price * 1.00), 0);\n}\nexport function rule86(items: Item[]): number {\n  // pricing rule 86: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 2).reduce((s, x) => s + Math.round(x.price * 1.01), 0);\n}\nexport function rule87(items: Item[]): number {\n  // pricing rule 87: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 3).reduce((s, x) => s + Math.round(x.price * 1.02), 0);\n}\nexport function rule88(items: Item[]): number {\n  // pricing rule 88: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 4).reduce((s, x) => s + Math.round(x.price * 1.03), 0);\n}\nexport function rule89(items: Item[]): number {\n  // pricing rule 89: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 5).reduce((s, x) => s + Math.round(x.price * 1.04), 0);\n}\nexport function rule90(items: Item[]): number {\n  // pricing rule 90: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 6).reduce((s, x) => s + Math.round(x.price * 1.00), 0);\n}\nexport function rule91(items: Item[]): number {\n  // pricing rule 91: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 0).reduce((s, x) => s + Math.round(x.price * 1.01), 0);\n}\nexport function rule92(items: Item[]): number {\n  // pricing rule 92: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 1).reduce((s, x) => s + Math.round(x.price * 1.02), 0);\n}\nexport function rule93(items: Item[]): number {\n  // pricing rule 93: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 2).reduce((s, x) => s + Math.round(x.price * 1.03), 0);\n}\nexport function rule94(items: Item[]): number {\n  // pricing rule 94: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 3).reduce((s, x) => s + Math.round(x.price * 1.04), 0);\n}\nexport function rule95(items: Item[]): number {\n  // pricing rule 95: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 4).reduce((s, x) => s + Math.round(x.price * 1.00), 0);\n}\nexport function rule96(items: Item[]): number {\n  // pricing rule 96: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 5).reduce((s, x) => s + Math.round(x.price * 1.01), 0);\n}\nexport function rule97(items: Item[]): number {\n  // pricing rule 97: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 6).reduce((s, x) => s + Math.round(x.price * 1.02), 0);\n}\nexport function rule98(items: Item[]): number {\n  // pricing rule 98: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 0).reduce((s, x) => s + Math.round(x.price * 1.03), 0);\n}\nexport function rule99(items: Item[]): number {\n  // pricing rule 99: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 1).reduce((s, x) => s + Math.round(x.price * 1.04), 0);\n}\nexport function rule100(items: Item[]): number {\n  // pricing rule 100: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 2).reduce((s, x) => s + Math.round(x.price * 1.00), 0);\n}\nexport function rule101(items: Item[]): number {\n  // pricing rule 101: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 3).reduce((s, x) => s + Math.round(x.price * 1.01), 0);\n}\nexport function rule102(items: Item[]): number {\n  // pricing rule 102: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 4).reduce((s, x) => s + Math.round(x.price * 1.02), 0);\n}\nexport function rule103(items: Item[]): number {\n  // pricing rule 103: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 5).reduce((s, x) => s + Math.round(x.price * 1.03), 0);\n}\nexport function rule104(items: Item[]): number {\n  // pricing rule 104: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 6).reduce((s, x) => s + Math.round(x.price * 1.04), 0);\n}\nexport function rule105(items: Item[]): number {\n  // pricing rule 105: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 0).reduce((s, x) => s + Math.round(x.price * 1.00), 0);\n}\nexport function rule106(items: Item[]): number {\n  // pricing rule 106: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 1).reduce((s, x) => s + Math.round(x.price * 1.01), 0);\n}\nexport function rule107(items: Item[]): number {\n  // pricing rule 107: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 2).reduce((s, x) => s + Math.round(x.price * 1.02), 0);\n}\nexport function rule108(items: Item[]): number {\n  // pricing rule 108: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 3).reduce((s, x) => s + Math.round(x.price * 1.03), 0);\n}\nexport function rule109(items: Item[]): number {\n  // pricing rule 109: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 4).reduce((s, x) => s + Math.round(x.price * 1.04), 0);\n}\nexport function rule110(items: Item[]): number {\n  // pricing rule 110: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 5).reduce((s, x) => s + Math.round(x.price * 1.00), 0);\n}\nexport function rule111(items: Item[]): number {\n  // pricing rule 111: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 6).reduce((s, x) => s + Math.round(x.price * 1.01), 0);\n}\nexport function rule112(items: Item[]): number {\n  // pricing rule 112: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 0).reduce((s, x) => s + Math.round(x.price * 1.02), 0);\n}\nexport function rule113(items: Item[]): number {\n  // pricing rule 113: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 1).reduce((s, x) => s + Math.round(x.price * 1.03), 0);\n}\nexport function rule114(items: Item[]): number {\n  // pricing rule 114: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 2).reduce((s, x) => s + Math.round(x.price * 1.04), 0);\n}\nexport function rule115(items: Item[]): number {\n  // pricing rule 115: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 3).reduce((s, x) => s + Math.round(x.price * 1.00), 0);\n}\nexport function rule116(items: Item[]): number {\n  // pricing rule 116: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 4).reduce((s, x) => s + Math.round(x.price * 1.01), 0);\n}\nexport function rule117(items: Item[]): number {\n  // pricing rule 117: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 5).reduce((s, x) => s + Math.round(x.price * 1.02), 0);\n}\nexport function rule118(items: Item[]): number {\n  // pricing rule 118: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 6).reduce((s, x) => s + Math.round(x.price * 1.03), 0);\n}\nexport function rule119(items: Item[]): number {\n  // pricing rule 119: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 0).reduce((s, x) => s + Math.round(x.price * 1.04), 0);\n}\nexport function rule120(items: Item[]): number {\n  // pricing rule 120: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 1).reduce((s, x) => s + Math.round(x.price * 1.00), 0);\n}\nexport function rule121(items: Item[]): number {\n  // pricing rule 121: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 2).reduce((s, x) => s + Math.round(x.price * 1.01), 0);\n}\nexport function rule122(items: Item[]): number {\n  // pricing rule 122: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 3).reduce((s, x) => s + Math.round(x.price * 1.02), 0);\n}\nexport function rule123(items: Item[]): number {\n  // pricing rule 123: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 4).reduce((s, x) => s + Math.round(x.price * 1.03), 0);\n}\nexport function rule124(items: Item[]): number {\n  // pricing rule 124: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 5).reduce((s, x) => s + Math.round(x.price * 1.04), 0);\n}\nexport function rule125(items: Item[]): number {\n  // pricing rule 125: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 6).reduce((s, x) => s + Math.round(x.price * 1.00), 0);\n}\nexport function rule126(items: Item[]): number {\n  // pricing rule 126: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 0).reduce((s, x) => s + Math.round(x.price * 1.01), 0);\n}\nexport function rule127(items: Item[]): number {\n  // pricing rule 127: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 1).reduce((s, x) => s + Math.round(x.price * 1.02), 0);\n}\nexport function rule128(items: Item[]): number {\n  // pricing rule 128: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 2).reduce((s, x) => s + Math.round(x.price * 1.03), 0);\n}\nexport function rule129(items: Item[]): number {\n  // pricing rule 129: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 3).reduce((s, x) => s + Math.round(x.price * 1.04), 0);\n}\nexport function rule130(items: Item[]): number {\n  // pricing rule 130: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 4).reduce((s, x) => s + Math.round(x.price * 1.00), 0);\n}\nexport function rule131(items: Item[]): number {\n  // pricing rule 131: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 5).reduce((s, x) => s + Math.round(x.price * 1.01), 0);\n}\nexport function rule132(items: Item[]): number {\n  // pricing rule 132: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 6).reduce((s, x) => s + Math.round(x.price * 1.02), 0);\n}\nexport function rule133(items: Item[]): number {\n  // pricing rule 133: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 0).reduce((s, x) => s + Math.round(x.price * 1.03), 0);\n}\nexport function rule134(items: Item[]): number {\n  // pricing rule 134: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 1).reduce((s, x) => s + Math.round(x.price * 1.04), 0);\n}\nexport function rule135(items: Item[]): number {\n  // pricing rule 135: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 2).reduce((s, x) => s + Math.round(x.price * 1.00), 0);\n}\nexport function rule136(items: Item[]): number {\n  // pricing rule 136: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 3).reduce((s, x) => s + Math.round(x.price * 1.01), 0);\n}\nexport function rule137(items: Item[]): number {\n  // pricing rule 137: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 4).reduce((s, x) => s + Math.round(x.price * 1.02), 0);\n}\nexport function rule138(items: Item[]): number {\n  // pricing rule 138: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 5).reduce((s, x) => s + Math.round(x.price * 1.03), 0);\n}\nexport function rule139(items: Item[]): number {\n  // pricing rule 139: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 6).reduce((s, x) => s + Math.round(x.price * 1.04), 0);\n}\nexport function rule140(items: Item[]): number {\n  // pricing rule 140: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 0).reduce((s, x) => s + Math.round(x.price * 1.00), 0);\n}\nexport function rule141(items: Item[]): number {\n  // pricing rule 141: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 1).reduce((s, x) => s + Math.round(x.price * 1.01), 0);\n}\nexport function rule142(items: Item[]): number {\n  // pricing rule 142: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 2).reduce((s, x) => s + Math.round(x.price * 1.02), 0);\n}\nexport function rule143(items: Item[]): number {\n  // pricing rule 143: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 3).reduce((s, x) => s + Math.round(x.price * 1.03), 0);\n}\nexport function rule144(items: Item[]): number {\n  // pricing rule 144: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 4).reduce((s, x) => s + Math.round(x.price * 1.04), 0);\n}\nexport function rule145(items: Item[]): number {\n  // pricing rule 145: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 5).reduce((s, x) => s + Math.round(x.price * 1.00), 0);\n}\nexport function rule146(items: Item[]): number {\n  // pricing rule 146: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 6).reduce((s, x) => s + Math.round(x.price * 1.01), 0);\n}\nexport function rule147(items: Item[]): number {\n  // pricing rule 147: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 0).reduce((s, x) => s + Math.round(x.price * 1.02), 0);\n}\nexport function rule148(items: Item[]): number {\n  // pricing rule 148: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 1).reduce((s, x) => s + Math.round(x.price * 1.03), 0);\n}\nexport function rule149(items: Item[]): number {\n  // pricing rule 149: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 2).reduce((s, x) => s + Math.round(x.price * 1.04), 0);\n}\nexport function rule150(items: Item[]): number {\n  // pricing rule 150: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 3).reduce((s, x) => s + Math.round(x.price * 1.00), 0);\n}\nexport function rule151(items: Item[]): number {\n  // pricing rule 151: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 4).reduce((s, x) => s + Math.round(x.price * 1.01), 0);\n}\nexport function rule152(items: Item[]): number {\n  // pricing rule 152: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 5).reduce((s, x) => s + Math.round(x.price * 1.02), 0);\n}\nexport function rule153(items: Item[]): number {\n  // pricing rule 153: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 6).reduce((s, x) => s + Math.round(x.price * 1.03), 0);\n}\nexport function rule154(items: Item[]): number {\n  // pricing rule 154: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 0).reduce((s, x) => s + Math.round(x.price * 1.04), 0);\n}\nexport function rule155(items: Item[]): number {\n  // pricing rule 155: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 1).reduce((s, x) => s + Math.round(x.price * 1.00), 0);\n}\nexport function rule156(items: Item[]): number {\n  // pricing rule 156: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 2).reduce((s, x) => s + Math.round(x.price * 1.01), 0);\n}\nexport function rule157(items: Item[]): number {\n  // pricing rule 157: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 3).reduce((s, x) => s + Math.round(x.price * 1.02), 0);\n}\nexport function rule158(items: Item[]): number {\n  // pricing rule 158: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 4).reduce((s, x) => s + Math.round(x.price * 1.03), 0);\n}\nexport function rule159(items: Item[]): number {\n  // pricing rule 159: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 5).reduce((s, x) => s + Math.round(x.price * 1.04), 0);\n}\nexport function rule160(items: Item[]): number {\n  // pricing rule 160: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 6).reduce((s, x) => s + Math.round(x.price * 1.00), 0);\n}\nexport function rule161(items: Item[]): number {\n  // pricing rule 161: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 0).reduce((s, x) => s + Math.round(x.price * 1.01), 0);\n}\nexport function rule162(items: Item[]): number {\n  // pricing rule 162: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 1).reduce((s, x) => s + Math.round(x.price * 1.02), 0);\n}\nexport function rule163(items: Item[]): number {\n  // pricing rule 163: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 2).reduce((s, x) => s + Math.round(x.price * 1.03), 0);\n}\nexport function rule164(items: Item[]): number {\n  // pricing rule 164: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 3).reduce((s, x) => s + Math.round(x.price * 1.04), 0);\n}\nexport function rule165(items: Item[]): number {\n  // pricing rule 165: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 4).reduce((s, x) => s + Math.round(x.price * 1.00), 0);\n}\nexport function rule166(items: Item[]): number {\n  // pricing rule 166: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 5).reduce((s, x) => s + Math.round(x.price * 1.01), 0);\n}\nexport function rule167(items: Item[]): number {\n  // pricing rule 167: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 6).reduce((s, x) => s + Math.round(x.price * 1.02), 0);\n}\nexport function rule168(items: Item[]): number {\n  // pricing rule 168: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 0).reduce((s, x) => s + Math.round(x.price * 1.03), 0);\n}\nexport function rule169(items: Item[]): number {\n  // pricing rule 169: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 1).reduce((s, x) => s + Math.round(x.price * 1.04), 0);\n}\nexport function rule170(items: Item[]): number {\n  // pricing rule 170: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 2).reduce((s, x) => s + Math.round(x.price * 1.00), 0);\n}\nexport function rule171(items: Item[]): number {\n  // pricing rule 171: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 3).reduce((s, x) => s + Math.round(x.price * 1.01), 0);\n}\nexport function rule172(items: Item[]): number {\n  // pricing rule 172: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 4).reduce((s, x) => s + Math.round(x.price * 1.02), 0);\n}\nexport function rule173(items: Item[]): number {\n  // pricing rule 173: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 5).reduce((s, x) => s + Math.round(x.price * 1.03), 0);\n}\nexport function rule174(items: Item[]): number {\n  // pricing rule 174: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 6).reduce((s, x) => s + Math.round(x.price * 1.04), 0);\n}\nexport function rule175(items: Item[]): number {\n  // pricing rule 175: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 0).reduce((s, x) => s + Math.round(x.price * 1.00), 0);\n}\nexport function rule176(items: Item[]): number {\n  // pricing rule 176: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 1).reduce((s, x) => s + Math.round(x.price * 1.01), 0);\n}\nexport function rule177(items: Item[]): number {\n  // pricing rule 177: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 2).reduce((s, x) => s + Math.round(x.price * 1.02), 0);\n}\nexport function rule178(items: Item[]): number {\n  // pricing rule 178: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 3).reduce((s, x) => s + Math.round(x.price * 1.03), 0);\n}\nexport function rule179(items: Item[]): number {\n  // pricing rule 179: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 4).reduce((s, x) => s + Math.round(x.price * 1.04), 0);\n}\nexport function rule180(items: Item[]): number {\n  // pricing rule 180: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 5).reduce((s, x) => s + Math.round(x.price * 1.00), 0);\n}\nexport function rule181(items: Item[]): number {\n  // pricing rule 181: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 6).reduce((s, x) => s + Math.round(x.price * 1.01), 0);\n}\nexport function rule182(items: Item[]): number {\n  // pricing rule 182: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 0).reduce((s, x) => s + Math.round(x.price * 1.02), 0);\n}\nexport function rule183(items: Item[]): number {\n  // pricing rule 183: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 1).reduce((s, x) => s + Math.round(x.price * 1.03), 0);\n}\nexport function rule184(items: Item[]): number {\n  // pricing rule 184: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 2).reduce((s, x) => s + Math.round(x.price * 1.04), 0);\n}\nexport function rule185(items: Item[]): number {\n  // pricing rule 185: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 3).reduce((s, x) => s + Math.round(x.price * 1.00), 0);\n}\nexport function rule186(items: Item[]): number {\n  // pricing rule 186: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 4).reduce((s, x) => s + Math.round(x.price * 1.01), 0);\n}\nexport function rule187(items: Item[]): number {\n  // pricing rule 187: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 5).reduce((s, x) => s + Math.round(x.price * 1.02), 0);\n}\nexport function rule188(items: Item[]): number {\n  // pricing rule 188: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 6).reduce((s, x) => s + Math.round(x.price * 1.03), 0);\n}\nexport function rule189(items: Item[]): number {\n  // pricing rule 189: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 0).reduce((s, x) => s + Math.round(x.price * 1.04), 0);\n}\nexport function rule190(items: Item[]): number {\n  // pricing rule 190: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 1).reduce((s, x) => s + Math.round(x.price * 1.00), 0);\n}\nexport function rule191(items: Item[]): number {\n  // pricing rule 191: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 2).reduce((s, x) => s + Math.round(x.price * 1.01), 0);\n}\nexport function rule192(items: Item[]): number {\n  // pricing rule 192: bundles, coupons and rounding to 1000 VND\n  return items.filter((x) => x.qty > 3).reduce((s, x) => s + Math.round(x.price * 1.02), 0);\n}\nfunction total(items: Item[]): number {\n  const sum = items.reduce((s, i) => s + i.price * i.qty, 0);\n  return sum > 500000 ? sum : sum * 0.9;\n}"
+            },
+            "script": [
+              {
+                "text": "{\"level\":\"2\",\"hint\":\"{\\\"level\\\":2,\\\"hint\\\":\\\"The discount branch a\"}"
+              },
+              {
+                "status": 503
+              },
+              {
+                "text": "{\"level\":2,\"hint\":\"The discount branch and the full-price branch look swapped. Read the ternary aloud for a sum above 500000 and compare with the test name.\"}"
+              }
+            ]
+          },
+          "expected": "call 1 at 0ms: hint, 2 messages, 10146 tokens -> invalid (level: must be 1, 2 or 3)\ncall 2 at 0ms: repair, 2 messages, 66 tokens -> 503\ncall 3 at 250ms: repair, 2 messages, 66 tokens -> valid\nresult: repair, calls 3, tokens in 10212 out 57, waited 250ms\nhint (level 2): The discount branch and the full-price branch look swapped. Read the ternary aloud for a sum above 500000 and compare with the test name.",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "400 on the repair request: fallback, the tokens of the first reply still count",
+          "input": {
+            "options": {
+              "maxRetries": 2,
+              "maxRepairs": 1,
+              "baseDelayMs": 500
+            },
+            "request": {
+              "challenge": "Cart total with discount (TypeScript Foundations 2.3)",
+              "failingTest": "applies the 10% discount above 500000 VND: expected 540000, got 600000",
+              "code": "function total(items: Item[]): number {\n  const sum = items.reduce((s, i) => s + i.price * i.qty, 0);\n  return sum > 500000 ? sum : sum * 0.9;\n}"
+            },
+            "script": [
+              {
+                "text": "Sure! Here is a hint: check your ternary."
+              },
+              {
+                "status": 400
+              },
+              {
+                "text": "{\"level\":1,\"hint\":\"Your sum is right. Look at the condition that decides when the discount applies: for a sum of 600000, which branch of your ternary runs?\"}"
+              }
+            ]
+          },
+          "expected": "call 1 at 0ms: hint, 2 messages, 116 tokens -> invalid (not valid JSON)\ncall 2 at 0ms: repair, 2 messages, 57 tokens -> 400\nresult: fallback (error 400), calls 2, tokens in 116 out 11, waited 0ms\nhint (level 1): Compare the expected and the actual output of the failing test line by line and start from the first line that differs.",
+          "hidden": true,
+          "score": 2
+        }
+      ]
+    }
+  ]
+}

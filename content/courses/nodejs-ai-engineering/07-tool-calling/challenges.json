@@ -1,0 +1,5281 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nae_311",
+      "name": "tool-calling-who-decides",
+      "type": "quiz",
+      "title": "Tool calling: who decides what runs?",
+      "description": "Two pieces of evidence from the AI tutor: the trace of the getSubmission incident with the fix that followed, and a handler that trusts the JSON Schema it sent to the model.",
+      "difficulty": "medium",
+      "outcomes": [
+        "tool-calling"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Tutor trace, request tut_8f21:\n14:21:07.412 user=u_1047 challenge=chal_ts_042 turn=3\n14:21:08.906 model_tool_call: getSubmission {\"challengeId\":\"chal_ts_042\",\"userId\":\"u_2291\"}\n14:21:08.907 tool_run: getSubmission ok rows=1\n\nThe fix, PR #913:\n tool getSubmission\n-  parameters: { challengeId: string, userId: string }\n+  parameters: { challengeId: string }\n\n async function runGetSubmission(args, session) {\n-  return findLatestSubmission(args.challengeId, args.userId);\n+  return findLatestSubmission(args.challengeId, session.userId);\n }\n\nStatement: \"After PR #913, replaying the recorded tool call from this trace through the fake model can no longer read u_2291's submission, whatever the system prompt says.\"",
+          "explanation": "True. After the fix the handler reads the user from the authenticated session, so the userId value the model wrote is never used: the replayed call reads u_1047's own submission or nothing. The system prompt plays no part in that decision any more, which is the point: a pasted message can change what the model proposes, it cannot change what the server code does with the session. A complete gate also rejects the extra userId argument so the attempt shows up in the logs, but even without that, the data leak is closed. The common misconception is that the fix for a prompt injection is a stricter prompt; the fix is to take the decision away from the model.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Tool definition the server sends with every tutor request:\n{\n  \"name\": \"listMySubmissions\",\n  \"parameters\": {\n    \"type\": \"object\",\n    \"properties\": {\n      \"courseId\": { \"type\": \"string\" },\n      \"limit\": { \"type\": \"integer\", \"minimum\": 1, \"maximum\": 20 }\n    },\n    \"required\": [\"courseId\"],\n    \"additionalProperties\": false\n  }\n}\n\nHandler:\nconst args = JSON.parse(call.arguments) as { courseId: string; limit?: number };\nconst rows = await listSubmissions(session.userId, args.courseId, args.limit ?? 10);\n\nStatement: \"Because the schema marks courseId as required, keeps limit between 1 and 20 and forbids extra properties, the parsed arguments always match it, so the cast is safe without further checks.\"",
+          "explanation": "False. The schema is sent to the model as part of the request: it guides what the model writes, and whether a provider enforces it depends on the provider, the model and the mode you asked for (some offer a strict or constrained mode; check the current documentation). The gateway may also fall back to another provider, and fakes and recorded fixtures contain whatever they contain. At runtime the cast checks nothing: {\"courseId\":\"sql-basics\",\"limit\":\"5\"}, a limit of 500, a missing courseId or truncated JSON all reach listSubmissions. Parse the text as unknown and validate it against the same rules on the server. The misconception is that describing a shape to the model is the same as validating it.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_nae_312",
+      "name": "tool-call-gate",
+      "type": "mini_coding",
+      "title": "The tool gate: check every proposed call before it runs",
+      "description": "The CodeDev AI tutor lets the model propose tool calls; this gate decides which ones run. Incident: getSubmission took a userId argument from the model, and a pasted prompt made the tutor read learner u_2291's code for learner u_1047. Write checkToolCalls(input). Input: { sessionUserId, confirmedCallIds, tools, calls }. A tool is { name, permission: \"read-only\" | \"needs-confirmation\", scope: \"user\" | \"public\", parameters }, where parameters maps each argument name to { type: \"string\" | \"integer\" | \"boolean\", required, minimum?, maximum?, maxLength?, enum? }. A proposed call is { id, name, arguments }, where arguments is the raw JSON text the model produced. Return one decision per call, in the same order: { id, tool, status: \"run\", args } or { id, tool, status: \"rejected\", reason }, where tool is the proposed name. Check in this order; the first failure gives the reason: (1) no tool has exactly that name: unknown tool \"<name>\". (2) JSON.parse throws: arguments are not valid JSON. (3) the value is not a plain object (null, an array, a string or a number): arguments must be a JSON object. (4) it has an own property userId, with any value, even the session's: userId comes from the session. (5) the first of its own keys, in key order, that is not an own key of parameters: unexpected argument \"<key>\" (inherited names such as constructor or toString are not parameters). (6) each parameter, in the order of parameters: absent and required gives missing argument \"<p>\" (absent and optional is skipped; null counts as present with a wrong type); an integer must be a number for which Number.isInteger is true, else argument \"<p>\" must be integer, and below minimum or above maximum gives argument \"<p>\" is out of range; a string must be a string, else argument \"<p>\" must be string, then longer than maxLength gives argument \"<p>\" is too long, then a value not in enum (exact, case-sensitive) gives argument \"<p>\" is not an allowed value; a boolean must be true or false, else argument \"<p>\" must be boolean. (7) a needs-confirmation tool whose call id is not in confirmedCallIds: needs confirmation. Otherwise the call runs with args = a new object holding only the declared parameters that were given, plus userId = sessionUserId when the tool's scope is \"user\" (key order inside args does not matter). The runner reads one input and prints the list of decisions as JSON.",
+      "difficulty": "medium",
+      "outcomes": [
+        "tool-calling"
+      ],
+      "points": 30,
+      "hints": [
+        "For a single proposed call, which question has to be answered before any other question even makes sense? Write the checks as a list in that order, and let the first failing one produce the reason.",
+        "Look at four places: a Map from tool name to definition; JSON.parse inside try/catch with the result typed unknown; a plain-object check (typeof, null, Array.isArray) before you read any key; and Object.hasOwn(obj, key), both for \"did the model send userId\" and for \"is this key a declared parameter\" - the in operator also finds inherited names such as constructor. Build args as a fresh object while you check each parameter, and add userId last.",
+        "A similar gate on different data: a scheduleReminder tool (needs-confirmation, scope user) with minutes (integer, required, 5 to 120) and note (string, optional, maxLength 20). Trace: '{\"minutes\":\"30\"}' -> argument \"minutes\" must be integer. '{\"minutes\":30,\"channel\":\"sms\"}' -> unexpected argument \"channel\" (found before any parameter is checked). '{\"minutes\":3}' -> argument \"minutes\" is out of range. '{\"minutes\":30}' not confirmed -> needs confirmation; confirmed -> run with { minutes: 30, userId: <the session's id> }."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Valid calls run with checked arguments and the session userId; unknown tool; broken JSON",
+          "input": {
+            "sessionUserId": "u_1047",
+            "confirmedCallIds": [],
+            "tools": [
+              {
+                "name": "getSubmission",
+                "permission": "read-only",
+                "scope": "user",
+                "parameters": {
+                  "challengeId": {
+                    "type": "string",
+                    "required": true,
+                    "maxLength": 40
+                  },
+                  "attempt": {
+                    "type": "integer",
+                    "required": false,
+                    "minimum": 1,
+                    "maximum": 50
+                  }
+                }
+              },
+              {
+                "name": "listMySubmissions",
+                "permission": "read-only",
+                "scope": "user",
+                "parameters": {
+                  "courseId": {
+                    "type": "string",
+                    "required": true,
+                    "maxLength": 40
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "required": false,
+                    "minimum": 1,
+                    "maximum": 20
+                  },
+                  "passedOnly": {
+                    "type": "boolean",
+                    "required": false
+                  }
+                }
+              },
+              {
+                "name": "getLesson",
+                "permission": "read-only",
+                "scope": "public",
+                "parameters": {
+                  "lessonId": {
+                    "type": "string",
+                    "required": true,
+                    "maxLength": 40
+                  },
+                  "section": {
+                    "type": "string",
+                    "required": false,
+                    "enum": [
+                      "intro",
+                      "theory",
+                      "summary"
+                    ]
+                  }
+                }
+              },
+              {
+                "name": "resetLessonProgress",
+                "permission": "needs-confirmation",
+                "scope": "user",
+                "parameters": {
+                  "lessonId": {
+                    "type": "string",
+                    "required": true,
+                    "maxLength": 40
+                  }
+                }
+              },
+              {
+                "name": "searchDocs",
+                "permission": "read-only",
+                "scope": "public",
+                "parameters": {
+                  "query": {
+                    "type": "string",
+                    "required": false,
+                    "maxLength": 80
+                  },
+                  "page": {
+                    "type": "integer",
+                    "required": false,
+                    "minimum": 1,
+                    "maximum": 10
+                  }
+                }
+              }
+            ],
+            "calls": [
+              {
+                "id": "call_01",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_ts_042\"}"
+              },
+              {
+                "id": "call_02",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"typescript-foundations\",\"limit\":5,\"passedOnly\":true}"
+              },
+              {
+                "id": "call_03",
+                "name": "getLesson",
+                "arguments": "{\"section\":\"theory\",\"lessonId\":\"lesson-tsf-2-1\"}"
+              },
+              {
+                "id": "call_04",
+                "name": "runShell",
+                "arguments": "{\"cmd\":\"cat /etc/passwd\"}"
+              },
+              {
+                "id": "call_05",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\": \"chal_ts_042\""
+              }
+            ]
+          },
+          "expected": [
+            {
+              "id": "call_01",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_ts_042",
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_02",
+              "tool": "listMySubmissions",
+              "status": "run",
+              "args": {
+                "courseId": "typescript-foundations",
+                "limit": 5,
+                "passedOnly": true,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_03",
+              "tool": "getLesson",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-tsf-2-1",
+                "section": "theory"
+              }
+            },
+            {
+              "id": "call_04",
+              "tool": "runShell",
+              "status": "rejected",
+              "reason": "unknown tool \"runShell\""
+            },
+            {
+              "id": "call_05",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "arguments are not valid JSON"
+            }
+          ],
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "The incident: the model sends a userId (another learner's, or even the learner's own)",
+          "input": {
+            "sessionUserId": "u_1047",
+            "confirmedCallIds": [],
+            "tools": [
+              {
+                "name": "getSubmission",
+                "permission": "read-only",
+                "scope": "user",
+                "parameters": {
+                  "challengeId": {
+                    "type": "string",
+                    "required": true,
+                    "maxLength": 40
+                  },
+                  "attempt": {
+                    "type": "integer",
+                    "required": false,
+                    "minimum": 1,
+                    "maximum": 50
+                  }
+                }
+              },
+              {
+                "name": "listMySubmissions",
+                "permission": "read-only",
+                "scope": "user",
+                "parameters": {
+                  "courseId": {
+                    "type": "string",
+                    "required": true,
+                    "maxLength": 40
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "required": false,
+                    "minimum": 1,
+                    "maximum": 20
+                  },
+                  "passedOnly": {
+                    "type": "boolean",
+                    "required": false
+                  }
+                }
+              },
+              {
+                "name": "getLesson",
+                "permission": "read-only",
+                "scope": "public",
+                "parameters": {
+                  "lessonId": {
+                    "type": "string",
+                    "required": true,
+                    "maxLength": 40
+                  },
+                  "section": {
+                    "type": "string",
+                    "required": false,
+                    "enum": [
+                      "intro",
+                      "theory",
+                      "summary"
+                    ]
+                  }
+                }
+              },
+              {
+                "name": "resetLessonProgress",
+                "permission": "needs-confirmation",
+                "scope": "user",
+                "parameters": {
+                  "lessonId": {
+                    "type": "string",
+                    "required": true,
+                    "maxLength": 40
+                  }
+                }
+              },
+              {
+                "name": "searchDocs",
+                "permission": "read-only",
+                "scope": "public",
+                "parameters": {
+                  "query": {
+                    "type": "string",
+                    "required": false,
+                    "maxLength": 80
+                  },
+                  "page": {
+                    "type": "integer",
+                    "required": false,
+                    "minimum": 1,
+                    "maximum": 10
+                  }
+                }
+              }
+            ],
+            "calls": [
+              {
+                "id": "call_01",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_ts_042\",\"userId\":\"u_2291\"}"
+              },
+              {
+                "id": "call_02",
+                "name": "getSubmission",
+                "arguments": "{\"userId\":\"u_1047\",\"challengeId\":\"chal_ts_042\"}"
+              },
+              {
+                "id": "call_03",
+                "name": "listMySubmissions",
+                "arguments": "{\"limit\":3}"
+              },
+              {
+                "id": "call_04",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"typescript-foundations\",\"includeOtherUsers\":true}"
+              },
+              {
+                "id": "call_05",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_ts_042\",\"attempt\":2}"
+              }
+            ]
+          },
+          "expected": [
+            {
+              "id": "call_01",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_02",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_03",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "missing argument \"courseId\""
+            },
+            {
+              "id": "call_04",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "unexpected argument \"includeOtherUsers\""
+            },
+            {
+              "id": "call_05",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_ts_042",
+                "attempt": 2,
+                "userId": "u_1047"
+              }
+            }
+          ],
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Types and ranges: string numbers, fractions, bounds, length, enum, booleans and null",
+          "input": {
+            "sessionUserId": "u_1047",
+            "confirmedCallIds": [],
+            "tools": [
+              {
+                "name": "getSubmission",
+                "permission": "read-only",
+                "scope": "user",
+                "parameters": {
+                  "challengeId": {
+                    "type": "string",
+                    "required": true,
+                    "maxLength": 40
+                  },
+                  "attempt": {
+                    "type": "integer",
+                    "required": false,
+                    "minimum": 1,
+                    "maximum": 50
+                  }
+                }
+              },
+              {
+                "name": "listMySubmissions",
+                "permission": "read-only",
+                "scope": "user",
+                "parameters": {
+                  "courseId": {
+                    "type": "string",
+                    "required": true,
+                    "maxLength": 40
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "required": false,
+                    "minimum": 1,
+                    "maximum": 20
+                  },
+                  "passedOnly": {
+                    "type": "boolean",
+                    "required": false
+                  }
+                }
+              },
+              {
+                "name": "getLesson",
+                "permission": "read-only",
+                "scope": "public",
+                "parameters": {
+                  "lessonId": {
+                    "type": "string",
+                    "required": true,
+                    "maxLength": 40
+                  },
+                  "section": {
+                    "type": "string",
+                    "required": false,
+                    "enum": [
+                      "intro",
+                      "theory",
+                      "summary"
+                    ]
+                  }
+                }
+              },
+              {
+                "name": "resetLessonProgress",
+                "permission": "needs-confirmation",
+                "scope": "user",
+                "parameters": {
+                  "lessonId": {
+                    "type": "string",
+                    "required": true,
+                    "maxLength": 40
+                  }
+                }
+              },
+              {
+                "name": "searchDocs",
+                "permission": "read-only",
+                "scope": "public",
+                "parameters": {
+                  "query": {
+                    "type": "string",
+                    "required": false,
+                    "maxLength": 80
+                  },
+                  "page": {
+                    "type": "integer",
+                    "required": false,
+                    "minimum": 1,
+                    "maximum": 10
+                  }
+                }
+              }
+            ],
+            "calls": [
+              {
+                "id": "call_01",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_ts_042\",\"attempt\":\"3\"}"
+              },
+              {
+                "id": "call_02",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_ts_042\",\"attempt\":2.5}"
+              },
+              {
+                "id": "call_03",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_ts_042\",\"attempt\":0}"
+              },
+              {
+                "id": "call_04",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_ts_042\",\"attempt\":51}"
+              },
+              {
+                "id": "call_05",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_ts_042\",\"attempt\":1e1}"
+              },
+              {
+                "id": "call_06",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_ts_042\",\"attempt\":50}"
+              },
+              {
+                "id": "call_07",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}"
+              },
+              {
+                "id": "call_08",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}"
+              },
+              {
+                "id": "call_09",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":null}"
+              },
+              {
+                "id": "call_10",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"lesson-tsf-2-1\",\"section\":\"solution\"}"
+              },
+              {
+                "id": "call_11",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"lesson-tsf-2-1\",\"section\":\"Theory\"}"
+              },
+              {
+                "id": "call_12",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"typescript-foundations\",\"passedOnly\":\"true\"}"
+              },
+              {
+                "id": "call_13",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"typescript-foundations\",\"passedOnly\":false,\"limit\":20}"
+              },
+              {
+                "id": "call_14",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":42}"
+              }
+            ]
+          },
+          "expected": [
+            {
+              "id": "call_01",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "argument \"attempt\" must be integer"
+            },
+            {
+              "id": "call_02",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "argument \"attempt\" must be integer"
+            },
+            {
+              "id": "call_03",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "argument \"attempt\" is out of range"
+            },
+            {
+              "id": "call_04",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "argument \"attempt\" is out of range"
+            },
+            {
+              "id": "call_05",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_ts_042",
+                "attempt": 10,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_06",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_ts_042",
+                "attempt": 50,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_07",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "argument \"challengeId\" is too long"
+            },
+            {
+              "id": "call_08",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_09",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "argument \"challengeId\" must be string"
+            },
+            {
+              "id": "call_10",
+              "tool": "getLesson",
+              "status": "rejected",
+              "reason": "argument \"section\" is not an allowed value"
+            },
+            {
+              "id": "call_11",
+              "tool": "getLesson",
+              "status": "rejected",
+              "reason": "argument \"section\" is not an allowed value"
+            },
+            {
+              "id": "call_12",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "argument \"passedOnly\" must be boolean"
+            },
+            {
+              "id": "call_13",
+              "tool": "listMySubmissions",
+              "status": "run",
+              "args": {
+                "courseId": "typescript-foundations",
+                "limit": 20,
+                "passedOnly": false,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_14",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "argument \"courseId\" must be string"
+            }
+          ],
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Inherited names (constructor, toString, __proto__, hasOwnProperty) are unexpected arguments",
+          "input": {
+            "sessionUserId": "u_1047",
+            "confirmedCallIds": [],
+            "tools": [
+              {
+                "name": "getSubmission",
+                "permission": "read-only",
+                "scope": "user",
+                "parameters": {
+                  "challengeId": {
+                    "type": "string",
+                    "required": true,
+                    "maxLength": 40
+                  },
+                  "attempt": {
+                    "type": "integer",
+                    "required": false,
+                    "minimum": 1,
+                    "maximum": 50
+                  }
+                }
+              },
+              {
+                "name": "listMySubmissions",
+                "permission": "read-only",
+                "scope": "user",
+                "parameters": {
+                  "courseId": {
+                    "type": "string",
+                    "required": true,
+                    "maxLength": 40
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "required": false,
+                    "minimum": 1,
+                    "maximum": 20
+                  },
+                  "passedOnly": {
+                    "type": "boolean",
+                    "required": false
+                  }
+                }
+              },
+              {
+                "name": "getLesson",
+                "permission": "read-only",
+                "scope": "public",
+                "parameters": {
+                  "lessonId": {
+                    "type": "string",
+                    "required": true,
+                    "maxLength": 40
+                  },
+                  "section": {
+                    "type": "string",
+                    "required": false,
+                    "enum": [
+                      "intro",
+                      "theory",
+                      "summary"
+                    ]
+                  }
+                }
+              },
+              {
+                "name": "resetLessonProgress",
+                "permission": "needs-confirmation",
+                "scope": "user",
+                "parameters": {
+                  "lessonId": {
+                    "type": "string",
+                    "required": true,
+                    "maxLength": 40
+                  }
+                }
+              },
+              {
+                "name": "searchDocs",
+                "permission": "read-only",
+                "scope": "public",
+                "parameters": {
+                  "query": {
+                    "type": "string",
+                    "required": false,
+                    "maxLength": 80
+                  },
+                  "page": {
+                    "type": "integer",
+                    "required": false,
+                    "minimum": 1,
+                    "maximum": 10
+                  }
+                }
+              }
+            ],
+            "calls": [
+              {
+                "id": "call_01",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"lesson-tsf-2-1\",\"constructor\":\"x\"}"
+              },
+              {
+                "id": "call_02",
+                "name": "getLesson",
+                "arguments": "{\"toString\":1,\"lessonId\":\"lesson-tsf-2-1\"}"
+              },
+              {
+                "id": "call_03",
+                "name": "getLesson",
+                "arguments": "{\"__proto__\":{\"isAdmin\":true},\"lessonId\":\"lesson-tsf-2-1\"}"
+              },
+              {
+                "id": "call_04",
+                "name": "searchDocs",
+                "arguments": "{\"hasOwnProperty\":\"query\"}"
+              },
+              {
+                "id": "call_05",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"lesson-tsf-2-1\",\"section\":\"intro\"}"
+              }
+            ]
+          },
+          "expected": [
+            {
+              "id": "call_01",
+              "tool": "getLesson",
+              "status": "rejected",
+              "reason": "unexpected argument \"constructor\""
+            },
+            {
+              "id": "call_02",
+              "tool": "getLesson",
+              "status": "rejected",
+              "reason": "unexpected argument \"toString\""
+            },
+            {
+              "id": "call_03",
+              "tool": "getLesson",
+              "status": "rejected",
+              "reason": "unexpected argument \"__proto__\""
+            },
+            {
+              "id": "call_04",
+              "tool": "searchDocs",
+              "status": "rejected",
+              "reason": "unexpected argument \"hasOwnProperty\""
+            },
+            {
+              "id": "call_05",
+              "tool": "getLesson",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-tsf-2-1",
+                "section": "intro"
+              }
+            }
+          ],
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "A write tool runs only after the learner confirmed that call; invalid calls are rejected first",
+          "input": {
+            "sessionUserId": "u_1047",
+            "confirmedCallIds": [
+              "call_02",
+              "call_03",
+              "call_06",
+              "call_99"
+            ],
+            "tools": [
+              {
+                "name": "getSubmission",
+                "permission": "read-only",
+                "scope": "user",
+                "parameters": {
+                  "challengeId": {
+                    "type": "string",
+                    "required": true,
+                    "maxLength": 40
+                  },
+                  "attempt": {
+                    "type": "integer",
+                    "required": false,
+                    "minimum": 1,
+                    "maximum": 50
+                  }
+                }
+              },
+              {
+                "name": "listMySubmissions",
+                "permission": "read-only",
+                "scope": "user",
+                "parameters": {
+                  "courseId": {
+                    "type": "string",
+                    "required": true,
+                    "maxLength": 40
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "required": false,
+                    "minimum": 1,
+                    "maximum": 20
+                  },
+                  "passedOnly": {
+                    "type": "boolean",
+                    "required": false
+                  }
+                }
+              },
+              {
+                "name": "getLesson",
+                "permission": "read-only",
+                "scope": "public",
+                "parameters": {
+                  "lessonId": {
+                    "type": "string",
+                    "required": true,
+                    "maxLength": 40
+                  },
+                  "section": {
+                    "type": "string",
+                    "required": false,
+                    "enum": [
+                      "intro",
+                      "theory",
+                      "summary"
+                    ]
+                  }
+                }
+              },
+              {
+                "name": "resetLessonProgress",
+                "permission": "needs-confirmation",
+                "scope": "user",
+                "parameters": {
+                  "lessonId": {
+                    "type": "string",
+                    "required": true,
+                    "maxLength": 40
+                  }
+                }
+              },
+              {
+                "name": "searchDocs",
+                "permission": "read-only",
+                "scope": "public",
+                "parameters": {
+                  "query": {
+                    "type": "string",
+                    "required": false,
+                    "maxLength": 80
+                  },
+                  "page": {
+                    "type": "integer",
+                    "required": false,
+                    "minimum": 1,
+                    "maximum": 10
+                  }
+                }
+              }
+            ],
+            "calls": [
+              {
+                "id": "call_01",
+                "name": "resetLessonProgress",
+                "arguments": "{\"lessonId\":\"lesson-tsf-2-1\"}"
+              },
+              {
+                "id": "call_02",
+                "name": "resetLessonProgress",
+                "arguments": "{\"lessonId\":\"lesson-tsf-2-1\"}"
+              },
+              {
+                "id": "call_03",
+                "name": "resetLessonProgress",
+                "arguments": "{}"
+              },
+              {
+                "id": "call_04",
+                "name": "resetLessonProgress",
+                "arguments": "{\"lessonId\":"
+              },
+              {
+                "id": "call_05",
+                "name": "resetLessonProgress",
+                "arguments": "{\"lessonId\":\"lesson-tsf-2-1\",\"userId\":\"u_2291\"}"
+              },
+              {
+                "id": "call_06",
+                "name": "resetLessonProgress",
+                "arguments": "{\"lessonId\":\"lesson-tsf-2-1\",\"force\":true}"
+              }
+            ]
+          },
+          "expected": [
+            {
+              "id": "call_01",
+              "tool": "resetLessonProgress",
+              "status": "rejected",
+              "reason": "needs confirmation"
+            },
+            {
+              "id": "call_02",
+              "tool": "resetLessonProgress",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-tsf-2-1",
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_03",
+              "tool": "resetLessonProgress",
+              "status": "rejected",
+              "reason": "missing argument \"lessonId\""
+            },
+            {
+              "id": "call_04",
+              "tool": "resetLessonProgress",
+              "status": "rejected",
+              "reason": "arguments are not valid JSON"
+            },
+            {
+              "id": "call_05",
+              "tool": "resetLessonProgress",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_06",
+              "tool": "resetLessonProgress",
+              "status": "rejected",
+              "reason": "unexpected argument \"force\""
+            }
+          ],
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Arguments that are not a JSON object: array, null, string, number, empty and blank text",
+          "input": {
+            "sessionUserId": "u_1047",
+            "confirmedCallIds": [],
+            "tools": [
+              {
+                "name": "getSubmission",
+                "permission": "read-only",
+                "scope": "user",
+                "parameters": {
+                  "challengeId": {
+                    "type": "string",
+                    "required": true,
+                    "maxLength": 40
+                  },
+                  "attempt": {
+                    "type": "integer",
+                    "required": false,
+                    "minimum": 1,
+                    "maximum": 50
+                  }
+                }
+              },
+              {
+                "name": "listMySubmissions",
+                "permission": "read-only",
+                "scope": "user",
+                "parameters": {
+                  "courseId": {
+                    "type": "string",
+                    "required": true,
+                    "maxLength": 40
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "required": false,
+                    "minimum": 1,
+                    "maximum": 20
+                  },
+                  "passedOnly": {
+                    "type": "boolean",
+                    "required": false
+                  }
+                }
+              },
+              {
+                "name": "getLesson",
+                "permission": "read-only",
+                "scope": "public",
+                "parameters": {
+                  "lessonId": {
+                    "type": "string",
+                    "required": true,
+                    "maxLength": 40
+                  },
+                  "section": {
+                    "type": "string",
+                    "required": false,
+                    "enum": [
+                      "intro",
+                      "theory",
+                      "summary"
+                    ]
+                  }
+                }
+              },
+              {
+                "name": "resetLessonProgress",
+                "permission": "needs-confirmation",
+                "scope": "user",
+                "parameters": {
+                  "lessonId": {
+                    "type": "string",
+                    "required": true,
+                    "maxLength": 40
+                  }
+                }
+              },
+              {
+                "name": "searchDocs",
+                "permission": "read-only",
+                "scope": "public",
+                "parameters": {
+                  "query": {
+                    "type": "string",
+                    "required": false,
+                    "maxLength": 80
+                  },
+                  "page": {
+                    "type": "integer",
+                    "required": false,
+                    "minimum": 1,
+                    "maximum": 10
+                  }
+                }
+              }
+            ],
+            "calls": [
+              {
+                "id": "call_01",
+                "name": "searchDocs",
+                "arguments": "[]"
+              },
+              {
+                "id": "call_02",
+                "name": "searchDocs",
+                "arguments": "null"
+              },
+              {
+                "id": "call_03",
+                "name": "searchDocs",
+                "arguments": "\"generics\""
+              },
+              {
+                "id": "call_04",
+                "name": "searchDocs",
+                "arguments": "42"
+              },
+              {
+                "id": "call_05",
+                "name": "searchDocs",
+                "arguments": ""
+              },
+              {
+                "id": "call_06",
+                "name": "searchDocs",
+                "arguments": "   "
+              },
+              {
+                "id": "call_07",
+                "name": "searchDocs",
+                "arguments": "{}"
+              },
+              {
+                "id": "call_08",
+                "name": "searchDocs",
+                "arguments": " { \"query\": \"generics\", \"page\": 2 } "
+              }
+            ]
+          },
+          "expected": [
+            {
+              "id": "call_01",
+              "tool": "searchDocs",
+              "status": "rejected",
+              "reason": "arguments must be a JSON object"
+            },
+            {
+              "id": "call_02",
+              "tool": "searchDocs",
+              "status": "rejected",
+              "reason": "arguments must be a JSON object"
+            },
+            {
+              "id": "call_03",
+              "tool": "searchDocs",
+              "status": "rejected",
+              "reason": "arguments must be a JSON object"
+            },
+            {
+              "id": "call_04",
+              "tool": "searchDocs",
+              "status": "rejected",
+              "reason": "arguments must be a JSON object"
+            },
+            {
+              "id": "call_05",
+              "tool": "searchDocs",
+              "status": "rejected",
+              "reason": "arguments are not valid JSON"
+            },
+            {
+              "id": "call_06",
+              "tool": "searchDocs",
+              "status": "rejected",
+              "reason": "arguments are not valid JSON"
+            },
+            {
+              "id": "call_07",
+              "tool": "searchDocs",
+              "status": "run",
+              "args": {}
+            },
+            {
+              "id": "call_08",
+              "tool": "searchDocs",
+              "status": "run",
+              "args": {
+                "query": "generics",
+                "page": 2
+              }
+            }
+          ],
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Large turn: 320 proposed calls of every kind, decisions in the same order",
+          "input": {
+            "sessionUserId": "u_1047",
+            "confirmedCallIds": [
+              "call_22",
+              "call_52",
+              "call_91",
+              "call_104",
+              "call_151",
+              "call_173",
+              "call_190",
+              "call_213",
+              "call_231",
+              "call_237",
+              "call_250",
+              "call_268",
+              "call_284",
+              "call_320"
+            ],
+            "tools": [
+              {
+                "name": "getSubmission",
+                "permission": "read-only",
+                "scope": "user",
+                "parameters": {
+                  "challengeId": {
+                    "type": "string",
+                    "required": true,
+                    "maxLength": 40
+                  },
+                  "attempt": {
+                    "type": "integer",
+                    "required": false,
+                    "minimum": 1,
+                    "maximum": 50
+                  }
+                }
+              },
+              {
+                "name": "listMySubmissions",
+                "permission": "read-only",
+                "scope": "user",
+                "parameters": {
+                  "courseId": {
+                    "type": "string",
+                    "required": true,
+                    "maxLength": 40
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "required": false,
+                    "minimum": 1,
+                    "maximum": 20
+                  },
+                  "passedOnly": {
+                    "type": "boolean",
+                    "required": false
+                  }
+                }
+              },
+              {
+                "name": "getLesson",
+                "permission": "read-only",
+                "scope": "public",
+                "parameters": {
+                  "lessonId": {
+                    "type": "string",
+                    "required": true,
+                    "maxLength": 40
+                  },
+                  "section": {
+                    "type": "string",
+                    "required": false,
+                    "enum": [
+                      "intro",
+                      "theory",
+                      "summary"
+                    ]
+                  }
+                }
+              },
+              {
+                "name": "resetLessonProgress",
+                "permission": "needs-confirmation",
+                "scope": "user",
+                "parameters": {
+                  "lessonId": {
+                    "type": "string",
+                    "required": true,
+                    "maxLength": 40
+                  }
+                }
+              },
+              {
+                "name": "searchDocs",
+                "permission": "read-only",
+                "scope": "public",
+                "parameters": {
+                  "query": {
+                    "type": "string",
+                    "required": false,
+                    "maxLength": 80
+                  },
+                  "page": {
+                    "type": "integer",
+                    "required": false,
+                    "minimum": 1,
+                    "maximum": 10
+                  }
+                }
+              }
+            ],
+            "calls": [
+              {
+                "id": "call_01",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"lesson-21\",\"section\":\"theory\"}"
+              },
+              {
+                "id": "call_02",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"userId\":\"u_2291\"}"
+              },
+              {
+                "id": "call_03",
+                "name": "runShell",
+                "arguments": "{\"challengeId\":\"chal_js_459\"}"
+              },
+              {
+                "id": "call_04",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"userId\":\"u_0007\"}"
+              },
+              {
+                "id": "call_05",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_sql_388\"}"
+              },
+              {
+                "id": "call_06",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_ts_561\",\"attempt\":37}"
+              },
+              {
+                "id": "call_07",
+                "name": "searchDocs",
+                "arguments": "null"
+              },
+              {
+                "id": "call_08",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_sql_707\",\"attempt\":25}"
+              },
+              {
+                "id": "call_09",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_sql_974\",\"attempt\":27,\"verbose\":false}"
+              },
+              {
+                "id": "call_10",
+                "name": "searchDocs",
+                "arguments": "{\"query\":\""
+              },
+              {
+                "id": "call_11",
+                "name": "searchDocs",
+                "arguments": "{\"page\":11}"
+              },
+              {
+                "id": "call_12",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"userId\":\"u_2291\"}"
+              },
+              {
+                "id": "call_13",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_ts_482\",\"attempt\":32,\"verbose\":true}"
+              },
+              {
+                "id": "call_14",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"lesson-61\",\"section\":\"theory\"}"
+              },
+              {
+                "id": "call_15",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"l1\",\"constructor\":1}"
+              },
+              {
+                "id": "call_16",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_sql_683\",\"attempt\":1,\"verbose\":true}"
+              },
+              {
+                "id": "call_17",
+                "name": "getsubmission",
+                "arguments": "{\"challengeId\":\"chal_js_362\"}"
+              },
+              {
+                "id": "call_18",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_py_271\",\"userId\":\"u_0007\"}"
+              },
+              {
+                "id": "call_19",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_ts_432\",\"attempt\":14}"
+              },
+              {
+                "id": "call_20",
+                "name": "searchDocs",
+                "arguments": "{\"page\":10,\"query\":\"x\"}"
+              },
+              {
+                "id": "call_21",
+                "name": "searchDocs",
+                "arguments": "{\"page\":11}"
+              },
+              {
+                "id": "call_22",
+                "name": "resetLessonProgress",
+                "arguments": "{\"lessonId\":\"lesson-63\"}"
+              },
+              {
+                "id": "call_23",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":7}"
+              },
+              {
+                "id": "call_24",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_py_150\",\"userId\":\"u_1047\"}"
+              },
+              {
+                "id": "call_25",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_sql_898\",\"attempt\":13}"
+              },
+              {
+                "id": "call_26",
+                "name": "resetLessonProgress",
+                "arguments": "{\"lessonId\":\"lesson-71\"}"
+              },
+              {
+                "id": "call_27",
+                "name": "resetLessonProgress",
+                "arguments": "{\"lessonId\":\"lesson-35\"}"
+              },
+              {
+                "id": "call_28",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"userId\":\"u_1047\"}"
+              },
+              {
+                "id": "call_29",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_ts_783\",\"attempt\":26,\"verbose\":true}"
+              },
+              {
+                "id": "call_30",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"lesson-94\",\"section\":\"intro\"}"
+              },
+              {
+                "id": "call_31",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_sql_620\",\"attempt\":13,\"verbose\":true}"
+              },
+              {
+                "id": "call_32",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"passedOnly\":1}"
+              },
+              {
+                "id": "call_33",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"lesson-84\",\"section\":\"answer\"}"
+              },
+              {
+                "id": "call_34",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"lesson-28\",\"section\":\"summary\"}"
+              },
+              {
+                "id": "call_35",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_ts_412\"}"
+              },
+              {
+                "id": "call_36",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"userId\":\"u_2291\"}"
+              },
+              {
+                "id": "call_37",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_js_928\",\"attempt\":11,\"verbose\":true}"
+              },
+              {
+                "id": "call_38",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"passedOnly\":false}"
+              },
+              {
+                "id": "call_39",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_js_363\"}"
+              },
+              {
+                "id": "call_40",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"passedOnly\":false}"
+              },
+              {
+                "id": "call_41",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"lesson-9\",\"section\":\"summary\"}"
+              },
+              {
+                "id": "call_42",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":7}"
+              },
+              {
+                "id": "call_43",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_ts_132\",\"userId\":\"u_0007\"}"
+              },
+              {
+                "id": "call_44",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":7}"
+              },
+              {
+                "id": "call_45",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_py_173\",\"attempt\":56}"
+              },
+              {
+                "id": "call_46",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"userId\":\"u_1047\"}"
+              },
+              {
+                "id": "call_47",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"lesson-37\",\"section\":\"intro\"}"
+              },
+              {
+                "id": "call_48",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_ts_471\",\"attempt\":12,\"verbose\":true}"
+              },
+              {
+                "id": "call_49",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"l1\"}"
+              },
+              {
+                "id": "call_50",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"userId\":\"u_2291\"}"
+              },
+              {
+                "id": "call_51",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"passedOnly\":false}"
+              },
+              {
+                "id": "call_52",
+                "name": "resetLessonProgress",
+                "arguments": "{\"lessonId\":\"lesson-25\"}"
+              },
+              {
+                "id": "call_53",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"lesson-5\",\"section\":\"intro\"}"
+              },
+              {
+                "id": "call_54",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_sql_147\",\"attempt\":19,\"verbose\":false}"
+              },
+              {
+                "id": "call_55",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_sql_392\",\"attempt\":33}"
+              },
+              {
+                "id": "call_56",
+                "name": "deleteAccount",
+                "arguments": "{\"challengeId\":\"chal_sql_842\"}"
+              },
+              {
+                "id": "call_57",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"passedOnly\":false}"
+              },
+              {
+                "id": "call_58",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_ts_869\",\"attempt\":27,\"verbose\":false}"
+              },
+              {
+                "id": "call_59",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"typescript-foundations\",\"limit\":21}"
+              },
+              {
+                "id": "call_60",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_ts_520\",\"attempt\":16,\"verbose\":false}"
+              },
+              {
+                "id": "call_61",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_py_348\"}"
+              },
+              {
+                "id": "call_62",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"lesson-6\",\"section\":\"theory\"}"
+              },
+              {
+                "id": "call_63",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"l1\",\"constructor\":1}"
+              },
+              {
+                "id": "call_64",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"userId\":\"u_0007\"}"
+              },
+              {
+                "id": "call_65",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_py_380\",\"attempt\":9,\"verbose\":true}"
+              },
+              {
+                "id": "call_66",
+                "name": "searchDocs",
+                "arguments": "{\"page\":10,\"query\":\"x\"}"
+              },
+              {
+                "id": "call_67",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"typescript-foundations\",\"limit\":\"5\"}"
+              },
+              {
+                "id": "call_68",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"l1\",\"constructor\":1}"
+              },
+              {
+                "id": "call_69",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"lesson-12\",\"section\":\"intro\"}"
+              },
+              {
+                "id": "call_70",
+                "name": "searchDocs",
+                "arguments": "[]"
+              },
+              {
+                "id": "call_71",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_js_667\",\"attempt\":27,\"verbose\":true}"
+              },
+              {
+                "id": "call_72",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_js_325\",\"attempt\":51}"
+              },
+              {
+                "id": "call_73",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"typescript-foundations\",\"limit\":21}"
+              },
+              {
+                "id": "call_74",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_js_498\",\"attempt\":24}"
+              },
+              {
+                "id": "call_75",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_py_188\",\"userId\":\"u_1047\"}"
+              },
+              {
+                "id": "call_76",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"limit\":\"5\"}"
+              },
+              {
+                "id": "call_77",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"passedOnly\":true}"
+              },
+              {
+                "id": "call_78",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"typescript-foundations\",\"limit\":20}"
+              },
+              {
+                "id": "call_79",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_ts_984\",\"userId\":\"u_2291\"}"
+              },
+              {
+                "id": "call_80",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"lesson-57\",\"section\":\"summary\"}"
+              },
+              {
+                "id": "call_81",
+                "name": "resetLessonProgress",
+                "arguments": "{\"lessonId\":\"lesson-91\"}"
+              },
+              {
+                "id": "call_82",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_ts_191\",\"attempt\":16}"
+              },
+              {
+                "id": "call_83",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"passedOnly\":1}"
+              },
+              {
+                "id": "call_84",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"passedOnly\":false}"
+              },
+              {
+                "id": "call_85",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_ts_549\",\"attempt\":3,\"verbose\":false}"
+              },
+              {
+                "id": "call_86",
+                "name": "searchDocs",
+                "arguments": "{\"page\":10,\"query\":\"x\"}"
+              },
+              {
+                "id": "call_87",
+                "name": "resetLessonProgress",
+                "arguments": "{\"lessonId\":\"lesson-57\"}"
+              },
+              {
+                "id": "call_88",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"lesson-65\",\"section\":\"answer\"}"
+              },
+              {
+                "id": "call_89",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"lesson-22\",\"section\":\"intro\"}"
+              },
+              {
+                "id": "call_90",
+                "name": "searchDocs",
+                "arguments": "[]"
+              },
+              {
+                "id": "call_91",
+                "name": "resetLessonProgress",
+                "arguments": "{\"lessonId\":\"lesson-71\"}"
+              },
+              {
+                "id": "call_92",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"passedOnly\":\"yes\"}"
+              },
+              {
+                "id": "call_93",
+                "name": "searchDocs",
+                "arguments": "{\"page\":10,\"query\":\"x\"}"
+              },
+              {
+                "id": "call_94",
+                "name": "searchDocs",
+                "arguments": "{\"query\":\""
+              },
+              {
+                "id": "call_95",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_sql_159\",\"userId\":\"u_0007\"}"
+              },
+              {
+                "id": "call_96",
+                "name": "getsubmission",
+                "arguments": "{\"challengeId\":\"chal_sql_582\"}"
+              },
+              {
+                "id": "call_97",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"limit\":5}"
+              },
+              {
+                "id": "call_98",
+                "name": "resetLessonProgress",
+                "arguments": "{\"lessonId\":\"lesson-6\"}"
+              },
+              {
+                "id": "call_99",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"limit\":21}"
+              },
+              {
+                "id": "call_100",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"l1\",\"constructor\":1}"
+              },
+              {
+                "id": "call_101",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"userId\":\"u_2291\"}"
+              },
+              {
+                "id": "call_102",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_js_940\"}"
+              },
+              {
+                "id": "call_103",
+                "name": "searchDocs",
+                "arguments": "[]"
+              },
+              {
+                "id": "call_104",
+                "name": "resetLessonProgress",
+                "arguments": "{\"lessonId\":\"lesson-94\"}"
+              },
+              {
+                "id": "call_105",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"lesson-7\",\"section\":\"intro\"}"
+              },
+              {
+                "id": "call_106",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"passedOnly\":false}"
+              },
+              {
+                "id": "call_107",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"userId\":\"u_0007\"}"
+              },
+              {
+                "id": "call_108",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"lesson-8\",\"section\":\"intro\"}"
+              },
+              {
+                "id": "call_109",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"lesson-94\",\"section\":\"summary\"}"
+              },
+              {
+                "id": "call_110",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"userId\":\"u_1047\"}"
+              },
+              {
+                "id": "call_111",
+                "name": "searchDocs",
+                "arguments": "{\"page\":11}"
+              },
+              {
+                "id": "call_112",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_ts_647\",\"userId\":\"u_1047\"}"
+              },
+              {
+                "id": "call_113",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"limit\":3.5}"
+              },
+              {
+                "id": "call_114",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_ts_115\",\"attempt\":39}"
+              },
+              {
+                "id": "call_115",
+                "name": "runShell",
+                "arguments": "{\"challengeId\":\"chal_sql_674\"}"
+              },
+              {
+                "id": "call_116",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"passedOnly\":false}"
+              },
+              {
+                "id": "call_117",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":7}"
+              },
+              {
+                "id": "call_118",
+                "name": "runShell",
+                "arguments": "{\"challengeId\":\"chal_ts_521\"}"
+              },
+              {
+                "id": "call_119",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_ts_400\",\"attempt\":38,\"verbose\":true}"
+              },
+              {
+                "id": "call_120",
+                "name": "deleteAccount",
+                "arguments": "{\"challengeId\":\"chal_js_781\"}"
+              },
+              {
+                "id": "call_121",
+                "name": "searchDocs",
+                "arguments": "[]"
+              },
+              {
+                "id": "call_122",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"passedOnly\":1}"
+              },
+              {
+                "id": "call_123",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"lesson-92\",\"section\":\"theory\"}"
+              },
+              {
+                "id": "call_124",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_py_172\",\"attempt\":38,\"verbose\":false}"
+              },
+              {
+                "id": "call_125",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"passedOnly\":\"yes\"}"
+              },
+              {
+                "id": "call_126",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_py_608\"}"
+              },
+              {
+                "id": "call_127",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"passedOnly\":false}"
+              },
+              {
+                "id": "call_128",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"userId\":\"u_2291\"}"
+              },
+              {
+                "id": "call_129",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_py_676\"}"
+              },
+              {
+                "id": "call_130",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_py_343\",\"userId\":\"u_2291\"}"
+              },
+              {
+                "id": "call_131",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"l1\"}"
+              },
+              {
+                "id": "call_132",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_ts_115\",\"attempt\":13}"
+              },
+              {
+                "id": "call_133",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_ts_360\"}"
+              },
+              {
+                "id": "call_134",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_sql_125\"}"
+              },
+              {
+                "id": "call_135",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"lesson-66\",\"section\":\"summary\"}"
+              },
+              {
+                "id": "call_136",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"lesson-35\",\"section\":\"summary\"}"
+              },
+              {
+                "id": "call_137",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"l1\"}"
+              },
+              {
+                "id": "call_138",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"lesson-20\",\"section\":\"summary\"}"
+              },
+              {
+                "id": "call_139",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"userId\":\"u_0007\"}"
+              },
+              {
+                "id": "call_140",
+                "name": "searchDocs",
+                "arguments": "null"
+              },
+              {
+                "id": "call_141",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"userId\":\"u_0007\"}"
+              },
+              {
+                "id": "call_142",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"userId\":\"u_1047\"}"
+              },
+              {
+                "id": "call_143",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"userId\":\"u_2291\"}"
+              },
+              {
+                "id": "call_144",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"l1\",\"constructor\":1}"
+              },
+              {
+                "id": "call_145",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"userId\":\"u_0007\"}"
+              },
+              {
+                "id": "call_146",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"passedOnly\":1}"
+              },
+              {
+                "id": "call_147",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"typescript-foundations\",\"limit\":21}"
+              },
+              {
+                "id": "call_148",
+                "name": "getsubmission",
+                "arguments": "{\"challengeId\":\"chal_ts_487\"}"
+              },
+              {
+                "id": "call_149",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"l1\",\"valueOf\":0}"
+              },
+              {
+                "id": "call_150",
+                "name": "getsubmission",
+                "arguments": "{\"challengeId\":\"chal_sql_471\"}"
+              },
+              {
+                "id": "call_151",
+                "name": "resetLessonProgress",
+                "arguments": "{\"lessonId\":\"lesson-51\"}"
+              },
+              {
+                "id": "call_152",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_ts_303\",\"userId\":\"u_2291\"}"
+              },
+              {
+                "id": "call_153",
+                "name": "runShell",
+                "arguments": "{\"challengeId\":\"chal_sql_311\"}"
+              },
+              {
+                "id": "call_154",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_sql_475\",\"attempt\":50,\"verbose\":true}"
+              },
+              {
+                "id": "call_155",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_sql_549\",\"attempt\":30,\"verbose\":false}"
+              },
+              {
+                "id": "call_156",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_py_759\",\"attempt\":30,\"verbose\":false}"
+              },
+              {
+                "id": "call_157",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_sql_341\",\"attempt\":18,\"verbose\":true}"
+              },
+              {
+                "id": "call_158",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_py_101\"}"
+              },
+              {
+                "id": "call_159",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"limit\":1}"
+              },
+              {
+                "id": "call_160",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_py_135\"}"
+              },
+              {
+                "id": "call_161",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_ts_777\",\"userId\":\"u_0007\"}"
+              },
+              {
+                "id": "call_162",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"lesson-17\",\"section\":\"theory\"}"
+              },
+              {
+                "id": "call_163",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":7}"
+              },
+              {
+                "id": "call_164",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_js_724\"}"
+              },
+              {
+                "id": "call_165",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"lesson-67\",\"section\":\"answer\"}"
+              },
+              {
+                "id": "call_166",
+                "name": "resetLessonProgress",
+                "arguments": "{\"lessonId\":\"lesson-81\"}"
+              },
+              {
+                "id": "call_167",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_sql_219\",\"attempt\":35,\"verbose\":false}"
+              },
+              {
+                "id": "call_168",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_ts_586\",\"attempt\":35}"
+              },
+              {
+                "id": "call_169",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"passedOnly\":1}"
+              },
+              {
+                "id": "call_170",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"userId\":\"u_1047\"}"
+              },
+              {
+                "id": "call_171",
+                "name": "getSubmission ",
+                "arguments": "{\"challengeId\":\"chal_py_727\"}"
+              },
+              {
+                "id": "call_172",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"l1\",\"constructor\":1}"
+              },
+              {
+                "id": "call_173",
+                "name": "resetLessonProgress",
+                "arguments": "{\"lessonId\":\"lesson-35\"}"
+              },
+              {
+                "id": "call_174",
+                "name": "getsubmission",
+                "arguments": "{\"challengeId\":\"chal_sql_632\"}"
+              },
+              {
+                "id": "call_175",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_sql_291\",\"attempt\":44}"
+              },
+              {
+                "id": "call_176",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"passedOnly\":true}"
+              },
+              {
+                "id": "call_177",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"lesson-89\",\"section\":\"intro\"}"
+              },
+              {
+                "id": "call_178",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_sql_989\",\"attempt\":59}"
+              },
+              {
+                "id": "call_179",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_js_771\",\"attempt\":48}"
+              },
+              {
+                "id": "call_180",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"userId\":\"u_0007\"}"
+              },
+              {
+                "id": "call_181",
+                "name": "searchDocs",
+                "arguments": "{}"
+              },
+              {
+                "id": "call_182",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_sql_523\",\"userId\":\"u_1047\"}"
+              },
+              {
+                "id": "call_183",
+                "name": "runShell",
+                "arguments": "{\"challengeId\":\"chal_js_680\"}"
+              },
+              {
+                "id": "call_184",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"lesson-42\",\"section\":\"intro\"}"
+              },
+              {
+                "id": "call_185",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"lesson-39\",\"section\":\"theory\"}"
+              },
+              {
+                "id": "call_186",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":7}"
+              },
+              {
+                "id": "call_187",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"passedOnly\":1}"
+              },
+              {
+                "id": "call_188",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_sql_477\",\"attempt\":6,\"verbose\":false}"
+              },
+              {
+                "id": "call_189",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":7}"
+              },
+              {
+                "id": "call_190",
+                "name": "resetLessonProgress",
+                "arguments": "{\"lessonId\":\"lesson-79\"}"
+              },
+              {
+                "id": "call_191",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_sql_912\",\"attempt\":11,\"verbose\":false}"
+              },
+              {
+                "id": "call_192",
+                "name": "getSubmission ",
+                "arguments": "{\"challengeId\":\"chal_py_884\"}"
+              },
+              {
+                "id": "call_193",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"passedOnly\":\"yes\"}"
+              },
+              {
+                "id": "call_194",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"limit\":21}"
+              },
+              {
+                "id": "call_195",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"lesson-15\",\"section\":\"theory\"}"
+              },
+              {
+                "id": "call_196",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_ts_937\",\"attempt\":18,\"verbose\":false}"
+              },
+              {
+                "id": "call_197",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_js_593\",\"attempt\":1}"
+              },
+              {
+                "id": "call_198",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_ts_118\",\"userId\":\"u_2291\"}"
+              },
+              {
+                "id": "call_199",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_js_602\",\"attempt\":33}"
+              },
+              {
+                "id": "call_200",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_py_827\",\"userId\":\"u_0007\"}"
+              },
+              {
+                "id": "call_201",
+                "name": "searchDocs",
+                "arguments": "[]"
+              },
+              {
+                "id": "call_202",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"lesson-78\",\"section\":\"summary\"}"
+              },
+              {
+                "id": "call_203",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"passedOnly\":\"yes\"}"
+              },
+              {
+                "id": "call_204",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_sql_331\",\"userId\":\"u_0007\"}"
+              },
+              {
+                "id": "call_205",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_sql_643\",\"attempt\":49}"
+              },
+              {
+                "id": "call_206",
+                "name": "getsubmission",
+                "arguments": "{\"challengeId\":\"chal_ts_441\"}"
+              },
+              {
+                "id": "call_207",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_sql_929\",\"attempt\":30}"
+              },
+              {
+                "id": "call_208",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"passedOnly\":\"yes\"}"
+              },
+              {
+                "id": "call_209",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"userId\":\"u_1047\"}"
+              },
+              {
+                "id": "call_210",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"passedOnly\":false}"
+              },
+              {
+                "id": "call_211",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_sql_892\"}"
+              },
+              {
+                "id": "call_212",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"l1\",\"valueOf\":0}"
+              },
+              {
+                "id": "call_213",
+                "name": "resetLessonProgress",
+                "arguments": "{\"lessonId\":\"lesson-51\"}"
+              },
+              {
+                "id": "call_214",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"l1\",\"constructor\":1}"
+              },
+              {
+                "id": "call_215",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"userId\":\"u_0007\"}"
+              },
+              {
+                "id": "call_216",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_ts_721\",\"attempt\":13,\"verbose\":false}"
+              },
+              {
+                "id": "call_217",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_py_525\",\"userId\":\"u_2291\"}"
+              },
+              {
+                "id": "call_218",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_py_648\",\"attempt\":45,\"verbose\":false}"
+              },
+              {
+                "id": "call_219",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":7}"
+              },
+              {
+                "id": "call_220",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"passedOnly\":false}"
+              },
+              {
+                "id": "call_221",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"passedOnly\":false}"
+              },
+              {
+                "id": "call_222",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":7}"
+              },
+              {
+                "id": "call_223",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"passedOnly\":false}"
+              },
+              {
+                "id": "call_224",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"l1\"}"
+              },
+              {
+                "id": "call_225",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"passedOnly\":true}"
+              },
+              {
+                "id": "call_226",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"limit\":20}"
+              },
+              {
+                "id": "call_227",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_sql_743\",\"userId\":\"u_0007\"}"
+              },
+              {
+                "id": "call_228",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_js_373\",\"attempt\":22,\"verbose\":true}"
+              },
+              {
+                "id": "call_229",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_py_561\",\"attempt\":17}"
+              },
+              {
+                "id": "call_230",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"l1\",\"valueOf\":0}"
+              },
+              {
+                "id": "call_231",
+                "name": "resetLessonProgress",
+                "arguments": "{\"lessonId\":\"lesson-20\"}"
+              },
+              {
+                "id": "call_232",
+                "name": "getsubmission",
+                "arguments": "{\"challengeId\":\"chal_js_326\"}"
+              },
+              {
+                "id": "call_233",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_ts_530\",\"attempt\":51}"
+              },
+              {
+                "id": "call_234",
+                "name": "getSubmission ",
+                "arguments": "{\"challengeId\":\"chal_sql_555\"}"
+              },
+              {
+                "id": "call_235",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"l1\",\"constructor\":1}"
+              },
+              {
+                "id": "call_236",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"typescript-foundations\",\"limit\":5}"
+              },
+              {
+                "id": "call_237",
+                "name": "resetLessonProgress",
+                "arguments": "{\"lessonId\":\"lesson-50\"}"
+              },
+              {
+                "id": "call_238",
+                "name": "deleteAccount",
+                "arguments": "{\"challengeId\":\"chal_sql_597\"}"
+              },
+              {
+                "id": "call_239",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"passedOnly\":true}"
+              },
+              {
+                "id": "call_240",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_py_731\",\"attempt\":17,\"verbose\":false}"
+              },
+              {
+                "id": "call_241",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"userId\":\"u_0007\"}"
+              },
+              {
+                "id": "call_242",
+                "name": "searchDocs",
+                "arguments": "{\"query\":\"closures\"}"
+              },
+              {
+                "id": "call_243",
+                "name": "resetLessonProgress",
+                "arguments": "{\"lessonId\":\"lesson-75\"}"
+              },
+              {
+                "id": "call_244",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_js_452\"}"
+              },
+              {
+                "id": "call_245",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"l1\",\"valueOf\":0}"
+              },
+              {
+                "id": "call_246",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"lesson-94\",\"section\":\"summary\"}"
+              },
+              {
+                "id": "call_247",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_sql_981\",\"attempt\":25}"
+              },
+              {
+                "id": "call_248",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":7}"
+              },
+              {
+                "id": "call_249",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_sql_955\",\"userId\":\"u_2291\"}"
+              },
+              {
+                "id": "call_250",
+                "name": "resetLessonProgress",
+                "arguments": "{\"lessonId\":\"lesson-59\"}"
+              },
+              {
+                "id": "call_251",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"userId\":\"u_1047\"}"
+              },
+              {
+                "id": "call_252",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"userId\":\"u_0007\"}"
+              },
+              {
+                "id": "call_253",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"userId\":\"u_0007\"}"
+              },
+              {
+                "id": "call_254",
+                "name": "resetLessonProgress",
+                "arguments": "{\"lessonId\":\"lesson-64\"}"
+              },
+              {
+                "id": "call_255",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":7}"
+              },
+              {
+                "id": "call_256",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"lesson-39\",\"section\":\"answer\"}"
+              },
+              {
+                "id": "call_257",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"passedOnly\":\"yes\"}"
+              },
+              {
+                "id": "call_258",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"lesson-90\",\"section\":\"answer\"}"
+              },
+              {
+                "id": "call_259",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_ts_252\",\"attempt\":38,\"verbose\":true}"
+              },
+              {
+                "id": "call_260",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"userId\":\"u_0007\"}"
+              },
+              {
+                "id": "call_261",
+                "name": "getSubmission ",
+                "arguments": "{\"challengeId\":\"chal_ts_624\"}"
+              },
+              {
+                "id": "call_262",
+                "name": "searchDocs",
+                "arguments": "null"
+              },
+              {
+                "id": "call_263",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_sql_675\",\"attempt\":48}"
+              },
+              {
+                "id": "call_264",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"lesson-61\",\"section\":\"summary\"}"
+              },
+              {
+                "id": "call_265",
+                "name": "deleteAccount",
+                "arguments": "{\"challengeId\":\"chal_js_440\"}"
+              },
+              {
+                "id": "call_266",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_js_265\"}"
+              },
+              {
+                "id": "call_267",
+                "name": "searchDocs",
+                "arguments": "{\"query\":\""
+              },
+              {
+                "id": "call_268",
+                "name": "resetLessonProgress",
+                "arguments": "{\"lessonId\":\"lesson-95\"}"
+              },
+              {
+                "id": "call_269",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_ts_862\",\"attempt\":30,\"verbose\":false}"
+              },
+              {
+                "id": "call_270",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"limit\":5}"
+              },
+              {
+                "id": "call_271",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"passedOnly\":1}"
+              },
+              {
+                "id": "call_272",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"limit\":\"5\"}"
+              },
+              {
+                "id": "call_273",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"lesson-36\",\"section\":\"theory\"}"
+              },
+              {
+                "id": "call_274",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"passedOnly\":1}"
+              },
+              {
+                "id": "call_275",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"passedOnly\":1}"
+              },
+              {
+                "id": "call_276",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_py_338\",\"attempt\":38,\"verbose\":false}"
+              },
+              {
+                "id": "call_277",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"lesson-39\",\"section\":\"answer\"}"
+              },
+              {
+                "id": "call_278",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"passedOnly\":true}"
+              },
+              {
+                "id": "call_279",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_js_274\"}"
+              },
+              {
+                "id": "call_280",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_js_296\",\"attempt\":26}"
+              },
+              {
+                "id": "call_281",
+                "name": "runShell",
+                "arguments": "{\"challengeId\":\"chal_ts_567\"}"
+              },
+              {
+                "id": "call_282",
+                "name": "searchDocs",
+                "arguments": "{\"page\":11}"
+              },
+              {
+                "id": "call_283",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_ts_611\",\"attempt\":32}"
+              },
+              {
+                "id": "call_284",
+                "name": "resetLessonProgress",
+                "arguments": "{\"lessonId\":\"lesson-79\"}"
+              },
+              {
+                "id": "call_285",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"userId\":\"u_0007\"}"
+              },
+              {
+                "id": "call_286",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_sql_566\",\"userId\":\"u_2291\"}"
+              },
+              {
+                "id": "call_287",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"typescript-foundations\",\"limit\":\"5\"}"
+              },
+              {
+                "id": "call_288",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"userId\":\"u_0007\"}"
+              },
+              {
+                "id": "call_289",
+                "name": "getsubmission",
+                "arguments": "{\"challengeId\":\"chal_ts_362\"}"
+              },
+              {
+                "id": "call_290",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"l1\"}"
+              },
+              {
+                "id": "call_291",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_js_800\",\"attempt\":24,\"verbose\":false}"
+              },
+              {
+                "id": "call_292",
+                "name": "deleteAccount",
+                "arguments": "{\"challengeId\":\"chal_js_748\"}"
+              },
+              {
+                "id": "call_293",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_sql_542\"}"
+              },
+              {
+                "id": "call_294",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"lesson-77\",\"section\":\"intro\"}"
+              },
+              {
+                "id": "call_295",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_sql_125\",\"attempt\":4}"
+              },
+              {
+                "id": "call_296",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"limit\":21}"
+              },
+              {
+                "id": "call_297",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"limit\":\"5\"}"
+              },
+              {
+                "id": "call_298",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"lesson-50\",\"section\":\"answer\"}"
+              },
+              {
+                "id": "call_299",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"lesson-13\",\"section\":\"theory\"}"
+              },
+              {
+                "id": "call_300",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"l1\",\"constructor\":1}"
+              },
+              {
+                "id": "call_301",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"passedOnly\":true}"
+              },
+              {
+                "id": "call_302",
+                "name": "searchDocs",
+                "arguments": "{\"page\":10,\"query\":\"x\"}"
+              },
+              {
+                "id": "call_303",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_js_455\",\"attempt\":30,\"verbose\":true}"
+              },
+              {
+                "id": "call_304",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_py_794\",\"attempt\":45}"
+              },
+              {
+                "id": "call_305",
+                "name": "resetLessonProgress",
+                "arguments": "{\"lessonId\":\"lesson-88\"}"
+              },
+              {
+                "id": "call_306",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"lesson-61\",\"section\":\"theory\"}"
+              },
+              {
+                "id": "call_307",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"userId\":\"u_2291\"}"
+              },
+              {
+                "id": "call_308",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"lesson-24\",\"section\":\"answer\"}"
+              },
+              {
+                "id": "call_309",
+                "name": "getsubmission",
+                "arguments": "{\"challengeId\":\"chal_ts_384\"}"
+              },
+              {
+                "id": "call_310",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"l1\",\"valueOf\":0}"
+              },
+              {
+                "id": "call_311",
+                "name": "getLesson",
+                "arguments": "{\"lessonId\":\"lesson-13\",\"section\":\"theory\"}"
+              },
+              {
+                "id": "call_312",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"passedOnly\":1}"
+              },
+              {
+                "id": "call_313",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"userId\":\"u_0007\"}"
+              },
+              {
+                "id": "call_314",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_js_534\",\"attempt\":48,\"verbose\":false}"
+              },
+              {
+                "id": "call_315",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_sql_875\",\"attempt\":36}"
+              },
+              {
+                "id": "call_316",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"sql-basics\",\"userId\":\"u_0007\"}"
+              },
+              {
+                "id": "call_317",
+                "name": "listMySubmissions",
+                "arguments": "{\"courseId\":\"typescript-foundations\",\"limit\":1}"
+              },
+              {
+                "id": "call_318",
+                "name": "getSubmission",
+                "arguments": "{\"challengeId\":\"chal_py_656\"}"
+              },
+              {
+                "id": "call_319",
+                "name": "resetLessonProgress",
+                "arguments": "{\"lessonId\":\"lesson-73\"}"
+              },
+              {
+                "id": "call_320",
+                "name": "resetLessonProgress",
+                "arguments": "{\"lessonId\":\"lesson-82\"}"
+              }
+            ]
+          },
+          "expected": [
+            {
+              "id": "call_01",
+              "tool": "getLesson",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-21",
+                "section": "theory"
+              }
+            },
+            {
+              "id": "call_02",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_03",
+              "tool": "runShell",
+              "status": "rejected",
+              "reason": "unknown tool \"runShell\""
+            },
+            {
+              "id": "call_04",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_05",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_sql_388",
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_06",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_ts_561",
+                "attempt": 37,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_07",
+              "tool": "searchDocs",
+              "status": "rejected",
+              "reason": "arguments must be a JSON object"
+            },
+            {
+              "id": "call_08",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_sql_707",
+                "attempt": 25,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_09",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "unexpected argument \"verbose\""
+            },
+            {
+              "id": "call_10",
+              "tool": "searchDocs",
+              "status": "rejected",
+              "reason": "arguments are not valid JSON"
+            },
+            {
+              "id": "call_11",
+              "tool": "searchDocs",
+              "status": "rejected",
+              "reason": "argument \"page\" is out of range"
+            },
+            {
+              "id": "call_12",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_13",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "unexpected argument \"verbose\""
+            },
+            {
+              "id": "call_14",
+              "tool": "getLesson",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-61",
+                "section": "theory"
+              }
+            },
+            {
+              "id": "call_15",
+              "tool": "getLesson",
+              "status": "rejected",
+              "reason": "unexpected argument \"constructor\""
+            },
+            {
+              "id": "call_16",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "unexpected argument \"verbose\""
+            },
+            {
+              "id": "call_17",
+              "tool": "getsubmission",
+              "status": "rejected",
+              "reason": "unknown tool \"getsubmission\""
+            },
+            {
+              "id": "call_18",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_19",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_ts_432",
+                "attempt": 14,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_20",
+              "tool": "searchDocs",
+              "status": "run",
+              "args": {
+                "query": "x",
+                "page": 10
+              }
+            },
+            {
+              "id": "call_21",
+              "tool": "searchDocs",
+              "status": "rejected",
+              "reason": "argument \"page\" is out of range"
+            },
+            {
+              "id": "call_22",
+              "tool": "resetLessonProgress",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-63",
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_23",
+              "tool": "getLesson",
+              "status": "rejected",
+              "reason": "argument \"lessonId\" must be string"
+            },
+            {
+              "id": "call_24",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_25",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_sql_898",
+                "attempt": 13,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_26",
+              "tool": "resetLessonProgress",
+              "status": "rejected",
+              "reason": "needs confirmation"
+            },
+            {
+              "id": "call_27",
+              "tool": "resetLessonProgress",
+              "status": "rejected",
+              "reason": "needs confirmation"
+            },
+            {
+              "id": "call_28",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_29",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "unexpected argument \"verbose\""
+            },
+            {
+              "id": "call_30",
+              "tool": "getLesson",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-94",
+                "section": "intro"
+              }
+            },
+            {
+              "id": "call_31",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "unexpected argument \"verbose\""
+            },
+            {
+              "id": "call_32",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "argument \"passedOnly\" must be boolean"
+            },
+            {
+              "id": "call_33",
+              "tool": "getLesson",
+              "status": "rejected",
+              "reason": "argument \"section\" is not an allowed value"
+            },
+            {
+              "id": "call_34",
+              "tool": "getLesson",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-28",
+                "section": "summary"
+              }
+            },
+            {
+              "id": "call_35",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_ts_412",
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_36",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_37",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "unexpected argument \"verbose\""
+            },
+            {
+              "id": "call_38",
+              "tool": "listMySubmissions",
+              "status": "run",
+              "args": {
+                "courseId": "sql-basics",
+                "passedOnly": false,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_39",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_js_363",
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_40",
+              "tool": "listMySubmissions",
+              "status": "run",
+              "args": {
+                "courseId": "sql-basics",
+                "passedOnly": false,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_41",
+              "tool": "getLesson",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-9",
+                "section": "summary"
+              }
+            },
+            {
+              "id": "call_42",
+              "tool": "getLesson",
+              "status": "rejected",
+              "reason": "argument \"lessonId\" must be string"
+            },
+            {
+              "id": "call_43",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_44",
+              "tool": "getLesson",
+              "status": "rejected",
+              "reason": "argument \"lessonId\" must be string"
+            },
+            {
+              "id": "call_45",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "argument \"attempt\" is out of range"
+            },
+            {
+              "id": "call_46",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_47",
+              "tool": "getLesson",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-37",
+                "section": "intro"
+              }
+            },
+            {
+              "id": "call_48",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "unexpected argument \"verbose\""
+            },
+            {
+              "id": "call_49",
+              "tool": "getLesson",
+              "status": "run",
+              "args": {
+                "lessonId": "l1"
+              }
+            },
+            {
+              "id": "call_50",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_51",
+              "tool": "listMySubmissions",
+              "status": "run",
+              "args": {
+                "courseId": "sql-basics",
+                "passedOnly": false,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_52",
+              "tool": "resetLessonProgress",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-25",
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_53",
+              "tool": "getLesson",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-5",
+                "section": "intro"
+              }
+            },
+            {
+              "id": "call_54",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "unexpected argument \"verbose\""
+            },
+            {
+              "id": "call_55",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_sql_392",
+                "attempt": 33,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_56",
+              "tool": "deleteAccount",
+              "status": "rejected",
+              "reason": "unknown tool \"deleteAccount\""
+            },
+            {
+              "id": "call_57",
+              "tool": "listMySubmissions",
+              "status": "run",
+              "args": {
+                "courseId": "sql-basics",
+                "passedOnly": false,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_58",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "unexpected argument \"verbose\""
+            },
+            {
+              "id": "call_59",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "argument \"limit\" is out of range"
+            },
+            {
+              "id": "call_60",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "unexpected argument \"verbose\""
+            },
+            {
+              "id": "call_61",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_py_348",
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_62",
+              "tool": "getLesson",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-6",
+                "section": "theory"
+              }
+            },
+            {
+              "id": "call_63",
+              "tool": "getLesson",
+              "status": "rejected",
+              "reason": "unexpected argument \"constructor\""
+            },
+            {
+              "id": "call_64",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_65",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "unexpected argument \"verbose\""
+            },
+            {
+              "id": "call_66",
+              "tool": "searchDocs",
+              "status": "run",
+              "args": {
+                "query": "x",
+                "page": 10
+              }
+            },
+            {
+              "id": "call_67",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "argument \"limit\" must be integer"
+            },
+            {
+              "id": "call_68",
+              "tool": "getLesson",
+              "status": "rejected",
+              "reason": "unexpected argument \"constructor\""
+            },
+            {
+              "id": "call_69",
+              "tool": "getLesson",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-12",
+                "section": "intro"
+              }
+            },
+            {
+              "id": "call_70",
+              "tool": "searchDocs",
+              "status": "rejected",
+              "reason": "arguments must be a JSON object"
+            },
+            {
+              "id": "call_71",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "unexpected argument \"verbose\""
+            },
+            {
+              "id": "call_72",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "argument \"attempt\" is out of range"
+            },
+            {
+              "id": "call_73",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "argument \"limit\" is out of range"
+            },
+            {
+              "id": "call_74",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_js_498",
+                "attempt": 24,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_75",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_76",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "argument \"limit\" must be integer"
+            },
+            {
+              "id": "call_77",
+              "tool": "listMySubmissions",
+              "status": "run",
+              "args": {
+                "courseId": "sql-basics",
+                "passedOnly": true,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_78",
+              "tool": "listMySubmissions",
+              "status": "run",
+              "args": {
+                "courseId": "typescript-foundations",
+                "limit": 20,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_79",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_80",
+              "tool": "getLesson",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-57",
+                "section": "summary"
+              }
+            },
+            {
+              "id": "call_81",
+              "tool": "resetLessonProgress",
+              "status": "rejected",
+              "reason": "needs confirmation"
+            },
+            {
+              "id": "call_82",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_ts_191",
+                "attempt": 16,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_83",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "argument \"passedOnly\" must be boolean"
+            },
+            {
+              "id": "call_84",
+              "tool": "listMySubmissions",
+              "status": "run",
+              "args": {
+                "courseId": "sql-basics",
+                "passedOnly": false,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_85",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "unexpected argument \"verbose\""
+            },
+            {
+              "id": "call_86",
+              "tool": "searchDocs",
+              "status": "run",
+              "args": {
+                "query": "x",
+                "page": 10
+              }
+            },
+            {
+              "id": "call_87",
+              "tool": "resetLessonProgress",
+              "status": "rejected",
+              "reason": "needs confirmation"
+            },
+            {
+              "id": "call_88",
+              "tool": "getLesson",
+              "status": "rejected",
+              "reason": "argument \"section\" is not an allowed value"
+            },
+            {
+              "id": "call_89",
+              "tool": "getLesson",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-22",
+                "section": "intro"
+              }
+            },
+            {
+              "id": "call_90",
+              "tool": "searchDocs",
+              "status": "rejected",
+              "reason": "arguments must be a JSON object"
+            },
+            {
+              "id": "call_91",
+              "tool": "resetLessonProgress",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-71",
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_92",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "argument \"passedOnly\" must be boolean"
+            },
+            {
+              "id": "call_93",
+              "tool": "searchDocs",
+              "status": "run",
+              "args": {
+                "query": "x",
+                "page": 10
+              }
+            },
+            {
+              "id": "call_94",
+              "tool": "searchDocs",
+              "status": "rejected",
+              "reason": "arguments are not valid JSON"
+            },
+            {
+              "id": "call_95",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_96",
+              "tool": "getsubmission",
+              "status": "rejected",
+              "reason": "unknown tool \"getsubmission\""
+            },
+            {
+              "id": "call_97",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "argument \"courseId\" is too long"
+            },
+            {
+              "id": "call_98",
+              "tool": "resetLessonProgress",
+              "status": "rejected",
+              "reason": "needs confirmation"
+            },
+            {
+              "id": "call_99",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "argument \"courseId\" is too long"
+            },
+            {
+              "id": "call_100",
+              "tool": "getLesson",
+              "status": "rejected",
+              "reason": "unexpected argument \"constructor\""
+            },
+            {
+              "id": "call_101",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_102",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_js_940",
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_103",
+              "tool": "searchDocs",
+              "status": "rejected",
+              "reason": "arguments must be a JSON object"
+            },
+            {
+              "id": "call_104",
+              "tool": "resetLessonProgress",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-94",
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_105",
+              "tool": "getLesson",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-7",
+                "section": "intro"
+              }
+            },
+            {
+              "id": "call_106",
+              "tool": "listMySubmissions",
+              "status": "run",
+              "args": {
+                "courseId": "sql-basics",
+                "passedOnly": false,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_107",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_108",
+              "tool": "getLesson",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-8",
+                "section": "intro"
+              }
+            },
+            {
+              "id": "call_109",
+              "tool": "getLesson",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-94",
+                "section": "summary"
+              }
+            },
+            {
+              "id": "call_110",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_111",
+              "tool": "searchDocs",
+              "status": "rejected",
+              "reason": "argument \"page\" is out of range"
+            },
+            {
+              "id": "call_112",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_113",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "argument \"courseId\" is too long"
+            },
+            {
+              "id": "call_114",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_ts_115",
+                "attempt": 39,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_115",
+              "tool": "runShell",
+              "status": "rejected",
+              "reason": "unknown tool \"runShell\""
+            },
+            {
+              "id": "call_116",
+              "tool": "listMySubmissions",
+              "status": "run",
+              "args": {
+                "courseId": "sql-basics",
+                "passedOnly": false,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_117",
+              "tool": "getLesson",
+              "status": "rejected",
+              "reason": "argument \"lessonId\" must be string"
+            },
+            {
+              "id": "call_118",
+              "tool": "runShell",
+              "status": "rejected",
+              "reason": "unknown tool \"runShell\""
+            },
+            {
+              "id": "call_119",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "unexpected argument \"verbose\""
+            },
+            {
+              "id": "call_120",
+              "tool": "deleteAccount",
+              "status": "rejected",
+              "reason": "unknown tool \"deleteAccount\""
+            },
+            {
+              "id": "call_121",
+              "tool": "searchDocs",
+              "status": "rejected",
+              "reason": "arguments must be a JSON object"
+            },
+            {
+              "id": "call_122",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "argument \"passedOnly\" must be boolean"
+            },
+            {
+              "id": "call_123",
+              "tool": "getLesson",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-92",
+                "section": "theory"
+              }
+            },
+            {
+              "id": "call_124",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "unexpected argument \"verbose\""
+            },
+            {
+              "id": "call_125",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "argument \"passedOnly\" must be boolean"
+            },
+            {
+              "id": "call_126",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_py_608",
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_127",
+              "tool": "listMySubmissions",
+              "status": "run",
+              "args": {
+                "courseId": "sql-basics",
+                "passedOnly": false,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_128",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_129",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_py_676",
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_130",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_131",
+              "tool": "getLesson",
+              "status": "run",
+              "args": {
+                "lessonId": "l1"
+              }
+            },
+            {
+              "id": "call_132",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_ts_115",
+                "attempt": 13,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_133",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_ts_360",
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_134",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_sql_125",
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_135",
+              "tool": "getLesson",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-66",
+                "section": "summary"
+              }
+            },
+            {
+              "id": "call_136",
+              "tool": "getLesson",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-35",
+                "section": "summary"
+              }
+            },
+            {
+              "id": "call_137",
+              "tool": "getLesson",
+              "status": "run",
+              "args": {
+                "lessonId": "l1"
+              }
+            },
+            {
+              "id": "call_138",
+              "tool": "getLesson",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-20",
+                "section": "summary"
+              }
+            },
+            {
+              "id": "call_139",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_140",
+              "tool": "searchDocs",
+              "status": "rejected",
+              "reason": "arguments must be a JSON object"
+            },
+            {
+              "id": "call_141",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_142",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_143",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_144",
+              "tool": "getLesson",
+              "status": "rejected",
+              "reason": "unexpected argument \"constructor\""
+            },
+            {
+              "id": "call_145",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_146",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "argument \"passedOnly\" must be boolean"
+            },
+            {
+              "id": "call_147",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "argument \"limit\" is out of range"
+            },
+            {
+              "id": "call_148",
+              "tool": "getsubmission",
+              "status": "rejected",
+              "reason": "unknown tool \"getsubmission\""
+            },
+            {
+              "id": "call_149",
+              "tool": "getLesson",
+              "status": "rejected",
+              "reason": "unexpected argument \"valueOf\""
+            },
+            {
+              "id": "call_150",
+              "tool": "getsubmission",
+              "status": "rejected",
+              "reason": "unknown tool \"getsubmission\""
+            },
+            {
+              "id": "call_151",
+              "tool": "resetLessonProgress",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-51",
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_152",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_153",
+              "tool": "runShell",
+              "status": "rejected",
+              "reason": "unknown tool \"runShell\""
+            },
+            {
+              "id": "call_154",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "unexpected argument \"verbose\""
+            },
+            {
+              "id": "call_155",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "unexpected argument \"verbose\""
+            },
+            {
+              "id": "call_156",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "unexpected argument \"verbose\""
+            },
+            {
+              "id": "call_157",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "unexpected argument \"verbose\""
+            },
+            {
+              "id": "call_158",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_py_101",
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_159",
+              "tool": "listMySubmissions",
+              "status": "run",
+              "args": {
+                "courseId": "sql-basics",
+                "limit": 1,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_160",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_py_135",
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_161",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_162",
+              "tool": "getLesson",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-17",
+                "section": "theory"
+              }
+            },
+            {
+              "id": "call_163",
+              "tool": "getLesson",
+              "status": "rejected",
+              "reason": "argument \"lessonId\" must be string"
+            },
+            {
+              "id": "call_164",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_js_724",
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_165",
+              "tool": "getLesson",
+              "status": "rejected",
+              "reason": "argument \"section\" is not an allowed value"
+            },
+            {
+              "id": "call_166",
+              "tool": "resetLessonProgress",
+              "status": "rejected",
+              "reason": "needs confirmation"
+            },
+            {
+              "id": "call_167",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "unexpected argument \"verbose\""
+            },
+            {
+              "id": "call_168",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_ts_586",
+                "attempt": 35,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_169",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "argument \"passedOnly\" must be boolean"
+            },
+            {
+              "id": "call_170",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_171",
+              "tool": "getSubmission ",
+              "status": "rejected",
+              "reason": "unknown tool \"getSubmission \""
+            },
+            {
+              "id": "call_172",
+              "tool": "getLesson",
+              "status": "rejected",
+              "reason": "unexpected argument \"constructor\""
+            },
+            {
+              "id": "call_173",
+              "tool": "resetLessonProgress",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-35",
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_174",
+              "tool": "getsubmission",
+              "status": "rejected",
+              "reason": "unknown tool \"getsubmission\""
+            },
+            {
+              "id": "call_175",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_sql_291",
+                "attempt": 44,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_176",
+              "tool": "listMySubmissions",
+              "status": "run",
+              "args": {
+                "courseId": "sql-basics",
+                "passedOnly": true,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_177",
+              "tool": "getLesson",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-89",
+                "section": "intro"
+              }
+            },
+            {
+              "id": "call_178",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "argument \"attempt\" is out of range"
+            },
+            {
+              "id": "call_179",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_js_771",
+                "attempt": 48,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_180",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_181",
+              "tool": "searchDocs",
+              "status": "run",
+              "args": {}
+            },
+            {
+              "id": "call_182",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_183",
+              "tool": "runShell",
+              "status": "rejected",
+              "reason": "unknown tool \"runShell\""
+            },
+            {
+              "id": "call_184",
+              "tool": "getLesson",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-42",
+                "section": "intro"
+              }
+            },
+            {
+              "id": "call_185",
+              "tool": "getLesson",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-39",
+                "section": "theory"
+              }
+            },
+            {
+              "id": "call_186",
+              "tool": "getLesson",
+              "status": "rejected",
+              "reason": "argument \"lessonId\" must be string"
+            },
+            {
+              "id": "call_187",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "argument \"passedOnly\" must be boolean"
+            },
+            {
+              "id": "call_188",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "unexpected argument \"verbose\""
+            },
+            {
+              "id": "call_189",
+              "tool": "getLesson",
+              "status": "rejected",
+              "reason": "argument \"lessonId\" must be string"
+            },
+            {
+              "id": "call_190",
+              "tool": "resetLessonProgress",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-79",
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_191",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "unexpected argument \"verbose\""
+            },
+            {
+              "id": "call_192",
+              "tool": "getSubmission ",
+              "status": "rejected",
+              "reason": "unknown tool \"getSubmission \""
+            },
+            {
+              "id": "call_193",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "argument \"passedOnly\" must be boolean"
+            },
+            {
+              "id": "call_194",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "argument \"courseId\" is too long"
+            },
+            {
+              "id": "call_195",
+              "tool": "getLesson",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-15",
+                "section": "theory"
+              }
+            },
+            {
+              "id": "call_196",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "unexpected argument \"verbose\""
+            },
+            {
+              "id": "call_197",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_js_593",
+                "attempt": 1,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_198",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_199",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_js_602",
+                "attempt": 33,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_200",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_201",
+              "tool": "searchDocs",
+              "status": "rejected",
+              "reason": "arguments must be a JSON object"
+            },
+            {
+              "id": "call_202",
+              "tool": "getLesson",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-78",
+                "section": "summary"
+              }
+            },
+            {
+              "id": "call_203",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "argument \"passedOnly\" must be boolean"
+            },
+            {
+              "id": "call_204",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_205",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_sql_643",
+                "attempt": 49,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_206",
+              "tool": "getsubmission",
+              "status": "rejected",
+              "reason": "unknown tool \"getsubmission\""
+            },
+            {
+              "id": "call_207",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_sql_929",
+                "attempt": 30,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_208",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "argument \"passedOnly\" must be boolean"
+            },
+            {
+              "id": "call_209",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_210",
+              "tool": "listMySubmissions",
+              "status": "run",
+              "args": {
+                "courseId": "sql-basics",
+                "passedOnly": false,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_211",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_sql_892",
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_212",
+              "tool": "getLesson",
+              "status": "rejected",
+              "reason": "unexpected argument \"valueOf\""
+            },
+            {
+              "id": "call_213",
+              "tool": "resetLessonProgress",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-51",
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_214",
+              "tool": "getLesson",
+              "status": "rejected",
+              "reason": "unexpected argument \"constructor\""
+            },
+            {
+              "id": "call_215",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_216",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "unexpected argument \"verbose\""
+            },
+            {
+              "id": "call_217",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_218",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "unexpected argument \"verbose\""
+            },
+            {
+              "id": "call_219",
+              "tool": "getLesson",
+              "status": "rejected",
+              "reason": "argument \"lessonId\" must be string"
+            },
+            {
+              "id": "call_220",
+              "tool": "listMySubmissions",
+              "status": "run",
+              "args": {
+                "courseId": "sql-basics",
+                "passedOnly": false,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_221",
+              "tool": "listMySubmissions",
+              "status": "run",
+              "args": {
+                "courseId": "sql-basics",
+                "passedOnly": false,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_222",
+              "tool": "getLesson",
+              "status": "rejected",
+              "reason": "argument \"lessonId\" must be string"
+            },
+            {
+              "id": "call_223",
+              "tool": "listMySubmissions",
+              "status": "run",
+              "args": {
+                "courseId": "sql-basics",
+                "passedOnly": false,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_224",
+              "tool": "getLesson",
+              "status": "run",
+              "args": {
+                "lessonId": "l1"
+              }
+            },
+            {
+              "id": "call_225",
+              "tool": "listMySubmissions",
+              "status": "run",
+              "args": {
+                "courseId": "sql-basics",
+                "passedOnly": true,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_226",
+              "tool": "listMySubmissions",
+              "status": "run",
+              "args": {
+                "courseId": "sql-basics",
+                "limit": 20,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_227",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_228",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "unexpected argument \"verbose\""
+            },
+            {
+              "id": "call_229",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_py_561",
+                "attempt": 17,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_230",
+              "tool": "getLesson",
+              "status": "rejected",
+              "reason": "unexpected argument \"valueOf\""
+            },
+            {
+              "id": "call_231",
+              "tool": "resetLessonProgress",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-20",
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_232",
+              "tool": "getsubmission",
+              "status": "rejected",
+              "reason": "unknown tool \"getsubmission\""
+            },
+            {
+              "id": "call_233",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "argument \"attempt\" is out of range"
+            },
+            {
+              "id": "call_234",
+              "tool": "getSubmission ",
+              "status": "rejected",
+              "reason": "unknown tool \"getSubmission \""
+            },
+            {
+              "id": "call_235",
+              "tool": "getLesson",
+              "status": "rejected",
+              "reason": "unexpected argument \"constructor\""
+            },
+            {
+              "id": "call_236",
+              "tool": "listMySubmissions",
+              "status": "run",
+              "args": {
+                "courseId": "typescript-foundations",
+                "limit": 5,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_237",
+              "tool": "resetLessonProgress",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-50",
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_238",
+              "tool": "deleteAccount",
+              "status": "rejected",
+              "reason": "unknown tool \"deleteAccount\""
+            },
+            {
+              "id": "call_239",
+              "tool": "listMySubmissions",
+              "status": "run",
+              "args": {
+                "courseId": "sql-basics",
+                "passedOnly": true,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_240",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "unexpected argument \"verbose\""
+            },
+            {
+              "id": "call_241",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_242",
+              "tool": "searchDocs",
+              "status": "run",
+              "args": {
+                "query": "closures"
+              }
+            },
+            {
+              "id": "call_243",
+              "tool": "resetLessonProgress",
+              "status": "rejected",
+              "reason": "needs confirmation"
+            },
+            {
+              "id": "call_244",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_js_452",
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_245",
+              "tool": "getLesson",
+              "status": "rejected",
+              "reason": "unexpected argument \"valueOf\""
+            },
+            {
+              "id": "call_246",
+              "tool": "getLesson",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-94",
+                "section": "summary"
+              }
+            },
+            {
+              "id": "call_247",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_sql_981",
+                "attempt": 25,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_248",
+              "tool": "getLesson",
+              "status": "rejected",
+              "reason": "argument \"lessonId\" must be string"
+            },
+            {
+              "id": "call_249",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_250",
+              "tool": "resetLessonProgress",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-59",
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_251",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_252",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_253",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_254",
+              "tool": "resetLessonProgress",
+              "status": "rejected",
+              "reason": "needs confirmation"
+            },
+            {
+              "id": "call_255",
+              "tool": "getLesson",
+              "status": "rejected",
+              "reason": "argument \"lessonId\" must be string"
+            },
+            {
+              "id": "call_256",
+              "tool": "getLesson",
+              "status": "rejected",
+              "reason": "argument \"section\" is not an allowed value"
+            },
+            {
+              "id": "call_257",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "argument \"passedOnly\" must be boolean"
+            },
+            {
+              "id": "call_258",
+              "tool": "getLesson",
+              "status": "rejected",
+              "reason": "argument \"section\" is not an allowed value"
+            },
+            {
+              "id": "call_259",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "unexpected argument \"verbose\""
+            },
+            {
+              "id": "call_260",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_261",
+              "tool": "getSubmission ",
+              "status": "rejected",
+              "reason": "unknown tool \"getSubmission \""
+            },
+            {
+              "id": "call_262",
+              "tool": "searchDocs",
+              "status": "rejected",
+              "reason": "arguments must be a JSON object"
+            },
+            {
+              "id": "call_263",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_sql_675",
+                "attempt": 48,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_264",
+              "tool": "getLesson",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-61",
+                "section": "summary"
+              }
+            },
+            {
+              "id": "call_265",
+              "tool": "deleteAccount",
+              "status": "rejected",
+              "reason": "unknown tool \"deleteAccount\""
+            },
+            {
+              "id": "call_266",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_js_265",
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_267",
+              "tool": "searchDocs",
+              "status": "rejected",
+              "reason": "arguments are not valid JSON"
+            },
+            {
+              "id": "call_268",
+              "tool": "resetLessonProgress",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-95",
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_269",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "unexpected argument \"verbose\""
+            },
+            {
+              "id": "call_270",
+              "tool": "listMySubmissions",
+              "status": "run",
+              "args": {
+                "courseId": "sql-basics",
+                "limit": 5,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_271",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "argument \"passedOnly\" must be boolean"
+            },
+            {
+              "id": "call_272",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "argument \"courseId\" is too long"
+            },
+            {
+              "id": "call_273",
+              "tool": "getLesson",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-36",
+                "section": "theory"
+              }
+            },
+            {
+              "id": "call_274",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "argument \"passedOnly\" must be boolean"
+            },
+            {
+              "id": "call_275",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "argument \"passedOnly\" must be boolean"
+            },
+            {
+              "id": "call_276",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "unexpected argument \"verbose\""
+            },
+            {
+              "id": "call_277",
+              "tool": "getLesson",
+              "status": "rejected",
+              "reason": "argument \"section\" is not an allowed value"
+            },
+            {
+              "id": "call_278",
+              "tool": "listMySubmissions",
+              "status": "run",
+              "args": {
+                "courseId": "sql-basics",
+                "passedOnly": true,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_279",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_js_274",
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_280",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_js_296",
+                "attempt": 26,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_281",
+              "tool": "runShell",
+              "status": "rejected",
+              "reason": "unknown tool \"runShell\""
+            },
+            {
+              "id": "call_282",
+              "tool": "searchDocs",
+              "status": "rejected",
+              "reason": "argument \"page\" is out of range"
+            },
+            {
+              "id": "call_283",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_ts_611",
+                "attempt": 32,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_284",
+              "tool": "resetLessonProgress",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-79",
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_285",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_286",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_287",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "argument \"limit\" must be integer"
+            },
+            {
+              "id": "call_288",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_289",
+              "tool": "getsubmission",
+              "status": "rejected",
+              "reason": "unknown tool \"getsubmission\""
+            },
+            {
+              "id": "call_290",
+              "tool": "getLesson",
+              "status": "run",
+              "args": {
+                "lessonId": "l1"
+              }
+            },
+            {
+              "id": "call_291",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "unexpected argument \"verbose\""
+            },
+            {
+              "id": "call_292",
+              "tool": "deleteAccount",
+              "status": "rejected",
+              "reason": "unknown tool \"deleteAccount\""
+            },
+            {
+              "id": "call_293",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_sql_542",
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_294",
+              "tool": "getLesson",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-77",
+                "section": "intro"
+              }
+            },
+            {
+              "id": "call_295",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_sql_125",
+                "attempt": 4,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_296",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "argument \"courseId\" is too long"
+            },
+            {
+              "id": "call_297",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "argument \"courseId\" is too long"
+            },
+            {
+              "id": "call_298",
+              "tool": "getLesson",
+              "status": "rejected",
+              "reason": "argument \"section\" is not an allowed value"
+            },
+            {
+              "id": "call_299",
+              "tool": "getLesson",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-13",
+                "section": "theory"
+              }
+            },
+            {
+              "id": "call_300",
+              "tool": "getLesson",
+              "status": "rejected",
+              "reason": "unexpected argument \"constructor\""
+            },
+            {
+              "id": "call_301",
+              "tool": "listMySubmissions",
+              "status": "run",
+              "args": {
+                "courseId": "sql-basics",
+                "passedOnly": true,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_302",
+              "tool": "searchDocs",
+              "status": "run",
+              "args": {
+                "query": "x",
+                "page": 10
+              }
+            },
+            {
+              "id": "call_303",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "unexpected argument \"verbose\""
+            },
+            {
+              "id": "call_304",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_py_794",
+                "attempt": 45,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_305",
+              "tool": "resetLessonProgress",
+              "status": "rejected",
+              "reason": "needs confirmation"
+            },
+            {
+              "id": "call_306",
+              "tool": "getLesson",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-61",
+                "section": "theory"
+              }
+            },
+            {
+              "id": "call_307",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_308",
+              "tool": "getLesson",
+              "status": "rejected",
+              "reason": "argument \"section\" is not an allowed value"
+            },
+            {
+              "id": "call_309",
+              "tool": "getsubmission",
+              "status": "rejected",
+              "reason": "unknown tool \"getsubmission\""
+            },
+            {
+              "id": "call_310",
+              "tool": "getLesson",
+              "status": "rejected",
+              "reason": "unexpected argument \"valueOf\""
+            },
+            {
+              "id": "call_311",
+              "tool": "getLesson",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-13",
+                "section": "theory"
+              }
+            },
+            {
+              "id": "call_312",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "argument \"passedOnly\" must be boolean"
+            },
+            {
+              "id": "call_313",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_314",
+              "tool": "getSubmission",
+              "status": "rejected",
+              "reason": "unexpected argument \"verbose\""
+            },
+            {
+              "id": "call_315",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_sql_875",
+                "attempt": 36,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_316",
+              "tool": "listMySubmissions",
+              "status": "rejected",
+              "reason": "userId comes from the session"
+            },
+            {
+              "id": "call_317",
+              "tool": "listMySubmissions",
+              "status": "run",
+              "args": {
+                "courseId": "typescript-foundations",
+                "limit": 1,
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_318",
+              "tool": "getSubmission",
+              "status": "run",
+              "args": {
+                "challengeId": "chal_py_656",
+                "userId": "u_1047"
+              }
+            },
+            {
+              "id": "call_319",
+              "tool": "resetLessonProgress",
+              "status": "rejected",
+              "reason": "needs confirmation"
+            },
+            {
+              "id": "call_320",
+              "tool": "resetLessonProgress",
+              "status": "run",
+              "args": {
+                "lessonId": "lesson-82",
+                "userId": "u_1047"
+              }
+            }
+          ],
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

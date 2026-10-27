@@ -1,0 +1,50 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nae_111",
+      "name": "llm-behind-your-api-quiz",
+      "type": "quiz",
+      "title": "An LLM behind your API",
+      "description": "Two pieces of evidence from the hint prototype: a pull request that moved the API key into an environment variable, and a test of the hint service with a fake model.",
+      "difficulty": "medium",
+      "outcomes": [
+        "safety-testing"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "PR #1204 \"fix: move the LLM key out of the source\". The file starts with \"use client\".\n\n components/hints/HintButton.tsx\n-  const apiKey = \"llm-live-3f9a...c21\";\n+  const apiKey = process.env.NEXT_PUBLIC_LLM_API_KEY;\n   const res = await fetch(LLM_URL, {\n     method: \"POST\",\n     headers: { Authorization: `Bearer ${apiKey}` },\n     body: JSON.stringify({ model: \"model-small\", messages }),\n   });\n\n .env.production\n+ NEXT_PUBLIC_LLM_API_KEY=llm-live-8d01...e7a   (a new, rotated key)\n\nStatement: \"After this PR, the new key cannot be seen by people who open the lesson page.\"",
+          "explanation": "False. Next.js replaces process.env.NEXT_PUBLIC_* with the literal value when it builds the client bundle, so the new key is written into a JavaScript file that every visitor downloads; a search for \"llm-live\" in the DevTools Sources panel finds it. Even without the prefix, a client component cannot keep a secret: whatever the browser sends in an Authorization header, the person using the browser can read in the Network panel. The fix is to move the call itself: the browser sends POST /challenges/c_17/hints to api.codedev.test with its session, and only the server knows the key. The misconception is that an environment variable is a secret wherever it is read. It stays secret only in code that runs on the server.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "hints/hints.module.ts:\n\nproviders: [HintService, { provide: LLM_GATEWAY, useClass: HttpLlmGateway }]\n\nhints/hint.service.spec.ts:\n\nconst fake = new FakeLlmGateway([{ error: \"timeout\" }]);\nconst moduleRef = await Test.createTestingModule({ imports: [HintsModule] })\n  .overrideProvider(LLM_GATEWAY).useValue(fake)\n  .compile();\n\nconst result = await moduleRef.get(HintService).requestHint(\"u_1042\", \"c_17\");\nexpect(result).toEqual({ ok: false, error: \"hint_unavailable\" });\nexpect(fake.calls).toHaveLength(1);\n\n$ grep -rn \"fetch(\" src/hints src/llm\nsrc/llm/http-llm.gateway.ts:41:    const res = await fetch(this.url, {\n\nStatement: \"This test checks how HintService handles a model timeout without making any network call.\"",
+          "explanation": "True. HintService only knows the LLM_GATEWAY token and the LlmGateway interface; overrideProvider replaces HttpLlmGateway with the fake before the module is compiled, so HttpLlmGateway is never created and the only fetch in the code (in http-llm.gateway.ts) never runs. The fake throws the scripted timeout, and the test checks the service's decision: one call, then a typed \"hint_unavailable\" result instead of an exception. The real adapter gets its own small test against recorded responses, and an occasional smoke test against the provider outside the normal test run. The misconception is that an LLM feature can only be tested by calling a real model. The model is slow, costs money and answers differently each time; the logic around it can be tested with a fake that follows the same interface.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

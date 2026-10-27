@@ -1,112 +1,84 @@
 {
   "publicId": "nodejs-ai-engineering",
-  "title": "AI Engineering with Node.js: LLM Apps, Tool Calling & Streaming",
-  "concept": "Ship LLM features on Node.js that survive production: streaming, token budgets, tool calling, structured output, embeddings and evals, with a simulated model so every challenge is deterministic.",
-  "description": "Ship LLM features on Node.js that survive production: streaming, token budgets, tool calling, structured output, embeddings and evals, with a simulated model so every challenge is deterministic. 9 lessons, each starting from a real bug or incident, with graded challenges.",
-  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594595/codedev/courses/nodejs-ai-engineering/cover",
-  "level": "advanced",
-  "durationMinutes": 180,
+  "title": "Building LLM Features with TypeScript: Structured Output, Tool Calling & Streaming",
+  "concept": "Put a large language model behind your own API the way you would any unreliable dependency: prompts as versioned contracts, output validated against a schema, bounded retries and fallbacks, tool calls your code checks before running, streaming that survives a broken connection, token budgets per user, and tests that run against fake models and recorded fixtures.",
+  "description": "An intermediate course for backend developers who are asked to add an AI feature to a real product. Every lesson starts from an incident on the CodeDev learning platform's AI hint feature - a JSON answer with a missing field that crashed the lesson page, a retry loop that sent the whole repository to the model and multiplied the bill, a tool call with arguments nobody validated, a stream that stopped half-way and left the learner staring at half a sentence, a hint that pasted the reference solution - and fixes it with code you can test without calling a real model: versioned prompt templates, structured output and schema validation, retry and repair with a limit, timeouts, rate limits and provider fallback, safe tool calling, streaming over SSE, token budgets, response caching and testing with fake LLMs. 12 lessons with True/False quizzes on real prompts, logs and diffs, and TypeScript challenges graded by hidden tests.",
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1793019606/codedev/courses/nodejs-ai-engineering/cover",
+  "level": "intermediate",
+  "durationMinutes": 360,
   "instructor": "CodeDev Engineering Team",
-  "language": "JavaScript",
+  "language": "TypeScript",
   "category": "LLM Engineering",
   "cost": 0,
   "pointPrice": 0,
-  "reward": 150,
+  "reward": 100,
   "accessModel": "premium",
   "publishStatus": "draft",
   "offers": [
-    {
-      "priceType": "points",
-      "amount": 600
-    },
-    {
-      "priceType": "money",
-      "amount": 249000,
-      "currency": "VND"
-    }
+    { "priceType": "points", "amount": 300 },
+    { "priceType": "money", "amount": 149000, "currency": "VND" }
   ],
-  "careerRoles": [
-    "backend_developer",
-    "fullstack_developer",
-    "ml_engineer"
+  "completionRules": {},
+  "domain": "ai",
+  "learningOutcomes": [
+    { "code": "prompt-contract", "text": "Treat a prompt as a versioned contract and validate structured output against a schema before using it" },
+    { "code": "resilience", "text": "Handle invalid output, timeouts, rate limits and broken streams with bounded retries, repair and fallback" },
+    { "code": "tool-calling", "text": "Let the model request tools while your code validates the arguments and decides what runs" },
+    { "code": "cost-control", "text": "Keep cost under control with token budgets per user, bounded context and response caching" },
+    { "code": "safety-testing", "text": "Keep keys on the server, stop answers that leak solutions, and test LLM features with fake models and fixtures" }
   ],
-  "skills": {
-    "nodejs": 4,
-    "javascript": 4,
-    "api_design": 3,
-    "machine_learning": 3,
-    "async_programming": 3
-  },
-  "goals": [
-    "build_projects",
-    "grow_in_role"
+  "testedVersions": { "TypeScript": "5.9.3 (tsc --strict in the code runner)", "LLM APIs": "provider-agnostic examples with a fake LLM; check current SDK versions" },
+  "lastReviewedAt": "2026-10-26",
+  "sourceLinks": [
+    "https://json-schema.org/understanding-json-schema",
+    "https://html.spec.whatwg.org/multipage/server-sent-events.html",
+    "https://owasp.org/www-project-top-10-for-large-language-model-applications/"
   ],
-  "prerequisites": [
-    "javascript-async-architecture_2026100901"
+  "owner": "CodeDev Engineering Team",
+  "knownIssues": [
+    "Challenges use a fake LLM and recorded fixtures; calling a real provider and measuring real cost is self-practice",
+    "A Python (FastAPI + Pydantic) variant of the labs is planned (V1.3 §6.7) but not written"
   ],
-  "modules": [],
-  "outline": [
+  "scenario": { "title": "The Bill Exploded", "quiz": "chal_quiz_nae_231", "fixBug": "chal_coding_nae_232" },
+  "careerRoles": ["backend_developer", "fullstack_developer", "ml_engineer"],
+  "skills": { "typescript": 4, "api_design": 3, "machine_learning": 3, "async_programming": 2, "testing": 2 },
+  "goals": ["build_projects", "grow_in_role"],
+  "prerequisites": ["nestjs-modular-monolith", "ai-llm-foundations"],
+  "modules": [
     {
       "orderIndex": 1,
-      "title": "Talking to the Model",
+      "title": "Prompts as Contracts",
       "lessons": [
-        {
-          "orderIndex": 1,
-          "title": "Streaming responses: parsing SSE chunks split at any byte",
-          "challenges": "C(m)"
-        },
-        {
-          "orderIndex": 2,
-          "title": "Token budgets & trimming the context window",
-          "challenges": "Q(m) + C(m)"
-        },
-        {
-          "orderIndex": 3,
-          "title": "429s, retry-after & idempotent requests",
-          "challenges": "F(m)"
-        }
+        { "orderIndex": 1, "folder": "01-llm-behind-your-api", "title": "How to put an LLM behind your API: keys on the server, a gateway & a fake model", "sanityId": "lesson-nae-1-1" },
+        { "orderIndex": 2, "folder": "02-versioned-prompts", "title": "Prompts as versioned templates", "sanityId": "lesson-nae-1-2" },
+        { "orderIndex": 3, "folder": "03-structured-output", "title": "Structured output: JSON Schema & validating before you use it", "sanityId": "lesson-nae-1-3" }
       ]
     },
     {
       "orderIndex": 2,
-      "title": "Tools & Structured Output",
+      "title": "Reliability & Cost",
       "lessons": [
-        {
-          "orderIndex": 1,
-          "title": "The tool-calling loop: dispatch, validate args, feed results back",
-          "challenges": "C(h)"
-        },
-        {
-          "orderIndex": 2,
-          "title": "Validating structured output against a JSON Schema subset",
-          "challenges": "C(h)"
-        },
-        {
-          "orderIndex": 3,
-          "title": "Prompt injection & tool permission boundaries",
-          "challenges": "Q(h) + F(m)"
-        }
+        { "orderIndex": 1, "folder": "04-retry-repair-fallback", "title": "Retry, repair & fallback when the output breaks the schema", "sanityId": "lesson-nae-2-1" },
+        { "orderIndex": 2, "folder": "05-timeouts-rate-limits", "title": "Timeouts, rate limits & provider fallback", "sanityId": "lesson-nae-2-2" },
+        { "orderIndex": 3, "folder": "06-the-bill-exploded", "title": "The bill exploded: unbounded retries & a context nobody measured", "sanityId": "lesson-nae-2-3" }
       ]
     },
     {
       "orderIndex": 3,
-      "title": "Retrieval & Quality",
+      "title": "Tools, Streaming & Budgets",
       "lessons": [
-        {
-          "orderIndex": 1,
-          "title": "Embeddings & cosine top-k with metadata filters",
-          "challenges": "C(m)"
-        },
-        {
-          "orderIndex": 2,
-          "title": "Semantic cache with a similarity threshold",
-          "challenges": "Q(m) + C(m)"
-        },
-        {
-          "orderIndex": 3,
-          "title": "Evals: golden sets, LLM-as-judge pitfalls, regression gates",
-          "challenges": "Q(m) + C(m)"
-        }
+        { "orderIndex": 1, "folder": "07-tool-calling", "title": "Tool calling: let the model ask, let your code decide", "sanityId": "lesson-nae-3-1" },
+        { "orderIndex": 2, "folder": "08-streaming", "title": "Streaming answers over SSE & handling a broken stream", "sanityId": "lesson-nae-3-2" },
+        { "orderIndex": 3, "folder": "09-token-budgets", "title": "Token budgets & cost per user", "sanityId": "lesson-nae-3-3" }
+      ]
+    },
+    {
+      "orderIndex": 4,
+      "title": "Safety & Testing",
+      "lessons": [
+        { "orderIndex": 1, "folder": "10-hint-leaks-solution", "title": "Spot the AI mistake: a hint that leaks the solution", "sanityId": "lesson-nae-4-1" },
+        { "orderIndex": 2, "folder": "11-caching-llm-responses", "title": "Caching LLM responses: when it's safe and when it isn't", "sanityId": "lesson-nae-4-2" },
+        { "orderIndex": 3, "folder": "12-testing-with-fakes", "title": "Testing LLM features with fake models & recorded fixtures", "sanityId": "lesson-nae-4-3" }
       ]
     }
   ]

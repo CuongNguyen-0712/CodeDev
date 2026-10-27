@@ -1,0 +1,50 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nae_431",
+      "name": "llm-testing-fakes-quiz",
+      "type": "quiz",
+      "title": "What should this test assert?",
+      "description": "A nightly eval that compares hints word for word, and a CI run that stops because a recorded fixture is missing.",
+      "difficulty": "medium",
+      "outcomes": [
+        "safety-testing"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Nightly eval against the real model, prompt hint-v5, temperature 0.2:\n\ntest(\"tie-break hint\", async () => {\n  const hint = await createHint(cases.topWordsTieBreak, realDeps);\n  expect(hint.text).toBe(\"Check how your sort orders words with the same count.\");\n});\n\nResults, last 7 nights (no deploy, no prompt change in that time):\npass  pass  FAIL  pass  FAIL  pass  FAIL\nFAIL received: \"Look at how your sort handles two words with the same count.\"\n\nStatement: \"The three failures show that hint-v5 got worse on those nights, so the team should roll back to hint-v4.\"",
+          "explanation": "False. Nothing changed on the CodeDev side, and every received hint is a correct tie-break hint in different words. The model samples its answer (here at temperature 0.2), and even at temperature 0 providers do not promise identical text, so an assertion on the exact wording fails without any regression. An eval asserts properties that define a good hint: the output matches the schema, it passes the leak filter, it is short enough, it mentions the sort or the tie, it contains no code block. A real regression shows up as a lower pass rate on those properties across the whole eval set, compared with the previous prompt version. The misconception is that a model test should compare text like a unit test of a pure function.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Pull request \"hint-v6: mention the failing test by name\". CI (no provider key is configured in CI):\n\n FAIL  services/hints/createHint.test.ts > tie-break hint\n ReplayGateway: no fixture for key hint-v6:model-a-2026-08:t0:4be2...\n Recorded fixtures exist for: hint-v5\n Record them deliberately with: npm run fixtures:record -- --prompt hint-v6\n\nfixtures/hints/hint-v5/tie-break.json:\n{ \"promptVersion\": \"hint-v5\", \"model\": \"model-a-2026-08\", \"recordedAt\": \"2026-10-21\",\n  \"inputSha256\": \"91c0...\", \"output\": { \"hint\": \"Check how your sort orders words with the same count.\" } }\n\nStatement: \"Stopping here instead of calling the real model is the intended behavior: a new prompt version needs fixtures recorded on purpose, and their content reviewed in the pull request, before CI can replay them.\"",
+          "explanation": "True. The replay gateway looks fixtures up by prompt version, model, parameters and input, and the v5 recordings do not describe what v6 answers. Calling the real model from CI would make the build slow, flaky and paid, and it would silently test something nobody looked at. Failing with a clear message keeps the rule: recording is a deliberate step by a person with a key, the new fixtures appear in the diff of the pull request, and a reviewer reads what v6 actually says before the tests start relying on it. Reusing the v5 fixtures for v6 would make the tests pass while testing the old prompt. The misconception is that a test which cannot find its fixture should fall back to the real service.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

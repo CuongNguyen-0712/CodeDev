@@ -1,0 +1,66 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nae_421",
+      "name": "llm-response-cache-quiz",
+      "type": "quiz",
+      "title": "Is this cached answer still right?",
+      "description": "The hint service's response cache after a prompt deploy, a provider usage log with cached input tokens, and two learners who received the same cached hint.",
+      "difficulty": "medium",
+      "outcomes": [
+        "cost-control"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "// services/hints/cache.ts\nconst key = `hint:${req.challengeSlug}:${sha256(req.learnerCode + \"\\n\" + req.failingTest)}`;\nconst cached = await cache.get(key);\nif (cached) return cached;\nconst hint = await createHint(req);   // renders the current prompt version\nawait cache.set(key, hint, { ttlSeconds: 86_400 });\n\nDeploy log:\n2026-10-20 10:00  hint prompt hint-v4 -> hint-v5 (shorter hints, no code blocks)\n\nSupport ticket, 2026-10-20 15:30: \"I still get the long hints with code blocks on Top words.\"\n\nStatement: \"Learners whose code and failing test were already in the cache keep getting hints written with hint-v4 until those entries expire, up to 24 hours after they were stored.\"",
+          "explanation": "True. The key is built from the challenge, the learner's code and the failing test only. Nothing in it changes when the prompt goes from v4 to v5, so a request that matches an entry stored before the deploy reads the v4 hint, and only requests with new code reach hint-v5. The entries leave the cache when their 24-hour TTL ends. The fix is to put everything that changes the answer into the key: the prompt version, the model and its parameters, and the reference version of the challenge. Then a deploy makes the old entries unreachable at once, with no mass delete. The misconception is that deploying a new prompt changes every answer immediately; a response cache keeps serving what the old prompt wrote.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Gateway log for two requests 40 seconds apart, same prompt prefix (system instructions, examples and the challenge text, 1,800 tokens), different learner code at the end:\n\nreq_a  input_tokens=2100  cached_input_tokens=0     output_tokens=164  hint=\"Check the order of words with the same count.\"\nreq_b  input_tokens=2080  cached_input_tokens=1792  output_tokens=171  hint=\"Your loop skips the last word. What does split give you?\"\n\nStatement: \"req_b was answered from the provider's cache: the stored answer of req_a was reused, so req_b cost no output tokens and only the 288 uncached input tokens.\"",
+          "explanation": "False. Provider prompt caching reuses the processing of an identical prompt prefix, here the 1,792 tokens of instructions, examples and challenge text that both requests start with. The model still reads the rest of the input and generates a new answer: req_b has its own hint and 171 billed output tokens. Cached input tokens are usually billed at a lower rate (the discount, the minimum prefix length and how long the cache lives depend on the provider), not removed from the bill. A response cache in your own code is a different thing: it skips the call and returns a stored answer for an identical key, which is only right when the whole input is the same. The misconception is that \"cached\" in the usage log means the answer was reused.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Prompt template hint-v4 (excerpt):\n  You are a tutor helping {{learnerName}} with the challenge \"{{challengeTitle}}\".\n  ...\n  Learner code:\n  {{learnerCode}}\n\nCache key: hint:v4:model-a-2026-08:t0:<sha256 of normalized learnerCode + failingTest>\n\nHint log:\n09:12  user=u_1042  key=hint:v4:model-a-2026-08:t0:9c1e...  source=model  text=\"Hi Lan, look at the tie-break in your sort.\"\n09:40  user=u_2210  key=hint:v4:model-a-2026-08:t0:9c1e...  source=cache  text=\"Hi Lan, look at the tie-break in your sort.\"\n\nStatement: \"u_2210 received a hint addressed to another learner because the prompt puts the learner's name into the answer while the cache key, which has no user in it, lets two learners with the same code share one entry.\"",
+          "explanation": "True. Both learners submitted the same code for the same failing test, so the normalized input and the key are identical, and u_2210 got the stored answer. That answer was generated for u_1042 from a prompt that contains their name, so the cached value carries personal data from one learner to another. Two fixes are correct: remove the name from the prompt (a hint does not need it, and the cache can then be shared), or keep the name and add the user to the key, which makes every entry private and lowers the hit rate to almost nothing. Hashing the key does not help, because the problem is in the value. The misconception is that a cache is safe when its key contains no personal data; the stored answer must not contain any either.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

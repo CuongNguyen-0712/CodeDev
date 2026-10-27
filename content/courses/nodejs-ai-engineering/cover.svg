@@ -28,10 +28,10 @@
   <g id="copy" font-family="Segoe UI, Inter, Arial, sans-serif">
     <polygon points="158,146 204,172 204,224 158,250 112,224 112,172" fill="#5FA04E"/>
     <text x="158" y="213.64" text-anchor="middle" font-size="46" font-weight="800" fill="#0B0F18">N</text>
-    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#8CC84B">NODE.JS · AI ENGINEERING</text>
-    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">LLM Apps</text>
-    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">on Node.js</text>
-    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Streaming · Tool calling · Evals</text>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#8CC84B">TYPESCRIPT · LLM FEATURES</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">LLM Features</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">in TypeScript</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Structured output · Tool calling · Streaming</text>
     <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#C7E8B8">
       <rect x="110" y="660" width="150" height="52" rx="26" fill="#17281A" stroke="#5FA04E"/>
       <text x="185" y="695" text-anchor="middle">stream</text>

@@ -1,0 +1,2196 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nae_131",
+      "name": "structured-output-quiz",
+      "type": "quiz",
+      "title": "Structured output: validate before you use it",
+      "description": "Two recorded answers of the hint model: one that type-checks but is not what the type says, and one cut short with structured output turned on.",
+      "difficulty": "medium",
+      "outcomes": [
+        "prompt-contract"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "hints/hint.service.ts:\n\ntype HintAnswer = { hint: string; level: 1 | 2 | 3; references: string[]; revealsSolution: boolean };\n\nconst answer: HintAnswer = JSON.parse(result.text);\nreturn answer;   // sent to the lesson page\n\nresult.text, recorded by the gateway:\n{\"hint\":\"Check where your loop starts.\",\"level\":\"2\",\"references\":[\"Arrays, lesson 3\"],\"revealsSolution\":false}\n\n$ npx tsc --noEmit\n(no output, exit code 0)\n\nStatement: \"Because tsc reports no errors and HintAnswer declares level as 1 | 2 | 3, the lesson page receives level as a number.\"",
+          "explanation": "False. JSON.parse returns any, and any can be assigned to HintAnswer without a single check, so the compiler has nothing to complain about. Types are erased at runtime: the object that reaches the page is exactly what the model wrote, with level as the string \"2\". On the page, level === 2 is false, a switch over level falls through to its default branch, and \"2\" + 1 is \"21\". The type annotation is a claim about the value, not a check of it; only code that looks at the value at runtime (a validator, a schema library) turns the claim into a fact. The misconception is that a clean tsc run covers data that arrives at runtime: from the network, from the database or from a model.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The hint service asks the gateway for JSON that follows the schema; the provider's structured output feature is turned on for this request:\n\ngateway.complete({ promptRef: \"hint-v3@3\", output: { format: \"json\", schema: hintAnswerSchema }, maxOutputTokens: 120 })\n\nGateway log line:\n{\"event\":\"llm.call\",\"promptRef\":\"hint-v3@3\",\"model\":\"model-small\",\"stopReason\":\"max_tokens\",\"outputTokens\":120,\"latencyMs\":2210}\n\nresult.text:\n{\"hint\":\"Your loop starts at index 1, so the first element is never added. Look at the initial value of i and compare it with the first index of an ar\n\nStatement: \"Even with structured output turned on, this response must go through the server's validator, and the validator should reject it before the lesson page sees it.\"",
+          "explanation": "True. The log says the model stopped because it reached the output token limit (stopReason max_tokens), so the JSON was cut in the middle of a string and will not even parse. Structured output features make a valid answer much more likely, but a response can still be truncated, a fallback model may not support the feature, a refusal can come back in another shape, and which schema keywords a provider enforces differs between providers (check the provider's current docs). The validator is the only place that knows for sure, so the server checks every answer and turns a broken one into a typed error (retry or fallback is the next module) instead of a crash on the page. The misconception is that asking for a schema is the same as getting one.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_nae_132",
+      "name": "validate-hint-json",
+      "type": "mini_coding",
+      "title": "Validate the hint model's JSON output",
+      "description": "The hint model is asked to answer with JSON for { hint, level, references, revealsSolution }. The old service did `JSON.parse(text.match(/\\{[\\s\\S]*\\}/)![0]) as HintAnswer`; one answer came wrapped in prose with \"level\": \"2\", the cast let it through and the lesson page crashed. Write parseHintAnswer(text) that returns { ok: true, value } with a HintAnswer, or { ok: false, errors } with every problem found. Rules, in this order: (1) Trim text. If the whole trimmed text is one fence, take only its content: the first line is ``` or ```json (json in any case, spaces or tabs allowed after it), the last line is ```, and lines may end with \\n or \\r\\n. Anything before or after the fence means the text is not a fence. Do not search for JSON inside prose. (2) If JSON.parse fails, the only error is \"$: not valid JSON\". (3) If the value is not a plain object (null, an array, a string, a number), the only error is \"$: expected an object\". (4) Otherwise collect errors: first \"$.<key>: unexpected key\" for each key that is not one of the four, in the order of the object's keys; then the four fields in this order. hint: \"$.hint: required\" when the key is absent, \"$.hint: expected a string\", \"$.hint: must not be blank\" (empty or only whitespace), \"$.hint: longer than 400 characters\" (string length; exactly 400 is allowed). level: \"$.level: required\" or \"$.level: expected 1, 2 or 3\" (only the numbers 1, 2 and 3; the string \"2\" is an error). references: \"$.references: required\", \"$.references: expected an array\", or, for an array, \"$.references: more than 3 items\" when it has more than 3, then \"$.references[<i>]: expected a string\" for every item that is not a string. revealsSolution: \"$.revealsSolution: required\" or \"$.revealsSolution: expected a boolean\". A key that is present with the value null is not absent: it gets the type error. Each field gets at most one error, except the items of references. (5) With no errors, value is a new object with exactly the four fields. revealsSolution: true is valid here: deciding what to do with it is the service's job, not the validator's. No libraries, and no `as HintAnswer`. The runner reads a list of raw outputs and prints the list of results as JSON.",
+      "difficulty": "easy",
+      "outcomes": [
+        "prompt-contract"
+      ],
+      "points": 20,
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "hints": [
+        "Which questions have to be answered before you can look at a single field: is there a fence around the whole text, is it JSON at all, is it an object? And once you reach the fields, should the first problem end the check, or should you keep going so the log shows everything that was wrong?",
+        "Look at four tools: a regular expression anchored at both ends (^ at the start and $ at the end, with a capture group for the content) for the fence; try/catch around JSON.parse with the result typed as unknown; a type guard isRecord(v) that rules out null and arrays; and Object.prototype.hasOwnProperty.call(obj, key) to tell an absent key from a key whose value is null. Object.keys(obj) gives the keys in their order for the unexpected-key check.",
+        "The same steps on a different schema, { severity: \"info\" | \"warning\"; line: integer >= 1 }, for the input {\"severity\":\"error\",\"line\":\"12\",\"author\":\"bot\"}: the keys are severity, line, author, so the first error is \"$.author: unexpected key\"; severity is present but not allowed -> \"$.severity: expected info or warning\"; line is a string -> \"$.line: expected an integer >= 1\". Three errors, returned together. For {\"severity\":\"info\"} the only error is \"$.line: required\". For [1, 2] the only error is \"$: expected an object\", and the fields are never looked at."
+      ],
+      "tests": [
+        {
+          "name": "A valid answer as plain JSON, in a ```json fence and in a bare ``` fence",
+          "input": [
+            "{\"hint\":\"Your loop starts at index 1. Which index does the first element of an array have?\",\"level\":1,\"references\":[\"Arrays, lesson 3\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Your loop starts at index 1. Which index does the first element of an array have?\",\n  \"level\": 2,\n  \"references\": [],\n  \"revealsSolution\": false\n}\n```",
+            "```\n{\"hint\":\"Your loop starts at index 1. Which index does the first element of an array have?\",\"level\":3,\"references\":[\"Loops\",\"Arrays, lesson 3\",\"Off-by-one errors\"],\"revealsSolution\":true}\n```\n"
+          ],
+          "expected": [
+            {
+              "ok": true,
+              "value": {
+                "hint": "Your loop starts at index 1. Which index does the first element of an array have?",
+                "level": 1,
+                "references": [
+                  "Arrays, lesson 3"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Your loop starts at index 1. Which index does the first element of an array have?",
+                "level": 2,
+                "references": [],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Your loop starts at index 1. Which index does the first element of an array have?",
+                "level": 3,
+                "references": [
+                  "Loops",
+                  "Arrays, lesson 3",
+                  "Off-by-one errors"
+                ],
+                "revealsSolution": true
+              }
+            }
+          ],
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "The incident: JSON wrapped in prose, and level \"2\" with references as a string",
+          "input": [
+            "Sure! Here is a hint for you:\n```json\n{\"hint\":\"Check where your loop starts.\",\"level\":\"2\",\"references\":\"Arrays, lesson 3\",\"revealsSolution\":false}\n```\nGood luck!",
+            "{\"hint\":\"Check where your loop starts.\",\"level\":\"2\",\"references\":\"Arrays, lesson 3\",\"revealsSolution\":false}"
+          ],
+          "expected": [
+            {
+              "ok": false,
+              "errors": [
+                "$: not valid JSON"
+              ]
+            },
+            {
+              "ok": false,
+              "errors": [
+                "$.level: expected 1, 2 or 3",
+                "$.references: expected an array"
+              ]
+            }
+          ],
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Fences: JSON tag in capitals, CRLF, spaces around; code fences inside the hint string",
+          "input": [
+            "  \n```JSON  \r\n{\"hint\":\"Your loop starts at index 1. Which index does the first element of an array have?\",\"level\":1,\"references\":[\"Arrays, lesson 3\"],\"revealsSolution\":false}\r\n```  \n",
+            "{\"hint\":\"Compare with this loop:\\n```ts\\nfor (let i = 0; i < n; i++) {}\\n```\\nWhat is different?\",\"level\":1,\"references\":[\"Arrays, lesson 3\"],\"revealsSolution\":false}",
+            "```json\n{\"hint\":\"Compare with:\\n```ts\\nfor (let i = 0; ...)\\n```\",\"level\":1,\"references\":[\"Arrays, lesson 3\"],\"revealsSolution\":false}\n```",
+            "```json\n{\"hint\":\"Your loop starts at index 1. Which index does the first element of an array have?\",\"level\":1,\"references\":[\"Arrays, lesson 3\"],\"revealsSolution\":false}\n```\nHope this helps!",
+            "```json {\"hint\":\"Your loop starts at index 1. Which index does the first element of an array have?\",\"level\":1,\"references\":[\"Arrays, lesson 3\"],\"revealsSolution\":false} ```"
+          ],
+          "expected": [
+            {
+              "ok": true,
+              "value": {
+                "hint": "Your loop starts at index 1. Which index does the first element of an array have?",
+                "level": 1,
+                "references": [
+                  "Arrays, lesson 3"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Compare with this loop:\n```ts\nfor (let i = 0; i < n; i++) {}\n```\nWhat is different?",
+                "level": 1,
+                "references": [
+                  "Arrays, lesson 3"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Compare with:\n```ts\nfor (let i = 0; ...)\n```",
+                "level": 1,
+                "references": [
+                  "Arrays, lesson 3"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": false,
+              "errors": [
+                "$: not valid JSON"
+              ]
+            },
+            {
+              "ok": false,
+              "errors": [
+                "$: not valid JSON"
+              ]
+            }
+          ],
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Unexpected keys in input order, then required keys; an empty object lists all four",
+          "input": [
+            "{\"solution\":\"for (let i = 0; i < xs.length; i++) total += xs[i];\",\"hint\":\"Your loop starts at index 1. Which index does the first element of an array have?\",\"level\":1,\"references\":[\"Arrays, lesson 3\"],\"revealsSolution\":false,\"confidence\":0.92}",
+            "{\"hint\":\"Check the loop.\"}",
+            "{}"
+          ],
+          "expected": [
+            {
+              "ok": false,
+              "errors": [
+                "$.solution: unexpected key",
+                "$.confidence: unexpected key"
+              ]
+            },
+            {
+              "ok": false,
+              "errors": [
+                "$.level: required",
+                "$.references: required",
+                "$.revealsSolution: required"
+              ]
+            },
+            {
+              "ok": false,
+              "errors": [
+                "$.hint: required",
+                "$.level: required",
+                "$.references: required",
+                "$.revealsSolution: required"
+              ]
+            }
+          ],
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Wrong types and limits: every error is reported with its path, in schema order",
+          "input": [
+            "{\"hint\":42,\"level\":0,\"references\":[\"a\",2,null,\"d\"],\"revealsSolution\":\"false\"}",
+            "{\"hint\":\"   \\n \",\"level\":2.5,\"references\":[],\"revealsSolution\":false}",
+            "{\"hint\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"level\":4,\"references\":[[\"nested\"]],\"revealsSolution\":0}",
+            "{\"hint\":\"yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\",\"level\":3,\"references\":[\"a\",\"b\",\"c\"],\"revealsSolution\":false}",
+            "{\"hint\":null,\"level\":null,\"references\":null,\"revealsSolution\":null}"
+          ],
+          "expected": [
+            {
+              "ok": false,
+              "errors": [
+                "$.hint: expected a string",
+                "$.level: expected 1, 2 or 3",
+                "$.references: more than 3 items",
+                "$.references[1]: expected a string",
+                "$.references[2]: expected a string",
+                "$.revealsSolution: expected a boolean"
+              ]
+            },
+            {
+              "ok": false,
+              "errors": [
+                "$.hint: must not be blank",
+                "$.level: expected 1, 2 or 3"
+              ]
+            },
+            {
+              "ok": false,
+              "errors": [
+                "$.hint: longer than 400 characters",
+                "$.level: expected 1, 2 or 3",
+                "$.references[0]: expected a string",
+                "$.revealsSolution: expected a boolean"
+              ]
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+                "level": 3,
+                "references": [
+                  "a",
+                  "b",
+                  "c"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": false,
+              "errors": [
+                "$.hint: expected a string",
+                "$.level: expected 1, 2 or 3",
+                "$.references: expected an array",
+                "$.revealsSolution: expected a boolean"
+              ]
+            }
+          ],
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Not an object or not JSON: array, null, string, number, empty, truncated output",
+          "input": [
+            "[]",
+            "null",
+            "\"Check your loop\"",
+            "42",
+            "",
+            "   ",
+            "{\"hint\":\"Your loop starts at index 1, so the first element is never added. Look at the initial value of i and compare it with the first ind",
+            "Check where your loop starts."
+          ],
+          "expected": [
+            {
+              "ok": false,
+              "errors": [
+                "$: expected an object"
+              ]
+            },
+            {
+              "ok": false,
+              "errors": [
+                "$: expected an object"
+              ]
+            },
+            {
+              "ok": false,
+              "errors": [
+                "$: expected an object"
+              ]
+            },
+            {
+              "ok": false,
+              "errors": [
+                "$: expected an object"
+              ]
+            },
+            {
+              "ok": false,
+              "errors": [
+                "$: not valid JSON"
+              ]
+            },
+            {
+              "ok": false,
+              "errors": [
+                "$: not valid JSON"
+              ]
+            },
+            {
+              "ok": false,
+              "errors": [
+                "$: not valid JSON"
+              ]
+            },
+            {
+              "ok": false,
+              "errors": [
+                "$: not valid JSON"
+              ]
+            }
+          ],
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Large input: 150 recorded answers, four of them broken in different ways",
+          "input": [
+            "```json\n{\n  \"hint\": \"Hint 0: look at line 1. What value does i have after the first iteration? Compare it with the expected output of test 1.\",\n  \"level\": 1,\n  \"references\": [],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 1: look at line 2. What value does total have after the second iteration? Compare it with the expected output of test 2.\",\"level\":2,\"references\":[\"Loops\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 2: look at line 3. What value does left have after the last iteration? Compare it with the expected output of test 3.\",\n  \"level\": 3,\n  \"references\": [\n    \"Off-by-one errors\",\n    \"Strings, lesson 2\"\n  ],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 3: look at line 4. What value does acc have after the first iteration? Compare it with the expected output of test 4.\",\"level\":1,\"references\":[\"Strings, lesson 2\",\"Recursion\",\"Maps and sets\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 4: look at line 5. What value does i have after the second iteration? Compare it with the expected output of test 5.\",\n  \"level\": 2,\n  \"references\": [],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 5: look at line 6. What value does total have after the last iteration? Compare it with the expected output of test 6.\",\"level\":3,\"references\":[\"Loops\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 6: look at line 7. What value does left have after the first iteration? Compare it with the expected output of test 7.\",\n  \"level\": 1,\n  \"references\": [\n    \"Off-by-one errors\",\n    \"Strings, lesson 2\"\n  ],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 7: look at line 8. What value does acc have after the second iteration? Compare it with the expected output of test 1.\",\"level\":2,\"references\":[\"Strings, lesson 2\",\"Recursion\",\"Maps and sets\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 8: look at line 9. What value does i have after the last iteration? Compare it with the expected output of test 2.\",\n  \"level\": 3,\n  \"references\": [],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 9: look at line 10. What value does total have after the first iteration? Compare it with the expected output of test 3.\",\"level\":1,\"references\":[\"Loops\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 10: look at line 11. What value does left have after the second iteration? Compare it with the expected output of test 4.\",\n  \"level\": 2,\n  \"references\": [\n    \"Off-by-one errors\",\n    \"Strings, lesson 2\"\n  ],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 11: look at line 12. What value does acc have after the last iteration? Compare it with the expected output of test 5.\",\"level\":3,\"references\":[\"Strings, lesson 2\",\"Recursion\",\"Maps and sets\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 12: look at line 13. What value does i have after the first iteration? Compare it with the expected output of test 6.\",\n  \"level\": 1,\n  \"references\": [],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 13: look at line 14. What value does total have after the second iteration? Compare it with the expected output of test 7.\",\"level\":2,\"references\":[\"Loops\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 14: look at line 15. What value does left have after the last iteration? Compare it with the expected output of test 1.\",\n  \"level\": 3,\n  \"references\": [\n    \"Off-by-one errors\",\n    \"Strings, lesson 2\"\n  ],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 15: look at line 16. What value does acc have after the first iteration? Compare it with the expected output of test 2.\",\"level\":1,\"references\":[\"Strings, lesson 2\",\"Recursion\",\"Maps and sets\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 16: look at line 17. What value does i have after the second iteration? Compare it with the expected output of test 3.\",\n  \"level\": 2,\n  \"references\": [],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 17: look at line 18. What value does total have after the last iteration? Compare it with the expected output of test 4.\",\"level\":\"3\",\"references\":[\"Loops\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 18: look at line 19. What value does left have after the first iteration? Compare it with the expected output of test 5.\",\n  \"level\": 1,\n  \"references\": [\n    \"Off-by-one errors\",\n    \"Strings, lesson 2\"\n  ],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 19: look at line 20. What value does acc have after the second iteration? Compare it with the expected output of test 6.\",\"level\":2,\"references\":[\"Strings, lesson 2\",\"Recursion\",\"Maps and sets\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 20: look at line 21. What value does i have after the last iteration? Compare it with the expected output of test 7.\",\n  \"level\": 3,\n  \"references\": [],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 21: look at line 22. What value does total have after the first iteration? Compare it with the expected output of test 1.\",\"level\":1,\"references\":[\"Loops\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 22: look at line 23. What value does left have after the second iteration? Compare it with the expected output of test 2.\",\n  \"level\": 2,\n  \"references\": [\n    \"Off-by-one errors\",\n    \"Strings, lesson 2\"\n  ],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 23: look at line 24. What value does acc have after the last iteration? Compare it with the expected output of test 3.\",\"level\":3,\"references\":[\"Strings, lesson 2\",\"Recursion\",\"Maps and sets\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 24: look at line 25. What value does i have after the first iteration? Compare it with the expected output of test 4.\",\n  \"level\": 1,\n  \"references\": [],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 25: look at line 26. What value does total have after the second iteration? Compare it with the expected output of test 5.\",\"level\":2,\"references\":[\"Loops\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 26: look at line 27. What value does left have after the last iteration? Compare it with the expected output of test 6.\",\n  \"level\": 3,\n  \"references\": [\n    \"Off-by-one errors\",\n    \"Strings, lesson 2\"\n  ],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 27: look at line 28. What value does acc have after the first iteration? Compare it with the expected output of test 7.\",\"level\":1,\"references\":[\"Strings, lesson 2\",\"Recursion\",\"Maps and sets\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 28: look at line 29. What value does i have after the second iteration? Compare it with the expected output of test 1.\",\n  \"level\": 2,\n  \"references\": [],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 29: look at line 30. What value does total have after the last iteration? Compare it with the expected output of test 2.\",\"level\":3,\"references\":[\"Loops\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 30: look at line 31. What value does left have after the first iteration? Compare it with the expected output of test 3.\",\n  \"level\": 1,\n  \"references\": [\n    \"Off-by-one errors\",\n    \"Strings, lesson 2\"\n  ],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 31: look at line 32. What value does acc have after the second iteration? Compare it with the expected output of test 4.\",\"level\":2,\"references\":[\"Strings, lesson 2\",\"Recursion\",\"Maps and sets\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 32: look at line 33. What value does i have after the last iteration? Compare it with the expected output of test 5.\",\n  \"level\": 3,\n  \"references\": [],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 33: look at line 34. What value does total have after the first iteration? Compare it with the expected output of test 6.\",\"level\":1,\"references\":[\"Loops\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 34: look at line 35. What value does left have after the second iteration? Compare it with the expected output of test 7.\",\n  \"level\": 2,\n  \"references\": [\n    \"Off-by-one errors\",\n    \"Strings, lesson 2\"\n  ],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 35: look at line 36. What value does acc have after the last iteration? Compare it with the expected output of test 1.\",\"level\":3,\"references\":[\"Strings, lesson 2\",\"Recursion\",\"Maps and sets\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 36: look at line 37. What value does i have after the first iteration? Compare it with the expected output of test 2.\",\n  \"level\": 1,\n  \"references\": [],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 37: look at line 38. What value does total have after the second iteration? Compare it with the expected output of test 3.\",\"level\":2,\"references\":[\"Loops\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 38: look at line 39. What value does left have after the last iteration? Compare it with the expected output of test 4.\",\n  \"level\": 3,\n  \"references\": [\n    \"Off-by-one errors\",\n    \"Strings, lesson 2\"\n  ],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 39: look at line 40. What value does acc have after the first iteration? Compare it with the expected output of test 5.\",\"level\":1,\"references\":[\"Strings, lesson 2\",\"Recursion\",\"Maps and sets\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 40: look at line 1. What value does i have after the second iteration? Compare it with the expected output of test 6.\",\n  \"level\": 2,\n  \"references\": [],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 41: look at line 2. What value does total have after the last iteration? Compare it with the expected output of test 7.\",\"level\":3,\"references\":[\"Loops\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 42: look at line 3. What value does left have after the first iteration? Compare it with the expected output of test 1.\",\n  \"level\": 1,\n  \"references\": [\n    \"Off-by-one errors\",\n    \"Strings, lesson 2\"\n  ],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 43: look at line 4. What value does acc have after the second iteration? Compare it with the expected output of test 2.\",\"level\":2,\"references\":[\"Strings, lesson 2\",\"Recursion\",\"Maps and sets\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 44: look at line 5. What value does i have after the last iteration? Compare it with the expected output of test 3.\",\n  \"level\": 3,\n  \"references\": [],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 45: look at line 6. What value does total have after the first iteration? Compare it with the expected output of test 4.\",\"level\":1,\"references\":[\"Loops\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 46: look at line 7. What value does left have after the second iteration? Compare it with the expected output of test 5.\",\n  \"level\": 2,\n  \"references\": [\n    \"Off-by-one errors\",\n    \"Strings, lesson 2\"\n  ],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 47: look at line 8. What value does acc have after the last iteration? Compare it with the expected output of test 6.\",\"level\":3,\"references\":[\"Strings, lesson 2\",\"Recursion\",\"Maps and sets\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 48: look at line 9. What value does i have after the first iteration? Compare it with the expected output of test 7.\",\n  \"level\": 1,\n  \"references\": [],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 49: look at line 10. What value does total have after the second iteration? Compare it with the expected output of test 1.\",\"level\":2,\"references\":[\"Loops\"],\"revealsSolution\":true}",
+            "```json\n{\n  \"hint\": \"Hint 50: look at line 11. What value does left have after the last iteration? Compare it with the expected output of test 2.\",\n  \"level\": 3,\n  \"references\": [\n    \"Off-by-one errors\",\n    \"Strings, lesson 2\"\n  ],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 51: look at line 12. What value does acc have after the first iteration? Compare it with the expected output of test 3.\",\"level\":1,\"references\":[\"Strings, lesson 2\",\"Recursion\",\"Maps and sets\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 52: look at line 13. What value does i have after the second iteration? Compare it with the expected output of test 4.\",\n  \"level\": 2,\n  \"references\": [],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 53: look at line 14. What value does total have after the last iteration? Compare it with the expected output of test 5.\",\"level\":3,\"references\":[\"Loops\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 54: look at line 15. What value does left have after the first iteration? Compare it with the expected output of test 6.\",\n  \"level\": 1,\n  \"references\": [\n    \"Off-by-one errors\",\n    \"Strings, lesson 2\"\n  ],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 55: look at line 16. What value does acc have after the second iteration? Compare it with the expected output of test 7.\",\"level\":2,\"references\":[\"Strings, lesson 2\",\"Recursion\",\"Maps and sets\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 56: look at line 17. What value does i have after the last iteration? Compare it with the expected output of test 1.\",\n  \"level\": 3,\n  \"references\": [],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 57: look at line 18. What value does total have after the first iteration? Compare it with the expected output of test 2.\",\"level\":1,\"references\":[\"Loops\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 58: look at line 19. What value does left have after the second iteration? Compare it with the expected output of test 3.\",\n  \"level\": 2,\n  \"references\": [\n    \"Off-by-one errors\",\n    \"Strings, lesson 2\"\n  ],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 59: look at line 20. What value does acc have after the last iteration? Compare it with the expected output of test 4.\",\"level\":3,\"references\":[\"Strings, lesson 2\",\"Recursion\",\"Maps and sets\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 60: look at line 21. What value does i have after the first iteration? Compare it with the expected output of test 5.\",\n  \"level\": 1,\n  \"references\": [],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 61: look at line 22. What value does total have after the second iteration? Compare it with the expected output of test 6.\",\"level\":2,\"references\":[\"Loops\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 62: look at line 23. What value does left have after the last iteration? Compare it with the expected output of test 7.\",\n  \"level\": 3,\n  \"references\": [\n    \"Off-by-one errors\",\n    \"Strings, lesson 2\"\n  ],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 63: look at line 24. What value does acc have after the first iteration? Compare it with the expected output of test 1.\",\"level\":1,\"references\":[\"Strings, lesson 2\",\"Recursion\",\"Maps and sets\"],\"revealsSolution\":false}",
+            "Here you go: ```json\n{\n  \"hint\": \"Hint 64: look at line 25. What value does i have after the second iteration? Compare it with the expected output of test 2.\",\n  \"level\": 2,\n  \"references\": [],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 65: look at line 26. What value does total have after the last iteration? Compare it with the expected output of test 3.\",\"level\":3,\"references\":[\"Loops\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 66: look at line 27. What value does left have after the first iteration? Compare it with the expected output of test 4.\",\n  \"level\": 1,\n  \"references\": [\n    \"Off-by-one errors\",\n    \"Strings, lesson 2\"\n  ],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 67: look at line 28. What value does acc have after the second iteration? Compare it with the expected output of test 5.\",\"level\":2,\"references\":[\"Strings, lesson 2\",\"Recursion\",\"Maps and sets\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 68: look at line 29. What value does i have after the last iteration? Compare it with the expected output of test 6.\",\n  \"level\": 3,\n  \"references\": [],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 69: look at line 30. What value does total have after the first iteration? Compare it with the expected output of test 7.\",\"level\":1,\"references\":[\"Loops\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 70: look at line 31. What value does left have after the second iteration? Compare it with the expected output of test 1.\",\n  \"level\": 2,\n  \"references\": [\n    \"Off-by-one errors\",\n    \"Strings, lesson 2\"\n  ],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 71: look at line 32. What value does acc have after the last iteration? Compare it with the expected output of test 2.\",\"level\":3,\"references\":[\"Strings, lesson 2\",\"Recursion\",\"Maps and sets\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 72: look at line 33. What value does i have after the first iteration? Compare it with the expected output of test 3.\",\n  \"level\": 1,\n  \"references\": [],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 73: look at line 34. What value does total have after the second iteration? Compare it with the expected output of test 4.\",\"level\":2,\"references\":[\"Loops\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 74: look at line 35. What value does left have after the last iteration? Compare it with the expected output of test 5.\",\n  \"level\": 3,\n  \"references\": [\n    \"Off-by-one errors\",\n    \"Strings, lesson 2\"\n  ],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 75: look at line 36. What value does acc have after the first iteration? Compare it with the expected output of test 6.\",\"level\":1,\"references\":[\"Strings, lesson 2\",\"Recursion\",\"Maps and sets\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 76: look at line 37. What value does i have after the second iteration? Compare it with the expected output of test 7.\",\n  \"level\": 2,\n  \"references\": [],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 77: look at line 38. What value does total have after the last iteration? Compare it with the expected output of test 1.\",\"level\":3,\"references\":[\"Loops\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 78: look at line 39. What value does left have after the first iteration? Compare it with the expected output of test 2.\",\n  \"level\": 1,\n  \"references\": [\n    \"Off-by-one errors\",\n    \"Strings, lesson 2\"\n  ],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 79: look at line 40. What value does acc have after the second iteration? Compare it with the expected output of test 3.\",\"level\":2,\"references\":[\"Strings, lesson 2\",\"Recursion\",\"Maps and sets\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 80: look at line 1. What value does i have after the last iteration? Compare it with the expected output of test 4.\",\n  \"level\": 3,\n  \"references\": [],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 81: look at line 2. What value does total have after the first iteration? Compare it with the expected output of test 5.\",\"level\":1,\"references\":[\"Loops\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 82: look at line 3. What value does left have after the second iteration? Compare it with the expected output of test 6.\",\n  \"level\": 2,\n  \"references\": [\n    \"Off-by-one errors\",\n    \"Strings, lesson 2\"\n  ],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 83: look at line 4. What value does acc have after the last iteration? Compare it with the expected output of test 7.\",\"level\":3,\"references\":[\"Strings, lesson 2\",\"Recursion\",\"Maps and sets\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 84: look at line 5. What value does i have after the first iteration? Compare it with the expected output of test 1.\",\n  \"level\": 1,\n  \"references\": [],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 85: look at line 6. What value does total have after the second iteration? Compare it with the expected output of test 2.\",\"level\":2,\"references\":[\"Loops\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 86: look at line 7. What value does left have after the last iteration? Compare it with the expected output of test 3.\",\n  \"level\": 3,\n  \"references\": [\n    \"Off-by-one errors\",\n    \"Strings, lesson 2\"\n  ],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 87: look at line 8. What value does acc have after the first iteration? Compare it with the expected output of test 4.\",\"level\":1,\"references\":[\"Strings, lesson 2\",\"Recursion\",\"Maps and sets\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 88: look at line 9. What value does i have after the second iteration? Compare it with the expected output of test 5.\",\n  \"level\": 2,\n  \"references\": [],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 89: look at line 10. What value does total have after the last iteration? Compare it with the expected output of test 6.\",\"level\":3,\"references\":[\"Loops\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 90: look at line 11. What value does left have after the first iteration? Compare it with the expected output of test 7.\",\n  \"level\": 1,\n  \"references\": [\n    \"Off-by-one errors\",\n    \"Strings, lesson 2\"\n  ],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 91: look at line 12. What value does acc have after the second iteration? Compare it with the expected output of test 1.\",\"level\":2,\"references\":[\"Strings, lesson 2\",\"Recursion\",\"Maps and sets\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 92: look at line 13. What value does i have after the last iteration? Compare it with the expected output of test 2.\",\n  \"level\": 3,\n  \"references\": [],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 93: look at line 14. What value does total have after the first iteration? Compare it with the expected output of test 3.\",\"level\":1,\"references\":[\"Loops\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 94: look at line 15. What value does left have after the second iteration? Compare it with the expected output of test 4.\",\n  \"level\": 2,\n  \"references\": [\n    \"Off-by-one errors\",\n    \"Strings, lesson 2\"\n  ],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 95: look at line 16. What value does acc have after the last iteration? Compare it with the expected output of test 5.\",\"level\":3,\"references\":[\"Strings, lesson 2\",\"Recursion\",\"Maps and sets\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 96: look at line 17. What value does i have after the first iteration? Compare it with the expected output of test 6.\",\n  \"level\": 1,\n  \"references\": [],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 97: look at line 18. What value does total have after the second iteration? Compare it with the expected output of test 7.\",\"level\":2,\"references\":[\"Loops\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 98: look at line 19. What value does left have after the last iteration? Compare it with the expected output of test 1.\",\n  \"level\": 3,\n  \"references\": [\n    \"Off-by-one errors\",\n    \"Strings, lesson 2\"\n  ],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 99: look at line 20. What value does acc have after the first iteration? Compare it with the expected output of test 2.\",\"level\":1,\"references\":[\"Strings, lesson 2\",\"Recursion\",\"Maps and sets\"],\"revealsSolution\":true}",
+            "```json\n{\n  \"hint\": \"Hint 100: look at line 21. What value does i have after the second iteration? Compare it with the expected output of test 3.\",\n  \"level\": 2,\n  \"references\": [],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 101: look at line 22. What value does total have after the last iteration? Compare it with the expected output of test 4.\",\"level\":3,\"references\":[\"Loops\"],\"revealsSolution\":false,\"solution\":\"return xs.reduce((a, b) => a + b, 0);\"}",
+            "```json\n{\n  \"hint\": \"Hint 102: look at line 23. What value does left have after the first iteration? Compare it with the expected output of test 5.\",\n  \"level\": 1,\n  \"references\": [\n    \"Off-by-one errors\",\n    \"Strings, lesson 2\"\n  ],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 103: look at line 24. What value does acc have after the second iteration? Compare it with the expected output of test 6.\",\"level\":2,\"references\":[\"Strings, lesson 2\",\"Recursion\",\"Maps and sets\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 104: look at line 25. What value does i have after the last iteration? Compare it with the expected output of test 7.\",\n  \"level\": 3,\n  \"references\": [],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 105: look at line 26. What value does total have after the first iteration? Compare it with the expected output of test 1.\",\"level\":1,\"references\":[\"Loops\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 106: look at line 27. What value does left have after the second iteration? Compare it with the expected output of test 2.\",\n  \"level\": 2,\n  \"references\": [\n    \"Off-by-one errors\",\n    \"Strings, lesson 2\"\n  ],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 107: look at line 28. What value does acc have after the last iteration? Compare it with the expected output of test 3.\",\"level\":3,\"references\":[\"Strings, lesson 2\",\"Recursion\",\"Maps and sets\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 108: look at line 29. What value does i have after the first iteration? Compare it with the expected output of test 4.\",\n  \"level\": 1,\n  \"references\": [],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 109: look at line 30. What value does total have after the second iteration? Compare it with the expected output of test 5.\",\"level\":2,\"references\":[\"Loops\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 110: look at line 31. What value does left have after the last iteration? Compare it with the expected output of test 6.\",\n  \"level\": 3,\n  \"references\": [\n    \"Off-by-one errors\",\n    \"Strings, lesson 2\"\n  ],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 111: look at line 32. What value does acc have after the first iteration? Compare it with the expected output of test 7.\",\"level\":1,\"references\":[\"Strings, lesson 2\",\"Recursion\",\"Maps and sets\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 112: look at line 33. What value does i have after the second iteration? Compare it with the expected output of test 1.\",\n  \"level\": 2,\n  \"references\": [],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 113: look at line 34. What value does total have after the last iteration? Compare it with the expected output of test 2.\",\"level\":3,\"references\":[\"Loops\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 114: look at line 35. What value does left have after the first iteration? Compare it with the expected output of test 3.\",\n  \"level\": 1,\n  \"references\": [\n    \"Off-by-one errors\",\n    \"Strings, lesson 2\"\n  ],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 115: look at line 36. What value does acc have after the second iteration? Compare it with the expected output of test 4.\",\"level\":2,\"references\":[\"Strings, lesson 2\",\"Recursion\",\"Maps and sets\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 116: look at line 37. What value does i have after the last iteration? Compare it with the expected output of test 5.\",\n  \"level\": 3,\n  \"references\": [],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 117: look at line 38. What value does total have after the first iteration? Compare it with the expected output of test 6.\",\"level\":1,\"references\":[\"Loops\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 118: look at line 39. What value does left have after the second iteration? Compare it with the expected output of test 7.\",\n  \"level\": 2,\n  \"references\": [\n    \"Off-by-one errors\",\n    \"Strings, lesson 2\"\n  ],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 119: look at line 40. What value does acc have after the last iteration? Compare it with the expected output of test 1.\",\"level\":3,\"references\":[\"Strings, lesson 2\",\"Recursion\",\"Maps and sets\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 120: look at line 1. What value does i have after the first iteration? Compare it with the expected output of test 2.\",\n  \"level\": 1,\n  \"references\": [],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 121: look at line 2. What value does total have after the second iteration? Compare it with the expected output of test 3.\",\"level\":2,\"references\":[\"Loops\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 122: look at line 3. What value does left have after the last iteration? Compare it with the expected output of test 4.\",\n  \"level\": 3,\n  \"references\": [\n    \"Off-by-one errors\",\n    \"Strings, lesson 2\"\n  ],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 123: look at line 4. What value does acc have after the first iteration? Compare it with the expected output of test 5.\",\"level\":1,\"references\":[\"Strings, lesson 2\",\"Recursion\",\"Maps and sets\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 124: look at line 5. What value does i have after the second iteration? Compare it with the expected output of test 6.\",\n  \"level\": 2,\n  \"references\": [],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 125: look at line 6. What value does total have after the last iteration? Compare it with the expected output of test 7.\",\"level\":3,\"references\":[\"Loops\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 126: look at line 7. What value does left have after the first iteration? Compare it with the expected output of test 1.\",\n  \"level\": 1,\n  \"references\": [\n    \"Off-by-one errors\",\n    \"Strings, lesson 2\"\n  ],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 127: look at line 8. What value does acc have after the second iteration? Compare it with the expected output of test 2.\",\"level\":2,\"references\":[\"Strings, lesson 2\",\"Recursion\",\"Maps and sets\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 128: look at line 9. What value does i have after the last iteration? Compare it with the expected output of test 3.\",\n  \"level\": 3,\n  \"references\": [],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 129: look at line 10. What value does total have after the first iteration? Compare it with the expected output of test 4.\",\"level\":1,\"references\":[\"Loops\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 130: look at line 11. What value does left have after the second iteration? Compare it with the expected output of test 5.\",\n  \"level\": 2,\n  \"references\": [\n    \"Off-by-one errors\",\n    \"Strings, lesson 2\"\n  ],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 131: look at line 12. What value does acc have after the last iteration? Compare it with the expected output of test 6.\",\"level\":3,\"references\":[\"Strings, lesson 2\",\"Recursion\",\"Maps and sets\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 132: look at line 13. What value does i have after the first iteration? Compare it with the expected output of test 7.\",\n  \"level\": 1,\n  \"references\": [],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 133: look at line 14. What value does total have after the second iteration? Compare it with the expected output of test 1.\",\"level\":2,\"references\":[\"Arrays, lesson 3\",\"Loops\",\"Off-by-one errors\",\"Strings, lesson 2\",\"Recursion\",\"Maps and sets\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 134: look at line 15. What value does left have after the last iteration? Compare it with the expected output of test 2.\",\n  \"level\": 3,\n  \"references\": [\n    \"Off-by-one errors\",\n    \"Strings, lesson 2\"\n  ],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 135: look at line 16. What value does acc have after the first iteration? Compare it with the expected output of test 3.\",\"level\":1,\"references\":[\"Strings, lesson 2\",\"Recursion\",\"Maps and sets\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 136: look at line 17. What value does i have after the second iteration? Compare it with the expected output of test 4.\",\n  \"level\": 2,\n  \"references\": [],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 137: look at line 18. What value does total have after the last iteration? Compare it with the expected output of test 5.\",\"level\":3,\"references\":[\"Loops\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 138: look at line 19. What value does left have after the first iteration? Compare it with the expected output of test 6.\",\n  \"level\": 1,\n  \"references\": [\n    \"Off-by-one errors\",\n    \"Strings, lesson 2\"\n  ],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 139: look at line 20. What value does acc have after the second iteration? Compare it with the expected output of test 7.\",\"level\":2,\"references\":[\"Strings, lesson 2\",\"Recursion\",\"Maps and sets\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 140: look at line 21. What value does i have after the last iteration? Compare it with the expected output of test 1.\",\n  \"level\": 3,\n  \"references\": [],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 141: look at line 22. What value does total have after the first iteration? Compare it with the expected output of test 2.\",\"level\":1,\"references\":[\"Loops\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 142: look at line 23. What value does left have after the second iteration? Compare it with the expected output of test 3.\",\n  \"level\": 2,\n  \"references\": [\n    \"Off-by-one errors\",\n    \"Strings, lesson 2\"\n  ],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 143: look at line 24. What value does acc have after the last iteration? Compare it with the expected output of test 4.\",\"level\":3,\"references\":[\"Strings, lesson 2\",\"Recursion\",\"Maps and sets\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 144: look at line 25. What value does i have after the first iteration? Compare it with the expected output of test 5.\",\n  \"level\": 1,\n  \"references\": [],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 145: look at line 26. What value does total have after the second iteration? Compare it with the expected output of test 6.\",\"level\":2,\"references\":[\"Loops\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 146: look at line 27. What value does left have after the last iteration? Compare it with the expected output of test 7.\",\n  \"level\": 3,\n  \"references\": [\n    \"Off-by-one errors\",\n    \"Strings, lesson 2\"\n  ],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 147: look at line 28. What value does acc have after the first iteration? Compare it with the expected output of test 1.\",\"level\":1,\"references\":[\"Strings, lesson 2\",\"Recursion\",\"Maps and sets\"],\"revealsSolution\":false}",
+            "```json\n{\n  \"hint\": \"Hint 148: look at line 29. What value does i have after the second iteration? Compare it with the expected output of test 2.\",\n  \"level\": 2,\n  \"references\": [],\n  \"revealsSolution\": false\n}\n```",
+            "{\"hint\":\"Hint 149: look at line 30. What value does total have after the last iteration? Compare it with the expected output of test 3.\",\"level\":3,\"references\":[\"Loops\"],\"revealsSolution\":true}"
+          ],
+          "expected": [
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 0: look at line 1. What value does i have after the first iteration? Compare it with the expected output of test 1.",
+                "level": 1,
+                "references": [],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 1: look at line 2. What value does total have after the second iteration? Compare it with the expected output of test 2.",
+                "level": 2,
+                "references": [
+                  "Loops"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 2: look at line 3. What value does left have after the last iteration? Compare it with the expected output of test 3.",
+                "level": 3,
+                "references": [
+                  "Off-by-one errors",
+                  "Strings, lesson 2"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 3: look at line 4. What value does acc have after the first iteration? Compare it with the expected output of test 4.",
+                "level": 1,
+                "references": [
+                  "Strings, lesson 2",
+                  "Recursion",
+                  "Maps and sets"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 4: look at line 5. What value does i have after the second iteration? Compare it with the expected output of test 5.",
+                "level": 2,
+                "references": [],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 5: look at line 6. What value does total have after the last iteration? Compare it with the expected output of test 6.",
+                "level": 3,
+                "references": [
+                  "Loops"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 6: look at line 7. What value does left have after the first iteration? Compare it with the expected output of test 7.",
+                "level": 1,
+                "references": [
+                  "Off-by-one errors",
+                  "Strings, lesson 2"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 7: look at line 8. What value does acc have after the second iteration? Compare it with the expected output of test 1.",
+                "level": 2,
+                "references": [
+                  "Strings, lesson 2",
+                  "Recursion",
+                  "Maps and sets"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 8: look at line 9. What value does i have after the last iteration? Compare it with the expected output of test 2.",
+                "level": 3,
+                "references": [],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 9: look at line 10. What value does total have after the first iteration? Compare it with the expected output of test 3.",
+                "level": 1,
+                "references": [
+                  "Loops"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 10: look at line 11. What value does left have after the second iteration? Compare it with the expected output of test 4.",
+                "level": 2,
+                "references": [
+                  "Off-by-one errors",
+                  "Strings, lesson 2"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 11: look at line 12. What value does acc have after the last iteration? Compare it with the expected output of test 5.",
+                "level": 3,
+                "references": [
+                  "Strings, lesson 2",
+                  "Recursion",
+                  "Maps and sets"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 12: look at line 13. What value does i have after the first iteration? Compare it with the expected output of test 6.",
+                "level": 1,
+                "references": [],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 13: look at line 14. What value does total have after the second iteration? Compare it with the expected output of test 7.",
+                "level": 2,
+                "references": [
+                  "Loops"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 14: look at line 15. What value does left have after the last iteration? Compare it with the expected output of test 1.",
+                "level": 3,
+                "references": [
+                  "Off-by-one errors",
+                  "Strings, lesson 2"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 15: look at line 16. What value does acc have after the first iteration? Compare it with the expected output of test 2.",
+                "level": 1,
+                "references": [
+                  "Strings, lesson 2",
+                  "Recursion",
+                  "Maps and sets"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 16: look at line 17. What value does i have after the second iteration? Compare it with the expected output of test 3.",
+                "level": 2,
+                "references": [],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": false,
+              "errors": [
+                "$.level: expected 1, 2 or 3"
+              ]
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 18: look at line 19. What value does left have after the first iteration? Compare it with the expected output of test 5.",
+                "level": 1,
+                "references": [
+                  "Off-by-one errors",
+                  "Strings, lesson 2"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 19: look at line 20. What value does acc have after the second iteration? Compare it with the expected output of test 6.",
+                "level": 2,
+                "references": [
+                  "Strings, lesson 2",
+                  "Recursion",
+                  "Maps and sets"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 20: look at line 21. What value does i have after the last iteration? Compare it with the expected output of test 7.",
+                "level": 3,
+                "references": [],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 21: look at line 22. What value does total have after the first iteration? Compare it with the expected output of test 1.",
+                "level": 1,
+                "references": [
+                  "Loops"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 22: look at line 23. What value does left have after the second iteration? Compare it with the expected output of test 2.",
+                "level": 2,
+                "references": [
+                  "Off-by-one errors",
+                  "Strings, lesson 2"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 23: look at line 24. What value does acc have after the last iteration? Compare it with the expected output of test 3.",
+                "level": 3,
+                "references": [
+                  "Strings, lesson 2",
+                  "Recursion",
+                  "Maps and sets"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 24: look at line 25. What value does i have after the first iteration? Compare it with the expected output of test 4.",
+                "level": 1,
+                "references": [],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 25: look at line 26. What value does total have after the second iteration? Compare it with the expected output of test 5.",
+                "level": 2,
+                "references": [
+                  "Loops"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 26: look at line 27. What value does left have after the last iteration? Compare it with the expected output of test 6.",
+                "level": 3,
+                "references": [
+                  "Off-by-one errors",
+                  "Strings, lesson 2"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 27: look at line 28. What value does acc have after the first iteration? Compare it with the expected output of test 7.",
+                "level": 1,
+                "references": [
+                  "Strings, lesson 2",
+                  "Recursion",
+                  "Maps and sets"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 28: look at line 29. What value does i have after the second iteration? Compare it with the expected output of test 1.",
+                "level": 2,
+                "references": [],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 29: look at line 30. What value does total have after the last iteration? Compare it with the expected output of test 2.",
+                "level": 3,
+                "references": [
+                  "Loops"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 30: look at line 31. What value does left have after the first iteration? Compare it with the expected output of test 3.",
+                "level": 1,
+                "references": [
+                  "Off-by-one errors",
+                  "Strings, lesson 2"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 31: look at line 32. What value does acc have after the second iteration? Compare it with the expected output of test 4.",
+                "level": 2,
+                "references": [
+                  "Strings, lesson 2",
+                  "Recursion",
+                  "Maps and sets"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 32: look at line 33. What value does i have after the last iteration? Compare it with the expected output of test 5.",
+                "level": 3,
+                "references": [],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 33: look at line 34. What value does total have after the first iteration? Compare it with the expected output of test 6.",
+                "level": 1,
+                "references": [
+                  "Loops"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 34: look at line 35. What value does left have after the second iteration? Compare it with the expected output of test 7.",
+                "level": 2,
+                "references": [
+                  "Off-by-one errors",
+                  "Strings, lesson 2"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 35: look at line 36. What value does acc have after the last iteration? Compare it with the expected output of test 1.",
+                "level": 3,
+                "references": [
+                  "Strings, lesson 2",
+                  "Recursion",
+                  "Maps and sets"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 36: look at line 37. What value does i have after the first iteration? Compare it with the expected output of test 2.",
+                "level": 1,
+                "references": [],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 37: look at line 38. What value does total have after the second iteration? Compare it with the expected output of test 3.",
+                "level": 2,
+                "references": [
+                  "Loops"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 38: look at line 39. What value does left have after the last iteration? Compare it with the expected output of test 4.",
+                "level": 3,
+                "references": [
+                  "Off-by-one errors",
+                  "Strings, lesson 2"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 39: look at line 40. What value does acc have after the first iteration? Compare it with the expected output of test 5.",
+                "level": 1,
+                "references": [
+                  "Strings, lesson 2",
+                  "Recursion",
+                  "Maps and sets"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 40: look at line 1. What value does i have after the second iteration? Compare it with the expected output of test 6.",
+                "level": 2,
+                "references": [],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 41: look at line 2. What value does total have after the last iteration? Compare it with the expected output of test 7.",
+                "level": 3,
+                "references": [
+                  "Loops"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 42: look at line 3. What value does left have after the first iteration? Compare it with the expected output of test 1.",
+                "level": 1,
+                "references": [
+                  "Off-by-one errors",
+                  "Strings, lesson 2"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 43: look at line 4. What value does acc have after the second iteration? Compare it with the expected output of test 2.",
+                "level": 2,
+                "references": [
+                  "Strings, lesson 2",
+                  "Recursion",
+                  "Maps and sets"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 44: look at line 5. What value does i have after the last iteration? Compare it with the expected output of test 3.",
+                "level": 3,
+                "references": [],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 45: look at line 6. What value does total have after the first iteration? Compare it with the expected output of test 4.",
+                "level": 1,
+                "references": [
+                  "Loops"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 46: look at line 7. What value does left have after the second iteration? Compare it with the expected output of test 5.",
+                "level": 2,
+                "references": [
+                  "Off-by-one errors",
+                  "Strings, lesson 2"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 47: look at line 8. What value does acc have after the last iteration? Compare it with the expected output of test 6.",
+                "level": 3,
+                "references": [
+                  "Strings, lesson 2",
+                  "Recursion",
+                  "Maps and sets"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 48: look at line 9. What value does i have after the first iteration? Compare it with the expected output of test 7.",
+                "level": 1,
+                "references": [],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 49: look at line 10. What value does total have after the second iteration? Compare it with the expected output of test 1.",
+                "level": 2,
+                "references": [
+                  "Loops"
+                ],
+                "revealsSolution": true
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 50: look at line 11. What value does left have after the last iteration? Compare it with the expected output of test 2.",
+                "level": 3,
+                "references": [
+                  "Off-by-one errors",
+                  "Strings, lesson 2"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 51: look at line 12. What value does acc have after the first iteration? Compare it with the expected output of test 3.",
+                "level": 1,
+                "references": [
+                  "Strings, lesson 2",
+                  "Recursion",
+                  "Maps and sets"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 52: look at line 13. What value does i have after the second iteration? Compare it with the expected output of test 4.",
+                "level": 2,
+                "references": [],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 53: look at line 14. What value does total have after the last iteration? Compare it with the expected output of test 5.",
+                "level": 3,
+                "references": [
+                  "Loops"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 54: look at line 15. What value does left have after the first iteration? Compare it with the expected output of test 6.",
+                "level": 1,
+                "references": [
+                  "Off-by-one errors",
+                  "Strings, lesson 2"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 55: look at line 16. What value does acc have after the second iteration? Compare it with the expected output of test 7.",
+                "level": 2,
+                "references": [
+                  "Strings, lesson 2",
+                  "Recursion",
+                  "Maps and sets"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 56: look at line 17. What value does i have after the last iteration? Compare it with the expected output of test 1.",
+                "level": 3,
+                "references": [],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 57: look at line 18. What value does total have after the first iteration? Compare it with the expected output of test 2.",
+                "level": 1,
+                "references": [
+                  "Loops"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 58: look at line 19. What value does left have after the second iteration? Compare it with the expected output of test 3.",
+                "level": 2,
+                "references": [
+                  "Off-by-one errors",
+                  "Strings, lesson 2"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 59: look at line 20. What value does acc have after the last iteration? Compare it with the expected output of test 4.",
+                "level": 3,
+                "references": [
+                  "Strings, lesson 2",
+                  "Recursion",
+                  "Maps and sets"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 60: look at line 21. What value does i have after the first iteration? Compare it with the expected output of test 5.",
+                "level": 1,
+                "references": [],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 61: look at line 22. What value does total have after the second iteration? Compare it with the expected output of test 6.",
+                "level": 2,
+                "references": [
+                  "Loops"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 62: look at line 23. What value does left have after the last iteration? Compare it with the expected output of test 7.",
+                "level": 3,
+                "references": [
+                  "Off-by-one errors",
+                  "Strings, lesson 2"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 63: look at line 24. What value does acc have after the first iteration? Compare it with the expected output of test 1.",
+                "level": 1,
+                "references": [
+                  "Strings, lesson 2",
+                  "Recursion",
+                  "Maps and sets"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": false,
+              "errors": [
+                "$: not valid JSON"
+              ]
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 65: look at line 26. What value does total have after the last iteration? Compare it with the expected output of test 3.",
+                "level": 3,
+                "references": [
+                  "Loops"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 66: look at line 27. What value does left have after the first iteration? Compare it with the expected output of test 4.",
+                "level": 1,
+                "references": [
+                  "Off-by-one errors",
+                  "Strings, lesson 2"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 67: look at line 28. What value does acc have after the second iteration? Compare it with the expected output of test 5.",
+                "level": 2,
+                "references": [
+                  "Strings, lesson 2",
+                  "Recursion",
+                  "Maps and sets"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 68: look at line 29. What value does i have after the last iteration? Compare it with the expected output of test 6.",
+                "level": 3,
+                "references": [],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 69: look at line 30. What value does total have after the first iteration? Compare it with the expected output of test 7.",
+                "level": 1,
+                "references": [
+                  "Loops"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 70: look at line 31. What value does left have after the second iteration? Compare it with the expected output of test 1.",
+                "level": 2,
+                "references": [
+                  "Off-by-one errors",
+                  "Strings, lesson 2"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 71: look at line 32. What value does acc have after the last iteration? Compare it with the expected output of test 2.",
+                "level": 3,
+                "references": [
+                  "Strings, lesson 2",
+                  "Recursion",
+                  "Maps and sets"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 72: look at line 33. What value does i have after the first iteration? Compare it with the expected output of test 3.",
+                "level": 1,
+                "references": [],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 73: look at line 34. What value does total have after the second iteration? Compare it with the expected output of test 4.",
+                "level": 2,
+                "references": [
+                  "Loops"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 74: look at line 35. What value does left have after the last iteration? Compare it with the expected output of test 5.",
+                "level": 3,
+                "references": [
+                  "Off-by-one errors",
+                  "Strings, lesson 2"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 75: look at line 36. What value does acc have after the first iteration? Compare it with the expected output of test 6.",
+                "level": 1,
+                "references": [
+                  "Strings, lesson 2",
+                  "Recursion",
+                  "Maps and sets"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 76: look at line 37. What value does i have after the second iteration? Compare it with the expected output of test 7.",
+                "level": 2,
+                "references": [],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 77: look at line 38. What value does total have after the last iteration? Compare it with the expected output of test 1.",
+                "level": 3,
+                "references": [
+                  "Loops"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 78: look at line 39. What value does left have after the first iteration? Compare it with the expected output of test 2.",
+                "level": 1,
+                "references": [
+                  "Off-by-one errors",
+                  "Strings, lesson 2"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 79: look at line 40. What value does acc have after the second iteration? Compare it with the expected output of test 3.",
+                "level": 2,
+                "references": [
+                  "Strings, lesson 2",
+                  "Recursion",
+                  "Maps and sets"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 80: look at line 1. What value does i have after the last iteration? Compare it with the expected output of test 4.",
+                "level": 3,
+                "references": [],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 81: look at line 2. What value does total have after the first iteration? Compare it with the expected output of test 5.",
+                "level": 1,
+                "references": [
+                  "Loops"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 82: look at line 3. What value does left have after the second iteration? Compare it with the expected output of test 6.",
+                "level": 2,
+                "references": [
+                  "Off-by-one errors",
+                  "Strings, lesson 2"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 83: look at line 4. What value does acc have after the last iteration? Compare it with the expected output of test 7.",
+                "level": 3,
+                "references": [
+                  "Strings, lesson 2",
+                  "Recursion",
+                  "Maps and sets"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 84: look at line 5. What value does i have after the first iteration? Compare it with the expected output of test 1.",
+                "level": 1,
+                "references": [],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 85: look at line 6. What value does total have after the second iteration? Compare it with the expected output of test 2.",
+                "level": 2,
+                "references": [
+                  "Loops"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 86: look at line 7. What value does left have after the last iteration? Compare it with the expected output of test 3.",
+                "level": 3,
+                "references": [
+                  "Off-by-one errors",
+                  "Strings, lesson 2"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 87: look at line 8. What value does acc have after the first iteration? Compare it with the expected output of test 4.",
+                "level": 1,
+                "references": [
+                  "Strings, lesson 2",
+                  "Recursion",
+                  "Maps and sets"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 88: look at line 9. What value does i have after the second iteration? Compare it with the expected output of test 5.",
+                "level": 2,
+                "references": [],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 89: look at line 10. What value does total have after the last iteration? Compare it with the expected output of test 6.",
+                "level": 3,
+                "references": [
+                  "Loops"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 90: look at line 11. What value does left have after the first iteration? Compare it with the expected output of test 7.",
+                "level": 1,
+                "references": [
+                  "Off-by-one errors",
+                  "Strings, lesson 2"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 91: look at line 12. What value does acc have after the second iteration? Compare it with the expected output of test 1.",
+                "level": 2,
+                "references": [
+                  "Strings, lesson 2",
+                  "Recursion",
+                  "Maps and sets"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 92: look at line 13. What value does i have after the last iteration? Compare it with the expected output of test 2.",
+                "level": 3,
+                "references": [],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 93: look at line 14. What value does total have after the first iteration? Compare it with the expected output of test 3.",
+                "level": 1,
+                "references": [
+                  "Loops"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 94: look at line 15. What value does left have after the second iteration? Compare it with the expected output of test 4.",
+                "level": 2,
+                "references": [
+                  "Off-by-one errors",
+                  "Strings, lesson 2"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 95: look at line 16. What value does acc have after the last iteration? Compare it with the expected output of test 5.",
+                "level": 3,
+                "references": [
+                  "Strings, lesson 2",
+                  "Recursion",
+                  "Maps and sets"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 96: look at line 17. What value does i have after the first iteration? Compare it with the expected output of test 6.",
+                "level": 1,
+                "references": [],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 97: look at line 18. What value does total have after the second iteration? Compare it with the expected output of test 7.",
+                "level": 2,
+                "references": [
+                  "Loops"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 98: look at line 19. What value does left have after the last iteration? Compare it with the expected output of test 1.",
+                "level": 3,
+                "references": [
+                  "Off-by-one errors",
+                  "Strings, lesson 2"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 99: look at line 20. What value does acc have after the first iteration? Compare it with the expected output of test 2.",
+                "level": 1,
+                "references": [
+                  "Strings, lesson 2",
+                  "Recursion",
+                  "Maps and sets"
+                ],
+                "revealsSolution": true
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 100: look at line 21. What value does i have after the second iteration? Compare it with the expected output of test 3.",
+                "level": 2,
+                "references": [],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": false,
+              "errors": [
+                "$.solution: unexpected key"
+              ]
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 102: look at line 23. What value does left have after the first iteration? Compare it with the expected output of test 5.",
+                "level": 1,
+                "references": [
+                  "Off-by-one errors",
+                  "Strings, lesson 2"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 103: look at line 24. What value does acc have after the second iteration? Compare it with the expected output of test 6.",
+                "level": 2,
+                "references": [
+                  "Strings, lesson 2",
+                  "Recursion",
+                  "Maps and sets"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 104: look at line 25. What value does i have after the last iteration? Compare it with the expected output of test 7.",
+                "level": 3,
+                "references": [],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 105: look at line 26. What value does total have after the first iteration? Compare it with the expected output of test 1.",
+                "level": 1,
+                "references": [
+                  "Loops"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 106: look at line 27. What value does left have after the second iteration? Compare it with the expected output of test 2.",
+                "level": 2,
+                "references": [
+                  "Off-by-one errors",
+                  "Strings, lesson 2"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 107: look at line 28. What value does acc have after the last iteration? Compare it with the expected output of test 3.",
+                "level": 3,
+                "references": [
+                  "Strings, lesson 2",
+                  "Recursion",
+                  "Maps and sets"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 108: look at line 29. What value does i have after the first iteration? Compare it with the expected output of test 4.",
+                "level": 1,
+                "references": [],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 109: look at line 30. What value does total have after the second iteration? Compare it with the expected output of test 5.",
+                "level": 2,
+                "references": [
+                  "Loops"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 110: look at line 31. What value does left have after the last iteration? Compare it with the expected output of test 6.",
+                "level": 3,
+                "references": [
+                  "Off-by-one errors",
+                  "Strings, lesson 2"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 111: look at line 32. What value does acc have after the first iteration? Compare it with the expected output of test 7.",
+                "level": 1,
+                "references": [
+                  "Strings, lesson 2",
+                  "Recursion",
+                  "Maps and sets"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 112: look at line 33. What value does i have after the second iteration? Compare it with the expected output of test 1.",
+                "level": 2,
+                "references": [],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 113: look at line 34. What value does total have after the last iteration? Compare it with the expected output of test 2.",
+                "level": 3,
+                "references": [
+                  "Loops"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 114: look at line 35. What value does left have after the first iteration? Compare it with the expected output of test 3.",
+                "level": 1,
+                "references": [
+                  "Off-by-one errors",
+                  "Strings, lesson 2"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 115: look at line 36. What value does acc have after the second iteration? Compare it with the expected output of test 4.",
+                "level": 2,
+                "references": [
+                  "Strings, lesson 2",
+                  "Recursion",
+                  "Maps and sets"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 116: look at line 37. What value does i have after the last iteration? Compare it with the expected output of test 5.",
+                "level": 3,
+                "references": [],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 117: look at line 38. What value does total have after the first iteration? Compare it with the expected output of test 6.",
+                "level": 1,
+                "references": [
+                  "Loops"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 118: look at line 39. What value does left have after the second iteration? Compare it with the expected output of test 7.",
+                "level": 2,
+                "references": [
+                  "Off-by-one errors",
+                  "Strings, lesson 2"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 119: look at line 40. What value does acc have after the last iteration? Compare it with the expected output of test 1.",
+                "level": 3,
+                "references": [
+                  "Strings, lesson 2",
+                  "Recursion",
+                  "Maps and sets"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 120: look at line 1. What value does i have after the first iteration? Compare it with the expected output of test 2.",
+                "level": 1,
+                "references": [],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 121: look at line 2. What value does total have after the second iteration? Compare it with the expected output of test 3.",
+                "level": 2,
+                "references": [
+                  "Loops"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 122: look at line 3. What value does left have after the last iteration? Compare it with the expected output of test 4.",
+                "level": 3,
+                "references": [
+                  "Off-by-one errors",
+                  "Strings, lesson 2"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 123: look at line 4. What value does acc have after the first iteration? Compare it with the expected output of test 5.",
+                "level": 1,
+                "references": [
+                  "Strings, lesson 2",
+                  "Recursion",
+                  "Maps and sets"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 124: look at line 5. What value does i have after the second iteration? Compare it with the expected output of test 6.",
+                "level": 2,
+                "references": [],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 125: look at line 6. What value does total have after the last iteration? Compare it with the expected output of test 7.",
+                "level": 3,
+                "references": [
+                  "Loops"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 126: look at line 7. What value does left have after the first iteration? Compare it with the expected output of test 1.",
+                "level": 1,
+                "references": [
+                  "Off-by-one errors",
+                  "Strings, lesson 2"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 127: look at line 8. What value does acc have after the second iteration? Compare it with the expected output of test 2.",
+                "level": 2,
+                "references": [
+                  "Strings, lesson 2",
+                  "Recursion",
+                  "Maps and sets"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 128: look at line 9. What value does i have after the last iteration? Compare it with the expected output of test 3.",
+                "level": 3,
+                "references": [],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 129: look at line 10. What value does total have after the first iteration? Compare it with the expected output of test 4.",
+                "level": 1,
+                "references": [
+                  "Loops"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 130: look at line 11. What value does left have after the second iteration? Compare it with the expected output of test 5.",
+                "level": 2,
+                "references": [
+                  "Off-by-one errors",
+                  "Strings, lesson 2"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 131: look at line 12. What value does acc have after the last iteration? Compare it with the expected output of test 6.",
+                "level": 3,
+                "references": [
+                  "Strings, lesson 2",
+                  "Recursion",
+                  "Maps and sets"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 132: look at line 13. What value does i have after the first iteration? Compare it with the expected output of test 7.",
+                "level": 1,
+                "references": [],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": false,
+              "errors": [
+                "$.references: more than 3 items"
+              ]
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 134: look at line 15. What value does left have after the last iteration? Compare it with the expected output of test 2.",
+                "level": 3,
+                "references": [
+                  "Off-by-one errors",
+                  "Strings, lesson 2"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 135: look at line 16. What value does acc have after the first iteration? Compare it with the expected output of test 3.",
+                "level": 1,
+                "references": [
+                  "Strings, lesson 2",
+                  "Recursion",
+                  "Maps and sets"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 136: look at line 17. What value does i have after the second iteration? Compare it with the expected output of test 4.",
+                "level": 2,
+                "references": [],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 137: look at line 18. What value does total have after the last iteration? Compare it with the expected output of test 5.",
+                "level": 3,
+                "references": [
+                  "Loops"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 138: look at line 19. What value does left have after the first iteration? Compare it with the expected output of test 6.",
+                "level": 1,
+                "references": [
+                  "Off-by-one errors",
+                  "Strings, lesson 2"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 139: look at line 20. What value does acc have after the second iteration? Compare it with the expected output of test 7.",
+                "level": 2,
+                "references": [
+                  "Strings, lesson 2",
+                  "Recursion",
+                  "Maps and sets"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 140: look at line 21. What value does i have after the last iteration? Compare it with the expected output of test 1.",
+                "level": 3,
+                "references": [],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 141: look at line 22. What value does total have after the first iteration? Compare it with the expected output of test 2.",
+                "level": 1,
+                "references": [
+                  "Loops"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 142: look at line 23. What value does left have after the second iteration? Compare it with the expected output of test 3.",
+                "level": 2,
+                "references": [
+                  "Off-by-one errors",
+                  "Strings, lesson 2"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 143: look at line 24. What value does acc have after the last iteration? Compare it with the expected output of test 4.",
+                "level": 3,
+                "references": [
+                  "Strings, lesson 2",
+                  "Recursion",
+                  "Maps and sets"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 144: look at line 25. What value does i have after the first iteration? Compare it with the expected output of test 5.",
+                "level": 1,
+                "references": [],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 145: look at line 26. What value does total have after the second iteration? Compare it with the expected output of test 6.",
+                "level": 2,
+                "references": [
+                  "Loops"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 146: look at line 27. What value does left have after the last iteration? Compare it with the expected output of test 7.",
+                "level": 3,
+                "references": [
+                  "Off-by-one errors",
+                  "Strings, lesson 2"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 147: look at line 28. What value does acc have after the first iteration? Compare it with the expected output of test 1.",
+                "level": 1,
+                "references": [
+                  "Strings, lesson 2",
+                  "Recursion",
+                  "Maps and sets"
+                ],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 148: look at line 29. What value does i have after the second iteration? Compare it with the expected output of test 2.",
+                "level": 2,
+                "references": [],
+                "revealsSolution": false
+              }
+            },
+            {
+              "ok": true,
+              "value": {
+                "hint": "Hint 149: look at line 30. What value does total have after the last iteration? Compare it with the expected output of test 3.",
+                "level": 3,
+                "references": [
+                  "Loops"
+                ],
+                "revealsSolution": true
+              }
+            }
+          ],
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

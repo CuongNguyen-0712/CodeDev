@@ -1,0 +1,416 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nae_121",
+      "name": "versioned-prompts-quiz",
+      "type": "quiz",
+      "title": "Prompts as versioned templates",
+      "description": "Two pieces of evidence from the hint feature: a renderer that replaces one variable after another, and a prompt change rolled out as a new version.",
+      "difficulty": "medium",
+      "outcomes": [
+        "prompt-contract"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The hint service before the fix:\n\nconst prompt = HINT_TEMPLATE\n  .replaceAll(\"{{learnerCode}}\", dto.code)\n  .replaceAll(\"{{challengeTitle}}\", challenge.title);\n\nThe learner's code, sent with the hint request:\n\n// TODO: print {{challengeTitle}} in the header\nconsole.log(sum([1, 2, 3]));\n\nchallenge.title is \"Sum of an array\".\n\nStatement: \"The rendered prompt contains the learner's code exactly as the learner typed it.\"",
+          "explanation": "False. The first replaceAll puts the learner's code into the template. The second replaceAll then scans the whole string again, the inserted code included, so the comment becomes \"// TODO: print Sum of an array in the header\". The model now reads code the learner never wrote. A renderer must read the template once and insert each value without scanning it again, because learner code is untrusted input and can contain anything, template syntax included. (A string passed as the replacement to replace or replaceAll has a second trap: \"$&\" and \"$'\" in it are replacement patterns.) The misconception is that replacing variables one after another is the same as rendering once. It is the same only while no value contains placeholder syntax, and you do not control the values.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "PR #1287 adds a new prompt file and changes one line of config. prompts/hint-v3.md is not touched (released 2026-09-02).\n\n prompts/hint-v4.md      | 31 +++++++  (new file)\n config/prompts.ts       |  2 +-\n-  hint: { active: \"hint-v3@3\" },\n+  hint: { active: \"hint-v4@4\" },\n\nEvery stored hint has the ref of the template that produced it:\n\nSELECT prompt_ref, count(*) AS answers,\n       round(100.0 * avg((rating = 'down')::int), 1) AS thumbs_down_pct\nFROM hint_responses WHERE created_at > now() - interval '2 days'\nGROUP BY prompt_ref;\n\n prompt_ref | answers | thumbs_down_pct\n hint-v3@3  |   1912  |   4.1\n hint-v4@4  |   2034  |  11.8\n\nStatement: \"To go back to the old prompt, setting active back to hint-v3@3 is enough, and the same query will then show whether the thumbs-down rate returns to its earlier level.\"",
+          "explanation": "True. Version 3 was released and never edited, so its text is still in the repository exactly as it ran. Rolling back is a one-line config change, not a hunt through git history for the old wording. Because every stored hint carries prompt_ref, the query separates the answers of each version, and after the rollback new rows arrive as hint-v3@3 again. When you compare, look at similar traffic (same days, same challenges), because the mix of learners and challenges changes the rate too. The misconception is that a prompt change can be edited in place and judged by the date of the deploy. With in-place edits, two different texts share one name, and nothing in the data tells them apart.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_nae_122",
+      "name": "render-versioned-prompt",
+      "type": "mini_coding",
+      "title": "Render a versioned prompt template",
+      "description": "The CodeDev hint service builds its prompt from the template hint-v3 (version 3). The old renderer, `text.replace(/\\{\\{(\\w+)\\}\\}/g, (_, k) => String(vars[k]))`, put the word \"undefined\" into the prompt when a variable was renamed, logged no version, and treated `{{...}}` inside learner code as template syntax. Write renderPrompt(template, variables) for template = { id, version, text } and variables = an object of values parsed from JSON. Return { ok: true, ref, prompt, warnings } or { ok: false, ref, errors, warnings }. Rules: (1) ref is \"<id>@<version>\", for example \"hint-v3@3\", on every result. (2) Read text once, from left to right. A backslash followed by {{ (the three characters \\{{) is an escape: write a literal {{ and continue after it. {{ followed by a name and }} is a placeholder; a name is a letter (A-Z, a-z) followed by letters, digits or underscores, with no spaces. Any other {{ is an error \"malformed placeholder at <index>\", where index is the 0-based position of that {{ in text; continue scanning right after those two braces. All other characters (a single {, a }} on its own, a backslash not followed by {{) are copied as they are. (3) A placeholder whose variable is a string is replaced by that string; a number is replaced by String(value). Anything else (no such key, null, true or false, an object, an array) is an error \"missing variable: <name>\", reported once per name, at its first occurrence. An empty string and 0 are values. (4) Insert values exactly as given and never scan them again: {{...}}, \\{{ and $& inside a value stay as they are. (5) errors are in the order the scan finds them. If there is at least one error, return ok: false with all of them and no prompt. (6) warnings: \"unused variable: <name>\" for every key of variables that no placeholder in the template uses (a malformed placeholder uses nothing), sorted by name (the default string sort), on both kinds of result. The runner reads a list of { template, variables } and prints the list of results as JSON.",
+      "difficulty": "easy",
+      "outcomes": [
+        "prompt-contract"
+      ],
+      "points": 20,
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "hints": [
+        "If you replace the placeholders one variable at a time, what happens when the learner's code itself contains \"{{challengeTitle}}\"? What would a renderer have to do so that a value is never looked at a second time?",
+        "Walk through text with an index and build the output in a separate string. At each position there are only three cases to check, in this order: does the text start with \\{{ here, does it start with {{ here, or is it a plain character? For the {{ case, a regular expression with the sticky flag (/.../y) and lastIndex = i tests a name and the closing braces at exactly that position. Keep a Set of used names (for the warnings) and a Set of names already reported as missing.",
+        "A similar scan on a different syntax, ${name} with $${ as the escape, for the text \"Hi ${user}, cost $${x} ${user}\" and variables { user: \"Ann\", unused: 1 }: at index 3 the text starts with ${ and the name user is followed by } -> append \"Ann\", add user to used, jump past the closing brace. At index 15 the text starts with $${ -> append \"${\" and jump 3 characters. The rest is copied. Result: \"Hi Ann, cost ${x} Ann\", warnings [\"unused variable: unused\"]. If user had been null, the result would instead be one error, \"missing variable: user\", even though user appears twice."
+      ],
+      "tests": [
+        {
+          "name": "hint-v3 rendered with every variable; an extra userEmail variable is only a warning",
+          "input": [
+            {
+              "template": {
+                "id": "hint-v3",
+                "version": 3,
+                "text": "You are a patient programming tutor on CodeDev.\nWrite hint level {{hintLevel}} of 3 for the challenge \"{{challengeTitle}}\" ({{language}}).\nDo not write the full solution.\n\nLearner code:\n<code>\n{{learnerCode}}\n</code>\n\nTest output:\n{{testOutput}}\n\nAnswer only with JSON."
+              },
+              "variables": {
+                "hintLevel": 1,
+                "challengeTitle": "Sum of an array",
+                "language": "typescript",
+                "learnerCode": "function sum(xs: number[]): number {\n  let total = 0;\n  for (let i = 1; i < xs.length; i++) total += xs[i];\n  return total;\n}",
+                "testOutput": "expected 6, got 5"
+              }
+            },
+            {
+              "template": {
+                "id": "hint-v3",
+                "version": 3,
+                "text": "You are a patient programming tutor on CodeDev.\nWrite hint level {{hintLevel}} of 3 for the challenge \"{{challengeTitle}}\" ({{language}}).\nDo not write the full solution.\n\nLearner code:\n<code>\n{{learnerCode}}\n</code>\n\nTest output:\n{{testOutput}}\n\nAnswer only with JSON."
+              },
+              "variables": {
+                "hintLevel": 2,
+                "challengeTitle": "Sum of an array",
+                "language": "typescript",
+                "learnerCode": "function sum(xs: number[]): number {\n  let total = 0;\n  for (let i = 1; i < xs.length; i++) total += xs[i];\n  return total;\n}",
+                "testOutput": "expected 6, got 5",
+                "userEmail": "lan.nguyen@example.com",
+                "attempt": 4
+              }
+            }
+          ],
+          "expected": [
+            {
+              "ok": true,
+              "ref": "hint-v3@3",
+              "prompt": "You are a patient programming tutor on CodeDev.\nWrite hint level 1 of 3 for the challenge \"Sum of an array\" (typescript).\nDo not write the full solution.\n\nLearner code:\n<code>\nfunction sum(xs: number[]): number {\n  let total = 0;\n  for (let i = 1; i < xs.length; i++) total += xs[i];\n  return total;\n}\n</code>\n\nTest output:\nexpected 6, got 5\n\nAnswer only with JSON.",
+              "warnings": []
+            },
+            {
+              "ok": true,
+              "ref": "hint-v3@3",
+              "prompt": "You are a patient programming tutor on CodeDev.\nWrite hint level 2 of 3 for the challenge \"Sum of an array\" (typescript).\nDo not write the full solution.\n\nLearner code:\n<code>\nfunction sum(xs: number[]): number {\n  let total = 0;\n  for (let i = 1; i < xs.length; i++) total += xs[i];\n  return total;\n}\n</code>\n\nTest output:\nexpected 6, got 5\n\nAnswer only with JSON.",
+              "warnings": [
+                "unused variable: attempt",
+                "unused variable: userEmail"
+              ]
+            }
+          ],
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "The incident: testOutput renamed to testResult, and two variables missing at once",
+          "input": [
+            {
+              "template": {
+                "id": "hint-v3",
+                "version": 3,
+                "text": "You are a patient programming tutor on CodeDev.\nWrite hint level {{hintLevel}} of 3 for the challenge \"{{challengeTitle}}\" ({{language}}).\nDo not write the full solution.\n\nLearner code:\n<code>\n{{learnerCode}}\n</code>\n\nTest output:\n{{testOutput}}\n\nAnswer only with JSON."
+              },
+              "variables": {
+                "hintLevel": 1,
+                "challengeTitle": "Sum of an array",
+                "language": "typescript",
+                "learnerCode": "return 0;",
+                "testResult": "expected 6, got 0"
+              }
+            },
+            {
+              "template": {
+                "id": "hint-v4",
+                "version": 4,
+                "text": "Level {{hintLevel}} hint for {{challengeTitle}}.\nCode:\n{{learnerCode}}\nRemember: level {{hintLevel}} means {{levelRule}}."
+              },
+              "variables": {
+                "challengeTitle": "Two Sum",
+                "learnerCode": "// empty"
+              }
+            }
+          ],
+          "expected": [
+            {
+              "ok": false,
+              "ref": "hint-v3@3",
+              "errors": [
+                "missing variable: testOutput"
+              ],
+              "warnings": [
+                "unused variable: testResult"
+              ]
+            },
+            {
+              "ok": false,
+              "ref": "hint-v4@4",
+              "errors": [
+                "missing variable: hintLevel",
+                "missing variable: levelRule"
+              ],
+              "warnings": []
+            }
+          ],
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Escapes: \\{{ is a literal {{, a lone }} or backslash is plain text",
+          "input": [
+            {
+              "template": {
+                "id": "hint-vue",
+                "version": 2,
+                "text": "In Vue templates \\{{ count }} is interpolation, not a bug.\nThe learner wrote:\n{{learnerCode}}\nPaths like C:\\temp and a closing }} stay as they are. \\{{learnerCode}} is not replaced."
+              },
+              "variables": {
+                "learnerCode": "<p>{{ count }}</p>"
+              }
+            },
+            {
+              "template": {
+                "id": "escape-only",
+                "version": 1,
+                "text": "\\{{\\{{}}"
+              },
+              "variables": {}
+            }
+          ],
+          "expected": [
+            {
+              "ok": true,
+              "ref": "hint-vue@2",
+              "prompt": "In Vue templates {{ count }} is interpolation, not a bug.\nThe learner wrote:\n<p>{{ count }}</p>\nPaths like C:\\temp and a closing }} stay as they are. {{learnerCode}} is not replaced.",
+              "warnings": []
+            },
+            {
+              "ok": true,
+              "ref": "escape-only@1",
+              "prompt": "{{{{}}",
+              "warnings": []
+            }
+          ],
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "No injection: placeholders, escapes and $& inside values are inserted verbatim",
+          "input": [
+            {
+              "template": {
+                "id": "hint-v3",
+                "version": 3,
+                "text": "You are a patient programming tutor on CodeDev.\nWrite hint level {{hintLevel}} of 3 for the challenge \"{{challengeTitle}}\" ({{language}}).\nDo not write the full solution.\n\nLearner code:\n<code>\n{{learnerCode}}\n</code>\n\nTest output:\n{{testOutput}}\n\nAnswer only with JSON."
+              },
+              "variables": {
+                "hintLevel": 1,
+                "challengeTitle": "Print {{learnerCode}} twice",
+                "language": "typescript",
+                "learnerCode": "// TODO: show {{challengeTitle}} and {{hintLevel}} in the header\\{{x}}\nconst s = \"a\".replace(\"a\", \"$&$&\"); // $' $` $1 $$",
+                "testOutput": "{{testOutput}}"
+              }
+            }
+          ],
+          "expected": [
+            {
+              "ok": true,
+              "ref": "hint-v3@3",
+              "prompt": "You are a patient programming tutor on CodeDev.\nWrite hint level 1 of 3 for the challenge \"Print {{learnerCode}} twice\" (typescript).\nDo not write the full solution.\n\nLearner code:\n<code>\n// TODO: show {{challengeTitle}} and {{hintLevel}} in the header\\{{x}}\nconst s = \"a\".replace(\"a\", \"$&$&\"); // $' $` $1 $$\n</code>\n\nTest output:\n{{testOutput}}\n\nAnswer only with JSON.",
+              "warnings": []
+            }
+          ],
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Malformed placeholders are reported with their index, in order, with missing variables",
+          "input": [
+            {
+              "template": {
+                "id": "hint-draft",
+                "version": 7,
+                "text": "Level {{ hintLevel }} for {{challenge-title}}, {{1st}} try, {{}} {{language}} code: {{learnerCode"
+              },
+              "variables": {
+                "hintLevel": 2,
+                "learnerCode": "x"
+              }
+            },
+            {
+              "template": {
+                "id": "hint-draft",
+                "version": 8,
+                "text": "{{a}}{{b_2}}{{a}}{{ C}}"
+              },
+              "variables": {
+                "b_2": "B"
+              }
+            }
+          ],
+          "expected": [
+            {
+              "ok": false,
+              "ref": "hint-draft@7",
+              "errors": [
+                "malformed placeholder at 6",
+                "malformed placeholder at 26",
+                "malformed placeholder at 47",
+                "malformed placeholder at 60",
+                "missing variable: language",
+                "malformed placeholder at 84"
+              ],
+              "warnings": [
+                "unused variable: hintLevel",
+                "unused variable: learnerCode"
+              ]
+            },
+            {
+              "ok": false,
+              "ref": "hint-draft@8",
+              "errors": [
+                "missing variable: a",
+                "malformed placeholder at 17"
+              ],
+              "warnings": []
+            }
+          ],
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Only strings and numbers are values: \"\" and 0 render; null, false, objects and arrays are missing",
+          "input": [
+            {
+              "template": {
+                "id": "values",
+                "version": 1,
+                "text": "[{{empty}}][{{zero}}][{{neg}}]"
+              },
+              "variables": {
+                "zero": 0,
+                "empty": "",
+                "neg": -1.5
+              }
+            },
+            {
+              "template": {
+                "id": "values",
+                "version": 2,
+                "text": "[{{empty}}][{{zero}}][{{nullValue}}][{{flag}}][{{obj}}][{{list}}][{{absent}}]"
+              },
+              "variables": {
+                "zero": 0,
+                "empty": "",
+                "nullValue": null,
+                "flag": false,
+                "obj": {
+                  "a": 1
+                },
+                "list": [
+                  "x"
+                ],
+                "zeta": "z",
+                "alpha": "a"
+              }
+            }
+          ],
+          "expected": [
+            {
+              "ok": true,
+              "ref": "values@1",
+              "prompt": "[][0][-1.5]",
+              "warnings": []
+            },
+            {
+              "ok": false,
+              "ref": "values@2",
+              "errors": [
+                "missing variable: nullValue",
+                "missing variable: flag",
+                "missing variable: obj",
+                "missing variable: list",
+                "missing variable: absent"
+              ],
+              "warnings": [
+                "unused variable: alpha",
+                "unused variable: zeta"
+              ]
+            }
+          ],
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Large input: 15 KB of learner code full of {{...}} and $&, used twice",
+          "input": [
+            {
+              "template": {
+                "id": "hint-v3",
+                "version": 3,
+                "text": "A:{{learnerCode}}\nB:{{learnerCode}}\nTitle: {{challengeTitle}}"
+              },
+              "variables": {
+                "learnerCode": "const row0 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 0\nconst row1 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 1\nconst row2 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 2\nconst row3 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 3\nconst row4 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 4\nconst row5 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 5\nconst row6 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 6\nconst row7 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 7\nconst row8 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 8\nconst row9 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 9\nconst row10 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 10\nconst row11 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 11\nconst row12 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 12\nconst row13 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 13\nconst row14 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 14\nconst row15 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 15\nconst row16 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 16\nconst row17 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 17\nconst row18 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 18\nconst row19 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 19\nconst row20 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 20\nconst row21 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 21\nconst row22 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 22\nconst row23 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 23\nconst row24 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 24\nconst row25 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 25\nconst row26 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 26\nconst row27 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 27\nconst row28 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 28\nconst row29 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 29\nconst row30 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 30\nconst row31 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 31\nconst row32 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 32\nconst row33 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 33\nconst row34 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 34\nconst row35 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 35\nconst row36 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 36\nconst row37 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 37\nconst row38 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 38\nconst row39 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 39\nconst row40 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 40\nconst row41 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 41\nconst row42 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 42\nconst row43 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 43\nconst row44 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 44\nconst row45 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 45\nconst row46 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 46\nconst row47 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 47\nconst row48 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 48\nconst row49 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 49\nconst row50 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 50\nconst row51 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 51\nconst row52 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 52\nconst row53 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 53\nconst row54 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 54\nconst row55 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 55\nconst row56 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 56\nconst row57 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 57\nconst row58 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 58\nconst row59 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 59\nconst row60 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 60\nconst row61 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 61\nconst row62 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 62\nconst row63 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 63\nconst row64 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 64\nconst row65 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 65\nconst row66 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 66\nconst row67 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 67\nconst row68 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 68\nconst row69 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 69\nconst row70 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 70\nconst row71 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 71\nconst row72 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 72\nconst row73 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 73\nconst row74 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 74\nconst row75 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 75\nconst row76 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 76\nconst row77 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 77\nconst row78 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 78\nconst row79 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 79\nconst row80 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 80\nconst row81 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 81\nconst row82 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 82\nconst row83 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 83\nconst row84 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 84\nconst row85 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 85\nconst row86 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 86\nconst row87 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 87\nconst row88 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 88\nconst row89 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 89\nconst row90 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 90\nconst row91 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 91\nconst row92 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 92\nconst row93 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 93\nconst row94 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 94\nconst row95 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 95\nconst row96 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 96\nconst row97 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 97\nconst row98 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 98\nconst row99 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 99\nconst row100 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 100\nconst row101 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 101\nconst row102 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 102\nconst row103 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 103\nconst row104 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 104\nconst row105 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 105\nconst row106 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 106\nconst row107 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 107\nconst row108 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 108\nconst row109 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 109\nconst row110 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 110\nconst row111 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 111\nconst row112 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 112\nconst row113 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 113\nconst row114 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 114\nconst row115 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 115\nconst row116 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 116\nconst row117 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 117\nconst row118 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 118\nconst row119 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 119\nconst row120 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 120\nconst row121 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 121\nconst row122 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 122\nconst row123 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 123\nconst row124 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 124\nconst row125 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 125\nconst row126 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 126\nconst row127 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 127\nconst row128 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 128\nconst row129 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 129\nconst row130 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 130\nconst row131 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 131\nconst row132 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 132\nconst row133 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 133\nconst row134 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 134\nconst row135 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 135\nconst row136 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 136\nconst row137 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 137\nconst row138 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 138\nconst row139 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 139\nconst row140 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 140\nconst row141 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 141\nconst row142 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 142\nconst row143 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 143\nconst row144 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 144\nconst row145 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 145\nconst row146 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 146\nconst row147 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 147\nconst row148 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 148\nconst row149 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 149\nconst row150 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 150\nconst row151 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 151\nconst row152 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 152\nconst row153 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 153\nconst row154 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 154\nconst row155 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 155\nconst row156 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 156\nconst row157 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 157\nconst row158 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 158\nconst row159 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 159\nconst row160 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 160\nconst row161 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 161\nconst row162 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 162\nconst row163 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 163\nconst row164 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 164\nconst row165 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 165\nconst row166 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 166\nconst row167 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 167\nconst row168 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 168\nconst row169 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 169\nconst row170 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 170\nconst row171 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 171\nconst row172 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 172\nconst row173 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 173\nconst row174 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 174\nconst row175 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 175\nconst row176 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 176\nconst row177 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 177\nconst row178 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 178\nconst row179 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 179\nconst row180 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 180\nconst row181 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 181\nconst row182 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 182\nconst row183 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 183\nconst row184 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 184\nconst row185 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 185\nconst row186 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 186\nconst row187 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 187\nconst row188 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 188\nconst row189 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 189\nconst row190 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 190\nconst row191 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 191\nconst row192 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 192\nconst row193 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 193\nconst row194 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 194\nconst row195 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 195\nconst row196 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 196\nconst row197 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 197\nconst row198 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 198\nconst row199 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 199\nconst row200 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 200\nconst row201 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 201\nconst row202 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 202\nconst row203 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 203\nconst row204 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 204\nconst row205 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 205\nconst row206 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 206\nconst row207 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 207\nconst row208 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 208\nconst row209 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 209\nconst row210 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 210\nconst row211 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 211\nconst row212 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 212\nconst row213 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 213\nconst row214 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 214\nconst row215 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 215\nconst row216 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 216\nconst row217 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 217\nconst row218 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 218\nconst row219 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 219",
+                "challengeTitle": "Big {{one}}"
+              }
+            },
+            {
+              "template": {
+                "id": "hint-v3",
+                "version": 3,
+                "text": "{{learnerCode}} {{missingOne}} {{learnerCode}} {{missingTwo}} {{missingOne}}"
+              },
+              "variables": {
+                "learnerCode": "const row0 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 0\nconst row1 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 1\nconst row2 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 2\nconst row3 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 3\nconst row4 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 4\nconst row5 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 5\nconst row6 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 6\nconst row7 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 7\nconst row8 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 8\nconst row9 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 9\nconst row10 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 10\nconst row11 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 11\nconst row12 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 12\nconst row13 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 13\nconst row14 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 14\nconst row15 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 15\nconst row16 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 16\nconst row17 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 17\nconst row18 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 18\nconst row19 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 19\nconst row20 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 20\nconst row21 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 21\nconst row22 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 22\nconst row23 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 23\nconst row24 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 24\nconst row25 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 25\nconst row26 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 26\nconst row27 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 27\nconst row28 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 28\nconst row29 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 29\nconst row30 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 30\nconst row31 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 31\nconst row32 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 32\nconst row33 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 33\nconst row34 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 34\nconst row35 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 35\nconst row36 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 36\nconst row37 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 37\nconst row38 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 38\nconst row39 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 39\nconst row40 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 40\nconst row41 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 41\nconst row42 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 42\nconst row43 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 43\nconst row44 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 44\nconst row45 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 45\nconst row46 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 46\nconst row47 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 47\nconst row48 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 48\nconst row49 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 49\nconst row50 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 50\nconst row51 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 51\nconst row52 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 52\nconst row53 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 53\nconst row54 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 54\nconst row55 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 55\nconst row56 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 56\nconst row57 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 57\nconst row58 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 58\nconst row59 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 59\nconst row60 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 60\nconst row61 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 61\nconst row62 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 62\nconst row63 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 63\nconst row64 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 64\nconst row65 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 65\nconst row66 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 66\nconst row67 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 67\nconst row68 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 68\nconst row69 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 69\nconst row70 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 70\nconst row71 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 71\nconst row72 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 72\nconst row73 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 73\nconst row74 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 74\nconst row75 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 75\nconst row76 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 76\nconst row77 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 77\nconst row78 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 78\nconst row79 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 79\nconst row80 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 80\nconst row81 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 81\nconst row82 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 82\nconst row83 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 83\nconst row84 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 84\nconst row85 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 85\nconst row86 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 86\nconst row87 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 87\nconst row88 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 88\nconst row89 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 89\nconst row90 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 90\nconst row91 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 91\nconst row92 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 92\nconst row93 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 93\nconst row94 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 94\nconst row95 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 95\nconst row96 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 96\nconst row97 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 97\nconst row98 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 98\nconst row99 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 99\nconst row100 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 100\nconst row101 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 101\nconst row102 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 102\nconst row103 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 103\nconst row104 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 104\nconst row105 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 105\nconst row106 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 106\nconst row107 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 107\nconst row108 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 108\nconst row109 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 109\nconst row110 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 110\nconst row111 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 111\nconst row112 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 112\nconst row113 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 113\nconst row114 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 114\nconst row115 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 115\nconst row116 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 116\nconst row117 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 117\nconst row118 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 118\nconst row119 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 119\nconst row120 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 120\nconst row121 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 121\nconst row122 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 122\nconst row123 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 123\nconst row124 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 124\nconst row125 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 125\nconst row126 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 126\nconst row127 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 127\nconst row128 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 128\nconst row129 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 129\nconst row130 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 130\nconst row131 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 131\nconst row132 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 132\nconst row133 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 133\nconst row134 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 134\nconst row135 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 135\nconst row136 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 136\nconst row137 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 137\nconst row138 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 138\nconst row139 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 139\nconst row140 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 140\nconst row141 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 141\nconst row142 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 142\nconst row143 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 143\nconst row144 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 144\nconst row145 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 145\nconst row146 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 146\nconst row147 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 147\nconst row148 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 148\nconst row149 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 149\nconst row150 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 150\nconst row151 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 151\nconst row152 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 152\nconst row153 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 153\nconst row154 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 154\nconst row155 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 155\nconst row156 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 156\nconst row157 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 157\nconst row158 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 158\nconst row159 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 159\nconst row160 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 160\nconst row161 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 161\nconst row162 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 162\nconst row163 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 163\nconst row164 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 164\nconst row165 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 165\nconst row166 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 166\nconst row167 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 167\nconst row168 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 168\nconst row169 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 169\nconst row170 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 170\nconst row171 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 171\nconst row172 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 172\nconst row173 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 173\nconst row174 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 174\nconst row175 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 175\nconst row176 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 176\nconst row177 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 177\nconst row178 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 178\nconst row179 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 179\nconst row180 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 180\nconst row181 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 181\nconst row182 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 182\nconst row183 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 183\nconst row184 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 184\nconst row185 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 185\nconst row186 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 186\nconst row187 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 187\nconst row188 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 188\nconst row189 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 189\nconst row190 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 190\nconst row191 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 191\nconst row192 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 192\nconst row193 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 193\nconst row194 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 194\nconst row195 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 195\nconst row196 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 196\nconst row197 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 197\nconst row198 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 198\nconst row199 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 199\nconst row200 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 200\nconst row201 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 201\nconst row202 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 202\nconst row203 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 203\nconst row204 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 204\nconst row205 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 205\nconst row206 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 206\nconst row207 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 207\nconst row208 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 208\nconst row209 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 209\nconst row210 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 210\nconst row211 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 211\nconst row212 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 212\nconst row213 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 213\nconst row214 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 214\nconst row215 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 215\nconst row216 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 216\nconst row217 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 217\nconst row218 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 218\nconst row219 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 219"
+              }
+            }
+          ],
+          "expected": [
+            {
+              "ok": true,
+              "ref": "hint-v3@3",
+              "prompt": "A:const row0 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 0\nconst row1 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 1\nconst row2 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 2\nconst row3 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 3\nconst row4 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 4\nconst row5 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 5\nconst row6 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 6\nconst row7 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 7\nconst row8 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 8\nconst row9 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 9\nconst row10 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 10\nconst row11 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 11\nconst row12 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 12\nconst row13 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 13\nconst row14 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 14\nconst row15 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 15\nconst row16 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 16\nconst row17 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 17\nconst row18 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 18\nconst row19 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 19\nconst row20 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 20\nconst row21 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 21\nconst row22 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 22\nconst row23 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 23\nconst row24 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 24\nconst row25 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 25\nconst row26 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 26\nconst row27 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 27\nconst row28 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 28\nconst row29 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 29\nconst row30 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 30\nconst row31 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 31\nconst row32 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 32\nconst row33 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 33\nconst row34 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 34\nconst row35 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 35\nconst row36 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 36\nconst row37 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 37\nconst row38 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 38\nconst row39 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 39\nconst row40 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 40\nconst row41 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 41\nconst row42 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 42\nconst row43 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 43\nconst row44 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 44\nconst row45 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 45\nconst row46 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 46\nconst row47 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 47\nconst row48 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 48\nconst row49 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 49\nconst row50 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 50\nconst row51 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 51\nconst row52 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 52\nconst row53 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 53\nconst row54 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 54\nconst row55 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 55\nconst row56 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 56\nconst row57 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 57\nconst row58 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 58\nconst row59 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 59\nconst row60 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 60\nconst row61 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 61\nconst row62 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 62\nconst row63 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 63\nconst row64 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 64\nconst row65 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 65\nconst row66 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 66\nconst row67 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 67\nconst row68 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 68\nconst row69 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 69\nconst row70 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 70\nconst row71 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 71\nconst row72 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 72\nconst row73 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 73\nconst row74 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 74\nconst row75 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 75\nconst row76 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 76\nconst row77 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 77\nconst row78 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 78\nconst row79 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 79\nconst row80 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 80\nconst row81 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 81\nconst row82 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 82\nconst row83 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 83\nconst row84 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 84\nconst row85 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 85\nconst row86 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 86\nconst row87 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 87\nconst row88 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 88\nconst row89 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 89\nconst row90 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 90\nconst row91 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 91\nconst row92 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 92\nconst row93 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 93\nconst row94 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 94\nconst row95 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 95\nconst row96 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 96\nconst row97 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 97\nconst row98 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 98\nconst row99 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 99\nconst row100 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 100\nconst row101 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 101\nconst row102 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 102\nconst row103 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 103\nconst row104 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 104\nconst row105 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 105\nconst row106 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 106\nconst row107 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 107\nconst row108 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 108\nconst row109 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 109\nconst row110 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 110\nconst row111 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 111\nconst row112 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 112\nconst row113 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 113\nconst row114 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 114\nconst row115 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 115\nconst row116 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 116\nconst row117 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 117\nconst row118 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 118\nconst row119 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 119\nconst row120 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 120\nconst row121 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 121\nconst row122 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 122\nconst row123 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 123\nconst row124 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 124\nconst row125 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 125\nconst row126 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 126\nconst row127 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 127\nconst row128 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 128\nconst row129 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 129\nconst row130 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 130\nconst row131 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 131\nconst row132 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 132\nconst row133 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 133\nconst row134 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 134\nconst row135 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 135\nconst row136 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 136\nconst row137 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 137\nconst row138 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 138\nconst row139 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 139\nconst row140 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 140\nconst row141 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 141\nconst row142 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 142\nconst row143 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 143\nconst row144 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 144\nconst row145 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 145\nconst row146 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 146\nconst row147 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 147\nconst row148 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 148\nconst row149 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 149\nconst row150 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 150\nconst row151 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 151\nconst row152 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 152\nconst row153 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 153\nconst row154 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 154\nconst row155 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 155\nconst row156 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 156\nconst row157 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 157\nconst row158 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 158\nconst row159 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 159\nconst row160 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 160\nconst row161 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 161\nconst row162 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 162\nconst row163 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 163\nconst row164 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 164\nconst row165 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 165\nconst row166 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 166\nconst row167 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 167\nconst row168 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 168\nconst row169 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 169\nconst row170 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 170\nconst row171 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 171\nconst row172 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 172\nconst row173 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 173\nconst row174 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 174\nconst row175 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 175\nconst row176 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 176\nconst row177 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 177\nconst row178 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 178\nconst row179 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 179\nconst row180 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 180\nconst row181 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 181\nconst row182 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 182\nconst row183 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 183\nconst row184 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 184\nconst row185 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 185\nconst row186 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 186\nconst row187 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 187\nconst row188 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 188\nconst row189 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 189\nconst row190 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 190\nconst row191 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 191\nconst row192 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 192\nconst row193 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 193\nconst row194 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 194\nconst row195 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 195\nconst row196 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 196\nconst row197 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 197\nconst row198 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 198\nconst row199 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 199\nconst row200 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 200\nconst row201 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 201\nconst row202 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 202\nconst row203 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 203\nconst row204 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 204\nconst row205 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 205\nconst row206 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 206\nconst row207 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 207\nconst row208 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 208\nconst row209 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 209\nconst row210 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 210\nconst row211 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 211\nconst row212 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 212\nconst row213 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 213\nconst row214 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 214\nconst row215 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 215\nconst row216 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 216\nconst row217 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 217\nconst row218 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 218\nconst row219 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 219\nB:const row0 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 0\nconst row1 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 1\nconst row2 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 2\nconst row3 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 3\nconst row4 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 4\nconst row5 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 5\nconst row6 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 6\nconst row7 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 7\nconst row8 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 8\nconst row9 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 9\nconst row10 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 10\nconst row11 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 11\nconst row12 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 12\nconst row13 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 13\nconst row14 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 14\nconst row15 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 15\nconst row16 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 16\nconst row17 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 17\nconst row18 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 18\nconst row19 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 19\nconst row20 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 20\nconst row21 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 21\nconst row22 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 22\nconst row23 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 23\nconst row24 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 24\nconst row25 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 25\nconst row26 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 26\nconst row27 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 27\nconst row28 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 28\nconst row29 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 29\nconst row30 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 30\nconst row31 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 31\nconst row32 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 32\nconst row33 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 33\nconst row34 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 34\nconst row35 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 35\nconst row36 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 36\nconst row37 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 37\nconst row38 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 38\nconst row39 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 39\nconst row40 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 40\nconst row41 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 41\nconst row42 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 42\nconst row43 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 43\nconst row44 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 44\nconst row45 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 45\nconst row46 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 46\nconst row47 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 47\nconst row48 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 48\nconst row49 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 49\nconst row50 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 50\nconst row51 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 51\nconst row52 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 52\nconst row53 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 53\nconst row54 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 54\nconst row55 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 55\nconst row56 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 56\nconst row57 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 57\nconst row58 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 58\nconst row59 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 59\nconst row60 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 60\nconst row61 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 61\nconst row62 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 62\nconst row63 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 63\nconst row64 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 64\nconst row65 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 65\nconst row66 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 66\nconst row67 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 67\nconst row68 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 68\nconst row69 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 69\nconst row70 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 70\nconst row71 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 71\nconst row72 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 72\nconst row73 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 73\nconst row74 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 74\nconst row75 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 75\nconst row76 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 76\nconst row77 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 77\nconst row78 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 78\nconst row79 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 79\nconst row80 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 80\nconst row81 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 81\nconst row82 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 82\nconst row83 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 83\nconst row84 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 84\nconst row85 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 85\nconst row86 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 86\nconst row87 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 87\nconst row88 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 88\nconst row89 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 89\nconst row90 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 90\nconst row91 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 91\nconst row92 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 92\nconst row93 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 93\nconst row94 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 94\nconst row95 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 95\nconst row96 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 96\nconst row97 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 97\nconst row98 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 98\nconst row99 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 99\nconst row100 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 100\nconst row101 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 101\nconst row102 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 102\nconst row103 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 103\nconst row104 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 104\nconst row105 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 105\nconst row106 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 106\nconst row107 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 107\nconst row108 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 108\nconst row109 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 109\nconst row110 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 110\nconst row111 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 111\nconst row112 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 112\nconst row113 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 113\nconst row114 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 114\nconst row115 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 115\nconst row116 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 116\nconst row117 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 117\nconst row118 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 118\nconst row119 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 119\nconst row120 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 120\nconst row121 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 121\nconst row122 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 122\nconst row123 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 123\nconst row124 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 124\nconst row125 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 125\nconst row126 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 126\nconst row127 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 127\nconst row128 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 128\nconst row129 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 129\nconst row130 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 130\nconst row131 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 131\nconst row132 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 132\nconst row133 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 133\nconst row134 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 134\nconst row135 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 135\nconst row136 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 136\nconst row137 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 137\nconst row138 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 138\nconst row139 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 139\nconst row140 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 140\nconst row141 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 141\nconst row142 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 142\nconst row143 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 143\nconst row144 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 144\nconst row145 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 145\nconst row146 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 146\nconst row147 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 147\nconst row148 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 148\nconst row149 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 149\nconst row150 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 150\nconst row151 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 151\nconst row152 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 152\nconst row153 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 153\nconst row154 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 154\nconst row155 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 155\nconst row156 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 156\nconst row157 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 157\nconst row158 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 158\nconst row159 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 159\nconst row160 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 160\nconst row161 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 161\nconst row162 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 162\nconst row163 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 163\nconst row164 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 164\nconst row165 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 165\nconst row166 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 166\nconst row167 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 167\nconst row168 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 168\nconst row169 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 169\nconst row170 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 170\nconst row171 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 171\nconst row172 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 172\nconst row173 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 173\nconst row174 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 174\nconst row175 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 175\nconst row176 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 176\nconst row177 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 177\nconst row178 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 178\nconst row179 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 179\nconst row180 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 180\nconst row181 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 181\nconst row182 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 182\nconst row183 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 183\nconst row184 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 184\nconst row185 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 185\nconst row186 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 186\nconst row187 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 187\nconst row188 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 188\nconst row189 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 189\nconst row190 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 190\nconst row191 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 191\nconst row192 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 192\nconst row193 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 193\nconst row194 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 194\nconst row195 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 195\nconst row196 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 196\nconst row197 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 197\nconst row198 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 198\nconst row199 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 199\nconst row200 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 200\nconst row201 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 201\nconst row202 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 202\nconst row203 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 203\nconst row204 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 204\nconst row205 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 205\nconst row206 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 206\nconst row207 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 207\nconst row208 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 208\nconst row209 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 209\nconst row210 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 210\nconst row211 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 211\nconst row212 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 212\nconst row213 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 213\nconst row214 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 214\nconst row215 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 215\nconst row216 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 216\nconst row217 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 217\nconst row218 = `{{learnerCode}} \\{{x}} $& $' ${total}`; // line 218\nconst row219 = `{{challengeTitle}} \\{{x}} $& $' ${total}`; // line 219\nTitle: Big {{one}}",
+              "warnings": []
+            },
+            {
+              "ok": false,
+              "ref": "hint-v3@3",
+              "errors": [
+                "missing variable: missingOne",
+                "missing variable: missingTwo"
+              ],
+              "warnings": []
+            }
+          ],
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

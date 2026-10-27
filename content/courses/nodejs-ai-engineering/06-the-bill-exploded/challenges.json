@@ -1,0 +1,2565 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nae_231",
+      "name": "the-bill-exploded-evidence",
+      "type": "quiz",
+      "title": "The Bill Exploded: read the evidence",
+      "description": "Since release 2026.10.23-1 the AI hint uses about 40 times more input tokens a day. Six statements on one evidence pack - the provider usage dashboard with the app's own metrics (A), the hint service log (B), the prompt log of one call (C) and the release diff (D) - take you from reading the evidence to a hypothesis, past two wrong explanations, to the fix and its verification.",
+      "difficulty": "medium",
+      "outcomes": [
+        "cost-control",
+        "resilience"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence A - provider usage dashboard, project codedev-hints, per day (UTC); release 2026.10.23-1 went out on 10-23 at 09:00:\ndate    requests  input tokens  output tokens\n10-21      3,105     2,151,900        611,400\n10-22      2,987     2,069,500        590,200\n10-23      3,688    81,904,700      1,281,600\n10-24      3,702    82,377,900      1,296,400\n\nStatement: \"Comparing 10-22 with 10-24, most of the growth in input tokens comes from more input tokens per provider request, not from more requests.\"",
+          "explanation": "True. Requests grew from 2,987 to 3,702, about 1.24 times. Input tokens grew from about 2.07 million to 82.4 million, about 40 times. So the average input per request went from about 690 tokens to about 22,000, roughly 32 times. Dividing tokens by requests is the first thing to do with a cost dashboard: it tells you whether to look for more calls or for bigger calls. Here it is mostly bigger calls, with some extra calls on top. The misconception is to read a 40x bill as 40x traffic.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence A - provider usage dashboard, project codedev-hints, per day (UTC); release 2026.10.23-1 went out on 10-23 at 09:00:\ndate    requests  input tokens  output tokens\n10-22      2,987     2,069,500        590,200\n10-23      3,688    81,904,700      1,281,600\n10-24      3,702    82,377,900      1,296,400\nBilling page: \"Price list in effect since 2026-07-01. No price changes scheduled.\"\n\nStatement: \"The provider raised its prices in the week of the release; that is why the bill grew about 40 times.\"",
+          "explanation": "False. The dashboard counts tokens, not money, and the token counts themselves grew about 40 times; the billing page says the price list has not changed since July. A price change would show up as a higher cost for the same token counts, not as more tokens. The misconception is to blame the vendor first: check your own usage numbers, which are in tokens, before you look at prices.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence A - provider usage dashboard, per day (UTC):\ndate    requests  input tokens\n10-22      2,987     2,069,500\n10-23      3,688    81,904,700\n10-24      3,702    82,377,900\n\nCodeDev app metrics, POST /hints (Hint button clicks), per day:\n10-22  2,961\n10-23  3,018\n10-24  2,990\n\nStatement: \"A traffic spike explains the bill: after the release learners clicked Hint much more often, and every click is one more provider request.\"",
+          "explanation": "False. Hint clicks stayed flat (2,961, 3,018, 2,990) while provider requests rose by about 700 a day and input tokens by about 40 times. If learners caused it, POST /hints would have grown too. The extra provider requests come from inside the service: one click now leads to several provider calls (see B). The misconception is to assume that the number of model calls equals the number of user actions; once retries exist, compare the two.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence B - hint service log, one hint request:\n09:41:02.118 hint req=h_7f3a lesson=lab-cart-api attempt=1  status=200 input_tokens=118412 output_tokens=1024 finish=length validation=invalid_json\n09:41:09.870 hint req=h_7f3a lesson=lab-cart-api attempt=2  status=200 input_tokens=118412 output_tokens=1024 finish=length validation=invalid_json\n09:41:32.004 web  POST /hints req=h_7f3a client closed the connection after 30 s\n...\n09:44:31.044 hint req=h_7f3a lesson=lab-cart-api attempt=27 status=200 input_tokens=118412 output_tokens=1024 finish=length validation=invalid_json\n09:44:38.611 hint req=h_7f3a lesson=lab-cart-api attempt=28 status=429 error=rate_limit_exceeded (tokens per minute)\n09:44:38.613 hint req=h_7f3a -> 500 Internal Server Error\n\nEvidence C - prompt log, h_7f3a attempt 1 (max_output_tokens=1024):\nsystem  \"You are the CodeDev hint assistant...\"      310 tokens\nuser    <file package-lock.json>                 41,200 tokens\nuser    <file dist/bundle.js>                    38,900 tokens\nuser    <file README.md>                          1,500 tokens\n...     214 more <file ...> messages             35,604 tokens\nuser    <file tests/cart.test.ts>                   640 tokens\nuser    Failing test: cart total > applies...       258 tokens\ntotal input: 118,412 tokens\noutput (stopped at 1024 tokens): {\"level\": 2, \"hint\": \"Looking at package-lock.json, dist/bundle.js and src/catalog.ts, your cart depends on ...\n\nEvidence D - release diff (PR #611):\n+  let reply = await llm.complete(messages);\n+  let valid = isValidHint(reply);\n+  const retry = async () => { reply = await llm.complete(messages); valid = isValidHint(reply); };\n+  while (!valid) await retry();\n\nStatement: \"Each turn of the while loop resends the same 118,412-token prompt, the answer stops at the output limit again (finish=length), so it is never valid JSON; the loop kept running after the learner had left and ended only when the provider answered 429.\"",
+          "explanation": "True. B shows 27 attempts with identical input_tokens, every one with finish=length and invalid_json, then a 429 for tokens per minute. C shows why the answer is cut: the prompt is the whole repository, the model starts discussing package-lock.json and dist/bundle.js and runs out of output tokens before the JSON closes. D sends the same messages again on every turn, so nothing that caused the failure changes. The web line at 09:41:32 shows the learner's request closed after 30 s, while attempts went on until 09:44. The hypothesis explains all four pieces: the extra requests (A), their size (C), the loop (B) and its cause (D).",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence C - prompt log, h_7f3a attempt 1 (max_output_tokens=1024):\nsystem  \"You are the CodeDev hint assistant...\"      310 tokens\nuser    <file package-lock.json>                 41,200 tokens\nuser    <file dist/bundle.js>                    38,900 tokens\n...     215 more <file ...> messages             37,104 tokens\nuser    <file tests/cart.test.ts>                   640 tokens\nuser    Failing test: cart total > applies...       258 tokens\ntotal input: 118,412 tokens\n\nProposed fix in the incident channel:\n-  while (!valid) await retry();\n+  for (let i = 0; i < 3 && !valid; i++) await retry();\n+  if (!valid) return FALLBACK_HINT;\n\nStatement: \"This change is enough to close the incident: the loop is bounded, and the context can stay as it is.\"",
+          "explanation": "False. The bound stops the endless loop, but every lab hint would still make 4 calls of about 118k input tokens each, about 470k tokens for one hint against about 700 before the release, and nearly every one would still end at the fallback, because the same oversized prompt keeps producing the same truncated answer. Retrying the identical messages is not a repair. The fix has two parts: a context with only the failing test's file and the files it imports, within a token budget, and a repair request that sends only the invalid answer and the validation errors, at most N times, then the fallback. The misconception is to fix the loop and leave the input that made the loop expensive.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence D - release diff (PR #611):\n-  const context = await repo.readFiles(submission.repoId, [failure.testFile, ...failure.imports]);\n+  const context = await repo.readAllFiles(submission.repoId);   // more context, better hints\n   const messages = hintMessages(failure, context);\n+  let reply = await llm.complete(messages);\n+  let valid = isValidHint(reply);\n+  const retry = async () => { reply = await llm.complete(messages); valid = isValidHint(reply); };\n+  while (!valid) await retry();\n+  return JSON.parse(reply) as Hint;\n\nProposed regression test: a fixture repository of 300 files (about 120k tokens), a fake model that always answers the truncated text from evidence C, a call counter and a token counter on the fake. It asserts: at most 3 calls (1 hint + 2 repairs), the first call sends only the test file and its imports and at most 8,000 file tokens, the total tokens sent stay under 10,000, and the result is the fallback hint.\n\nStatement: \"This test fails on the PR #611 code and passes on a correct fix, so it catches both causes of the incident if they come back.\"",
+          "explanation": "True. On the PR #611 code the fake answers invalid text forever, so the loop runs until something stops it (a call cap in the fake, or the test timeout): the call count assertion fails, and the first call already sends about 120k tokens. On a correct fix the first call sends the test file and its imports within the budget, two small repair calls follow, and the result is the fallback. Because it checks calls and tokens separately, the test also fails if only one cause is fixed: a bounded loop with the full repository fails the token assertion, a small context with an unbounded loop fails the call assertion. \"The hint looks right in staging\" would have passed on the broken code.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_nae_232",
+      "name": "the-bill-exploded",
+      "type": "fix_bug",
+      "title": "The Bill Exploded",
+      "description": "Since release 2026.10.23-1 the provider dashboard of the CodeDev AI hint shows about 40 times more input tokens a day while learners click Hint as often as before. The hint service log shows one hint request sent to the model again and again while the answer is not valid JSON, and the prompt log shows about 120k input tokens per call because the whole repository of the learner's submission is in the context.\n\nFix hintFor and buildContext so that one hint request:\n- sends a context with only the failing test's file first, then the files that test file imports, in the order of its imports list; imports that are not files of the repository (packages such as \"vitest\") and repeated imports are ignored; a file is added only if the tokens of the files added so far plus its own stay within budgetTokens, otherwise it is skipped and the next one is tried;\n- after an invalid answer sends a repair request (repairMessages with that answer and the errors of validateHint), at most MAX_REPAIRS (2) of them, then returns FALLBACK_HINT with source \"fallback\"; source is \"model\" for a valid first answer and \"repair\" for a valid answer to a repair request.\n\nThe tests use a fake model (no real LLM is called) that replays scripted answers, repeats the last one when the script runs out and refuses calls after the 50th, like a spending cap. Token counts of the files are given in the input. Each test prints the context, the calls made, the tokens sent and the final result. Input: { budgetTokens, failure: { testFile, testName, output }, files: [{ path, tokens, imports }], script }.",
+      "difficulty": "medium",
+      "outcomes": [
+        "cost-control",
+        "resilience"
+      ],
+      "points": 30,
+      "hints": [
+        "Run the starter on the first public test and read the three numbers it prints: how many files are in the context, how many calls were made, how many tokens were sent. Which of them would be the same if the model had answered valid JSON on the first call?",
+        "There are two places to change. buildContext returns every file it is given: it needs the failing test's file and that file's imports list. hintFor calls retry() with the same messages until the answer is valid: count the repairs and change what the next call sends.",
+        "A similar selection on other data: a reading list for one course takes the course page, then the pages it links in link order, ignores links to other sites and links already taken, and keeps a page only if the total reading time stays within 60 minutes. With pages of 20, 50, 15 and 30 minutes: keep 20 (total 20), skip 50 (70 is over), keep 15 (35), skip 30 (65 is over). For the loop, the same idea as a retry budget: a counter checked before each extra request, and a fixed answer when it runs out."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Valid first answer: only the test file and its two imports are sent",
+          "input": {
+            "budgetTokens": 6000,
+            "failure": {
+              "testFile": "tests/cart.test.ts",
+              "testName": "cart total > applies the 10% discount above 500000 VND",
+              "output": "AssertionError: expected 600000 to be 540000\n  at tests/cart.test.ts:18:25"
+            },
+            "files": [
+              {
+                "path": "package.json",
+                "tokens": 220,
+                "imports": []
+              },
+              {
+                "path": "package-lock.json",
+                "tokens": 41200,
+                "imports": []
+              },
+              {
+                "path": "README.md",
+                "tokens": 1500,
+                "imports": []
+              },
+              {
+                "path": "dist/bundle.js",
+                "tokens": 38900,
+                "imports": []
+              },
+              {
+                "path": "src/cart.ts",
+                "tokens": 1180,
+                "imports": [
+                  "src/money.ts",
+                  "src/catalog.ts"
+                ]
+              },
+              {
+                "path": "src/money.ts",
+                "tokens": 310,
+                "imports": []
+              },
+              {
+                "path": "src/catalog.ts",
+                "tokens": 2400,
+                "imports": [
+                  "src/db.ts"
+                ]
+              },
+              {
+                "path": "src/db.ts",
+                "tokens": 900,
+                "imports": []
+              },
+              {
+                "path": "tests/cart.test.ts",
+                "tokens": 640,
+                "imports": [
+                  "vitest",
+                  "src/cart.ts",
+                  "src/money.ts"
+                ]
+              },
+              {
+                "path": "tests/catalog.test.ts",
+                "tokens": 720,
+                "imports": [
+                  "vitest",
+                  "src/catalog.ts"
+                ]
+              }
+            ],
+            "script": [
+              "{\"level\":1,\"hint\":\"The sum is right; the discount is not applied. Find the condition that decides when the 10% comes off and check it with a total of 600000.\"}"
+            ]
+          },
+          "expected": "context: 3 files, 2130 tokens: tests/cart.test.ts, src/cart.ts, src/money.ts\ncalls: 1 (hint)\ntokens sent: 2205\nresult: model, level 1: The sum is right; the discount is not applied. Find the condition that decides when the 10% comes off and check it with a total of 600000.",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "The model keeps answering truncated JSON: two repairs, then the fallback",
+          "input": {
+            "budgetTokens": 6000,
+            "failure": {
+              "testFile": "tests/cart.test.ts",
+              "testName": "cart total > applies the 10% discount above 500000 VND",
+              "output": "AssertionError: expected 600000 to be 540000\n  at tests/cart.test.ts:18:25"
+            },
+            "files": [
+              {
+                "path": "package.json",
+                "tokens": 220,
+                "imports": []
+              },
+              {
+                "path": "package-lock.json",
+                "tokens": 41200,
+                "imports": []
+              },
+              {
+                "path": "README.md",
+                "tokens": 1500,
+                "imports": []
+              },
+              {
+                "path": "dist/bundle.js",
+                "tokens": 38900,
+                "imports": []
+              },
+              {
+                "path": "src/cart.ts",
+                "tokens": 1180,
+                "imports": [
+                  "src/money.ts",
+                  "src/catalog.ts"
+                ]
+              },
+              {
+                "path": "src/money.ts",
+                "tokens": 310,
+                "imports": []
+              },
+              {
+                "path": "src/catalog.ts",
+                "tokens": 2400,
+                "imports": [
+                  "src/db.ts"
+                ]
+              },
+              {
+                "path": "src/db.ts",
+                "tokens": 900,
+                "imports": []
+              },
+              {
+                "path": "tests/cart.test.ts",
+                "tokens": 640,
+                "imports": [
+                  "vitest",
+                  "src/cart.ts",
+                  "src/money.ts"
+                ]
+              },
+              {
+                "path": "tests/catalog.test.ts",
+                "tokens": 720,
+                "imports": [
+                  "vitest",
+                  "src/catalog.ts"
+                ]
+              }
+            ],
+            "script": [
+              "{\"level\": 2, \"hint\": \"Looking at package-lock.json, dist/bundle.js and src/catalog.ts, your cart depends on"
+            ]
+          },
+          "expected": "context: 3 files, 2130 tokens: tests/cart.test.ts, src/cart.ts, src/money.ts\ncalls: 3 (hint, repair x2)\ntokens sent: 2353\nresult: fallback, level 1: Compare the expected and the actual output of the failing test line by line and start from the first line that differs.",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Truncated JSON, then a valid answer to the first repair",
+          "input": {
+            "budgetTokens": 6000,
+            "failure": {
+              "testFile": "tests/cart.test.ts",
+              "testName": "cart total > applies the 10% discount above 500000 VND",
+              "output": "AssertionError: expected 600000 to be 540000\n  at tests/cart.test.ts:18:25"
+            },
+            "files": [
+              {
+                "path": "package.json",
+                "tokens": 220,
+                "imports": []
+              },
+              {
+                "path": "package-lock.json",
+                "tokens": 41200,
+                "imports": []
+              },
+              {
+                "path": "README.md",
+                "tokens": 1500,
+                "imports": []
+              },
+              {
+                "path": "dist/bundle.js",
+                "tokens": 38900,
+                "imports": []
+              },
+              {
+                "path": "src/cart.ts",
+                "tokens": 1180,
+                "imports": [
+                  "src/money.ts",
+                  "src/catalog.ts"
+                ]
+              },
+              {
+                "path": "src/money.ts",
+                "tokens": 310,
+                "imports": []
+              },
+              {
+                "path": "src/catalog.ts",
+                "tokens": 2400,
+                "imports": [
+                  "src/db.ts"
+                ]
+              },
+              {
+                "path": "src/db.ts",
+                "tokens": 900,
+                "imports": []
+              },
+              {
+                "path": "tests/cart.test.ts",
+                "tokens": 640,
+                "imports": [
+                  "vitest",
+                  "src/cart.ts",
+                  "src/money.ts"
+                ]
+              },
+              {
+                "path": "tests/catalog.test.ts",
+                "tokens": 720,
+                "imports": [
+                  "vitest",
+                  "src/catalog.ts"
+                ]
+              }
+            ],
+            "script": [
+              "{\"level\": 2, \"hint\": \"Looking at package-lock.json, dist/bundle.js and src/catalog.ts, your cart depends on",
+              "{\"level\":2,\"hint\":\"Your comparison sends totals above 500000 to the full-price branch. Read the ternary in total() for 600000 and compare it with the test name.\"}"
+            ]
+          },
+          "expected": "context: 3 files, 2130 tokens: tests/cart.test.ts, src/cart.ts, src/money.ts\ncalls: 2 (hint, repair)\ntokens sent: 2279\nresult: repair, level 2: Your comparison sends totals above 500000 to the full-price branch. Read the ternary in total() for 600000 and compare it with the test name.",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Invalid output: fenced JSON, then level 4, valid on the second repair",
+          "input": {
+            "budgetTokens": 6000,
+            "failure": {
+              "testFile": "tests/cart.test.ts",
+              "testName": "cart total > applies the 10% discount above 500000 VND",
+              "output": "AssertionError: expected 600000 to be 540000\n  at tests/cart.test.ts:18:25"
+            },
+            "files": [
+              {
+                "path": "package.json",
+                "tokens": 220,
+                "imports": []
+              },
+              {
+                "path": "package-lock.json",
+                "tokens": 41200,
+                "imports": []
+              },
+              {
+                "path": "README.md",
+                "tokens": 1500,
+                "imports": []
+              },
+              {
+                "path": "dist/bundle.js",
+                "tokens": 38900,
+                "imports": []
+              },
+              {
+                "path": "src/cart.ts",
+                "tokens": 1180,
+                "imports": [
+                  "src/money.ts",
+                  "src/catalog.ts"
+                ]
+              },
+              {
+                "path": "src/money.ts",
+                "tokens": 310,
+                "imports": []
+              },
+              {
+                "path": "src/catalog.ts",
+                "tokens": 2400,
+                "imports": [
+                  "src/db.ts"
+                ]
+              },
+              {
+                "path": "src/db.ts",
+                "tokens": 900,
+                "imports": []
+              },
+              {
+                "path": "tests/cart.test.ts",
+                "tokens": 640,
+                "imports": [
+                  "vitest",
+                  "src/cart.ts",
+                  "src/money.ts"
+                ]
+              },
+              {
+                "path": "tests/catalog.test.ts",
+                "tokens": 720,
+                "imports": [
+                  "vitest",
+                  "src/catalog.ts"
+                ]
+              }
+            ],
+            "script": [
+              "```json\n{\"level\":1,\"hint\":\"The sum is right; the discount is not applied. Find the condition that decides when the 10% comes off and check it with a total of 600000.\"}\n```",
+              "{\"level\":4,\"hint\":\"Check the discount condition in total().\"}",
+              "{\"level\":2,\"hint\":\"Your comparison sends totals above 500000 to the full-price branch. Read the ternary in total() for 600000 and compare it with the test name.\"}",
+              "{\"level\": 2, \"hint\": \"Looking at package-lock.json, dist/bundle.js and src/catalog.ts, your cart depends on"
+            ]
+          },
+          "expected": "context: 3 files, 2130 tokens: tests/cart.test.ts, src/cart.ts, src/money.ts\ncalls: 3 (hint, repair x2)\ntokens sent: 2360\nresult: repair, level 2: Your comparison sends totals above 500000 to the full-price branch. Read the ternary in total() for 600000 and compare it with the test name.",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Large repository (300 files, ~120k tokens): relevant files within 8000 tokens",
+          "input": {
+            "budgetTokens": 8000,
+            "failure": {
+              "testFile": "tests/checkout.test.ts",
+              "testName": "checkout > charges VAT on the discounted total",
+              "output": "AssertionError: expected 648000 to be 583200\n  at tests/checkout.test.ts:42:31"
+            },
+            "files": [
+              {
+                "path": "package.json",
+                "tokens": 260,
+                "imports": []
+              },
+              {
+                "path": "package-lock.json",
+                "tokens": 41200,
+                "imports": []
+              },
+              {
+                "path": "dist/bundle.js",
+                "tokens": 38900,
+                "imports": []
+              },
+              {
+                "path": "README.md",
+                "tokens": 1500,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m000.ts",
+                "tokens": 40,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m001.ts",
+                "tokens": 77,
+                "imports": [
+                  "src/modules/m002.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m002.ts",
+                "tokens": 114,
+                "imports": [
+                  "src/modules/m003.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m003.ts",
+                "tokens": 71,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m004.ts",
+                "tokens": 108,
+                "imports": [
+                  "src/modules/m005.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m005.ts",
+                "tokens": 65,
+                "imports": [
+                  "src/modules/m006.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m006.ts",
+                "tokens": 102,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m007.ts",
+                "tokens": 59,
+                "imports": [
+                  "src/modules/m008.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m008.ts",
+                "tokens": 96,
+                "imports": [
+                  "src/modules/m009.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m009.ts",
+                "tokens": 53,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m010.ts",
+                "tokens": 90,
+                "imports": [
+                  "src/modules/m011.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m011.ts",
+                "tokens": 47,
+                "imports": [
+                  "src/modules/m012.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m012.ts",
+                "tokens": 84,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m013.ts",
+                "tokens": 41,
+                "imports": [
+                  "src/modules/m014.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m014.ts",
+                "tokens": 78,
+                "imports": [
+                  "src/modules/m015.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m015.ts",
+                "tokens": 115,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m016.ts",
+                "tokens": 72,
+                "imports": [
+                  "src/modules/m017.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m017.ts",
+                "tokens": 109,
+                "imports": [
+                  "src/modules/m018.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m018.ts",
+                "tokens": 66,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m019.ts",
+                "tokens": 103,
+                "imports": [
+                  "src/modules/m020.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m020.ts",
+                "tokens": 60,
+                "imports": [
+                  "src/modules/m021.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m021.ts",
+                "tokens": 97,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m022.ts",
+                "tokens": 54,
+                "imports": [
+                  "src/modules/m023.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m023.ts",
+                "tokens": 91,
+                "imports": [
+                  "src/modules/m024.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m024.ts",
+                "tokens": 48,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m025.ts",
+                "tokens": 85,
+                "imports": [
+                  "src/modules/m026.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m026.ts",
+                "tokens": 42,
+                "imports": [
+                  "src/modules/m027.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m027.ts",
+                "tokens": 79,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m028.ts",
+                "tokens": 116,
+                "imports": [
+                  "src/modules/m029.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m029.ts",
+                "tokens": 73,
+                "imports": [
+                  "src/modules/m030.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m030.ts",
+                "tokens": 110,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m031.ts",
+                "tokens": 67,
+                "imports": [
+                  "src/modules/m032.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m032.ts",
+                "tokens": 104,
+                "imports": [
+                  "src/modules/m033.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m033.ts",
+                "tokens": 61,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m034.ts",
+                "tokens": 98,
+                "imports": [
+                  "src/modules/m035.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m035.ts",
+                "tokens": 55,
+                "imports": [
+                  "src/modules/m036.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m036.ts",
+                "tokens": 92,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m037.ts",
+                "tokens": 49,
+                "imports": [
+                  "src/modules/m038.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m038.ts",
+                "tokens": 86,
+                "imports": [
+                  "src/modules/m039.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m039.ts",
+                "tokens": 43,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m040.ts",
+                "tokens": 80,
+                "imports": [
+                  "src/modules/m041.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m041.ts",
+                "tokens": 117,
+                "imports": [
+                  "src/modules/m042.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m042.ts",
+                "tokens": 74,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m043.ts",
+                "tokens": 111,
+                "imports": [
+                  "src/modules/m044.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m044.ts",
+                "tokens": 68,
+                "imports": [
+                  "src/modules/m045.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m045.ts",
+                "tokens": 105,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m046.ts",
+                "tokens": 62,
+                "imports": [
+                  "src/modules/m047.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m047.ts",
+                "tokens": 99,
+                "imports": [
+                  "src/modules/m048.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m048.ts",
+                "tokens": 56,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m049.ts",
+                "tokens": 93,
+                "imports": [
+                  "src/modules/m050.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m050.ts",
+                "tokens": 50,
+                "imports": [
+                  "src/modules/m051.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m051.ts",
+                "tokens": 87,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m052.ts",
+                "tokens": 44,
+                "imports": [
+                  "src/modules/m053.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m053.ts",
+                "tokens": 81,
+                "imports": [
+                  "src/modules/m054.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m054.ts",
+                "tokens": 118,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m055.ts",
+                "tokens": 75,
+                "imports": [
+                  "src/modules/m056.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m056.ts",
+                "tokens": 112,
+                "imports": [
+                  "src/modules/m057.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m057.ts",
+                "tokens": 69,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m058.ts",
+                "tokens": 106,
+                "imports": [
+                  "src/modules/m059.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m059.ts",
+                "tokens": 63,
+                "imports": [
+                  "src/modules/m060.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m060.ts",
+                "tokens": 100,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m061.ts",
+                "tokens": 57,
+                "imports": [
+                  "src/modules/m062.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m062.ts",
+                "tokens": 94,
+                "imports": [
+                  "src/modules/m063.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m063.ts",
+                "tokens": 51,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m064.ts",
+                "tokens": 88,
+                "imports": [
+                  "src/modules/m065.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m065.ts",
+                "tokens": 45,
+                "imports": [
+                  "src/modules/m066.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m066.ts",
+                "tokens": 82,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m067.ts",
+                "tokens": 119,
+                "imports": [
+                  "src/modules/m068.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m068.ts",
+                "tokens": 76,
+                "imports": [
+                  "src/modules/m069.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m069.ts",
+                "tokens": 113,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m070.ts",
+                "tokens": 70,
+                "imports": [
+                  "src/modules/m071.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m071.ts",
+                "tokens": 107,
+                "imports": [
+                  "src/modules/m072.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m072.ts",
+                "tokens": 64,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m073.ts",
+                "tokens": 101,
+                "imports": [
+                  "src/modules/m074.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m074.ts",
+                "tokens": 58,
+                "imports": [
+                  "src/modules/m075.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m075.ts",
+                "tokens": 95,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m076.ts",
+                "tokens": 52,
+                "imports": [
+                  "src/modules/m077.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m077.ts",
+                "tokens": 89,
+                "imports": [
+                  "src/modules/m078.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m078.ts",
+                "tokens": 46,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m079.ts",
+                "tokens": 83,
+                "imports": [
+                  "src/modules/m080.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m080.ts",
+                "tokens": 40,
+                "imports": [
+                  "src/modules/m081.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m081.ts",
+                "tokens": 77,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m082.ts",
+                "tokens": 114,
+                "imports": [
+                  "src/modules/m083.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m083.ts",
+                "tokens": 71,
+                "imports": [
+                  "src/modules/m084.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m084.ts",
+                "tokens": 108,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m085.ts",
+                "tokens": 65,
+                "imports": [
+                  "src/modules/m086.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m086.ts",
+                "tokens": 102,
+                "imports": [
+                  "src/modules/m087.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m087.ts",
+                "tokens": 59,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m088.ts",
+                "tokens": 96,
+                "imports": [
+                  "src/modules/m089.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m089.ts",
+                "tokens": 53,
+                "imports": [
+                  "src/modules/m090.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m090.ts",
+                "tokens": 90,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m091.ts",
+                "tokens": 47,
+                "imports": [
+                  "src/modules/m092.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m092.ts",
+                "tokens": 84,
+                "imports": [
+                  "src/modules/m093.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m093.ts",
+                "tokens": 41,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m094.ts",
+                "tokens": 78,
+                "imports": [
+                  "src/modules/m095.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m095.ts",
+                "tokens": 115,
+                "imports": [
+                  "src/modules/m096.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m096.ts",
+                "tokens": 72,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m097.ts",
+                "tokens": 109,
+                "imports": [
+                  "src/modules/m098.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m098.ts",
+                "tokens": 66,
+                "imports": [
+                  "src/modules/m099.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m099.ts",
+                "tokens": 103,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m100.ts",
+                "tokens": 60,
+                "imports": [
+                  "src/modules/m101.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m101.ts",
+                "tokens": 97,
+                "imports": [
+                  "src/modules/m102.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m102.ts",
+                "tokens": 54,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m103.ts",
+                "tokens": 91,
+                "imports": [
+                  "src/modules/m104.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m104.ts",
+                "tokens": 48,
+                "imports": [
+                  "src/modules/m105.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m105.ts",
+                "tokens": 85,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m106.ts",
+                "tokens": 42,
+                "imports": [
+                  "src/modules/m107.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m107.ts",
+                "tokens": 79,
+                "imports": [
+                  "src/modules/m108.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m108.ts",
+                "tokens": 116,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m109.ts",
+                "tokens": 73,
+                "imports": [
+                  "src/modules/m110.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m110.ts",
+                "tokens": 110,
+                "imports": [
+                  "src/modules/m111.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m111.ts",
+                "tokens": 67,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m112.ts",
+                "tokens": 104,
+                "imports": [
+                  "src/modules/m113.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m113.ts",
+                "tokens": 61,
+                "imports": [
+                  "src/modules/m114.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m114.ts",
+                "tokens": 98,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m115.ts",
+                "tokens": 55,
+                "imports": [
+                  "src/modules/m116.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m116.ts",
+                "tokens": 92,
+                "imports": [
+                  "src/modules/m117.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m117.ts",
+                "tokens": 49,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m118.ts",
+                "tokens": 86,
+                "imports": [
+                  "src/modules/m119.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m119.ts",
+                "tokens": 43,
+                "imports": [
+                  "src/modules/m120.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m120.ts",
+                "tokens": 80,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m121.ts",
+                "tokens": 117,
+                "imports": [
+                  "src/modules/m122.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m122.ts",
+                "tokens": 74,
+                "imports": [
+                  "src/modules/m123.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m123.ts",
+                "tokens": 111,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m124.ts",
+                "tokens": 68,
+                "imports": [
+                  "src/modules/m125.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m125.ts",
+                "tokens": 105,
+                "imports": [
+                  "src/modules/m126.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m126.ts",
+                "tokens": 62,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m127.ts",
+                "tokens": 99,
+                "imports": [
+                  "src/modules/m128.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m128.ts",
+                "tokens": 56,
+                "imports": [
+                  "src/modules/m129.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m129.ts",
+                "tokens": 93,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m130.ts",
+                "tokens": 50,
+                "imports": [
+                  "src/modules/m131.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m131.ts",
+                "tokens": 87,
+                "imports": [
+                  "src/modules/m132.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m132.ts",
+                "tokens": 44,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m133.ts",
+                "tokens": 81,
+                "imports": [
+                  "src/modules/m134.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m134.ts",
+                "tokens": 118,
+                "imports": [
+                  "src/modules/m135.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m135.ts",
+                "tokens": 75,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m136.ts",
+                "tokens": 112,
+                "imports": [
+                  "src/modules/m137.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m137.ts",
+                "tokens": 69,
+                "imports": [
+                  "src/modules/m138.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m138.ts",
+                "tokens": 106,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m139.ts",
+                "tokens": 63,
+                "imports": [
+                  "src/modules/m140.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m140.ts",
+                "tokens": 100,
+                "imports": [
+                  "src/modules/m141.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m141.ts",
+                "tokens": 57,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m142.ts",
+                "tokens": 94,
+                "imports": [
+                  "src/modules/m143.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m143.ts",
+                "tokens": 51,
+                "imports": [
+                  "src/modules/m144.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m144.ts",
+                "tokens": 88,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m145.ts",
+                "tokens": 45,
+                "imports": [
+                  "src/modules/m146.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m146.ts",
+                "tokens": 82,
+                "imports": [
+                  "src/modules/m147.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m147.ts",
+                "tokens": 119,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m148.ts",
+                "tokens": 76,
+                "imports": [
+                  "src/modules/m149.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m149.ts",
+                "tokens": 113,
+                "imports": [
+                  "src/modules/m150.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m150.ts",
+                "tokens": 70,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m151.ts",
+                "tokens": 107,
+                "imports": [
+                  "src/modules/m152.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m152.ts",
+                "tokens": 64,
+                "imports": [
+                  "src/modules/m153.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m153.ts",
+                "tokens": 101,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m154.ts",
+                "tokens": 58,
+                "imports": [
+                  "src/modules/m155.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m155.ts",
+                "tokens": 95,
+                "imports": [
+                  "src/modules/m156.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m156.ts",
+                "tokens": 52,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m157.ts",
+                "tokens": 89,
+                "imports": [
+                  "src/modules/m158.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m158.ts",
+                "tokens": 46,
+                "imports": [
+                  "src/modules/m159.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m159.ts",
+                "tokens": 83,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m160.ts",
+                "tokens": 40,
+                "imports": [
+                  "src/modules/m161.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m161.ts",
+                "tokens": 77,
+                "imports": [
+                  "src/modules/m162.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m162.ts",
+                "tokens": 114,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m163.ts",
+                "tokens": 71,
+                "imports": [
+                  "src/modules/m164.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m164.ts",
+                "tokens": 108,
+                "imports": [
+                  "src/modules/m165.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m165.ts",
+                "tokens": 65,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m166.ts",
+                "tokens": 102,
+                "imports": [
+                  "src/modules/m167.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m167.ts",
+                "tokens": 59,
+                "imports": [
+                  "src/modules/m168.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m168.ts",
+                "tokens": 96,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m169.ts",
+                "tokens": 53,
+                "imports": [
+                  "src/modules/m170.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m170.ts",
+                "tokens": 90,
+                "imports": [
+                  "src/modules/m171.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m171.ts",
+                "tokens": 47,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m172.ts",
+                "tokens": 84,
+                "imports": [
+                  "src/modules/m173.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m173.ts",
+                "tokens": 41,
+                "imports": [
+                  "src/modules/m174.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m174.ts",
+                "tokens": 78,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m175.ts",
+                "tokens": 115,
+                "imports": [
+                  "src/modules/m176.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m176.ts",
+                "tokens": 72,
+                "imports": [
+                  "src/modules/m177.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m177.ts",
+                "tokens": 109,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m178.ts",
+                "tokens": 66,
+                "imports": [
+                  "src/modules/m179.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m179.ts",
+                "tokens": 103,
+                "imports": [
+                  "src/modules/m180.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m180.ts",
+                "tokens": 60,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m181.ts",
+                "tokens": 97,
+                "imports": [
+                  "src/modules/m182.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m182.ts",
+                "tokens": 54,
+                "imports": [
+                  "src/modules/m183.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m183.ts",
+                "tokens": 91,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m184.ts",
+                "tokens": 48,
+                "imports": [
+                  "src/modules/m185.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m185.ts",
+                "tokens": 85,
+                "imports": [
+                  "src/modules/m186.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m186.ts",
+                "tokens": 42,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m187.ts",
+                "tokens": 79,
+                "imports": [
+                  "src/modules/m188.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m188.ts",
+                "tokens": 116,
+                "imports": [
+                  "src/modules/m189.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m189.ts",
+                "tokens": 73,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m190.ts",
+                "tokens": 110,
+                "imports": [
+                  "src/modules/m191.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m191.ts",
+                "tokens": 67,
+                "imports": [
+                  "src/modules/m192.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m192.ts",
+                "tokens": 104,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m193.ts",
+                "tokens": 61,
+                "imports": [
+                  "src/modules/m194.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m194.ts",
+                "tokens": 98,
+                "imports": [
+                  "src/modules/m195.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m195.ts",
+                "tokens": 55,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m196.ts",
+                "tokens": 92,
+                "imports": [
+                  "src/modules/m197.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m197.ts",
+                "tokens": 49,
+                "imports": [
+                  "src/modules/m198.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m198.ts",
+                "tokens": 86,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m199.ts",
+                "tokens": 43,
+                "imports": [
+                  "src/modules/m200.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m200.ts",
+                "tokens": 80,
+                "imports": [
+                  "src/modules/m201.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m201.ts",
+                "tokens": 117,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m202.ts",
+                "tokens": 74,
+                "imports": [
+                  "src/modules/m203.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m203.ts",
+                "tokens": 111,
+                "imports": [
+                  "src/modules/m204.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m204.ts",
+                "tokens": 68,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m205.ts",
+                "tokens": 105,
+                "imports": [
+                  "src/modules/m206.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m206.ts",
+                "tokens": 62,
+                "imports": [
+                  "src/modules/m207.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m207.ts",
+                "tokens": 99,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m208.ts",
+                "tokens": 56,
+                "imports": [
+                  "src/modules/m209.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m209.ts",
+                "tokens": 93,
+                "imports": [
+                  "src/modules/m210.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m210.ts",
+                "tokens": 50,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m211.ts",
+                "tokens": 87,
+                "imports": [
+                  "src/modules/m212.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m212.ts",
+                "tokens": 44,
+                "imports": [
+                  "src/modules/m213.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m213.ts",
+                "tokens": 81,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m214.ts",
+                "tokens": 118,
+                "imports": [
+                  "src/modules/m215.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m215.ts",
+                "tokens": 75,
+                "imports": [
+                  "src/modules/m216.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m216.ts",
+                "tokens": 112,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m217.ts",
+                "tokens": 69,
+                "imports": [
+                  "src/modules/m218.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m218.ts",
+                "tokens": 106,
+                "imports": [
+                  "src/modules/m219.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m219.ts",
+                "tokens": 63,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m220.ts",
+                "tokens": 100,
+                "imports": [
+                  "src/modules/m221.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m221.ts",
+                "tokens": 57,
+                "imports": [
+                  "src/modules/m222.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m222.ts",
+                "tokens": 94,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m223.ts",
+                "tokens": 51,
+                "imports": [
+                  "src/modules/m224.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m224.ts",
+                "tokens": 88,
+                "imports": [
+                  "src/modules/m225.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m225.ts",
+                "tokens": 45,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m226.ts",
+                "tokens": 82,
+                "imports": [
+                  "src/modules/m227.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m227.ts",
+                "tokens": 119,
+                "imports": [
+                  "src/modules/m228.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m228.ts",
+                "tokens": 76,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m229.ts",
+                "tokens": 113,
+                "imports": [
+                  "src/modules/m230.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m230.ts",
+                "tokens": 70,
+                "imports": [
+                  "src/modules/m231.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m231.ts",
+                "tokens": 107,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m232.ts",
+                "tokens": 64,
+                "imports": [
+                  "src/modules/m233.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m233.ts",
+                "tokens": 101,
+                "imports": [
+                  "src/modules/m234.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m234.ts",
+                "tokens": 58,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m235.ts",
+                "tokens": 95,
+                "imports": [
+                  "src/modules/m236.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m236.ts",
+                "tokens": 52,
+                "imports": [
+                  "src/modules/m237.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m237.ts",
+                "tokens": 89,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m238.ts",
+                "tokens": 46,
+                "imports": [
+                  "src/modules/m239.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m239.ts",
+                "tokens": 83,
+                "imports": [
+                  "src/modules/m240.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m240.ts",
+                "tokens": 40,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m241.ts",
+                "tokens": 77,
+                "imports": [
+                  "src/modules/m242.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m242.ts",
+                "tokens": 114,
+                "imports": [
+                  "src/modules/m243.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m243.ts",
+                "tokens": 71,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m244.ts",
+                "tokens": 108,
+                "imports": [
+                  "src/modules/m245.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m245.ts",
+                "tokens": 65,
+                "imports": [
+                  "src/modules/m246.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m246.ts",
+                "tokens": 102,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m247.ts",
+                "tokens": 59,
+                "imports": [
+                  "src/modules/m248.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m248.ts",
+                "tokens": 96,
+                "imports": [
+                  "src/modules/m249.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m249.ts",
+                "tokens": 53,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m250.ts",
+                "tokens": 90,
+                "imports": [
+                  "src/modules/m251.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m251.ts",
+                "tokens": 47,
+                "imports": [
+                  "src/modules/m252.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m252.ts",
+                "tokens": 84,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m253.ts",
+                "tokens": 41,
+                "imports": [
+                  "src/modules/m254.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m254.ts",
+                "tokens": 78,
+                "imports": [
+                  "src/modules/m255.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m255.ts",
+                "tokens": 115,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m256.ts",
+                "tokens": 72,
+                "imports": [
+                  "src/modules/m257.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m257.ts",
+                "tokens": 109,
+                "imports": [
+                  "src/modules/m258.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m258.ts",
+                "tokens": 66,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m259.ts",
+                "tokens": 103,
+                "imports": [
+                  "src/modules/m260.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m260.ts",
+                "tokens": 60,
+                "imports": [
+                  "src/modules/m261.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m261.ts",
+                "tokens": 97,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m262.ts",
+                "tokens": 54,
+                "imports": [
+                  "src/modules/m263.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m263.ts",
+                "tokens": 91,
+                "imports": [
+                  "src/modules/m264.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m264.ts",
+                "tokens": 48,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m265.ts",
+                "tokens": 85,
+                "imports": [
+                  "src/modules/m266.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m266.ts",
+                "tokens": 42,
+                "imports": [
+                  "src/modules/m267.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m267.ts",
+                "tokens": 79,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m268.ts",
+                "tokens": 116,
+                "imports": [
+                  "src/modules/m269.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m269.ts",
+                "tokens": 73,
+                "imports": [
+                  "src/modules/m270.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m270.ts",
+                "tokens": 110,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m271.ts",
+                "tokens": 67,
+                "imports": [
+                  "src/modules/m272.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m272.ts",
+                "tokens": 104,
+                "imports": [
+                  "src/modules/m273.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m273.ts",
+                "tokens": 61,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m274.ts",
+                "tokens": 98,
+                "imports": [
+                  "src/modules/m275.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m275.ts",
+                "tokens": 55,
+                "imports": [
+                  "src/modules/m276.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m276.ts",
+                "tokens": 92,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m277.ts",
+                "tokens": 49,
+                "imports": [
+                  "src/modules/m278.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m278.ts",
+                "tokens": 86,
+                "imports": [
+                  "src/modules/m279.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m279.ts",
+                "tokens": 43,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m280.ts",
+                "tokens": 80,
+                "imports": [
+                  "src/modules/m281.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m281.ts",
+                "tokens": 117,
+                "imports": [
+                  "src/modules/m282.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m282.ts",
+                "tokens": 74,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m283.ts",
+                "tokens": 111,
+                "imports": [
+                  "src/modules/m284.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m284.ts",
+                "tokens": 68,
+                "imports": [
+                  "src/modules/m285.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m285.ts",
+                "tokens": 105,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m286.ts",
+                "tokens": 62,
+                "imports": [
+                  "src/modules/m287.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m287.ts",
+                "tokens": 99,
+                "imports": [
+                  "src/modules/m288.ts"
+                ]
+              },
+              {
+                "path": "src/modules/m288.ts",
+                "tokens": 56,
+                "imports": []
+              },
+              {
+                "path": "src/modules/m289.ts",
+                "tokens": 93,
+                "imports": [
+                  "src/modules/m000.ts"
+                ]
+              },
+              {
+                "path": "src/generated/prices.ts",
+                "tokens": 9000,
+                "imports": []
+              },
+              {
+                "path": "src/checkout.ts",
+                "tokens": 2100,
+                "imports": [
+                  "src/cart.ts",
+                  "src/shipping.ts",
+                  "src/tax.ts"
+                ]
+              },
+              {
+                "path": "src/cart.ts",
+                "tokens": 1180,
+                "imports": [
+                  "src/money.ts"
+                ]
+              },
+              {
+                "path": "src/money.ts",
+                "tokens": 310,
+                "imports": []
+              },
+              {
+                "path": "src/shipping.ts",
+                "tokens": 4200,
+                "imports": [
+                  "src/money.ts"
+                ]
+              },
+              {
+                "path": "src/tax.ts",
+                "tokens": 800,
+                "imports": [
+                  "src/money.ts"
+                ]
+              },
+              {
+                "path": "tests/checkout.test.ts",
+                "tokens": 900,
+                "imports": [
+                  "vitest",
+                  "src/generated/prices.ts",
+                  "src/checkout.ts",
+                  "src/cart.ts",
+                  "src/money.ts",
+                  "src/shipping.ts",
+                  "src/tax.ts"
+                ]
+              }
+            ],
+            "script": [
+              "{\"level\": 2, \"hint\": \"Looking at package-lock.json, dist/bundle.js and src/catalog.ts, your cart depends on"
+            ]
+          },
+          "expected": "context: 5 files, 5290 tokens: tests/checkout.test.ts, src/checkout.ts, src/cart.ts, src/money.ts, src/tax.ts\ncalls: 3 (hint, repair x2)\ntokens sent: 5512\nresult: fallback, level 1: Compare the expected and the actual output of the failing test line by line and start from the first line that differs.",
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Imports outside the repository and repeated imports are ignored",
+          "input": {
+            "budgetTokens": 6000,
+            "failure": {
+              "testFile": "tests/cart.test.ts",
+              "testName": "cart total > applies the 10% discount above 500000 VND",
+              "output": "AssertionError: expected 600000 to be 540000\n  at tests/cart.test.ts:18:25"
+            },
+            "files": [
+              {
+                "path": "package.json",
+                "tokens": 220,
+                "imports": []
+              },
+              {
+                "path": "package-lock.json",
+                "tokens": 41200,
+                "imports": []
+              },
+              {
+                "path": "README.md",
+                "tokens": 1500,
+                "imports": []
+              },
+              {
+                "path": "dist/bundle.js",
+                "tokens": 38900,
+                "imports": []
+              },
+              {
+                "path": "src/cart.ts",
+                "tokens": 1180,
+                "imports": [
+                  "src/money.ts",
+                  "src/catalog.ts"
+                ]
+              },
+              {
+                "path": "src/money.ts",
+                "tokens": 310,
+                "imports": []
+              },
+              {
+                "path": "src/catalog.ts",
+                "tokens": 2400,
+                "imports": [
+                  "src/db.ts"
+                ]
+              },
+              {
+                "path": "src/db.ts",
+                "tokens": 900,
+                "imports": []
+              },
+              {
+                "path": "tests/cart.test.ts",
+                "tokens": 640,
+                "imports": [
+                  "vitest",
+                  "src/money.ts",
+                  "@codedev/testing",
+                  "src/money.ts",
+                  "src/cart.ts"
+                ]
+              },
+              {
+                "path": "tests/catalog.test.ts",
+                "tokens": 720,
+                "imports": [
+                  "vitest",
+                  "src/catalog.ts"
+                ]
+              }
+            ],
+            "script": [
+              "{\"level\":1,\"hint\":\"The sum is right; the discount is not applied. Find the condition that decides when the 10% comes off and check it with a total of 600000.\"}"
+            ]
+          },
+          "expected": "context: 3 files, 2130 tokens: tests/cart.test.ts, src/money.ts, src/cart.ts\ncalls: 1 (hint)\ntokens sent: 2205\nresult: model, level 1: The sum is right; the discount is not applied. Find the condition that decides when the 10% comes off and check it with a total of 600000.",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Budget filled exactly: those files are kept, the next import is skipped",
+          "input": {
+            "budgetTokens": 2130,
+            "failure": {
+              "testFile": "tests/cart.test.ts",
+              "testName": "cart total > applies the 10% discount above 500000 VND",
+              "output": "AssertionError: expected 600000 to be 540000\n  at tests/cart.test.ts:18:25"
+            },
+            "files": [
+              {
+                "path": "package.json",
+                "tokens": 220,
+                "imports": []
+              },
+              {
+                "path": "package-lock.json",
+                "tokens": 41200,
+                "imports": []
+              },
+              {
+                "path": "README.md",
+                "tokens": 1500,
+                "imports": []
+              },
+              {
+                "path": "dist/bundle.js",
+                "tokens": 38900,
+                "imports": []
+              },
+              {
+                "path": "src/cart.ts",
+                "tokens": 1180,
+                "imports": [
+                  "src/money.ts",
+                  "src/catalog.ts"
+                ]
+              },
+              {
+                "path": "src/money.ts",
+                "tokens": 310,
+                "imports": []
+              },
+              {
+                "path": "src/catalog.ts",
+                "tokens": 2400,
+                "imports": [
+                  "src/db.ts"
+                ]
+              },
+              {
+                "path": "src/db.ts",
+                "tokens": 900,
+                "imports": []
+              },
+              {
+                "path": "tests/cart.test.ts",
+                "tokens": 640,
+                "imports": [
+                  "src/cart.ts",
+                  "src/money.ts",
+                  "src/db.ts"
+                ]
+              },
+              {
+                "path": "tests/catalog.test.ts",
+                "tokens": 720,
+                "imports": [
+                  "vitest",
+                  "src/catalog.ts"
+                ]
+              }
+            ],
+            "script": [
+              "{\"level\": 2, \"hint\": \"Looking at package-lock.json, dist/bundle.js and src/catalog.ts, your cart depends on",
+              "{\"level\":1,\"hint\":\"The sum is right; the discount is not applied. Find the condition that decides when the 10% comes off and check it with a total of 600000.\"}"
+            ]
+          },
+          "expected": "context: 3 files, 2130 tokens: tests/cart.test.ts, src/cart.ts, src/money.ts\ncalls: 2 (hint, repair)\ntokens sent: 2279\nresult: repair, level 1: The sum is right; the discount is not applied. Find the condition that decides when the 10% comes off and check it with a total of 600000.",
+          "hidden": true,
+          "score": 2
+        }
+      ]
+    }
+  ]
+}
