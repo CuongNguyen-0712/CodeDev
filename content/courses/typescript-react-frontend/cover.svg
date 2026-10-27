@@ -29,9 +29,9 @@
     <rect x="112" y="152" width="92" height="92" rx="20" fill="#3178C6"/>
     <text x="194" y="232" text-anchor="end" font-size="40" font-weight="800" fill="#FFFFFF">TS</text>
     <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#61DAFB">TYPESCRIPT · REACT</text>
-    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">Frontend</text>
-    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">Engineering</text>
-    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Typed state · Effects · Memo · Virtual lists</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">React</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">Architecture</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Feature boundaries · State · Effects · Server data</text>
     <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#CBE4FA">
       <rect x="110" y="660" width="178" height="52" rx="26" fill="#132238" stroke="#3178C6"/>
       <text x="199" y="695" text-anchor="middle">Props&lt;T&gt;</text>

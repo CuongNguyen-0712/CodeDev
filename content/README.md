@@ -81,6 +81,10 @@ Roadmaps: `content/roadmaps.json` (one roadmap per career role, ordered nodes, l
 `node content/tools/build-roadmaps.mjs` -> `db/seeds/roadmaps.sql`. Apply it after the course seeds; draft courses
 stay off roadmap pages until they are published.
 
+Apply a seed: `node content/tools/apply-seed.mjs db/seeds/<course>.sql [--env .env.production --yes]` (non-local
+targets need `--yes`). Sanity has one dataset for local and production: `build-course.mjs <course> --push --publish`
+writes published lesson documents (no draft to publish in the Studio).
+
 Production: upload storage first (`build-course.mjs <course> --storage-only --storage-env .env.production`),
 then apply `db/seeds/<course>.sql` (test it on a Neon branch first).
 

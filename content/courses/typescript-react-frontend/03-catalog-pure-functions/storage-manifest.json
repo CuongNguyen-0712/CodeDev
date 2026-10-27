@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_coding_trf_132",
+      "key": "challenges/typescript/chal_coding_trf_132/starter.ts",
+      "contentType": "application/typescript; charset=utf-8",
+      "originalName": "main.ts",
+      "size": 3329
+    }
+  ]
+}

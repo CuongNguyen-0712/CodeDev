@@ -3,7 +3,7 @@
   "title": "React + TypeScript Architecture: Feature Boundaries, State & Server Data",
   "concept": "Structure a React app so it stays correct as it grows: features with clear boundaries, typed props and UI state, one owner for every piece of state, effects with honest dependencies, and server data treated as a cache, each checked with tests on the logic behind the UI.",
   "description": "An intermediate course for developers who can already write React components and want them to survive the next feature. Every lesson starts from an incident on the CodeDev course catalog - a page that fetches forever, a filter that jumps back to the old category, a list that shows yesterday's data after an edit, a form that accepts what the API refuses - and fixes it with a decision you can verify: feature folders and an API layer, discriminated unions for loading, error, empty and success, reducers for search, filter and page, derived state instead of copies, controlled forms, effect dependencies and cleanup, stale closures, a typed API client, query keys and invalidation, and debounced search that cancels old requests. 12 lessons with True/False quizzes on real code and evidence, and TypeScript challenges graded by hidden tests.",
-  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594627/codedev/courses/typescript-react-frontend/cover",
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1793016578/codedev/courses/typescript-react-frontend/cover",
   "level": "intermediate",
   "durationMinutes": 360,
   "instructor": "CodeDev Engineering Team",

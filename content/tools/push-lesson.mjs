@@ -3,7 +3,8 @@
  * Writes <lesson>/lesson.sanity.json to Sanity as a DRAFT (drafts.<_id>), replacing any
  * previous draft. Publish it afterwards in the Studio (/studio) or with the Sanity MCP.
  *
- * Usage: node content/tools/push-lesson.mjs <lesson folder> [--env .env.local]
+ * Usage: node content/tools/push-lesson.mjs <lesson folder> [--env .env.local] [--publish]
+ * --publish writes the published document instead and removes any draft (local and production share one dataset).
  * Needs NEXT_PUBLIC_SANITY_PROJECT_ID, NEXT_PUBLIC_SANITY_DATASET and a write-capable SANITY_API_TOKEN.
  */
 import fs from "node:fs";
@@ -33,6 +34,12 @@ const client = createClient({
     useCdn: false,
 });
 
-const draft = { ...doc, _id: `drafts.${doc._id}` };
-const result = await client.createOrReplace(draft);
-console.log(`draft written: ${result._id} (rev ${result._rev}) in ${client.config().projectId}/${client.config().dataset}`);
+if (args.includes("--publish")) {
+    // Published document + no leftover draft, in one transaction (what "Publish" in the Studio does).
+    await client.transaction().createOrReplace(doc).delete(`drafts.${doc._id}`).commit();
+    console.log(`published: ${doc._id} in ${client.config().projectId}/${client.config().dataset}`);
+} else {
+    const draft = { ...doc, _id: `drafts.${doc._id}` };
+    const result = await client.createOrReplace(draft);
+    console.log(`draft written: ${result._id} (rev ${result._rev}) in ${client.config().projectId}/${client.config().dataset}`);
+}

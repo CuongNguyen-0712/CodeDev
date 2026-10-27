@@ -9,6 +9,7 @@
  * Usage:
  *   node content/tools/build-course.mjs content/courses/<course>                 # local storage (.env.local)
  *   node content/tools/build-course.mjs content/courses/<course> --push          # also write Sanity drafts
+ *   node content/tools/build-course.mjs content/courses/<course> --push --publish   # write published Sanity documents
  *   node content/tools/build-course.mjs content/courses/<course> --only 02-event-loop-async-pitfalls
  *   --skip-uploads   reuse assets.json / storage-manifest.json (no Cloudinary / S3 calls)
  *   --storage-env <file>   env file for upload-storage (default .env.local)
@@ -59,5 +60,5 @@ for (const lesson of lessons) {
 run("build-seed.mjs", courseDir);
 
 if (flag("--push")) {
-    for (const lesson of lessons) run("push-lesson.mjs", path.join(courseDir, lesson.folder));
+    for (const lesson of lessons) run("push-lesson.mjs", path.join(courseDir, lesson.folder), ...(flag("--publish") ? ["--publish"] : []));
 }
