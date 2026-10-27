@@ -1,0 +1,186 @@
+{
+  "publicId": "llm-evaluation-guardrails",
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1793025136/codedev/courses/llm-evaluation-guardrails/cover",
+  "title": "LLM Evaluation, Observability & Guardrails: Eval Sets, Judges & Prompt Injection",
+  "concept": "Ship LLM features you can measure and defend: representative eval sets, automatic checks and LLM-as-judge checked against people, regression gates in CI, traces of every model call, PII redaction, and defences against prompt injection and unsafe output handling.",
+  "description": "An advanced course for engineers who run an LLM feature in production. Every lesson starts from an incident on the CodeDev learning platform's AI grading assistant - a student submission that told the model to give full marks, a score from the model written straight into the database, an AI-written feedback panel that rendered the model's HTML, a prompt change that looked better on five examples and worse on five hundred, learner emails in the trace logs - and fixes it with a check you can automate: eval sets, eval runners, judge-human agreement with Cohen's kappa, regression gates with a minimum sample size, tracing token, latency and cost, PII redaction, detecting leaked solutions, separating data from instructions, validating model output, and safe rendering. 12 lessons with True/False quizzes on real prompts, traces and outputs, and TypeScript challenges graded by hidden tests on recorded outputs.",
+  "level": "advanced",
+  "durationMinutes": 400,
+  "instructor": "CodeDev Engineering Team",
+  "language": "TypeScript",
+  "category": "LLM Engineering",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 150,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 600
+    },
+    {
+      "priceType": "money",
+      "amount": 249000,
+      "currency": "VND"
+    }
+  ],
+  "completionRules": {},
+  "domain": "ai",
+  "learningOutcomes": [
+    {
+      "code": "eval-sets",
+      "text": "Build representative eval sets and run automatic checks on recorded outputs"
+    },
+    {
+      "code": "judges",
+      "text": "Use LLM-as-judge only with measured agreement against human graders"
+    },
+    {
+      "code": "regression-gates",
+      "text": "Gate prompt and model changes in CI with a regression threshold and a minimum sample"
+    },
+    {
+      "code": "llm-observability",
+      "text": "Trace LLM calls with tokens, latency, model and cost, and redact personal data"
+    },
+    {
+      "code": "guardrails",
+      "text": "Defend against prompt injection, unvalidated output and unsafe rendering"
+    }
+  ],
+  "testedVersions": {
+    "TypeScript": "5.9.3 (tsc --strict in the code runner)",
+    "OpenTelemetry GenAI": "semantic conventions (experimental, check current status)"
+  },
+  "lastReviewedAt": "2026-10-26",
+  "sourceLinks": [
+    "https://owasp.org/www-project-top-10-for-large-language-model-applications/",
+    "https://opentelemetry.io/docs/specs/semconv/gen-ai/",
+    "https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html"
+  ],
+  "owner": "CodeDev Engineering Team",
+  "knownIssues": [
+    "No real model is called: challenges use recorded outputs and fake judges"
+  ],
+  "scenario": {
+    "title": "Prompt Injection via Student Submission",
+    "quiz": "chal_quiz_lle_311",
+    "fixBug": "chal_coding_lle_312"
+  },
+  "careerRoles": [
+    "backend_developer",
+    "ml_engineer",
+    "fullstack_developer"
+  ],
+  "skills": {
+    "machine_learning": 4,
+    "testing": 4,
+    "typescript": 3
+  },
+  "goals": [
+    "grow_in_role",
+    "build_projects"
+  ],
+  "prerequisites": [
+    "nodejs-ai-engineering"
+  ],
+  "modules": [
+    {
+      "orderIndex": 1,
+      "title": "Evaluation",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "01-eval-sets",
+          "title": "Eval sets that represent real users",
+          "sanityId": "lesson-lle-1-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "02-eval-runner",
+          "title": "An eval runner: assertions over recorded outputs",
+          "sanityId": "lesson-lle-1-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "03-llm-as-judge",
+          "title": "LLM-as-judge: measuring agreement with people",
+          "sanityId": "lesson-lle-1-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Regression & Observability",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "04-regression-gate",
+          "title": "A regression gate for prompt changes",
+          "sanityId": "lesson-lle-2-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "05-tracing-llm-calls",
+          "title": "Tracing LLM calls: tokens, latency, model & cost",
+          "sanityId": "lesson-lle-2-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "06-pii-redaction",
+          "title": "Redact personal data before it reaches logs and traces",
+          "sanityId": "lesson-lle-2-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Guardrails",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "07-prompt-injection-submission",
+          "title": "Prompt injection via student submission",
+          "sanityId": "lesson-lle-3-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "08-data-vs-instructions",
+          "title": "Separate data from instructions in prompts",
+          "sanityId": "lesson-lle-3-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "09-validate-output",
+          "title": "Fix it: a model score written straight to the database",
+          "sanityId": "lesson-lle-3-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 4,
+      "title": "Safe Output",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "10-spot-render-html",
+          "title": "Spot the AI mistake: rendering the model's HTML",
+          "sanityId": "lesson-lle-4-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "11-solution-leak-detection",
+          "title": "Detecting leaked solutions in model output",
+          "sanityId": "lesson-lle-4-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "12-guardrails-in-production",
+          "title": "Guardrails in production: budgets, fallbacks & human review",
+          "sanityId": "lesson-lle-4-3"
+        }
+      ]
+    }
+  ]
+}

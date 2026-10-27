@@ -1,0 +1,46 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_lle_221",
+      "name": "tracing-llm-calls-quiz",
+      "type": "quiz",
+      "title": "Read the traces of the grading assistant",
+      "description": "Three pieces of evidence from the traces and dashboards of the grading assistant: a grading request with a retry, a truncated answer, and a cost panel built from sampled spans.",
+      "difficulty": "medium",
+      "outcomes": ["llm-observability"],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "One grading request, as shown in the trace viewer (attribute names follow the experimental OpenTelemetry GenAI conventions; codedev.* are the team's own):\n\ngrade_submission  sub_88412                                  4.9 s\n  chat grader-large   codedev.attempt=1  gen_ai.usage.input_tokens=1840  gen_ai.usage.output_tokens=512  gen_ai.response.finish_reasons=[\"length\"]   2.1 s\n  chat grader-large   codedev.attempt=2  gen_ai.usage.input_tokens=1840  gen_ai.usage.output_tokens=690  gen_ai.response.finish_reasons=[\"stop\"]     2.6 s\n\nPrice table (config/llm-prices.json): grader-large input $0.40 and output $1.60 per million tokens.\n\nStatement: \"The model cost of grading this submission is about $0.0018.\"",
+          "explanation": "False. $0.0018 is the cost of the second chat span only: 1840 x 0.40 / 1,000,000 + 690 x 1.60 / 1,000,000 = $0.000736 + $0.001104 = $0.00184. The first attempt was cut off by the output limit (finish reason \"length\") and thrown away by the application, but the provider still processed its 1840 input tokens and generated its 512 output tokens: $0.000736 + $0.000819 = $0.00156. The request cost about $0.0034, almost twice the figure in the statement. This is why every attempt gets its own span with its own token counts, and why the cost of a feature is the sum over all calls, retries included. The misconception is that a failed or discarded attempt is free.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A span from the hint generator, followed by the application error logged under the same trace id:\n\nchat grader-small  2.8 s\n  gen_ai.request.model = grader-small\n  gen_ai.request.max_tokens = 512\n  gen_ai.usage.input_tokens = 2210\n  gen_ai.usage.output_tokens = 512\n  gen_ai.response.finish_reasons = [\"length\"]\n  codedev.prompt.version = hints-v3\n\nERROR hints: cannot parse model output as JSON: Unexpected end of JSON input (trace 4bf92f3577b34da6a3ce929d0e0e4736)\n\nStatement: \"The span shows that the model stopped because it reached the output token limit, which explains why the JSON was incomplete.\"",
+          "explanation": "True. Three attributes agree: the request allowed 512 output tokens, the model produced exactly 512, and the finish reason is \"length\" (cut off by the limit) rather than \"stop\" (the model ended its answer). A JSON document cut off in the middle ends early, which is what \"Unexpected end of JSON input\" means. The fix belongs in the call (a higher limit, a shorter output format, or detecting \"length\" and handling it), not in the parser. The misconception is to treat every parse error as \"the model returned bad JSON\"; without the finish reason on the span, this would have looked like random model misbehaviour.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Tracing config of the grading service:\n\nOTEL_TRACES_SAMPLER=parentbased_traceidratio\nOTEL_TRACES_SAMPLER_ARG=0.1\n\nCost panel on the October dashboard, built from the trace store:\n\nSELECT sum(input_tokens * 0.40 / 1e6 + output_tokens * 1.60 / 1e6) AS cost_usd\nFROM spans\nWHERE span_name LIKE 'chat %' AND start_time >= '2026-10-01' AND start_time < '2026-11-01';\n-> 412.37\n\nStatement: \"$412.37 is what the grading assistant's model calls cost in October.\"",
+          "explanation": "False. With a trace id ratio sampler at 0.1, only about one request in ten is recorded, so the sum covers roughly a tenth of the calls; the real bill is closer to ten times the panel, and \"roughly\" is the problem. Multiplying by 10 is only an estimate, and it breaks as soon as someone adds tail sampling that keeps every error or slow trace. Totals (tokens, cost, request counts) come from data recorded for every call: a counter metric, or one usage row per call in a table, checked against the provider's invoice. Sampled traces are for looking at examples and finding causes. The misconception is that the trace store is a complete record.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        }
+      ]
+    }
+  ]
+}

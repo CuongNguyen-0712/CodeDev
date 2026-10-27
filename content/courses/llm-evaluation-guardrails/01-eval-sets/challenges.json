@@ -1,0 +1,50 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_lle_111",
+      "name": "eval-set-confidence-and-leakage-quiz",
+      "type": "quiz",
+      "title": "What does this eval score tell you?",
+      "description": "Two reports from the grading assistant's eval set: a pass rate on a small slice, and a jump in the score after few-shot examples were added to the prompt.",
+      "difficulty": "medium",
+      "outcomes": [
+        "eval-sets"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Eval report for grader-v8 on eval set v3 (a case passes when the model's verdict matches the mentors' label):\n\nslice              cases   passed   rate\npython/easy          40      38     95.0%\ntypescript/hard      40      33     82.5%\ngo/hard              20      17     85.0%\n\nThe 95% Wilson interval for k passes out of n is (p + z^2/2n +/- z * sqrt(p(1-p)/n + z^2/4n^2)) / (1 + z^2/n), with p = k/n and z = 1.96.\n\nStatement: \"A true pass rate of 70% on go/hard is consistent with the 17 out of 20 measured here at 95% confidence.\"",
+          "explanation": "True. For 17 out of 20 the 95% Wilson interval is about 64% to 95%, and 70% lies inside it. With only 20 cases, a measured 85% cannot rule out a slice that is really much weaker; you would need far more go/hard cases (or a much larger difference) before treating that slice as good. The misconception is reading a rate from a small slice as if it were exact: the number of cases decides how much the rate can move, which is why a report should always show n and an interval next to every slice rate.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A pull request adds three few-shot examples to the grading prompt (grader-v8 -> grader-v9). Its description says: \"Tried 14 sets of examples and kept the one with the best score on evals/grader/v3.\" CI output on the same eval set v3:\n\n$ npm run eval -- --prompt grader-v8 --set evals/grader/v3\nverdict matches label: 324 / 400 (81.0%)\n$ npm run eval -- --prompt grader-v9 --set evals/grader/v3\nverdict matches label: 372 / 400 (93.0%)\n$ node evals/check/leakage.js --prompt grader-v9 --set evals/grader/v3\nfew-shot example ex-1 matches eval case grader-v3-0142 (typescript/hard)\nfew-shot example ex-2 matches eval case grader-v3-0307 (go/medium)\nfew-shot example ex-3 matches eval case grader-v3-0388 (adversarial)\n3 leaks found\n\nStatement: \"Because both runs used the same eval set version, the 12-point gain is a fair estimate of how much better grader-v9 will grade production submissions.\"",
+          "explanation": "False. Using the same set version is necessary for a fair comparison but not sufficient: the leakage check shows that grader-v9's prompt contains three of the eval cases, so the model sees those inputs (and the expected judgement) at grading time. On top of that, the examples were chosen as the best of 14 tries scored on this very set, so the prompt is fitted to these 400 cases: some of the gain is selection on noise and on the set's quirks, and it will shrink on new submissions. Pick few-shot examples from outside the eval set, tune on a dev split, and measure the final candidate once on a test split it has never seen before trusting any gain. The misconception is that a fixed eval set is automatically an unbiased judge of every prompt run against it.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

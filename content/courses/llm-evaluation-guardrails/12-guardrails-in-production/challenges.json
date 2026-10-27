@@ -1,0 +1,66 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_lle_431",
+      "name": "guardrails-in-production-quiz",
+      "type": "quiz",
+      "title": "Read the guardrails after a bad prompt release",
+      "description": "Evidence from the grade-v14 release of the AI grading assistant: the retry policy, a review of what an input filter blocked, and the rollback. Decide what each one shows.",
+      "difficulty": "medium",
+      "outcomes": [
+        "guardrails"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Grading worker during the grade-v14 release:\n\nconfig:\n  maxAttemptsPerSubmission: 6     # 1 call + up to 5 retries when the output fails schema validation\n  max_tokens: 1200\n\ntrace summary 18:05-19:30 (prompt_version = grade-v14):\n  submissions graded:   4,180\n  model calls:         17,904   (4.3 per submission)\n  schema failures:      38% of calls\n\nProposed change: maxAttemptsPerSubmission: 2; after the second failure, publish the tests-only score with the neutral feedback text.\n\nStatement: \"With the proposed change, a release like grade-v14 can make at most 2 model calls per submission, whatever share of its outputs fail validation.\"",
+          "explanation": "True. The attempt limit is a budget enforced by the worker, not by the model: after the second failed validation the worker stops calling and uses the fallback, so the number of calls per submission is bounded by 2 no matter how bad the prompt is. With the old limit of 6, a prompt that breaks the output format multiplies traffic and cost, which is exactly the 4.3 calls per submission in the trace (OWASP LLM10, Unbounded Consumption). The misconception is that retries fix bad output: a schema failure caused by the prompt repeats on most retries, so extra attempts mostly buy cost and latency. Pair the per-submission budget with a feature-wide spend cap and an alert on the validation failure rate.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Input guardrail \"injection-phrases\" (blocks a submission that contains phrases such as \"ignore previous instructions\"), last 30 days:\n\n  submissions checked:  48,200\n  blocked:               1,012   (2.1%)\n\nA reviewer labelled 200 blocked submissions chosen at random:\n  real attempts to steer the grader:   52\n  benign (string literals in the Prompt Engineering course, comments quoting a lesson): 148\n\nStatement: \"About three quarters of the submissions this filter blocks are false positives, so its 2.1% block rate says little about how accurate it is.\"",
+          "explanation": "True. In the labelled sample 148 of 200 blocks were benign, 74%, so roughly three out of four blocked learners did nothing wrong; with 1,012 blocks a month that is several hundred honest submissions. The block rate only says how often the filter fires, not whether it is right: a filter that blocks 2% at random would have the same rate. To judge a guardrail you need labelled samples of what it blocks (precision) and of what it lets through (missed attacks), measured per rule. Here the right move is to stop using the phrase match as a gate and use it as a signal that routes to review, or to scope it per course. The misconception is that a low block rate means few false positives.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Incident log, grade-v14:\n\n19:40  GRADING_PROMPT_VERSION switched to grade-v13 (feature flag, no deploy)\n19:41  new gradings: prompt_version = grade-v13, schema failures 1.2%, calls per submission 1.02\n\nSELECT count(*) AS graded, count(*) FILTER (WHERE published_status = 'passed') AS published_passed\nFROM grading_result WHERE prompt_version = 'grade-v14';\n\n graded | published_passed\n--------+-----------------\n   4180 |             612\n\nStatement: \"Once the flag switch at 19:41 shows healthy numbers, the incident is resolved: the submissions graded with grade-v14 need no further action because every new grading uses grade-v13.\"",
+          "explanation": "False. The rollback stops new damage; it does not repair the 4,180 results already produced by grade-v14, 612 of which were published as passed with scores the team no longer trusts. Incident response continues: find the affected results through the prompt_version recorded with each grading (this is why traces carry it), re-grade or send them to human review, correct and notify where a published result changes, and only then close the incident with a postmortem that adds the failing cases to the eval set and the regression gate. The misconception is that reverting a change reverts its effects; stored decisions stay wrong until you fix them.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

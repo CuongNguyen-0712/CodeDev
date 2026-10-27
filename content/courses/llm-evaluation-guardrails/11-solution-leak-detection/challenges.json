@@ -1,0 +1,583 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_lle_421",
+      "name": "solution-leak-quiz",
+      "type": "quiz",
+      "title": "What does a fingerprint match prove?",
+      "description": "Two results of the solution leak check on the grading feedback: what winnowing guarantees to find, and what a low overlap does not prove.",
+      "difficulty": "medium",
+      "outcomes": [
+        "guardrails"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The leak check fingerprints code with K = 5 (characters per k-gram, after removing whitespace and lowering case) and W = 4 (hashes per window, the minimum of each window is kept).\n\nReference solution (normalised, excerpt):  ...while(dayset.has(runend+1))runend++;...\nFeedback code block (normalised):           if(x)while(dayset.has(runend+1))y();\n\nThe shared run \"while(dayset.has(runend+1))\" is 27 characters long.\n\nStatement: \"The block and the reference share at least one fingerprint value, because winnowing keeps at least one hash from every shared run of W + K - 1 = 8 or more characters.\"",
+          "explanation": "True. A shared run of 8 characters contains 4 consecutive k-grams of length 5, which is one full window of W hashes, and the same window of hashes appears in both texts. Each text keeps the minimum of that window, and both minimums are the same value, so they share at least one fingerprint. The 27-character run is far above the guarantee threshold. Below 8 characters nothing is guaranteed, and runs shorter than K are invisible: that is why winnowing ignores small coincidences such as a shared keyword. The misconception is that winnowing samples hashes at random and may miss a long copy; the window minimum makes the selection depend only on the content, so a long enough copy is always caught.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Feedback block (the reference solution with every variable renamed: daySet -> active, runEnd -> last, best -> top):\n\nfor (const day of active) {\n  if (active.has(day - 1)) continue;\n  let last = day;\n  while (active.has(last + 1)) last++;\n  if (!top || last - day > top[1] - top[0]) top = [day, last];\n}\n\nLeak check result: code-overlap 0.16 with solution 1 (threshold 0.5), no hidden output found, step rule not applicable (no list) -> allowed\n\nStatement: \"The overlap of 0.16 shows that this feedback does not reveal the reference algorithm.\"",
+          "explanation": "False. Character fingerprints measure how much of the reference text is copied, not whether the algorithm is revealed. Renaming every variable breaks most k-grams, so the overlap drops below the threshold, but the block is still the complete reference algorithm. The check has a false negative here, and every output check has some: normalising identifiers before fingerprinting (as plagiarism tools do), sampling allowed feedback for human review, and keeping a set of known leaks in the eval set are how you find and measure them. The misconception is that a score below the threshold proves safety; it only proves this rule did not fire.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_lle_422",
+      "name": "detect-leaked-solutions",
+      "type": "mini_coding",
+      "title": "Block feedback that leaks hidden tests or the reference solution",
+      "description": "CodeDev's AI grading assistant explains why a submission failed. To grade, it sees the challenge's reference solutions (one per language) and every test case, hidden ones included, so its feedback can leak them: last week learners shared feedback that quoted hidden expected outputs, pasted a reformatted reference solution, and listed the reference algorithm step by step. Write checkFeedback(feedback, refs), the check that runs after generation and before the feedback is stored. It returns \"allowed\" or the first rule that fires, in this order:\n\nnormalise(text) = the text in lower case with every whitespace character removed.\n\n1. hidden-output: for each test in order (numbered from 1, public ones included in the numbering), when the test is hidden and normalise(expected) has at least MIN_OUTPUT_LENGTH (6) characters and normalise(feedback) contains it, return \"blocked: hidden-output (test <n>)\". Public outputs are allowed: the learner already sees them.\n\n2. code-overlap: code blocks are the lines between a line that starts with ``` (after trimming) and the next such line, or the end of the text when the block is not closed; their lines are joined with \\n. The winnowed fingerprint of a piece of code: t = normalise(code); for every i with i + K <= t.length, the k-gram t.slice(i, i + K) gets the hash h = 0, then for each of its characters h = (h * 31 + charCode) % 1000000007; for every window of W consecutive hashes (start 0, 1, ... up to hashes.length - W), take the minimum hash; when there are fewer than W hashes, the single window is all of them; no k-grams gives an empty fingerprint. The fingerprint is the set of the selected hash values. overlap(block, solution) = (values in both fingerprints) / (size of the solution's fingerprint); solutions with an empty fingerprint are skipped. Take the highest overlap over every block and every solution (the first solution on a tie, counting solutions from 1); when it is >= MAX_OVERLAP (0.5), return \"blocked: code-overlap (solution <n>, <overlap with 2 decimals, toFixed(2)>)\".\n\n3. algorithm-steps: step lines are the lines outside code blocks that, after trimming, start with - or * or digits and a dot, followed by whitespace. An identifier from refs.distinctive is found when it appears in a step line as a whole word (case-sensitive, not preceded or followed by a letter, digit, _ or $). When found identifiers >= min(MIN_IDENTIFIERS (3), number of distinctive identifiers) and that number is above 0, return \"blocked: algorithm-steps (<found identifiers in the order of refs.distinctive, joined with \", \">)\".\n\nFeedback that is not a string, or is empty or only whitespace, returns \"blocked: empty\" (fail closed) before any rule. Otherwise, when no rule fires, return \"allowed\".\n\nInput (stdin, JSON): { \"solutions\": [up to 5 strings], \"tests\": [{ \"expected\": string, \"hidden\": boolean }], \"distinctive\": [strings], \"feedback\": [up to 200 values] }. Output (printed by the test runner): \"feedback <n>: <verdict>\" per feedback. Do not change the policy constants or the test runner.",
+      "difficulty": "medium",
+      "outcomes": [
+        "guardrails"
+      ],
+      "points": 30,
+      "hints": [
+        "Which of the three rules needs the text exactly as written (line by line), and which ones compare normalised text? Write normalise and fingerprint first and check them on a small string by hand.",
+        "Look at three places: the hidden flag of each test (public outputs never block), the denominator of the overlap (the reference fingerprint, so quoting one line of the reference stays small), and how an identifier is matched (a whole word, so daySetSize is not daySet).",
+        "A worked example on other input, with K = 3 and W = 2: normalise(\"Ab c d\") = \"abcd\", the k-grams are \"abc\" and \"bcd\", and their hashes are (97*31 + 98)*31 + 99 = 96354 and (98*31 + 99)*31 + 100 = 97347. There are 2 hashes and W = 2, so there is one window and the fingerprint is { 96354 }. The text \"xbcd\" has the hashes 118457 and 97347, so its fingerprint is { 97347 }: the two fingerprints share no value (overlap 0 / 1 = 0) although both texts contain \"bcd\". Texts this short are below the winnowing guarantee; compare sets of hash values, never positions."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Ordinary feedback passes; a hidden test output quoted verbatim is blocked",
+          "input": {
+            "solutions": [
+              "function longestStreak(days: number[]): [number, number] | null {\n  const daySet = new Set(days);\n  let best: [number, number] | null = null;\n  for (const day of daySet) {\n    const isStreakStart = !daySet.has(day - 1);\n    if (!isStreakStart) continue;\n    let runEnd = day;\n    while (daySet.has(runEnd + 1)) runEnd++;\n    if (!best || runEnd - day > best[1] - best[0]) best = [day, runEnd];\n  }\n  return best;\n}",
+              "def longest_streak(days):\n    day_set = set(days)\n    best = None\n    for day in sorted(day_set):\n        if day - 1 in day_set:\n            continue\n        run_end = day\n        while run_end + 1 in day_set:\n            run_end += 1\n        if best is None or run_end - day > best[1] - best[0]:\n            best = (day, run_end)\n    return best"
+            ],
+            "tests": [
+              {
+                "expected": "streak 2026-01-05..2026-01-07 (3 days)",
+                "hidden": false
+              },
+              {
+                "expected": "none",
+                "hidden": false
+              },
+              {
+                "expected": "streak 2026-02-27..2026-03-02 (4 days)",
+                "hidden": true
+              },
+              {
+                "expected": "streak 2025-12-30..2026-01-02 (4 days)",
+                "hidden": true
+              },
+              {
+                "expected": "none",
+                "hidden": true
+              }
+            ],
+            "distinctive": [
+              "daySet",
+              "runEnd",
+              "day_set",
+              "run_end",
+              "isStreakStart"
+            ],
+            "feedback": [
+              "Your function returns the right streak for the first public test. Check what happens when the same day appears twice in the input.",
+              "Close! For hidden test 3 the expected output is streak 2026-02-27..2026-03-02 (4 days), but you return 3 days.",
+              "The public test expects streak 2026-01-05..2026-01-07 (3 days) and your output matches it."
+            ]
+          },
+          "expected": "feedback 1: allowed\nfeedback 2: blocked: hidden-output (test 3)\nfeedback 3: allowed",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "A copied code block and a step list that retells the reference algorithm",
+          "input": {
+            "solutions": [
+              "function longestStreak(days: number[]): [number, number] | null {\n  const daySet = new Set(days);\n  let best: [number, number] | null = null;\n  for (const day of daySet) {\n    const isStreakStart = !daySet.has(day - 1);\n    if (!isStreakStart) continue;\n    let runEnd = day;\n    while (daySet.has(runEnd + 1)) runEnd++;\n    if (!best || runEnd - day > best[1] - best[0]) best = [day, runEnd];\n  }\n  return best;\n}",
+              "def longest_streak(days):\n    day_set = set(days)\n    best = None\n    for day in sorted(day_set):\n        if day - 1 in day_set:\n            continue\n        run_end = day\n        while run_end + 1 in day_set:\n            run_end += 1\n        if best is None or run_end - day > best[1] - best[0]:\n            best = (day, run_end)\n    return best"
+            ],
+            "tests": [
+              {
+                "expected": "streak 2026-01-05..2026-01-07 (3 days)",
+                "hidden": false
+              },
+              {
+                "expected": "none",
+                "hidden": false
+              },
+              {
+                "expected": "streak 2026-02-27..2026-03-02 (4 days)",
+                "hidden": true
+              },
+              {
+                "expected": "streak 2025-12-30..2026-01-02 (4 days)",
+                "hidden": true
+              },
+              {
+                "expected": "none",
+                "hidden": true
+              }
+            ],
+            "distinctive": [
+              "daySet",
+              "runEnd",
+              "day_set",
+              "run_end",
+              "isStreakStart"
+            ],
+            "feedback": [
+              "Here is a cleaner version:\n```ts\nfunction longestStreak(days: number[]): [number, number] | null {\n  const daySet = new Set(days);\n  let best: [number, number] | null = null;\n  for (const day of daySet) {\n    const isStreakStart = !daySet.has(day - 1);\n    if (!isStreakStart) continue;\n    let runEnd = day;\n    while (daySet.has(runEnd + 1)) runEnd++;\n    if (!best || runEnd - day > best[1] - best[0]) best = [day, runEnd];\n  }\n  return best;\n}\n```",
+              "Follow these steps:\n1. Put the days in a `daySet`\n2. Skip a day unless `isStreakStart` is true for it\n3. Move `runEnd` forward while the next day is in the set\n4. Keep the longest run",
+              "Good structure. Two things to look at:\n- the loop stops one day too early when a streak ends on the last day\n- an empty list should print none\n\nYour current line:\n```ts\nfor (let i = 1; i < days.length; i++) {\n```"
+            ]
+          },
+          "expected": "feedback 1: blocked: code-overlap (solution 1, 1.00)\nfeedback 2: blocked: algorithm-steps (daySet, runEnd, isStreakStart)\nfeedback 3: allowed",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Hidden outputs match after case and whitespace normalisation; short and public ones do not count",
+          "input": {
+            "solutions": [
+              "function denseRanks(rows: Row[]): string[] {\n  const sortedRows = [...rows].sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));\n  const lines: string[] = [];\n  let rank = 0;\n  let previousScore: number | null = null;\n  for (const row of sortedRows) {\n    if (row.score !== previousScore) {\n      rank++;\n      previousScore = row.score;\n    }\n    lines.push(`rank ${rank}: ${row.name} (${row.score})`);\n  }\n  return lines;\n}",
+              "def dense_ranks(rows):\n    sorted_rows = sorted(rows, key=lambda r: (-r[\"score\"], r[\"name\"]))\n    lines, rank, previous_score = [], 0, None\n    for row in sorted_rows:\n        if row[\"score\"] != previous_score:\n            rank += 1\n            previous_score = row[\"score\"]\n        lines.append(f\"rank {rank}: {row['name']} ({row['score']})\")\n    return lines"
+            ],
+            "tests": [
+              {
+                "expected": "rank 1: ana (980)\nrank 2: binh (975)",
+                "hidden": false
+              },
+              {
+                "expected": "rank 1: ana (980)\nrank 2: binh (975)\nrank 2: chi (975)\nrank 3: dung (960)",
+                "hidden": true
+              },
+              {
+                "expected": "[]",
+                "hidden": true
+              },
+              {
+                "expected": "rank 1: zoe (7)\nrank 1: yen (7)",
+                "hidden": true
+              }
+            ],
+            "distinctive": [
+              "sortedRows",
+              "previousScore",
+              "sorted_rows",
+              "previous_score",
+              "localeCompare"
+            ],
+            "feedback": [
+              "Expected:\nRANK 1: Ana (980)   rank 2: Binh (975)\nrank 2: chi (975)\n\nrank 3: dung (960)",
+              "Your output for the public test, rank 1: ana (980) rank 2: binh (975), is correct.",
+              "When the input is empty you should print [] instead of crashing.",
+              "For the tie case expect rank 1: zoe (7)\n  rank 1: yen (7) in that order.",
+              "The leaderboard test fails because two learners with the same score get different ranks. Read the task again: equal scores share a rank."
+            ]
+          },
+          "expected": "feedback 1: blocked: hidden-output (test 2)\nfeedback 2: allowed\nfeedback 3: allowed\nfeedback 4: blocked: hidden-output (test 4)\nfeedback 5: allowed",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Reformatted, commented and partial copies are blocked; a one-line quote and renamed code are not",
+          "input": {
+            "solutions": [
+              "function longestStreak(days: number[]): [number, number] | null {\n  const daySet = new Set(days);\n  let best: [number, number] | null = null;\n  for (const day of daySet) {\n    const isStreakStart = !daySet.has(day - 1);\n    if (!isStreakStart) continue;\n    let runEnd = day;\n    while (daySet.has(runEnd + 1)) runEnd++;\n    if (!best || runEnd - day > best[1] - best[0]) best = [day, runEnd];\n  }\n  return best;\n}",
+              "def longest_streak(days):\n    day_set = set(days)\n    best = None\n    for day in sorted(day_set):\n        if day - 1 in day_set:\n            continue\n        run_end = day\n        while run_end + 1 in day_set:\n            run_end += 1\n        if best is None or run_end - day > best[1] - best[0]:\n            best = (day, run_end)\n    return best"
+            ],
+            "tests": [
+              {
+                "expected": "streak 2026-01-05..2026-01-07 (3 days)",
+                "hidden": false
+              },
+              {
+                "expected": "none",
+                "hidden": false
+              },
+              {
+                "expected": "streak 2026-02-27..2026-03-02 (4 days)",
+                "hidden": true
+              },
+              {
+                "expected": "streak 2025-12-30..2026-01-02 (4 days)",
+                "hidden": true
+              },
+              {
+                "expected": "none",
+                "hidden": true
+              }
+            ],
+            "distinctive": [
+              "daySet",
+              "runEnd",
+              "day_set",
+              "run_end",
+              "isStreakStart"
+            ],
+            "feedback": [
+              "Compare with this:\n```python\ndef longest_streak( days ):\n  day_set=set( days )\n  best=None\n\n  for day in sorted( day_set ):\n    if day-1 in day_set:\n      continue\n    run_end=day\n    while run_end+1 in day_set:\n      run_end+=1\n    if best is None or run_end-day>best[1]-best[0]:\n      best=(day,run_end)\n  return best\n```",
+              "The fix, with comments:\n```ts\nfunction longestStreak(days: number[]): [number, number] | null {\n  // a Set makes each lookup O(1)\n  const daySet = new Set(days);\n  let best: [number, number] | null = null;\n  for (const day of daySet) {\n    const isStreakStart = !daySet.has(day - 1);\n    if (!isStreakStart) continue;\n    // walk to the end of this run\n    let runEnd = day;\n    while (daySet.has(runEnd + 1)) runEnd++;\n    if (!best || runEnd - day > best[1] - best[0]) best = [day, runEnd];\n  }\n  return best;\n}\n```",
+              "Start like this and finish the loop yourself:\n```ts\nfunction longestStreak(days: number[]): [number, number] | null {\n  const daySet = new Set(days);\n  let best: [number, number] | null = null;\n  for (const day of daySet) {\n    const isStreakStart = !daySet.has(day - 1);\n    if (!isStreakStart) continue;\n    let runEnd = day;\n```",
+              "This line is the key:\n```ts\nwhile (daySet.has(runEnd + 1)) runEnd++;\n```",
+              "Hint:\n```ts\nfunction streak(days: number[]): [number, number] | null {\n  const active = new Set(days);\n  let top: [number, number] | null = null;\n  for (const day of active) {\n    const first = !active.has(day - 1);\n    if (!first) continue;\n    let last = day;\n    while (active.has(last + 1)) last++;\n    if (!top || last - day > top[1] - top[0]) top = [day, last];\n  }\n  return top;\n}\n```",
+              "Unclosed block:\n```python\ndef longest_streak(days):\n    day_set = set(days)\n    best = None\n    for day in sorted(day_set):\n        if day - 1 in day_set:\n            continue\n        run_end = day\n        while run_end + 1 in day_set:\n            run_end += 1\n        if best is None or run_end - day > best[1] - best[0]:\n            best = (day, run_end)\n    return best"
+            ]
+          },
+          "expected": "feedback 1: blocked: code-overlap (solution 2, 1.00)\nfeedback 2: blocked: code-overlap (solution 1, 0.97)\nfeedback 3: blocked: code-overlap (solution 1, 0.63)\nfeedback 4: allowed\nfeedback 5: allowed\nfeedback 6: blocked: code-overlap (solution 2, 1.00)",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Identifiers count only as whole words, only in step lines, and three are needed",
+          "input": {
+            "solutions": [
+              "function longestStreak(days: number[]): [number, number] | null {\n  const daySet = new Set(days);\n  let best: [number, number] | null = null;\n  for (const day of daySet) {\n    const isStreakStart = !daySet.has(day - 1);\n    if (!isStreakStart) continue;\n    let runEnd = day;\n    while (daySet.has(runEnd + 1)) runEnd++;\n    if (!best || runEnd - day > best[1] - best[0]) best = [day, runEnd];\n  }\n  return best;\n}",
+              "def longest_streak(days):\n    day_set = set(days)\n    best = None\n    for day in sorted(day_set):\n        if day - 1 in day_set:\n            continue\n        run_end = day\n        while run_end + 1 in day_set:\n            run_end += 1\n        if best is None or run_end - day > best[1] - best[0]:\n            best = (day, run_end)\n    return best"
+            ],
+            "tests": [
+              {
+                "expected": "streak 2026-01-05..2026-01-07 (3 days)",
+                "hidden": false
+              },
+              {
+                "expected": "none",
+                "hidden": false
+              },
+              {
+                "expected": "streak 2026-02-27..2026-03-02 (4 days)",
+                "hidden": true
+              },
+              {
+                "expected": "streak 2025-12-30..2026-01-02 (4 days)",
+                "hidden": true
+              },
+              {
+                "expected": "none",
+                "hidden": true
+              }
+            ],
+            "distinctive": [
+              "daySet",
+              "runEnd",
+              "day_set",
+              "run_end",
+              "isStreakStart"
+            ],
+            "feedback": [
+              "You could keep a daySet, track runEnd and compute isStreakStart, but first fix the off-by-one.",
+              "Next steps:\n- print daySetSize before the loop\n- remove the unseen runEnds from the log\n- check isStreakStarted is reset",
+              "Next steps:\n- your daySet is fine\n- `runEnd` is never reset\n- add a test with one day",
+              "Next steps:\n* build day_set from the input\n* advance run_end while the next day exists\n* compare with your daySet version"
+            ]
+          },
+          "expected": "feedback 1: allowed\nfeedback 2: allowed\nfeedback 3: allowed\nfeedback 4: blocked: algorithm-steps (daySet, day_set, run_end)",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Rule order, the solution with the highest overlap, and fewer than three identifiers",
+          "input": {
+            "solutions": [
+              "function denseRanks(rows: Row[]): string[] {\n  const sortedRows = [...rows].sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));\n  const lines: string[] = [];\n  let rank = 0;\n  let previousScore: number | null = null;\n  for (const row of sortedRows) {\n    if (row.score !== previousScore) {\n      rank++;\n      previousScore = row.score;\n    }\n    lines.push(`rank ${rank}: ${row.name} (${row.score})`);\n  }\n  return lines;\n}",
+              "def dense_ranks(rows):\n    sorted_rows = sorted(rows, key=lambda r: (-r[\"score\"], r[\"name\"]))\n    lines, rank, previous_score = [], 0, None\n    for row in sorted_rows:\n        if row[\"score\"] != previous_score:\n            rank += 1\n            previous_score = row[\"score\"]\n        lines.append(f\"rank {rank}: {row['name']} ({row['score']})\")\n    return lines"
+            ],
+            "tests": [
+              {
+                "expected": "rank 1: ana (980)\nrank 2: binh (975)",
+                "hidden": false
+              },
+              {
+                "expected": "rank 1: ana (980)\nrank 2: binh (975)\nrank 2: chi (975)\nrank 3: dung (960)",
+                "hidden": true
+              },
+              {
+                "expected": "[]",
+                "hidden": true
+              },
+              {
+                "expected": "rank 1: zoe (7)\nrank 1: yen (7)",
+                "hidden": true
+              }
+            ],
+            "distinctive": [
+              "previousScore",
+              "sortedRows"
+            ],
+            "feedback": [
+              "Expected rank 1: zoe (7) rank 1: yen (7). Reference:\n```ts\nfunction denseRanks(rows: Row[]): string[] {\n  const sortedRows = [...rows].sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));\n  const lines: string[] = [];\n  let rank = 0;\n  let previousScore: number | null = null;\n  for (const row of sortedRows) {\n    if (row.score !== previousScore) {\n      rank++;\n      previousScore = row.score;\n    }\n    lines.push(`rank ${rank}: ${row.name} (${row.score})`);\n  }\n  return lines;\n}\n```",
+              "Part of it:\n```ts\nfunction denseRanks(rows: Row[]): string[] {\n  const sortedRows = [...rows].sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));\n  const lines: string[] = [];\n  let rank = 0;\n```\nand the Python one:\n```python\ndef dense_ranks(rows):\n    sorted_rows = sorted(rows, key=lambda r: (-r[\"score\"], r[\"name\"]))\n    lines, rank, previous_score = [], 0, None\n    for row in sorted_rows:\n        if row[\"score\"] != previous_score:\n            rank += 1\n            previous_score = row[\"score\"]\n        lines.append(f\"rank {rank}: {row['name']} ({row['score']})\")\n    return lines\n```",
+              "Steps:\n1. sort into sortedRows\n2. compare with previousScore",
+              "Steps:\n1. sort the rows\n2. compare with previousScore"
+            ]
+          },
+          "expected": "feedback 1: blocked: hidden-output (test 4)\nfeedback 2: blocked: code-overlap (solution 2, 1.00)\nfeedback 3: blocked: algorithm-steps (previousScore, sortedRows)\nfeedback 4: allowed",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Empty, null and whitespace feedback, an empty reference and an empty expected output",
+          "input": {
+            "solutions": [
+              "",
+              "   "
+            ],
+            "tests": [
+              {
+                "expected": "",
+                "hidden": true
+              },
+              {
+                "expected": "   \n",
+                "hidden": true
+              }
+            ],
+            "distinctive": [],
+            "feedback": [
+              "",
+              "  \n\t ",
+              null,
+              "Steps:\n1. a\n2. b\n3. c\n```ts\nfunction longestStreak(days: number[]): [number, number] | null {\n  const daySet = new Set(days);\n  let best: [number, number] | null = null;\n  for (const day of daySet) {\n    const isStreakStart = !daySet.has(day - 1);\n    if (!isStreakStart) continue;\n    let runEnd = day;\n    while (daySet.has(runEnd + 1)) runEnd++;\n    if (!best || runEnd - day > best[1] - best[0]) best = [day, runEnd];\n  }\n  return best;\n}\n```",
+              "Fine."
+            ]
+          },
+          "expected": "feedback 1: blocked: empty\nfeedback 2: blocked: empty\nfeedback 3: blocked: empty\nfeedback 4: allowed\nfeedback 5: allowed",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Large input: 160 feedback texts, 60 of them leak",
+          "input": {
+            "solutions": [
+              "function longestStreak(days: number[]): [number, number] | null {\n  const daySet = new Set(days);\n  let best: [number, number] | null = null;\n  for (const day of daySet) {\n    const isStreakStart = !daySet.has(day - 1);\n    if (!isStreakStart) continue;\n    let runEnd = day;\n    while (daySet.has(runEnd + 1)) runEnd++;\n    if (!best || runEnd - day > best[1] - best[0]) best = [day, runEnd];\n  }\n  return best;\n}",
+              "def longest_streak(days):\n    day_set = set(days)\n    best = None\n    for day in sorted(day_set):\n        if day - 1 in day_set:\n            continue\n        run_end = day\n        while run_end + 1 in day_set:\n            run_end += 1\n        if best is None or run_end - day > best[1] - best[0]:\n            best = (day, run_end)\n    return best"
+            ],
+            "tests": [
+              {
+                "expected": "streak 2026-01-05..2026-01-07 (3 days)",
+                "hidden": false
+              },
+              {
+                "expected": "none",
+                "hidden": false
+              },
+              {
+                "expected": "streak 2026-02-27..2026-03-02 (4 days)",
+                "hidden": true
+              },
+              {
+                "expected": "streak 2025-12-30..2026-01-02 (4 days)",
+                "hidden": true
+              },
+              {
+                "expected": "none",
+                "hidden": true
+              }
+            ],
+            "distinctive": [
+              "daySet",
+              "runEnd",
+              "day_set",
+              "run_end",
+              "isStreakStart"
+            ],
+            "feedback": [
+              "Attempt 0: Your function returns the right streak for the first public test. Check what happens when the same day appears twice in the input. You are 0 days into your own streak, keep going and add a test for a list of 2 days.",
+              "Attempt 1: Good structure. Two things to look at:\n- the loop stops one day too early when a streak ends on the last day\n- an empty list should print none\n\nYour current line:\n```ts\nfor (let i = 1; i < days.length; i++) {\n``` You are 1 days into your own streak, keep going and add a test for a list of 3 days.",
+              "Attempt 2: The leaderboard test fails because two learners with the same score get different ranks. Read the task again: equal scores share a rank. You are 2 days into your own streak, keep going and add a test for a list of 4 days.",
+              "Attempt 3: your output differs. Expected streak 2025-12-30..2026-01-02 (4 days) for that input.",
+              "Attempt 4: Good structure. Two things to look at:\n- the loop stops one day too early when a streak ends on the last day\n- an empty list should print none\n\nYour current line:\n```ts\nfor (let i = 1; i < days.length; i++) {\n``` You are 0 days into your own streak, keep going and add a test for a list of 6 days.",
+              "Attempt 5: compare with\n```ts\nfunction longestStreak(days: number[]): [number, number] | null {\n  const daySet = new Set(days);\n  let best: [number, number] | null = null;\n  for (const day of daySet) {\n    const isStreakStart = !daySet.has(day - 1);\n    if (!isStreakStart) continue;\n    let runEnd = day;\n    while (daySet.has(runEnd + 1)) runEnd++;\n    if (!best || runEnd - day > best[1] - best[0]) best = [day, runEnd];\n  }\n  return best;\n}\n```",
+              "Attempt 6: Your function returns the right streak for the first public test. Check what happens when the same day appears twice in the input. You are 2 days into your own streak, keep going and add a test for a list of 8 days.",
+              "Attempt 7:\n- keep a daySet\n- grow runEnd\n- check isStreakStart\n- return the best pair",
+              "Attempt 8: The leaderboard test fails because two learners with the same score get different ranks. Read the task again: equal scores share a rank. You are 0 days into your own streak, keep going and add a test for a list of 10 days.",
+              "Attempt 9: Your function returns the right streak for the first public test. Check what happens when the same day appears twice in the input. You are 1 days into your own streak, keep going and add a test for a list of 11 days.",
+              "Attempt 10: Good structure. Two things to look at:\n- the loop stops one day too early when a streak ends on the last day\n- an empty list should print none\n\nYour current line:\n```ts\nfor (let i = 1; i < days.length; i++) {\n``` You are 2 days into your own streak, keep going and add a test for a list of 12 days.",
+              "Attempt 11: your output differs. Expected streak 2025-12-30..2026-01-02 (4 days) for that input.",
+              "Attempt 12: Your function returns the right streak for the first public test. Check what happens when the same day appears twice in the input. You are 0 days into your own streak, keep going and add a test for a list of 14 days.",
+              "Attempt 13: compare with\n```python\ndef longest_streak( days ):\n  day_set=set( days )\n  best=None\n\n  for day in sorted( day_set ):\n    if day-1 in day_set:\n      continue\n    run_end=day\n    while run_end+1 in day_set:\n      run_end+=1\n    if best is None or run_end-day>best[1]-best[0]:\n      best=(day,run_end)\n  return best\n```",
+              "Attempt 14: The leaderboard test fails because two learners with the same score get different ranks. Read the task again: equal scores share a rank. You are 2 days into your own streak, keep going and add a test for a list of 16 days.",
+              "Attempt 15:\n- keep a daySet\n- grow runEnd\n- check isStreakStart\n- return the best pair",
+              "Attempt 16: Good structure. Two things to look at:\n- the loop stops one day too early when a streak ends on the last day\n- an empty list should print none\n\nYour current line:\n```ts\nfor (let i = 1; i < days.length; i++) {\n``` You are 0 days into your own streak, keep going and add a test for a list of 18 days.",
+              "Attempt 17: The leaderboard test fails because two learners with the same score get different ranks. Read the task again: equal scores share a rank. You are 1 days into your own streak, keep going and add a test for a list of 19 days.",
+              "Attempt 18: Your function returns the right streak for the first public test. Check what happens when the same day appears twice in the input. You are 2 days into your own streak, keep going and add a test for a list of 20 days.",
+              "Attempt 19: your output differs. Expected streak 2025-12-30..2026-01-02 (4 days) for that input.",
+              "Attempt 20: The leaderboard test fails because two learners with the same score get different ranks. Read the task again: equal scores share a rank. You are 0 days into your own streak, keep going and add a test for a list of 22 days.",
+              "Attempt 21: compare with\n```ts\nfunction longestStreak(days: number[]): [number, number] | null {\n  const daySet = new Set(days);\n  let best: [number, number] | null = null;\n  for (const day of daySet) {\n    const isStreakStart = !daySet.has(day - 1);\n    if (!isStreakStart) continue;\n    let runEnd = day;\n    while (daySet.has(runEnd + 1)) runEnd++;\n    if (!best || runEnd - day > best[1] - best[0]) best = [day, runEnd];\n  }\n  return best;\n}\n```",
+              "Attempt 22: Good structure. Two things to look at:\n- the loop stops one day too early when a streak ends on the last day\n- an empty list should print none\n\nYour current line:\n```ts\nfor (let i = 1; i < days.length; i++) {\n``` You are 2 days into your own streak, keep going and add a test for a list of 24 days.",
+              "Attempt 23:\n- keep a daySet\n- grow runEnd\n- check isStreakStart\n- return the best pair",
+              "Attempt 24: Your function returns the right streak for the first public test. Check what happens when the same day appears twice in the input. You are 0 days into your own streak, keep going and add a test for a list of 26 days.",
+              "Attempt 25: Good structure. Two things to look at:\n- the loop stops one day too early when a streak ends on the last day\n- an empty list should print none\n\nYour current line:\n```ts\nfor (let i = 1; i < days.length; i++) {\n``` You are 1 days into your own streak, keep going and add a test for a list of 27 days.",
+              "Attempt 26: The leaderboard test fails because two learners with the same score get different ranks. Read the task again: equal scores share a rank. You are 2 days into your own streak, keep going and add a test for a list of 28 days.",
+              "Attempt 27: your output differs. Expected streak 2025-12-30..2026-01-02 (4 days) for that input.",
+              "Attempt 28: Good structure. Two things to look at:\n- the loop stops one day too early when a streak ends on the last day\n- an empty list should print none\n\nYour current line:\n```ts\nfor (let i = 1; i < days.length; i++) {\n``` You are 0 days into your own streak, keep going and add a test for a list of 30 days.",
+              "Attempt 29: compare with\n```python\ndef longest_streak( days ):\n  day_set=set( days )\n  best=None\n\n  for day in sorted( day_set ):\n    if day-1 in day_set:\n      continue\n    run_end=day\n    while run_end+1 in day_set:\n      run_end+=1\n    if best is None or run_end-day>best[1]-best[0]:\n      best=(day,run_end)\n  return best\n```",
+              "Attempt 30: Your function returns the right streak for the first public test. Check what happens when the same day appears twice in the input. You are 2 days into your own streak, keep going and add a test for a list of 32 days.",
+              "Attempt 31:\n- keep a daySet\n- grow runEnd\n- check isStreakStart\n- return the best pair",
+              "Attempt 32: The leaderboard test fails because two learners with the same score get different ranks. Read the task again: equal scores share a rank. You are 0 days into your own streak, keep going and add a test for a list of 34 days.",
+              "Attempt 33: Your function returns the right streak for the first public test. Check what happens when the same day appears twice in the input. You are 1 days into your own streak, keep going and add a test for a list of 35 days.",
+              "Attempt 34: Good structure. Two things to look at:\n- the loop stops one day too early when a streak ends on the last day\n- an empty list should print none\n\nYour current line:\n```ts\nfor (let i = 1; i < days.length; i++) {\n``` You are 2 days into your own streak, keep going and add a test for a list of 36 days.",
+              "Attempt 35: your output differs. Expected streak 2025-12-30..2026-01-02 (4 days) for that input.",
+              "Attempt 36: Your function returns the right streak for the first public test. Check what happens when the same day appears twice in the input. You are 0 days into your own streak, keep going and add a test for a list of 38 days.",
+              "Attempt 37: compare with\n```ts\nfunction longestStreak(days: number[]): [number, number] | null {\n  const daySet = new Set(days);\n  let best: [number, number] | null = null;\n  for (const day of daySet) {\n    const isStreakStart = !daySet.has(day - 1);\n    if (!isStreakStart) continue;\n    let runEnd = day;\n    while (daySet.has(runEnd + 1)) runEnd++;\n    if (!best || runEnd - day > best[1] - best[0]) best = [day, runEnd];\n  }\n  return best;\n}\n```",
+              "Attempt 38: The leaderboard test fails because two learners with the same score get different ranks. Read the task again: equal scores share a rank. You are 2 days into your own streak, keep going and add a test for a list of 40 days.",
+              "Attempt 39:\n- keep a daySet\n- grow runEnd\n- check isStreakStart\n- return the best pair",
+              "Attempt 40: Good structure. Two things to look at:\n- the loop stops one day too early when a streak ends on the last day\n- an empty list should print none\n\nYour current line:\n```ts\nfor (let i = 1; i < days.length; i++) {\n``` You are 0 days into your own streak, keep going and add a test for a list of 42 days.",
+              "Attempt 41: The leaderboard test fails because two learners with the same score get different ranks. Read the task again: equal scores share a rank. You are 1 days into your own streak, keep going and add a test for a list of 43 days.",
+              "Attempt 42: Your function returns the right streak for the first public test. Check what happens when the same day appears twice in the input. You are 2 days into your own streak, keep going and add a test for a list of 44 days.",
+              "Attempt 43: your output differs. Expected streak 2025-12-30..2026-01-02 (4 days) for that input.",
+              "Attempt 44: The leaderboard test fails because two learners with the same score get different ranks. Read the task again: equal scores share a rank. You are 0 days into your own streak, keep going and add a test for a list of 46 days.",
+              "Attempt 45: compare with\n```python\ndef longest_streak( days ):\n  day_set=set( days )\n  best=None\n\n  for day in sorted( day_set ):\n    if day-1 in day_set:\n      continue\n    run_end=day\n    while run_end+1 in day_set:\n      run_end+=1\n    if best is None or run_end-day>best[1]-best[0]:\n      best=(day,run_end)\n  return best\n```",
+              "Attempt 46: Good structure. Two things to look at:\n- the loop stops one day too early when a streak ends on the last day\n- an empty list should print none\n\nYour current line:\n```ts\nfor (let i = 1; i < days.length; i++) {\n``` You are 2 days into your own streak, keep going and add a test for a list of 48 days.",
+              "Attempt 47:\n- keep a daySet\n- grow runEnd\n- check isStreakStart\n- return the best pair",
+              "Attempt 48: Your function returns the right streak for the first public test. Check what happens when the same day appears twice in the input. You are 0 days into your own streak, keep going and add a test for a list of 50 days.",
+              "Attempt 49: Good structure. Two things to look at:\n- the loop stops one day too early when a streak ends on the last day\n- an empty list should print none\n\nYour current line:\n```ts\nfor (let i = 1; i < days.length; i++) {\n``` You are 1 days into your own streak, keep going and add a test for a list of 51 days.",
+              "Attempt 50: The leaderboard test fails because two learners with the same score get different ranks. Read the task again: equal scores share a rank. You are 2 days into your own streak, keep going and add a test for a list of 52 days.",
+              "Attempt 51: your output differs. Expected streak 2025-12-30..2026-01-02 (4 days) for that input.",
+              "Attempt 52: Good structure. Two things to look at:\n- the loop stops one day too early when a streak ends on the last day\n- an empty list should print none\n\nYour current line:\n```ts\nfor (let i = 1; i < days.length; i++) {\n``` You are 0 days into your own streak, keep going and add a test for a list of 54 days.",
+              "Attempt 53: compare with\n```ts\nfunction longestStreak(days: number[]): [number, number] | null {\n  const daySet = new Set(days);\n  let best: [number, number] | null = null;\n  for (const day of daySet) {\n    const isStreakStart = !daySet.has(day - 1);\n    if (!isStreakStart) continue;\n    let runEnd = day;\n    while (daySet.has(runEnd + 1)) runEnd++;\n    if (!best || runEnd - day > best[1] - best[0]) best = [day, runEnd];\n  }\n  return best;\n}\n```",
+              "Attempt 54: Your function returns the right streak for the first public test. Check what happens when the same day appears twice in the input. You are 2 days into your own streak, keep going and add a test for a list of 56 days.",
+              "Attempt 55:\n- keep a daySet\n- grow runEnd\n- check isStreakStart\n- return the best pair",
+              "Attempt 56: The leaderboard test fails because two learners with the same score get different ranks. Read the task again: equal scores share a rank. You are 0 days into your own streak, keep going and add a test for a list of 58 days.",
+              "Attempt 57: Your function returns the right streak for the first public test. Check what happens when the same day appears twice in the input. You are 1 days into your own streak, keep going and add a test for a list of 59 days.",
+              "Attempt 58: Good structure. Two things to look at:\n- the loop stops one day too early when a streak ends on the last day\n- an empty list should print none\n\nYour current line:\n```ts\nfor (let i = 1; i < days.length; i++) {\n``` You are 2 days into your own streak, keep going and add a test for a list of 60 days.",
+              "Attempt 59: your output differs. Expected streak 2025-12-30..2026-01-02 (4 days) for that input.",
+              "Attempt 60: Your function returns the right streak for the first public test. Check what happens when the same day appears twice in the input. You are 0 days into your own streak, keep going and add a test for a list of 62 days.",
+              "Attempt 61: compare with\n```python\ndef longest_streak( days ):\n  day_set=set( days )\n  best=None\n\n  for day in sorted( day_set ):\n    if day-1 in day_set:\n      continue\n    run_end=day\n    while run_end+1 in day_set:\n      run_end+=1\n    if best is None or run_end-day>best[1]-best[0]:\n      best=(day,run_end)\n  return best\n```",
+              "Attempt 62: The leaderboard test fails because two learners with the same score get different ranks. Read the task again: equal scores share a rank. You are 2 days into your own streak, keep going and add a test for a list of 64 days.",
+              "Attempt 63:\n- keep a daySet\n- grow runEnd\n- check isStreakStart\n- return the best pair",
+              "Attempt 64: Good structure. Two things to look at:\n- the loop stops one day too early when a streak ends on the last day\n- an empty list should print none\n\nYour current line:\n```ts\nfor (let i = 1; i < days.length; i++) {\n``` You are 0 days into your own streak, keep going and add a test for a list of 66 days.",
+              "Attempt 65: The leaderboard test fails because two learners with the same score get different ranks. Read the task again: equal scores share a rank. You are 1 days into your own streak, keep going and add a test for a list of 67 days.",
+              "Attempt 66: Your function returns the right streak for the first public test. Check what happens when the same day appears twice in the input. You are 2 days into your own streak, keep going and add a test for a list of 68 days.",
+              "Attempt 67: your output differs. Expected streak 2025-12-30..2026-01-02 (4 days) for that input.",
+              "Attempt 68: The leaderboard test fails because two learners with the same score get different ranks. Read the task again: equal scores share a rank. You are 0 days into your own streak, keep going and add a test for a list of 70 days.",
+              "Attempt 69: compare with\n```ts\nfunction longestStreak(days: number[]): [number, number] | null {\n  const daySet = new Set(days);\n  let best: [number, number] | null = null;\n  for (const day of daySet) {\n    const isStreakStart = !daySet.has(day - 1);\n    if (!isStreakStart) continue;\n    let runEnd = day;\n    while (daySet.has(runEnd + 1)) runEnd++;\n    if (!best || runEnd - day > best[1] - best[0]) best = [day, runEnd];\n  }\n  return best;\n}\n```",
+              "Attempt 70: Good structure. Two things to look at:\n- the loop stops one day too early when a streak ends on the last day\n- an empty list should print none\n\nYour current line:\n```ts\nfor (let i = 1; i < days.length; i++) {\n``` You are 2 days into your own streak, keep going and add a test for a list of 72 days.",
+              "Attempt 71:\n- keep a daySet\n- grow runEnd\n- check isStreakStart\n- return the best pair",
+              "Attempt 72: Your function returns the right streak for the first public test. Check what happens when the same day appears twice in the input. You are 0 days into your own streak, keep going and add a test for a list of 74 days.",
+              "Attempt 73: Good structure. Two things to look at:\n- the loop stops one day too early when a streak ends on the last day\n- an empty list should print none\n\nYour current line:\n```ts\nfor (let i = 1; i < days.length; i++) {\n``` You are 1 days into your own streak, keep going and add a test for a list of 75 days.",
+              "Attempt 74: The leaderboard test fails because two learners with the same score get different ranks. Read the task again: equal scores share a rank. You are 2 days into your own streak, keep going and add a test for a list of 76 days.",
+              "Attempt 75: your output differs. Expected streak 2025-12-30..2026-01-02 (4 days) for that input.",
+              "Attempt 76: Good structure. Two things to look at:\n- the loop stops one day too early when a streak ends on the last day\n- an empty list should print none\n\nYour current line:\n```ts\nfor (let i = 1; i < days.length; i++) {\n``` You are 0 days into your own streak, keep going and add a test for a list of 78 days.",
+              "Attempt 77: compare with\n```python\ndef longest_streak( days ):\n  day_set=set( days )\n  best=None\n\n  for day in sorted( day_set ):\n    if day-1 in day_set:\n      continue\n    run_end=day\n    while run_end+1 in day_set:\n      run_end+=1\n    if best is None or run_end-day>best[1]-best[0]:\n      best=(day,run_end)\n  return best\n```",
+              "Attempt 78: Your function returns the right streak for the first public test. Check what happens when the same day appears twice in the input. You are 2 days into your own streak, keep going and add a test for a list of 80 days.",
+              "Attempt 79:\n- keep a daySet\n- grow runEnd\n- check isStreakStart\n- return the best pair",
+              "Attempt 80: The leaderboard test fails because two learners with the same score get different ranks. Read the task again: equal scores share a rank. You are 0 days into your own streak, keep going and add a test for a list of 82 days.",
+              "Attempt 81: Your function returns the right streak for the first public test. Check what happens when the same day appears twice in the input. You are 1 days into your own streak, keep going and add a test for a list of 83 days.",
+              "Attempt 82: Good structure. Two things to look at:\n- the loop stops one day too early when a streak ends on the last day\n- an empty list should print none\n\nYour current line:\n```ts\nfor (let i = 1; i < days.length; i++) {\n``` You are 2 days into your own streak, keep going and add a test for a list of 84 days.",
+              "Attempt 83: your output differs. Expected streak 2025-12-30..2026-01-02 (4 days) for that input.",
+              "Attempt 84: Your function returns the right streak for the first public test. Check what happens when the same day appears twice in the input. You are 0 days into your own streak, keep going and add a test for a list of 86 days.",
+              "Attempt 85: compare with\n```ts\nfunction longestStreak(days: number[]): [number, number] | null {\n  const daySet = new Set(days);\n  let best: [number, number] | null = null;\n  for (const day of daySet) {\n    const isStreakStart = !daySet.has(day - 1);\n    if (!isStreakStart) continue;\n    let runEnd = day;\n    while (daySet.has(runEnd + 1)) runEnd++;\n    if (!best || runEnd - day > best[1] - best[0]) best = [day, runEnd];\n  }\n  return best;\n}\n```",
+              "Attempt 86: The leaderboard test fails because two learners with the same score get different ranks. Read the task again: equal scores share a rank. You are 2 days into your own streak, keep going and add a test for a list of 88 days.",
+              "Attempt 87:\n- keep a daySet\n- grow runEnd\n- check isStreakStart\n- return the best pair",
+              "Attempt 88: Good structure. Two things to look at:\n- the loop stops one day too early when a streak ends on the last day\n- an empty list should print none\n\nYour current line:\n```ts\nfor (let i = 1; i < days.length; i++) {\n``` You are 0 days into your own streak, keep going and add a test for a list of 90 days.",
+              "Attempt 89: The leaderboard test fails because two learners with the same score get different ranks. Read the task again: equal scores share a rank. You are 1 days into your own streak, keep going and add a test for a list of 91 days.",
+              "Attempt 90: Your function returns the right streak for the first public test. Check what happens when the same day appears twice in the input. You are 2 days into your own streak, keep going and add a test for a list of 92 days.",
+              "Attempt 91: your output differs. Expected streak 2025-12-30..2026-01-02 (4 days) for that input.",
+              "Attempt 92: The leaderboard test fails because two learners with the same score get different ranks. Read the task again: equal scores share a rank. You are 0 days into your own streak, keep going and add a test for a list of 94 days.",
+              "Attempt 93: compare with\n```python\ndef longest_streak( days ):\n  day_set=set( days )\n  best=None\n\n  for day in sorted( day_set ):\n    if day-1 in day_set:\n      continue\n    run_end=day\n    while run_end+1 in day_set:\n      run_end+=1\n    if best is None or run_end-day>best[1]-best[0]:\n      best=(day,run_end)\n  return best\n```",
+              "Attempt 94: Good structure. Two things to look at:\n- the loop stops one day too early when a streak ends on the last day\n- an empty list should print none\n\nYour current line:\n```ts\nfor (let i = 1; i < days.length; i++) {\n``` You are 2 days into your own streak, keep going and add a test for a list of 96 days.",
+              "Attempt 95:\n- keep a daySet\n- grow runEnd\n- check isStreakStart\n- return the best pair",
+              "Attempt 96: Your function returns the right streak for the first public test. Check what happens when the same day appears twice in the input. You are 0 days into your own streak, keep going and add a test for a list of 98 days.",
+              "Attempt 97: Good structure. Two things to look at:\n- the loop stops one day too early when a streak ends on the last day\n- an empty list should print none\n\nYour current line:\n```ts\nfor (let i = 1; i < days.length; i++) {\n``` You are 1 days into your own streak, keep going and add a test for a list of 99 days.",
+              "Attempt 98: The leaderboard test fails because two learners with the same score get different ranks. Read the task again: equal scores share a rank. You are 2 days into your own streak, keep going and add a test for a list of 100 days.",
+              "Attempt 99: your output differs. Expected streak 2025-12-30..2026-01-02 (4 days) for that input.",
+              "Attempt 100: Good structure. Two things to look at:\n- the loop stops one day too early when a streak ends on the last day\n- an empty list should print none\n\nYour current line:\n```ts\nfor (let i = 1; i < days.length; i++) {\n``` You are 0 days into your own streak, keep going and add a test for a list of 102 days.",
+              "Attempt 101: compare with\n```ts\nfunction longestStreak(days: number[]): [number, number] | null {\n  const daySet = new Set(days);\n  let best: [number, number] | null = null;\n  for (const day of daySet) {\n    const isStreakStart = !daySet.has(day - 1);\n    if (!isStreakStart) continue;\n    let runEnd = day;\n    while (daySet.has(runEnd + 1)) runEnd++;\n    if (!best || runEnd - day > best[1] - best[0]) best = [day, runEnd];\n  }\n  return best;\n}\n```",
+              "Attempt 102: Your function returns the right streak for the first public test. Check what happens when the same day appears twice in the input. You are 2 days into your own streak, keep going and add a test for a list of 104 days.",
+              "Attempt 103:\n- keep a daySet\n- grow runEnd\n- check isStreakStart\n- return the best pair",
+              "Attempt 104: The leaderboard test fails because two learners with the same score get different ranks. Read the task again: equal scores share a rank. You are 0 days into your own streak, keep going and add a test for a list of 106 days.",
+              "Attempt 105: Your function returns the right streak for the first public test. Check what happens when the same day appears twice in the input. You are 1 days into your own streak, keep going and add a test for a list of 107 days.",
+              "Attempt 106: Good structure. Two things to look at:\n- the loop stops one day too early when a streak ends on the last day\n- an empty list should print none\n\nYour current line:\n```ts\nfor (let i = 1; i < days.length; i++) {\n``` You are 2 days into your own streak, keep going and add a test for a list of 108 days.",
+              "Attempt 107: your output differs. Expected streak 2025-12-30..2026-01-02 (4 days) for that input.",
+              "Attempt 108: Your function returns the right streak for the first public test. Check what happens when the same day appears twice in the input. You are 0 days into your own streak, keep going and add a test for a list of 110 days.",
+              "Attempt 109: compare with\n```python\ndef longest_streak( days ):\n  day_set=set( days )\n  best=None\n\n  for day in sorted( day_set ):\n    if day-1 in day_set:\n      continue\n    run_end=day\n    while run_end+1 in day_set:\n      run_end+=1\n    if best is None or run_end-day>best[1]-best[0]:\n      best=(day,run_end)\n  return best\n```",
+              "Attempt 110: The leaderboard test fails because two learners with the same score get different ranks. Read the task again: equal scores share a rank. You are 2 days into your own streak, keep going and add a test for a list of 112 days.",
+              "Attempt 111:\n- keep a daySet\n- grow runEnd\n- check isStreakStart\n- return the best pair",
+              "Attempt 112: Good structure. Two things to look at:\n- the loop stops one day too early when a streak ends on the last day\n- an empty list should print none\n\nYour current line:\n```ts\nfor (let i = 1; i < days.length; i++) {\n``` You are 0 days into your own streak, keep going and add a test for a list of 114 days.",
+              "Attempt 113: The leaderboard test fails because two learners with the same score get different ranks. Read the task again: equal scores share a rank. You are 1 days into your own streak, keep going and add a test for a list of 115 days.",
+              "Attempt 114: Your function returns the right streak for the first public test. Check what happens when the same day appears twice in the input. You are 2 days into your own streak, keep going and add a test for a list of 116 days.",
+              "Attempt 115: your output differs. Expected streak 2025-12-30..2026-01-02 (4 days) for that input.",
+              "Attempt 116: The leaderboard test fails because two learners with the same score get different ranks. Read the task again: equal scores share a rank. You are 0 days into your own streak, keep going and add a test for a list of 118 days.",
+              "Attempt 117: compare with\n```ts\nfunction longestStreak(days: number[]): [number, number] | null {\n  const daySet = new Set(days);\n  let best: [number, number] | null = null;\n  for (const day of daySet) {\n    const isStreakStart = !daySet.has(day - 1);\n    if (!isStreakStart) continue;\n    let runEnd = day;\n    while (daySet.has(runEnd + 1)) runEnd++;\n    if (!best || runEnd - day > best[1] - best[0]) best = [day, runEnd];\n  }\n  return best;\n}\n```",
+              "Attempt 118: Good structure. Two things to look at:\n- the loop stops one day too early when a streak ends on the last day\n- an empty list should print none\n\nYour current line:\n```ts\nfor (let i = 1; i < days.length; i++) {\n``` You are 2 days into your own streak, keep going and add a test for a list of 120 days.",
+              "Attempt 119:\n- keep a daySet\n- grow runEnd\n- check isStreakStart\n- return the best pair",
+              "Attempt 120: Your function returns the right streak for the first public test. Check what happens when the same day appears twice in the input. You are 0 days into your own streak, keep going and add a test for a list of 122 days.",
+              "Attempt 121: Good structure. Two things to look at:\n- the loop stops one day too early when a streak ends on the last day\n- an empty list should print none\n\nYour current line:\n```ts\nfor (let i = 1; i < days.length; i++) {\n``` You are 1 days into your own streak, keep going and add a test for a list of 123 days.",
+              "Attempt 122: The leaderboard test fails because two learners with the same score get different ranks. Read the task again: equal scores share a rank. You are 2 days into your own streak, keep going and add a test for a list of 124 days.",
+              "Attempt 123: your output differs. Expected streak 2025-12-30..2026-01-02 (4 days) for that input.",
+              "Attempt 124: Good structure. Two things to look at:\n- the loop stops one day too early when a streak ends on the last day\n- an empty list should print none\n\nYour current line:\n```ts\nfor (let i = 1; i < days.length; i++) {\n``` You are 0 days into your own streak, keep going and add a test for a list of 126 days.",
+              "Attempt 125: compare with\n```python\ndef longest_streak( days ):\n  day_set=set( days )\n  best=None\n\n  for day in sorted( day_set ):\n    if day-1 in day_set:\n      continue\n    run_end=day\n    while run_end+1 in day_set:\n      run_end+=1\n    if best is None or run_end-day>best[1]-best[0]:\n      best=(day,run_end)\n  return best\n```",
+              "Attempt 126: Your function returns the right streak for the first public test. Check what happens when the same day appears twice in the input. You are 2 days into your own streak, keep going and add a test for a list of 128 days.",
+              "Attempt 127:\n- keep a daySet\n- grow runEnd\n- check isStreakStart\n- return the best pair",
+              "Attempt 128: The leaderboard test fails because two learners with the same score get different ranks. Read the task again: equal scores share a rank. You are 0 days into your own streak, keep going and add a test for a list of 130 days.",
+              "Attempt 129: Your function returns the right streak for the first public test. Check what happens when the same day appears twice in the input. You are 1 days into your own streak, keep going and add a test for a list of 131 days.",
+              "Attempt 130: Good structure. Two things to look at:\n- the loop stops one day too early when a streak ends on the last day\n- an empty list should print none\n\nYour current line:\n```ts\nfor (let i = 1; i < days.length; i++) {\n``` You are 2 days into your own streak, keep going and add a test for a list of 132 days.",
+              "Attempt 131: your output differs. Expected streak 2025-12-30..2026-01-02 (4 days) for that input.",
+              "Attempt 132: Your function returns the right streak for the first public test. Check what happens when the same day appears twice in the input. You are 0 days into your own streak, keep going and add a test for a list of 134 days.",
+              "Attempt 133: compare with\n```ts\nfunction longestStreak(days: number[]): [number, number] | null {\n  const daySet = new Set(days);\n  let best: [number, number] | null = null;\n  for (const day of daySet) {\n    const isStreakStart = !daySet.has(day - 1);\n    if (!isStreakStart) continue;\n    let runEnd = day;\n    while (daySet.has(runEnd + 1)) runEnd++;\n    if (!best || runEnd - day > best[1] - best[0]) best = [day, runEnd];\n  }\n  return best;\n}\n```",
+              "Attempt 134: The leaderboard test fails because two learners with the same score get different ranks. Read the task again: equal scores share a rank. You are 2 days into your own streak, keep going and add a test for a list of 136 days.",
+              "Attempt 135:\n- keep a daySet\n- grow runEnd\n- check isStreakStart\n- return the best pair",
+              "Attempt 136: Good structure. Two things to look at:\n- the loop stops one day too early when a streak ends on the last day\n- an empty list should print none\n\nYour current line:\n```ts\nfor (let i = 1; i < days.length; i++) {\n``` You are 0 days into your own streak, keep going and add a test for a list of 138 days.",
+              "Attempt 137: The leaderboard test fails because two learners with the same score get different ranks. Read the task again: equal scores share a rank. You are 1 days into your own streak, keep going and add a test for a list of 139 days.",
+              "Attempt 138: Your function returns the right streak for the first public test. Check what happens when the same day appears twice in the input. You are 2 days into your own streak, keep going and add a test for a list of 140 days.",
+              "Attempt 139: your output differs. Expected streak 2025-12-30..2026-01-02 (4 days) for that input.",
+              "Attempt 140: The leaderboard test fails because two learners with the same score get different ranks. Read the task again: equal scores share a rank. You are 0 days into your own streak, keep going and add a test for a list of 142 days.",
+              "Attempt 141: compare with\n```python\ndef longest_streak( days ):\n  day_set=set( days )\n  best=None\n\n  for day in sorted( day_set ):\n    if day-1 in day_set:\n      continue\n    run_end=day\n    while run_end+1 in day_set:\n      run_end+=1\n    if best is None or run_end-day>best[1]-best[0]:\n      best=(day,run_end)\n  return best\n```",
+              "Attempt 142: Good structure. Two things to look at:\n- the loop stops one day too early when a streak ends on the last day\n- an empty list should print none\n\nYour current line:\n```ts\nfor (let i = 1; i < days.length; i++) {\n``` You are 2 days into your own streak, keep going and add a test for a list of 144 days.",
+              "Attempt 143:\n- keep a daySet\n- grow runEnd\n- check isStreakStart\n- return the best pair",
+              "Attempt 144: Your function returns the right streak for the first public test. Check what happens when the same day appears twice in the input. You are 0 days into your own streak, keep going and add a test for a list of 146 days.",
+              "Attempt 145: Good structure. Two things to look at:\n- the loop stops one day too early when a streak ends on the last day\n- an empty list should print none\n\nYour current line:\n```ts\nfor (let i = 1; i < days.length; i++) {\n``` You are 1 days into your own streak, keep going and add a test for a list of 147 days.",
+              "Attempt 146: The leaderboard test fails because two learners with the same score get different ranks. Read the task again: equal scores share a rank. You are 2 days into your own streak, keep going and add a test for a list of 148 days.",
+              "Attempt 147: your output differs. Expected streak 2025-12-30..2026-01-02 (4 days) for that input.",
+              "Attempt 148: Good structure. Two things to look at:\n- the loop stops one day too early when a streak ends on the last day\n- an empty list should print none\n\nYour current line:\n```ts\nfor (let i = 1; i < days.length; i++) {\n``` You are 0 days into your own streak, keep going and add a test for a list of 150 days.",
+              "Attempt 149: compare with\n```ts\nfunction longestStreak(days: number[]): [number, number] | null {\n  const daySet = new Set(days);\n  let best: [number, number] | null = null;\n  for (const day of daySet) {\n    const isStreakStart = !daySet.has(day - 1);\n    if (!isStreakStart) continue;\n    let runEnd = day;\n    while (daySet.has(runEnd + 1)) runEnd++;\n    if (!best || runEnd - day > best[1] - best[0]) best = [day, runEnd];\n  }\n  return best;\n}\n```",
+              "Attempt 150: Your function returns the right streak for the first public test. Check what happens when the same day appears twice in the input. You are 2 days into your own streak, keep going and add a test for a list of 152 days.",
+              "Attempt 151:\n- keep a daySet\n- grow runEnd\n- check isStreakStart\n- return the best pair",
+              "Attempt 152: The leaderboard test fails because two learners with the same score get different ranks. Read the task again: equal scores share a rank. You are 0 days into your own streak, keep going and add a test for a list of 154 days.",
+              "Attempt 153: Your function returns the right streak for the first public test. Check what happens when the same day appears twice in the input. You are 1 days into your own streak, keep going and add a test for a list of 155 days.",
+              "Attempt 154: Good structure. Two things to look at:\n- the loop stops one day too early when a streak ends on the last day\n- an empty list should print none\n\nYour current line:\n```ts\nfor (let i = 1; i < days.length; i++) {\n``` You are 2 days into your own streak, keep going and add a test for a list of 156 days.",
+              "Attempt 155: your output differs. Expected streak 2025-12-30..2026-01-02 (4 days) for that input.",
+              "Attempt 156: Your function returns the right streak for the first public test. Check what happens when the same day appears twice in the input. You are 0 days into your own streak, keep going and add a test for a list of 158 days.",
+              "Attempt 157: compare with\n```python\ndef longest_streak( days ):\n  day_set=set( days )\n  best=None\n\n  for day in sorted( day_set ):\n    if day-1 in day_set:\n      continue\n    run_end=day\n    while run_end+1 in day_set:\n      run_end+=1\n    if best is None or run_end-day>best[1]-best[0]:\n      best=(day,run_end)\n  return best\n```",
+              "Attempt 158: The leaderboard test fails because two learners with the same score get different ranks. Read the task again: equal scores share a rank. You are 2 days into your own streak, keep going and add a test for a list of 160 days.",
+              "Attempt 159:\n- keep a daySet\n- grow runEnd\n- check isStreakStart\n- return the best pair"
+            ]
+          },
+          "expected": "feedback 1: allowed\nfeedback 2: allowed\nfeedback 3: allowed\nfeedback 4: blocked: hidden-output (test 4)\nfeedback 5: allowed\nfeedback 6: blocked: code-overlap (solution 1, 1.00)\nfeedback 7: allowed\nfeedback 8: blocked: algorithm-steps (daySet, runEnd, isStreakStart)\nfeedback 9: allowed\nfeedback 10: allowed\nfeedback 11: allowed\nfeedback 12: blocked: hidden-output (test 4)\nfeedback 13: allowed\nfeedback 14: blocked: code-overlap (solution 2, 1.00)\nfeedback 15: allowed\nfeedback 16: blocked: algorithm-steps (daySet, runEnd, isStreakStart)\nfeedback 17: allowed\nfeedback 18: allowed\nfeedback 19: allowed\nfeedback 20: blocked: hidden-output (test 4)\nfeedback 21: allowed\nfeedback 22: blocked: code-overlap (solution 1, 1.00)\nfeedback 23: allowed\nfeedback 24: blocked: algorithm-steps (daySet, runEnd, isStreakStart)\nfeedback 25: allowed\nfeedback 26: allowed\nfeedback 27: allowed\nfeedback 28: blocked: hidden-output (test 4)\nfeedback 29: allowed\nfeedback 30: blocked: code-overlap (solution 2, 1.00)\nfeedback 31: allowed\nfeedback 32: blocked: algorithm-steps (daySet, runEnd, isStreakStart)\nfeedback 33: allowed\nfeedback 34: allowed\nfeedback 35: allowed\nfeedback 36: blocked: hidden-output (test 4)\nfeedback 37: allowed\nfeedback 38: blocked: code-overlap (solution 1, 1.00)\nfeedback 39: allowed\nfeedback 40: blocked: algorithm-steps (daySet, runEnd, isStreakStart)\nfeedback 41: allowed\nfeedback 42: allowed\nfeedback 43: allowed\nfeedback 44: blocked: hidden-output (test 4)\nfeedback 45: allowed\nfeedback 46: blocked: code-overlap (solution 2, 1.00)\nfeedback 47: allowed\nfeedback 48: blocked: algorithm-steps (daySet, runEnd, isStreakStart)\nfeedback 49: allowed\nfeedback 50: allowed\nfeedback 51: allowed\nfeedback 52: blocked: hidden-output (test 4)\nfeedback 53: allowed\nfeedback 54: blocked: code-overlap (solution 1, 1.00)\nfeedback 55: allowed\nfeedback 56: blocked: algorithm-steps (daySet, runEnd, isStreakStart)\nfeedback 57: allowed\nfeedback 58: allowed\nfeedback 59: allowed\nfeedback 60: blocked: hidden-output (test 4)\nfeedback 61: allowed\nfeedback 62: blocked: code-overlap (solution 2, 1.00)\nfeedback 63: allowed\nfeedback 64: blocked: algorithm-steps (daySet, runEnd, isStreakStart)\nfeedback 65: allowed\nfeedback 66: allowed\nfeedback 67: allowed\nfeedback 68: blocked: hidden-output (test 4)\nfeedback 69: allowed\nfeedback 70: blocked: code-overlap (solution 1, 1.00)\nfeedback 71: allowed\nfeedback 72: blocked: algorithm-steps (daySet, runEnd, isStreakStart)\nfeedback 73: allowed\nfeedback 74: allowed\nfeedback 75: allowed\nfeedback 76: blocked: hidden-output (test 4)\nfeedback 77: allowed\nfeedback 78: blocked: code-overlap (solution 2, 1.00)\nfeedback 79: allowed\nfeedback 80: blocked: algorithm-steps (daySet, runEnd, isStreakStart)\nfeedback 81: allowed\nfeedback 82: allowed\nfeedback 83: allowed\nfeedback 84: blocked: hidden-output (test 4)\nfeedback 85: allowed\nfeedback 86: blocked: code-overlap (solution 1, 1.00)\nfeedback 87: allowed\nfeedback 88: blocked: algorithm-steps (daySet, runEnd, isStreakStart)\nfeedback 89: allowed\nfeedback 90: allowed\nfeedback 91: allowed\nfeedback 92: blocked: hidden-output (test 4)\nfeedback 93: allowed\nfeedback 94: blocked: code-overlap (solution 2, 1.00)\nfeedback 95: allowed\nfeedback 96: blocked: algorithm-steps (daySet, runEnd, isStreakStart)\nfeedback 97: allowed\nfeedback 98: allowed\nfeedback 99: allowed\nfeedback 100: blocked: hidden-output (test 4)\nfeedback 101: allowed\nfeedback 102: blocked: code-overlap (solution 1, 1.00)\nfeedback 103: allowed\nfeedback 104: blocked: algorithm-steps (daySet, runEnd, isStreakStart)\nfeedback 105: allowed\nfeedback 106: allowed\nfeedback 107: allowed\nfeedback 108: blocked: hidden-output (test 4)\nfeedback 109: allowed\nfeedback 110: blocked: code-overlap (solution 2, 1.00)\nfeedback 111: allowed\nfeedback 112: blocked: algorithm-steps (daySet, runEnd, isStreakStart)\nfeedback 113: allowed\nfeedback 114: allowed\nfeedback 115: allowed\nfeedback 116: blocked: hidden-output (test 4)\nfeedback 117: allowed\nfeedback 118: blocked: code-overlap (solution 1, 1.00)\nfeedback 119: allowed\nfeedback 120: blocked: algorithm-steps (daySet, runEnd, isStreakStart)\nfeedback 121: allowed\nfeedback 122: allowed\nfeedback 123: allowed\nfeedback 124: blocked: hidden-output (test 4)\nfeedback 125: allowed\nfeedback 126: blocked: code-overlap (solution 2, 1.00)\nfeedback 127: allowed\nfeedback 128: blocked: algorithm-steps (daySet, runEnd, isStreakStart)\nfeedback 129: allowed\nfeedback 130: allowed\nfeedback 131: allowed\nfeedback 132: blocked: hidden-output (test 4)\nfeedback 133: allowed\nfeedback 134: blocked: code-overlap (solution 1, 1.00)\nfeedback 135: allowed\nfeedback 136: blocked: algorithm-steps (daySet, runEnd, isStreakStart)\nfeedback 137: allowed\nfeedback 138: allowed\nfeedback 139: allowed\nfeedback 140: blocked: hidden-output (test 4)\nfeedback 141: allowed\nfeedback 142: blocked: code-overlap (solution 2, 1.00)\nfeedback 143: allowed\nfeedback 144: blocked: algorithm-steps (daySet, runEnd, isStreakStart)\nfeedback 145: allowed\nfeedback 146: allowed\nfeedback 147: allowed\nfeedback 148: blocked: hidden-output (test 4)\nfeedback 149: allowed\nfeedback 150: blocked: code-overlap (solution 1, 1.00)\nfeedback 151: allowed\nfeedback 152: blocked: algorithm-steps (daySet, runEnd, isStreakStart)\nfeedback 153: allowed\nfeedback 154: allowed\nfeedback 155: allowed\nfeedback 156: blocked: hidden-output (test 4)\nfeedback 157: allowed\nfeedback 158: blocked: code-overlap (solution 2, 1.00)\nfeedback 159: allowed\nfeedback 160: blocked: algorithm-steps (daySet, runEnd, isStreakStart)",
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}
