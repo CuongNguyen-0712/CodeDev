@@ -1,0 +1,1855 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_aif_221",
+      "name": "llm-latency-quiz",
+      "type": "quiz",
+      "title": "What makes a hint slow?",
+      "description": "Two measurements from CodeDev's AI features: a short and a long chat request to the same model, and the hint bot before and after streaming was turned on.",
+      "difficulty": "medium",
+      "outcomes": [
+        "cost-latency"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Two calls of the \"Ask the tutor\" chat to the same model a minute apart. Call B is late in a long conversation, so it sends the whole history:\n\ncall  input_tokens  output_tokens  ttft_ms  total_ms\nA              800            300      520     4,050\nB            6,400            300    1,130     4,660\n\nStatement: \"The eight times longer input mainly delayed the first token; the time spent generating the 300-token answer stayed about the same.\"",
+          "explanation": "True. Split each call into time to first token and generation time: A generated for 4,050 - 520 = 3,530 ms and B for 4,660 - 1,130 = 3,530 ms, so both wrote 300 tokens at about 85 tokens per second. The difference is all before the first token, where the model reads the input: 5,600 more input tokens cost about 0.6 s there. The total grew by 15%, not eightfold, because reading input is much faster per token than writing output. The misconception is that latency scales with the size of the whole request; input mostly moves time to first token, while output length drives the rest.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The team turned on streaming for hints and compared one day before and after (same model, same prompt v2):\n\n                first text on screen  total_ms p50  total_ms p95  output_tokens avg  cost/day\nnot streaming   16,540 ms             16,540        26,820        1,350              $297.63\nstreaming          660 ms             16,600        26,900        1,350              $297.80\n\nStatement: \"Because the first words now appear after 660 ms instead of 16.5 s, streaming also cut the time until learners have the complete hint.\"",
+          "explanation": "False. Streaming sends tokens to the screen as they are generated, so the first words appear after the time to first token instead of after the whole answer. The model still generates the same 1,350 tokens at the same speed: p50 and p95 total time are unchanged (within noise), and so is the cost, because the same tokens are billed. Streaming improves perceived speed, which matters a lot for a reader, but to make the complete hint arrive sooner you need fewer output tokens or a faster model. The misconception is that streaming makes the model faster or cheaper.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_aif_222",
+      "name": "dashboard-wrong-price-unit",
+      "type": "fix_bug",
+      "title": "Spot the AI Mistake: wrong price unit",
+      "description": "An AI assistant was asked to write the cost/latency dashboard script for the hint bot: \"Input: recorded LLM calls of the hint bot (model, input tokens, output tokens, time to first token in ms, total time in ms) and the price table (USD per 1M tokens, separate input and output prices). For each model print the number of calls, p50 time to first token, p50 and p95 total time, output tokens per second and the total cost. Calls for a model missing from the price table must not crash the script.\" It was tried on a day of local-model calls, the latency columns matched the hand-computed values, and it went into the dashboard. On the first day with hosted models, finance asked why the dashboard says the hint bot costs about $96,700 a day when the provider's usage page says about $298 for the same calls. The latency columns are still correct. Fix the script so that the cost of every model and the total match what the provider bills for the price table given (USD per 1M tokens, input and output priced separately). Keep the output format, the types and the test runner. The public tests pass on the assistant's code; the hidden tests use hosted models with real (example) prices.",
+      "difficulty": "easy",
+      "outcomes": [
+        "cost-latency"
+      ],
+      "points": 20,
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "hints": [
+        "The latency columns are right and the cost column is wrong by a large factor. Which numbers go into the cost of one call, and which price and which unit should each of them use?",
+        "Look only at callCost and the constant just above it, and compare them with the request sent to the assistant: what unit does the price table use, and which price field does each token count use? Why did the local-model test not show the problem?",
+        "A similar case with other numbers: a table in USD per 1M tokens with input 1.00 and output 4.00. A call with 2,000 input and 500 output tokens costs (2,000 x 1.00 + 500 x 4.00) / 1,000,000 = 0.004 USD. Dividing by 1,000 gives 4.0, a thousand times too much; pricing the 500 output tokens at 1.00 gives 0.0025, too little whenever output is the more expensive side. With prices of 0, as for a local model, every one of these versions prints 0."
+      ],
+      "tests": [
+        {
+          "name": "A day of local-model calls: latency columns, speed and a cost of 0",
+          "input": {
+            "prices": {
+              "chat-large": {
+                "input": 2.5,
+                "output": 10
+              },
+              "chat-mini": {
+                "input": 0.15,
+                "output": 0.6
+              },
+              "open-hosted": {
+                "input": 0.6,
+                "output": 0.6
+              },
+              "local-8b": {
+                "input": 0,
+                "output": 0
+              }
+            },
+            "calls": [
+              {
+                "model": "local-8b",
+                "inputTokens": 900,
+                "outputTokens": 240,
+                "ttftMs": 820,
+                "totalMs": 6100
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 1200,
+                "outputTokens": 410,
+                "ttftMs": 950,
+                "totalMs": 10100
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 700,
+                "outputTokens": 120,
+                "ttftMs": 610,
+                "totalMs": 3300
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 1500,
+                "outputTokens": 600,
+                "ttftMs": 1400,
+                "totalMs": 15100
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 1000,
+                "outputTokens": 300,
+                "ttftMs": 880,
+                "totalMs": 7600
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 800,
+                "outputTokens": 200,
+                "ttftMs": 700,
+                "totalMs": 5200
+              }
+            ]
+          },
+          "expected": "local-8b calls=6 ttft_p50=820ms total_p50=6100ms total_p95=15100ms speed=44tok/s cost=0.000000\ntotal calls=6 cost=0.000000",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Calls for a model missing from the price table are reported, not priced",
+          "input": {
+            "prices": {
+              "chat-large": {
+                "input": 2.5,
+                "output": 10
+              },
+              "chat-mini": {
+                "input": 0.15,
+                "output": 0.6
+              },
+              "open-hosted": {
+                "input": 0.6,
+                "output": 0.6
+              },
+              "local-8b": {
+                "input": 0,
+                "output": 0
+              }
+            },
+            "calls": [
+              {
+                "model": "chat-xl",
+                "inputTokens": 600,
+                "outputTokens": 900,
+                "ttftMs": 700,
+                "totalMs": 9000
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 900,
+                "outputTokens": 240,
+                "ttftMs": 820,
+                "totalMs": 6100
+              },
+              {
+                "model": "chat-xl",
+                "inputTokens": 650,
+                "outputTokens": 1000,
+                "ttftMs": 720,
+                "totalMs": 9900
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 1100,
+                "outputTokens": 330,
+                "ttftMs": 900,
+                "totalMs": 8200
+              }
+            ]
+          },
+          "expected": "local-8b calls=2 ttft_p50=820ms total_p50=6100ms total_p95=8200ms speed=45tok/s cost=0.000000\nunknown model chat-xl calls=2\ntotal calls=2 cost=0.000000",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "An empty log prints only the total line",
+          "input": {
+            "prices": {
+              "chat-large": {
+                "input": 2.5,
+                "output": 10
+              },
+              "chat-mini": {
+                "input": 0.15,
+                "output": 0.6
+              },
+              "open-hosted": {
+                "input": 0.6,
+                "output": 0.6
+              },
+              "local-8b": {
+                "input": 0,
+                "output": 0
+              }
+            },
+            "calls": []
+          },
+          "expected": "total calls=0 cost=0.000000",
+          "hidden": false,
+          "score": 2
+        },
+        {
+          "name": "Hosted model with one flat price: the table is per 1M tokens",
+          "input": {
+            "prices": {
+              "chat-large": {
+                "input": 2.5,
+                "output": 10
+              },
+              "chat-mini": {
+                "input": 0.15,
+                "output": 0.6
+              },
+              "open-hosted": {
+                "input": 0.6,
+                "output": 0.6
+              },
+              "local-8b": {
+                "input": 0,
+                "output": 0
+              }
+            },
+            "calls": [
+              {
+                "model": "open-hosted",
+                "inputTokens": 1200,
+                "outputTokens": 400,
+                "ttftMs": 380,
+                "totalMs": 4000
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 2000,
+                "outputTokens": 800,
+                "ttftMs": 420,
+                "totalMs": 7700
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 900,
+                "outputTokens": 300,
+                "ttftMs": 350,
+                "totalMs": 3100
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 1500,
+                "outputTokens": 500,
+                "ttftMs": 400,
+                "totalMs": 5000
+              }
+            ]
+          },
+          "expected": "open-hosted calls=4 ttft_p50=380ms total_p50=4000ms total_p95=7700ms speed=110tok/s cost=0.004560\ntotal calls=4 cost=0.004560",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "The incident: hint bot calls on chat-large; output tokens use the output price",
+          "input": {
+            "prices": {
+              "chat-large": {
+                "input": 2.5,
+                "output": 10
+              },
+              "chat-mini": {
+                "input": 0.15,
+                "output": 0.6
+              },
+              "open-hosted": {
+                "input": 0.6,
+                "output": 0.6
+              },
+              "local-8b": {
+                "input": 0,
+                "output": 0
+              }
+            },
+            "calls": [
+              {
+                "model": "chat-large",
+                "inputTokens": 600,
+                "outputTokens": 1350,
+                "ttftMs": 640,
+                "totalMs": 16540
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 600,
+                "outputTokens": 1200,
+                "ttftMs": 610,
+                "totalMs": 14710
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 600,
+                "outputTokens": 1500,
+                "ttftMs": 700,
+                "totalMs": 18350
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 600,
+                "outputTokens": 900,
+                "ttftMs": 590,
+                "totalMs": 11180
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 600,
+                "outputTokens": 2210,
+                "ttftMs": 820,
+                "totalMs": 26820
+              }
+            ]
+          },
+          "expected": "chat-large calls=5 ttft_p50=640ms total_p50=16540ms total_p95=26820ms speed=85tok/s cost=0.079100\ntotal calls=5 cost=0.079100",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Mixed day: three priced models, a local model and an unknown model",
+          "input": {
+            "prices": {
+              "chat-large": {
+                "input": 2.5,
+                "output": 10
+              },
+              "chat-mini": {
+                "input": 0.15,
+                "output": 0.6
+              },
+              "open-hosted": {
+                "input": 0.6,
+                "output": 0.6
+              },
+              "local-8b": {
+                "input": 0,
+                "output": 0
+              }
+            },
+            "calls": [
+              {
+                "model": "chat-mini",
+                "inputTokens": 800,
+                "outputTokens": 200,
+                "ttftMs": 300,
+                "totalMs": 1550
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 1000,
+                "outputTokens": 400,
+                "ttftMs": 650,
+                "totalMs": 5350
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 900,
+                "outputTokens": 240,
+                "ttftMs": 820,
+                "totalMs": 6100
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 1200,
+                "outputTokens": 350,
+                "ttftMs": 320,
+                "totalMs": 2510
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 700,
+                "outputTokens": 150,
+                "ttftMs": 400,
+                "totalMs": 1760
+              },
+              {
+                "model": "gpt-legacy",
+                "inputTokens": 500,
+                "outputTokens": 100,
+                "ttftMs": 900,
+                "totalMs": 2000
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 1500,
+                "outputTokens": 0,
+                "ttftMs": 700,
+                "totalMs": 700
+              }
+            ]
+          },
+          "expected": "chat-large calls=2 ttft_p50=650ms total_p50=700ms total_p95=5350ms speed=85tok/s cost=0.010250\nchat-mini calls=2 ttft_p50=300ms total_p50=1550ms total_p95=2510ms speed=160tok/s cost=0.000630\nlocal-8b calls=1 ttft_p50=820ms total_p50=6100ms total_p95=6100ms speed=45tok/s cost=0.000000\nopen-hosted calls=1 ttft_p50=400ms total_p50=1760ms total_p95=1760ms speed=110tok/s cost=0.000510\nunknown model gpt-legacy calls=1\ntotal calls=6 cost=0.011390",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Large input: 200 recorded calls across four models and one unknown model",
+          "input": {
+            "prices": {
+              "chat-large": {
+                "input": 2.5,
+                "output": 10
+              },
+              "chat-mini": {
+                "input": 0.15,
+                "output": 0.6
+              },
+              "open-hosted": {
+                "input": 0.6,
+                "output": 0.6
+              },
+              "local-8b": {
+                "input": 0,
+                "output": 0
+              }
+            },
+            "calls": [
+              {
+                "model": "chat-large",
+                "inputTokens": 1212,
+                "outputTokens": 1015,
+                "ttftMs": 561,
+                "totalMs": 15303
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 1212,
+                "outputTokens": 1243,
+                "ttftMs": 550,
+                "totalMs": 27110
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 1846,
+                "outputTokens": 798,
+                "ttftMs": 344,
+                "totalMs": 10331
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 594,
+                "outputTokens": 946,
+                "ttftMs": 587,
+                "totalMs": 12817
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 468,
+                "outputTokens": 236,
+                "ttftMs": 348,
+                "totalMs": 3433
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 306,
+                "outputTokens": 1064,
+                "ttftMs": 891,
+                "totalMs": 13535
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 1849,
+                "outputTokens": 1499,
+                "ttftMs": 702,
+                "totalMs": 9219
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 2789,
+                "outputTokens": 240,
+                "ttftMs": 695,
+                "totalMs": 5177
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 1538,
+                "outputTokens": 620,
+                "ttftMs": 519,
+                "totalMs": 6649
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 491,
+                "outputTokens": 625,
+                "ttftMs": 942,
+                "totalMs": 17476
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 2480,
+                "outputTokens": 777,
+                "ttftMs": 305,
+                "totalMs": 15190
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 2421,
+                "outputTokens": 1712,
+                "ttftMs": 608,
+                "totalMs": 15718
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 2717,
+                "outputTokens": 616,
+                "ttftMs": 594,
+                "totalMs": 4369
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 440,
+                "outputTokens": 831,
+                "ttftMs": 440,
+                "totalMs": 22424
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 2186,
+                "outputTokens": 1032,
+                "ttftMs": 668,
+                "totalMs": 15844
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 1365,
+                "outputTokens": 508,
+                "ttftMs": 696,
+                "totalMs": 12835
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 794,
+                "outputTokens": 1091,
+                "ttftMs": 625,
+                "totalMs": 30191
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 2769,
+                "outputTokens": 437,
+                "ttftMs": 773,
+                "totalMs": 12762
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 2516,
+                "outputTokens": 829,
+                "ttftMs": 1093,
+                "totalMs": 9657
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 2285,
+                "outputTokens": 532,
+                "ttftMs": 958,
+                "totalMs": 4095
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 1569,
+                "outputTokens": 664,
+                "ttftMs": 1117,
+                "totalMs": 7405
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 1306,
+                "outputTokens": 1502,
+                "ttftMs": 707,
+                "totalMs": 13964
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 1557,
+                "outputTokens": 586,
+                "ttftMs": 531,
+                "totalMs": 12055
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 2556,
+                "outputTokens": 1306,
+                "ttftMs": 480,
+                "totalMs": 18346
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 825,
+                "outputTokens": 1021,
+                "ttftMs": 510,
+                "totalMs": 21325
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 669,
+                "outputTokens": 1299,
+                "ttftMs": 884,
+                "totalMs": 14153
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 2768,
+                "outputTokens": 837,
+                "ttftMs": 362,
+                "totalMs": 7678
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 367,
+                "outputTokens": 1736,
+                "ttftMs": 493,
+                "totalMs": 33750
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 520,
+                "outputTokens": 1117,
+                "ttftMs": 1112,
+                "totalMs": 10179
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 1710,
+                "outputTokens": 1403,
+                "ttftMs": 613,
+                "totalMs": 17988
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 514,
+                "outputTokens": 463,
+                "ttftMs": 1083,
+                "totalMs": 5169
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 2341,
+                "outputTokens": 1585,
+                "ttftMs": 887,
+                "totalMs": 35760
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 2017,
+                "outputTokens": 1373,
+                "ttftMs": 816,
+                "totalMs": 26894
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 1941,
+                "outputTokens": 95,
+                "ttftMs": 292,
+                "totalMs": 2491
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 2094,
+                "outputTokens": 1472,
+                "ttftMs": 988,
+                "totalMs": 19609
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 2288,
+                "outputTokens": 468,
+                "ttftMs": 416,
+                "totalMs": 5762
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 1431,
+                "outputTokens": 1009,
+                "ttftMs": 390,
+                "totalMs": 8081
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 2544,
+                "outputTokens": 1115,
+                "ttftMs": 461,
+                "totalMs": 13984
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 457,
+                "outputTokens": 446,
+                "ttftMs": 587,
+                "totalMs": 4082
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 483,
+                "outputTokens": 1434,
+                "ttftMs": 311,
+                "totalMs": 34212
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 1525,
+                "outputTokens": 1100,
+                "ttftMs": 874,
+                "totalMs": 6905
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 2147,
+                "outputTokens": 198,
+                "ttftMs": 972,
+                "totalMs": 2847
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 362,
+                "outputTokens": 1745,
+                "ttftMs": 712,
+                "totalMs": 20452
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 1401,
+                "outputTokens": 1226,
+                "ttftMs": 1067,
+                "totalMs": 31679
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 1599,
+                "outputTokens": 906,
+                "ttftMs": 1062,
+                "totalMs": 11230
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 1493,
+                "outputTokens": 1334,
+                "ttftMs": 1103,
+                "totalMs": 8290
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 1666,
+                "outputTokens": 1200,
+                "ttftMs": 517,
+                "totalMs": 24327
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 2358,
+                "outputTokens": 1479,
+                "ttftMs": 609,
+                "totalMs": 40690
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 508,
+                "outputTokens": 1561,
+                "ttftMs": 799,
+                "totalMs": 20761
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 1565,
+                "outputTokens": 727,
+                "ttftMs": 1127,
+                "totalMs": 7671
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 2680,
+                "outputTokens": 729,
+                "ttftMs": 1128,
+                "totalMs": 10156
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 761,
+                "outputTokens": 382,
+                "ttftMs": 635,
+                "totalMs": 8147
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 2307,
+                "outputTokens": 850,
+                "ttftMs": 646,
+                "totalMs": 18299
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 2270,
+                "outputTokens": 1191,
+                "ttftMs": 853,
+                "totalMs": 24484
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 550,
+                "outputTokens": 1114,
+                "ttftMs": 392,
+                "totalMs": 11990
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 1400,
+                "outputTokens": 1121,
+                "ttftMs": 337,
+                "totalMs": 24062
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 2586,
+                "outputTokens": 285,
+                "ttftMs": 428,
+                "totalMs": 3849
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 2563,
+                "outputTokens": 1344,
+                "ttftMs": 814,
+                "totalMs": 10252
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 2656,
+                "outputTokens": 1720,
+                "ttftMs": 1119,
+                "totalMs": 18123
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 546,
+                "outputTokens": 968,
+                "ttftMs": 704,
+                "totalMs": 20439
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 947,
+                "outputTokens": 475,
+                "ttftMs": 639,
+                "totalMs": 3266
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 2074,
+                "outputTokens": 798,
+                "ttftMs": 857,
+                "totalMs": 22222
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 459,
+                "outputTokens": 1694,
+                "ttftMs": 255,
+                "totalMs": 19505
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 2199,
+                "outputTokens": 781,
+                "ttftMs": 375,
+                "totalMs": 9140
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 589,
+                "outputTokens": 266,
+                "ttftMs": 295,
+                "totalMs": 5669
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 740,
+                "outputTokens": 917,
+                "ttftMs": 866,
+                "totalMs": 19561
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 2317,
+                "outputTokens": 834,
+                "ttftMs": 603,
+                "totalMs": 5567
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 676,
+                "outputTokens": 1247,
+                "ttftMs": 489,
+                "totalMs": 11084
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 1448,
+                "outputTokens": 1446,
+                "ttftMs": 347,
+                "totalMs": 10735
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 2088,
+                "outputTokens": 872,
+                "ttftMs": 261,
+                "totalMs": 8110
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 1938,
+                "outputTokens": 762,
+                "ttftMs": 776,
+                "totalMs": 9077
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 712,
+                "outputTokens": 134,
+                "ttftMs": 561,
+                "totalMs": 1316
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 409,
+                "outputTokens": 69,
+                "ttftMs": 541,
+                "totalMs": 1863
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 628,
+                "outputTokens": 1335,
+                "ttftMs": 476,
+                "totalMs": 8347
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 2347,
+                "outputTokens": 1150,
+                "ttftMs": 1074,
+                "totalMs": 29788
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 2226,
+                "outputTokens": 843,
+                "ttftMs": 1053,
+                "totalMs": 10498
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 2409,
+                "outputTokens": 953,
+                "ttftMs": 529,
+                "totalMs": 20698
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 1369,
+                "outputTokens": 1834,
+                "ttftMs": 664,
+                "totalMs": 42680
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 514,
+                "outputTokens": 461,
+                "ttftMs": 438,
+                "totalMs": 11821
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 1904,
+                "outputTokens": 539,
+                "ttftMs": 986,
+                "totalMs": 15773
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 910,
+                "outputTokens": 1467,
+                "ttftMs": 616,
+                "totalMs": 34574
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 880,
+                "outputTokens": 993,
+                "ttftMs": 624,
+                "totalMs": 25988
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 1158,
+                "outputTokens": 827,
+                "ttftMs": 375,
+                "totalMs": 6913
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 2795,
+                "outputTokens": 993,
+                "ttftMs": 889,
+                "totalMs": 7222
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 2172,
+                "outputTokens": 1771,
+                "ttftMs": 529,
+                "totalMs": 14904
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 736,
+                "outputTokens": 136,
+                "ttftMs": 851,
+                "totalMs": 2255
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 1250,
+                "outputTokens": 415,
+                "ttftMs": 1029,
+                "totalMs": 6062
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 1949,
+                "outputTokens": 913,
+                "ttftMs": 890,
+                "totalMs": 19005
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 2571,
+                "outputTokens": 1279,
+                "ttftMs": 590,
+                "totalMs": 10971
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 1808,
+                "outputTokens": 671,
+                "ttftMs": 665,
+                "totalMs": 9436
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 749,
+                "outputTokens": 1201,
+                "ttftMs": 330,
+                "totalMs": 23141
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 1470,
+                "outputTokens": 1567,
+                "ttftMs": 627,
+                "totalMs": 21341
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 1386,
+                "outputTokens": 435,
+                "ttftMs": 828,
+                "totalMs": 3417
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 2259,
+                "outputTokens": 1766,
+                "ttftMs": 832,
+                "totalMs": 48114
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 1808,
+                "outputTokens": 1130,
+                "ttftMs": 365,
+                "totalMs": 7722
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 1510,
+                "outputTokens": 1785,
+                "ttftMs": 866,
+                "totalMs": 42185
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 2210,
+                "outputTokens": 1091,
+                "ttftMs": 1050,
+                "totalMs": 14147
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 2478,
+                "outputTokens": 722,
+                "ttftMs": 1136,
+                "totalMs": 6707
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 1153,
+                "outputTokens": 1541,
+                "ttftMs": 600,
+                "totalMs": 40888
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 1240,
+                "outputTokens": 626,
+                "ttftMs": 462,
+                "totalMs": 17427
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 499,
+                "outputTokens": 1672,
+                "ttftMs": 943,
+                "totalMs": 11716
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 2711,
+                "outputTokens": 207,
+                "ttftMs": 1071,
+                "totalMs": 6358
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 1502,
+                "outputTokens": 1830,
+                "ttftMs": 527,
+                "totalMs": 45712
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 1673,
+                "outputTokens": 60,
+                "ttftMs": 559,
+                "totalMs": 1121
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 2751,
+                "outputTokens": 597,
+                "ttftMs": 913,
+                "totalMs": 6082
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 693,
+                "outputTokens": 889,
+                "ttftMs": 698,
+                "totalMs": 18027
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 1745,
+                "outputTokens": 1718,
+                "ttftMs": 1082,
+                "totalMs": 38882
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 1114,
+                "outputTokens": 1610,
+                "ttftMs": 600,
+                "totalMs": 42692
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 747,
+                "outputTokens": 743,
+                "ttftMs": 976,
+                "totalMs": 20869
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 2085,
+                "outputTokens": 693,
+                "ttftMs": 922,
+                "totalMs": 13973
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 2447,
+                "outputTokens": 1117,
+                "ttftMs": 1018,
+                "totalMs": 25117
+              },
+              {
+                "model": "chat-xl",
+                "inputTokens": 800,
+                "outputTokens": 300,
+                "ttftMs": 500,
+                "totalMs": 4000
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 2347,
+                "outputTokens": 334,
+                "ttftMs": 1085,
+                "totalMs": 8816
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 1619,
+                "outputTokens": 1155,
+                "ttftMs": 351,
+                "totalMs": 8372
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 2179,
+                "outputTokens": 1221,
+                "ttftMs": 847,
+                "totalMs": 24238
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 602,
+                "outputTokens": 1763,
+                "ttftMs": 540,
+                "totalMs": 40114
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 890,
+                "outputTokens": 1567,
+                "ttftMs": 681,
+                "totalMs": 8981
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 1857,
+                "outputTokens": 952,
+                "ttftMs": 1006,
+                "totalMs": 22162
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 1972,
+                "outputTokens": 221,
+                "ttftMs": 731,
+                "totalMs": 2591
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 352,
+                "outputTokens": 873,
+                "ttftMs": 987,
+                "totalMs": 10157
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 1163,
+                "outputTokens": 1222,
+                "ttftMs": 361,
+                "totalMs": 10192
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 2734,
+                "outputTokens": 616,
+                "ttftMs": 1071,
+                "totalMs": 7225
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 1943,
+                "outputTokens": 838,
+                "ttftMs": 895,
+                "totalMs": 21359
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 365,
+                "outputTokens": 1188,
+                "ttftMs": 1080,
+                "totalMs": 27219
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 331,
+                "outputTokens": 117,
+                "ttftMs": 301,
+                "totalMs": 2582
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 1406,
+                "outputTokens": 1060,
+                "ttftMs": 458,
+                "totalMs": 15666
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 1152,
+                "outputTokens": 899,
+                "ttftMs": 374,
+                "totalMs": 22089
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 1692,
+                "outputTokens": 817,
+                "ttftMs": 985,
+                "totalMs": 5464
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 2470,
+                "outputTokens": 1400,
+                "ttftMs": 404,
+                "totalMs": 15942
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 990,
+                "outputTokens": 1421,
+                "ttftMs": 760,
+                "totalMs": 31719
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 1421,
+                "outputTokens": 1277,
+                "ttftMs": 961,
+                "totalMs": 12807
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 1614,
+                "outputTokens": 451,
+                "ttftMs": 855,
+                "totalMs": 6954
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 1430,
+                "outputTokens": 957,
+                "ttftMs": 742,
+                "totalMs": 13683
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 1942,
+                "outputTokens": 620,
+                "ttftMs": 682,
+                "totalMs": 12875
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 1546,
+                "outputTokens": 643,
+                "ttftMs": 730,
+                "totalMs": 13960
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 1359,
+                "outputTokens": 1371,
+                "ttftMs": 632,
+                "totalMs": 12851
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 782,
+                "outputTokens": 1544,
+                "ttftMs": 816,
+                "totalMs": 10277
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 2443,
+                "outputTokens": 1024,
+                "ttftMs": 1034,
+                "totalMs": 6648
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 438,
+                "outputTokens": 678,
+                "ttftMs": 873,
+                "totalMs": 13974
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 1799,
+                "outputTokens": 1199,
+                "ttftMs": 976,
+                "totalMs": 27620
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 2255,
+                "outputTokens": 680,
+                "ttftMs": 389,
+                "totalMs": 6166
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 630,
+                "outputTokens": 582,
+                "ttftMs": 458,
+                "totalMs": 16625
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 2713,
+                "outputTokens": 1677,
+                "ttftMs": 314,
+                "totalMs": 9196
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 940,
+                "outputTokens": 734,
+                "ttftMs": 714,
+                "totalMs": 17358
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 2647,
+                "outputTokens": 181,
+                "ttftMs": 1013,
+                "totalMs": 2709
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 2793,
+                "outputTokens": 1797,
+                "ttftMs": 615,
+                "totalMs": 44985
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 944,
+                "outputTokens": 1461,
+                "ttftMs": 514,
+                "totalMs": 14067
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 706,
+                "outputTokens": 425,
+                "ttftMs": 1086,
+                "totalMs": 5940
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 784,
+                "outputTokens": 508,
+                "ttftMs": 787,
+                "totalMs": 8165
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 365,
+                "outputTokens": 534,
+                "ttftMs": 952,
+                "totalMs": 11740
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 2388,
+                "outputTokens": 193,
+                "ttftMs": 301,
+                "totalMs": 1571
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 2798,
+                "outputTokens": 930,
+                "ttftMs": 757,
+                "totalMs": 6688
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 1623,
+                "outputTokens": 1232,
+                "ttftMs": 372,
+                "totalMs": 10197
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 2586,
+                "outputTokens": 646,
+                "ttftMs": 780,
+                "totalMs": 7942
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 2063,
+                "outputTokens": 1618,
+                "ttftMs": 948,
+                "totalMs": 11482
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 2036,
+                "outputTokens": 809,
+                "ttftMs": 984,
+                "totalMs": 7150
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 2468,
+                "outputTokens": 726,
+                "ttftMs": 505,
+                "totalMs": 4318
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 2303,
+                "outputTokens": 1412,
+                "ttftMs": 726,
+                "totalMs": 10988
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 2756,
+                "outputTokens": 988,
+                "ttftMs": 1073,
+                "totalMs": 13056
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 1981,
+                "outputTokens": 1338,
+                "ttftMs": 266,
+                "totalMs": 8230
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 1311,
+                "outputTokens": 696,
+                "ttftMs": 858,
+                "totalMs": 6457
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 2753,
+                "outputTokens": 881,
+                "ttftMs": 910,
+                "totalMs": 20294
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 1781,
+                "outputTokens": 1510,
+                "ttftMs": 628,
+                "totalMs": 12425
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 2308,
+                "outputTokens": 106,
+                "ttftMs": 582,
+                "totalMs": 1272
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 2141,
+                "outputTokens": 282,
+                "ttftMs": 621,
+                "totalMs": 3534
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 2349,
+                "outputTokens": 848,
+                "ttftMs": 703,
+                "totalMs": 7349
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 819,
+                "outputTokens": 133,
+                "ttftMs": 317,
+                "totalMs": 1016
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 2401,
+                "outputTokens": 1294,
+                "ttftMs": 918,
+                "totalMs": 11710
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 862,
+                "outputTokens": 526,
+                "ttftMs": 1099,
+                "totalMs": 11090
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 1337,
+                "outputTokens": 1256,
+                "ttftMs": 929,
+                "totalMs": 27767
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 1038,
+                "outputTokens": 1142,
+                "ttftMs": 879,
+                "totalMs": 12288
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 394,
+                "outputTokens": 914,
+                "ttftMs": 297,
+                "totalMs": 8443
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 2203,
+                "outputTokens": 970,
+                "ttftMs": 974,
+                "totalMs": 11228
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 1138,
+                "outputTokens": 785,
+                "ttftMs": 889,
+                "totalMs": 19060
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 477,
+                "outputTokens": 171,
+                "ttftMs": 338,
+                "totalMs": 3957
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 2214,
+                "outputTokens": 1208,
+                "ttftMs": 559,
+                "totalMs": 12811
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 2292,
+                "outputTokens": 1070,
+                "ttftMs": 389,
+                "totalMs": 6360
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 2019,
+                "outputTokens": 484,
+                "ttftMs": 532,
+                "totalMs": 4091
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 1936,
+                "outputTokens": 1775,
+                "ttftMs": 1013,
+                "totalMs": 19331
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 923,
+                "outputTokens": 1014,
+                "ttftMs": 961,
+                "totalMs": 22219
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 1598,
+                "outputTokens": 991,
+                "ttftMs": 299,
+                "totalMs": 13548
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 1076,
+                "outputTokens": 524,
+                "ttftMs": 1100,
+                "totalMs": 4050
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 2134,
+                "outputTokens": 393,
+                "ttftMs": 359,
+                "totalMs": 3088
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 640,
+                "outputTokens": 807,
+                "ttftMs": 679,
+                "totalMs": 11112
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 2220,
+                "outputTokens": 1062,
+                "ttftMs": 715,
+                "totalMs": 25045
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 1006,
+                "outputTokens": 121,
+                "ttftMs": 348,
+                "totalMs": 1673
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 1726,
+                "outputTokens": 574,
+                "ttftMs": 401,
+                "totalMs": 4343
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 360,
+                "outputTokens": 1214,
+                "ttftMs": 930,
+                "totalMs": 15212
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 1362,
+                "outputTokens": 428,
+                "ttftMs": 514,
+                "totalMs": 4698
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 879,
+                "outputTokens": 1536,
+                "ttftMs": 834,
+                "totalMs": 16523
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 465,
+                "outputTokens": 553,
+                "ttftMs": 778,
+                "totalMs": 14743
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 2701,
+                "outputTokens": 1720,
+                "ttftMs": 442,
+                "totalMs": 42444
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 1690,
+                "outputTokens": 787,
+                "ttftMs": 443,
+                "totalMs": 8667
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 969,
+                "outputTokens": 169,
+                "ttftMs": 938,
+                "totalMs": 5111
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 545,
+                "outputTokens": 890,
+                "ttftMs": 526,
+                "totalMs": 5979
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 2746,
+                "outputTokens": 424,
+                "ttftMs": 863,
+                "totalMs": 5055
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 1241,
+                "outputTokens": 1381,
+                "ttftMs": 645,
+                "totalMs": 14441
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 612,
+                "outputTokens": 809,
+                "ttftMs": 320,
+                "totalMs": 5135
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 989,
+                "outputTokens": 811,
+                "ttftMs": 530,
+                "totalMs": 18027
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 2590,
+                "outputTokens": 587,
+                "ttftMs": 511,
+                "totalMs": 6507
+              }
+            ]
+          },
+          "expected": "chat-large calls=39 ttft_p50=712ms total_p50=12817ms total_p95=20761ms speed=83tok/s cost=0.525285\nchat-mini calls=40 ttft_p50=603ms total_p50=6688ms total_p95=11482ms speed=159tok/s cost=0.033303\nlocal-8b calls=76 ttft_p50=698ms total_p50=21325ms total_p95=42692ms speed=44tok/s cost=0.000000\nopen-hosted calls=44 ttft_p50=632ms total_p50=8443ms total_p95=15718ms speed=108tok/s cost=0.067697\nunknown model chat-xl calls=1\ntotal calls=199 cost=0.626285",
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

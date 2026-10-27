@@ -1,0 +1,528 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_aif_311",
+      "name": "confident-wrong-answer-evidence",
+      "type": "quiz",
+      "title": "The Confident Wrong Answer: read the evidence",
+      "description": "The CodeDev support bot told a learner to call submitLesson({ lessonId, force: true }), an option that never existed. Six statements on one evidence pack - the chat transcript (A), the prompt that was sent (B), the current docs (C) and the request log (D) - take you from reading the evidence to a hypothesis, past a wrong explanation, to the fix and its verification.",
+      "difficulty": "medium",
+      "outcomes": [
+        "hallucination"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence A - support widget, conversation sb_77f3:\n21:14:02  learner u_5521  How do I submit my lesson when one hidden test still fails?\n21:14:07  support bot     You can force the submission. Call submitLesson({ lessonId, force: true }) from your lab script: the force flag skips the hidden tests and marks the lesson as submitted. It has been supported since @codedev/lab 1.4.\n21:31:40  learner u_5521  I tried it: CodeDevLabError: submitLesson: unknown option \"force\" (expected { lessonId, attemptId }). What now?\n\nEvidence C - https://app.codedev.test/docs/lab/submit:\nsubmitLesson({ lessonId, attemptId })                      @codedev/lab 2.x\n  lessonId   string   the lesson to submit\n  attemptId  string   the attempt created by `codedev test`\nAn attempt with a failing test is rejected (status \"rejected\", failedTests listed).\nTests cannot be skipped: fix the test, run `codedev test` again and submit the new attemptId.\nCHANGELOG\n2.0.0  2025-09-15  submitLesson(lessonId) is replaced by submitLesson({ lessonId, attemptId })\n1.4.0  2024-11-02  codedev test prints the attempt id\n1.0.0  2024-03-11  first release: submitLesson(lessonId)\n\nStatement: \"The force option does not exist in any version of @codedev/lab, so the bot did not repeat outdated documentation: it produced an option that was never documented.\"",
+          "explanation": "True. The changelog in C lists every signature: 1.0 had submitLesson(lessonId), 2.0 has submitLesson({ lessonId, attemptId }), and 1.4 only changed what codedev test prints. No version has force, so this is not an outdated fact from before the model's cutoff (that would have been the 1.x call submitLesson(lessonId)): it is a hallucination. Telling the two apart matters, because outdated knowledge points at the cutoff while an invented option shows the model filling a gap. The common mistake is to call every wrong answer \"outdated training data\".",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence A - support widget, conversation sb_77f3:\n21:14:02  learner u_5521  How do I submit my lesson when one hidden test still fails?\n21:14:07  support bot     You can force the submission. Call submitLesson({ lessonId, force: true }) from your lab script: the force flag skips the hidden tests and marks the lesson as submitted. It has been supported since @codedev/lab 1.4.\n21:31:40  learner u_5521  I tried it: CodeDevLabError: submitLesson: unknown option \"force\" (expected { lessonId, attemptId }). What now?\n\nStatement: \"Because the answer names an exact call, explains what the flag does and gives the version it appeared in, it was probably checked against the documentation and is more likely to be correct than a vaguer answer.\"",
+          "explanation": "False. A model produces detail the same way it produces everything else: as likely next tokens. The precise call, the explanation and \"since @codedev/lab 1.4\" are all invented (C shows 1.4 changed something else). Nothing in the bot looked anything up: the prompt in B carried no documentation. The misconception is that confidence and detail signal verification; only a source the claim came from, such as a cited docs page, does.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence B - prompt log, request sb_77f3 (the full prompt):\nYou are the CodeDev support assistant. Be friendly and answer the learner's question.\n\nQuestion: How do I submit my lesson when one hidden test still fails?\n\nEvidence C - https://app.codedev.test/docs/lab/submit:\nsubmitLesson({ lessonId, attemptId })                      @codedev/lab 2.x\n  lessonId   string   the lesson to submit\n  attemptId  string   the attempt created by `codedev test`\nAn attempt with a failing test is rejected (status \"rejected\", failedTests listed).\nTests cannot be skipped: fix the test, run `codedev test` again and submit the new attemptId.\nCHANGELOG\n2.0.0  2025-09-15  submitLesson(lessonId) is replaced by submitLesson({ lessonId, attemptId })\n1.4.0  2024-11-02  codedev test prints the attempt id\n1.0.0  2024-03-11  first release: submitLesson(lessonId)\n\nEvidence D - support-bot request log:\n2026-10-20T21:14:07.418Z support-bot req=sb_77f3 user=u_5521 model=chat-small-2025-01 knowledge_cutoff=2025-01 temperature=0.2 input_tokens=41 output_tokens=58 docs_attached=0 finish_reason=stop latency_ms=1840\n\nStatement: \"The model's training data ends before @codedev/lab 2.0 was released, the prompt carried no documentation, and nothing in it allowed an \"I'm not sure\" - together that left the model to fill the gap with a plausible guess.\"",
+          "explanation": "True. D gives knowledge_cutoff=2025-01 and C dates the 2.0 change to 2025-09-15, so the model cannot have learned the current call. D also shows docs_attached=0 and B confirms the prompt holds only a persona and the question. \"Be friendly and answer the learner's question\" asks for an answer every time, with no way out. Knowledge cutoff, missing context and a vague prompt together explain the confident invented answer. The common mistake is to stop at one cause - usually \"the model is bad\" - when each of the three gaps needs its own fix.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence D - support-bot request log:\n2026-10-20T21:14:07.418Z support-bot req=sb_77f3 user=u_5521 model=chat-small-2025-01 knowledge_cutoff=2025-01 temperature=0.2 input_tokens=41 output_tokens=58 docs_attached=0 finish_reason=stop latency_ms=1840\n\nStatement: \"The temperature is the cause: with temperature 0 the model would have given the correct 2.x call instead of inventing an option.\"",
+          "explanation": "False. Temperature controls how often the model picks a less likely token; 0.2 is already low. At temperature 0 it always picks the most likely token, but without the docs in the prompt the most likely answer is still a guess, so you would get the same wrong answer every time. Lowering the temperature makes an answer repeatable, not true. The misconception is that hallucinations are random noise that sampling settings can turn off; here the missing facts are the cause.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence B - prompt log, request sb_77f3 (the full prompt):\nYou are the CodeDev support assistant. Be friendly and answer the learner's question.\n\nQuestion: How do I submit my lesson when one hidden test still fails?\n\nEvidence C - https://app.codedev.test/docs/lab/submit:\nsubmitLesson({ lessonId, attemptId })                      @codedev/lab 2.x\n  lessonId   string   the lesson to submit\n  attemptId  string   the attempt created by `codedev test`\nAn attempt with a failing test is rejected (status \"rejected\", failedTests listed).\nTests cannot be skipped: fix the test, run `codedev test` again and submit the new attemptId.\nCHANGELOG\n2.0.0  2025-09-15  submitLesson(lessonId) is replaced by submitLesson({ lessonId, attemptId })\n1.4.0  2024-11-02  codedev test prints the attempt id\n1.0.0  2024-03-11  first release: submitLesson(lessonId)\n\nStatement: \"A prompt that contains the docs page from C with an id such as [lab-submit-v2], tells the model to answer only from that documentation and cite the id, and allows \"I'm not sure\" when the docs do not answer, closes the gaps that produced force: true.\"",
+          "explanation": "True. Each part closes one gap. The docs page brings the current signature into the context window, so the knowledge cutoff no longer matters for this question. \"Answer only from the documentation and cite the id\" makes the answer checkable: the widget can link the citation and a test can verify it. The allowed \"I'm not sure\" gives the model a correct reply when retrieval finds nothing, instead of pressure to invent one. The common shortcut - adding \"do not hallucinate\" without the docs - adds no facts at all.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence A - support widget, conversation sb_77f3:\n21:14:02  learner u_5521  How do I submit my lesson when one hidden test still fails?\n21:14:07  support bot     You can force the submission. Call submitLesson({ lessonId, force: true }) from your lab script: the force flag skips the hidden tests and marks the lesson as submitted. It has been supported since @codedev/lab 1.4.\n21:31:40  learner u_5521  I tried it: CodeDevLabError: submitLesson: unknown option \"force\" (expected { lessonId, attemptId }). What now?\n\nVerification note in the fix's pull request:\n\"Tested on staging: asked 'How do I submit my lesson when one hidden test still fails?' once, got the 2.x call with [lab-submit-v2]. Closing ticket #2291.\"\n\nStatement: \"This check is enough to show that the incident is fixed and will not come back.\"",
+          "explanation": "False. One question, asked once, checks one path. It does not check a question the docs do not cover (the bot must say \"I'm not sure\" there, not invent), it says nothing about the next run if the temperature is above 0, and it will not run again when someone changes the prompt builder. Verification is a small eval set of real questions - each with the source it must cite or the expectation \"I'm not sure\" - run on recorded fixtures in CI and on the live model before each release. The misconception is to treat one good answer as proof.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_aif_312",
+      "name": "confident-wrong-answer-prompt-builder",
+      "type": "fix_bug",
+      "title": "The Confident Wrong Answer",
+      "description": "The CodeDev support bot told a learner to call submitLesson({ lessonId, force: true }) - an option that never existed in @codedev/lab - and the request log shows docs_attached=0. The retrieval step finds the right documentation pages and passes them to buildPrompt(question, docs, options), most relevant first, but the bot still answers from what the model learned before its knowledge cutoff (January 2025) and never says it is unsure. Fix buildPrompt so that the prompt contains the first options.maxDocs documents in the given order (none when maxDocs is 0 or less), each as a line \"[<id>] <title>\" followed by a line with its text; tells the model to answer only from that documentation and to cite the [id] it used; tells it to reply \"I'm not sure\" when the documentation does not answer the question; and still contains the question. No real LLM is called: the file contains a fake model that replays recorded answers (do not change it or the test runner). Input: { docs: { id, title, text }[], options: { maxDocs }, questions: string[] }. Output: for each question a line \"Q: <question>\" and a line \"A: <the fake model's answer>\".",
+      "difficulty": "easy",
+      "outcomes": [
+        "hallucination"
+      ],
+      "points": 20,
+      "hints": [
+        "The fake model can only answer from a page that is in the prompt, and only when the prompt tells it to stay inside the documentation. Print the prompt your buildPrompt returns: which of the docs it received does it actually contain?",
+        "Read the fake model's three checks at the top of the \"do not change\" section: the instruction it looks for, how it recognises a page in the prompt, and what lets it reply \"I'm not sure\". Then check how many documents you send and what Array.prototype.slice does with a negative end.",
+        "A similar prompt for a different bot: \"You are the Beanbox order assistant. Use only the menu below and name the [item id] you used. If the menu does not list it, say: not on the menu.\" followed by \"[latte-m] Latte, medium\" and its price line, then \"Order: one medium latte\". The rule, the way out and the sources are three separate parts of the prompt."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The submit question with its page retrieved: answered from the docs, with a citation",
+          "input": {
+            "docs": [
+              {
+                "id": "lab-submit-v2",
+                "title": "Submitting a lesson (@codedev/lab 2.x)",
+                "text": "Since @codedev/lab 2.0 (2025-09-15) call submitLesson({ lessonId, attemptId }) with the id of an attempt created by codedev test. An attempt with a failing test is rejected and tests cannot be skipped: fix the test, run codedev test again and submit the new attemptId."
+              },
+              {
+                "id": "lab-changelog",
+                "title": "@codedev/lab changelog",
+                "text": "2.0.0 (2025-09-15): submitLesson(lessonId) is replaced by submitLesson({ lessonId, attemptId }). 1.4.0 (2024-11-02): codedev test prints the attempt id."
+              }
+            ],
+            "options": {
+              "maxDocs": 3
+            },
+            "questions": [
+              "How do I submit my lesson when one hidden test still fails?"
+            ]
+          },
+          "expected": "Q: How do I submit my lesson when one hidden test still fails?\nA: Tests cannot be skipped: fix the failing test, run codedev test again and call submitLesson({ lessonId, attemptId }) with the new attempt's id. [lab-submit-v2]",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "A question the retrieved pages do not cover gets \"I'm not sure\"",
+          "input": {
+            "docs": [
+              {
+                "id": "lab-submit-v2",
+                "title": "Submitting a lesson (@codedev/lab 2.x)",
+                "text": "Since @codedev/lab 2.0 (2025-09-15) call submitLesson({ lessonId, attemptId }) with the id of an attempt created by codedev test. An attempt with a failing test is rejected and tests cannot be skipped: fix the test, run codedev test again and submit the new attemptId."
+              },
+              {
+                "id": "limits-attempts",
+                "title": "Attempts and limits",
+                "text": "Each coding challenge accepts at most 5 submissions. A quiz can be attempted 3 times; the second and third attempts earn 50% of the EXP."
+              }
+            ],
+            "options": {
+              "maxDocs": 3
+            },
+            "questions": [
+              "How do I submit my lesson when one hidden test still fails?",
+              "Can I download my certificate as a PDF?"
+            ]
+          },
+          "expected": "Q: How do I submit my lesson when one hidden test still fails?\nA: Tests cannot be skipped: fix the failing test, run codedev test again and call submitLesson({ lessonId, attemptId }) with the new attempt's id. [lab-submit-v2]\nQ: Can I download my certificate as a PDF?\nA: I'm not sure. The documentation I was given does not cover this.",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Three questions, each answered from its own page",
+          "input": {
+            "docs": [
+              {
+                "id": "hints-exp",
+                "title": "Hints and EXP",
+                "text": "Hints open one level at a time. Opening the level 3 hint before your first pass halves the challenge EXP."
+              },
+              {
+                "id": "limits-attempts",
+                "title": "Attempts and limits",
+                "text": "Each coding challenge accepts at most 5 submissions. A quiz can be attempted 3 times; the second and third attempts earn 50% of the EXP."
+              },
+              {
+                "id": "lab-submit-v2",
+                "title": "Submitting a lesson (@codedev/lab 2.x)",
+                "text": "Since @codedev/lab 2.0 (2025-09-15) call submitLesson({ lessonId, attemptId }) with the id of an attempt created by codedev test. An attempt with a failing test is rejected and tests cannot be skipped: fix the test, run codedev test again and submit the new attemptId."
+              }
+            ],
+            "options": {
+              "maxDocs": 3
+            },
+            "questions": [
+              "How many times can I submit a coding challenge?",
+              "Does opening the third hint reduce my EXP?",
+              "How do I submit my lesson when one hidden test still fails?"
+            ]
+          },
+          "expected": "Q: How many times can I submit a coding challenge?\nA: A coding challenge accepts at most 5 submissions. [limits-attempts]\nQ: Does opening the third hint reduce my EXP?\nA: Yes. Opening the level 3 hint before your first pass halves the EXP of that challenge. [hints-exp]\nQ: How do I submit my lesson when one hidden test still fails?\nA: Tests cannot be skipped: fix the failing test, run codedev test again and call submitLesson({ lessonId, attemptId }) with the new attempt's id. [lab-submit-v2]",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Only the first maxDocs pages are sent: a page ranked below the cut is not used",
+          "input": {
+            "docs": [
+              {
+                "id": "lab-submit-v2",
+                "title": "Submitting a lesson (@codedev/lab 2.x)",
+                "text": "Since @codedev/lab 2.0 (2025-09-15) call submitLesson({ lessonId, attemptId }) with the id of an attempt created by codedev test. An attempt with a failing test is rejected and tests cannot be skipped: fix the test, run codedev test again and submit the new attemptId."
+              },
+              {
+                "id": "streaks",
+                "title": "Daily streaks",
+                "text": "A streak grows by one for each day with at least one finished lesson, counted in your profile time zone."
+              },
+              {
+                "id": "lab-changelog",
+                "title": "@codedev/lab changelog",
+                "text": "2.0.0 (2025-09-15): submitLesson(lessonId) is replaced by submitLesson({ lessonId, attemptId }). 1.4.0 (2024-11-02): codedev test prints the attempt id."
+              },
+              {
+                "id": "limits-attempts",
+                "title": "Attempts and limits",
+                "text": "Each coding challenge accepts at most 5 submissions. A quiz can be attempted 3 times; the second and third attempts earn 50% of the EXP."
+              }
+            ],
+            "options": {
+              "maxDocs": 2
+            },
+            "questions": [
+              "How do I submit my lesson when one hidden test still fails?",
+              "How many times can I submit a coding challenge?"
+            ]
+          },
+          "expected": "Q: How do I submit my lesson when one hidden test still fails?\nA: Tests cannot be skipped: fix the failing test, run codedev test again and call submitLesson({ lessonId, attemptId }) with the new attempt's id. [lab-submit-v2]\nQ: How many times can I submit a coding challenge?\nA: I'm not sure. The documentation I was given does not cover this.",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Retrieval found nothing: every answer is \"I'm not sure\", none is invented",
+          "input": {
+            "docs": [],
+            "options": {
+              "maxDocs": 3
+            },
+            "questions": [
+              "How do I submit my lesson when one hidden test still fails?",
+              "Does opening the third hint reduce my EXP?",
+              "Can I download my certificate as a PDF?"
+            ]
+          },
+          "expected": "Q: How do I submit my lesson when one hidden test still fails?\nA: I'm not sure. The documentation I was given does not cover this.\nQ: Does opening the third hint reduce my EXP?\nA: I'm not sure. The documentation I was given does not cover this.\nQ: Can I download my certificate as a PDF?\nA: I'm not sure. The documentation I was given does not cover this.",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "maxDocs below 1 (invalid) sends no documentation",
+          "input": {
+            "docs": [
+              {
+                "id": "lab-submit-v2",
+                "title": "Submitting a lesson (@codedev/lab 2.x)",
+                "text": "Since @codedev/lab 2.0 (2025-09-15) call submitLesson({ lessonId, attemptId }) with the id of an attempt created by codedev test. An attempt with a failing test is rejected and tests cannot be skipped: fix the test, run codedev test again and submit the new attemptId."
+              },
+              {
+                "id": "limits-attempts",
+                "title": "Attempts and limits",
+                "text": "Each coding challenge accepts at most 5 submissions. A quiz can be attempted 3 times; the second and third attempts earn 50% of the EXP."
+              }
+            ],
+            "options": {
+              "maxDocs": -1
+            },
+            "questions": [
+              "How do I submit my lesson when one hidden test still fails?",
+              "How many times can I submit a coding challenge?"
+            ]
+          },
+          "expected": "Q: How do I submit my lesson when one hidden test still fails?\nA: I'm not sure. The documentation I was given does not cover this.\nQ: How many times can I submit a coding challenge?\nA: I'm not sure. The documentation I was given does not cover this.",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "40 retrieved pages with maxDocs 5: answers from pages ranked 2 and 5",
+          "input": {
+            "docs": [
+              {
+                "id": "release-notes-2026-01",
+                "title": "Release notes, week 1 of 2026",
+                "text": "Week 1: course catalog fixes, faster code runner start-up and smaller lesson pages."
+              },
+              {
+                "id": "lab-submit-v2",
+                "title": "Submitting a lesson (@codedev/lab 2.x)",
+                "text": "Since @codedev/lab 2.0 (2025-09-15) call submitLesson({ lessonId, attemptId }) with the id of an attempt created by codedev test. An attempt with a failing test is rejected and tests cannot be skipped: fix the test, run codedev test again and submit the new attemptId."
+              },
+              {
+                "id": "release-notes-2026-02",
+                "title": "Release notes, week 2 of 2026",
+                "text": "Week 2: course catalog fixes, faster code runner start-up and smaller lesson pages."
+              },
+              {
+                "id": "release-notes-2026-03",
+                "title": "Release notes, week 3 of 2026",
+                "text": "Week 3: course catalog fixes, faster code runner start-up and smaller lesson pages."
+              },
+              {
+                "id": "hints-exp",
+                "title": "Hints and EXP",
+                "text": "Hints open one level at a time. Opening the level 3 hint before your first pass halves the challenge EXP."
+              },
+              {
+                "id": "release-notes-2026-04",
+                "title": "Release notes, week 4 of 2026",
+                "text": "Week 4: course catalog fixes, faster code runner start-up and smaller lesson pages."
+              },
+              {
+                "id": "release-notes-2026-05",
+                "title": "Release notes, week 5 of 2026",
+                "text": "Week 5: course catalog fixes, faster code runner start-up and smaller lesson pages."
+              },
+              {
+                "id": "release-notes-2026-06",
+                "title": "Release notes, week 6 of 2026",
+                "text": "Week 6: course catalog fixes, faster code runner start-up and smaller lesson pages."
+              },
+              {
+                "id": "release-notes-2026-07",
+                "title": "Release notes, week 7 of 2026",
+                "text": "Week 7: course catalog fixes, faster code runner start-up and smaller lesson pages."
+              },
+              {
+                "id": "release-notes-2026-08",
+                "title": "Release notes, week 8 of 2026",
+                "text": "Week 8: course catalog fixes, faster code runner start-up and smaller lesson pages."
+              },
+              {
+                "id": "release-notes-2026-09",
+                "title": "Release notes, week 9 of 2026",
+                "text": "Week 9: course catalog fixes, faster code runner start-up and smaller lesson pages."
+              },
+              {
+                "id": "release-notes-2026-10",
+                "title": "Release notes, week 10 of 2026",
+                "text": "Week 10: course catalog fixes, faster code runner start-up and smaller lesson pages."
+              },
+              {
+                "id": "release-notes-2026-11",
+                "title": "Release notes, week 11 of 2026",
+                "text": "Week 11: course catalog fixes, faster code runner start-up and smaller lesson pages."
+              },
+              {
+                "id": "release-notes-2026-12",
+                "title": "Release notes, week 12 of 2026",
+                "text": "Week 12: course catalog fixes, faster code runner start-up and smaller lesson pages."
+              },
+              {
+                "id": "release-notes-2026-13",
+                "title": "Release notes, week 13 of 2026",
+                "text": "Week 13: course catalog fixes, faster code runner start-up and smaller lesson pages."
+              },
+              {
+                "id": "release-notes-2026-14",
+                "title": "Release notes, week 14 of 2026",
+                "text": "Week 14: course catalog fixes, faster code runner start-up and smaller lesson pages."
+              },
+              {
+                "id": "release-notes-2026-15",
+                "title": "Release notes, week 15 of 2026",
+                "text": "Week 15: course catalog fixes, faster code runner start-up and smaller lesson pages."
+              },
+              {
+                "id": "release-notes-2026-16",
+                "title": "Release notes, week 16 of 2026",
+                "text": "Week 16: course catalog fixes, faster code runner start-up and smaller lesson pages."
+              },
+              {
+                "id": "release-notes-2026-17",
+                "title": "Release notes, week 17 of 2026",
+                "text": "Week 17: course catalog fixes, faster code runner start-up and smaller lesson pages."
+              },
+              {
+                "id": "release-notes-2026-18",
+                "title": "Release notes, week 18 of 2026",
+                "text": "Week 18: course catalog fixes, faster code runner start-up and smaller lesson pages."
+              },
+              {
+                "id": "release-notes-2026-19",
+                "title": "Release notes, week 19 of 2026",
+                "text": "Week 19: course catalog fixes, faster code runner start-up and smaller lesson pages."
+              },
+              {
+                "id": "release-notes-2026-20",
+                "title": "Release notes, week 20 of 2026",
+                "text": "Week 20: course catalog fixes, faster code runner start-up and smaller lesson pages."
+              },
+              {
+                "id": "release-notes-2026-21",
+                "title": "Release notes, week 21 of 2026",
+                "text": "Week 21: course catalog fixes, faster code runner start-up and smaller lesson pages."
+              },
+              {
+                "id": "release-notes-2026-22",
+                "title": "Release notes, week 22 of 2026",
+                "text": "Week 22: course catalog fixes, faster code runner start-up and smaller lesson pages."
+              },
+              {
+                "id": "release-notes-2026-23",
+                "title": "Release notes, week 23 of 2026",
+                "text": "Week 23: course catalog fixes, faster code runner start-up and smaller lesson pages."
+              },
+              {
+                "id": "release-notes-2026-24",
+                "title": "Release notes, week 24 of 2026",
+                "text": "Week 24: course catalog fixes, faster code runner start-up and smaller lesson pages."
+              },
+              {
+                "id": "release-notes-2026-25",
+                "title": "Release notes, week 25 of 2026",
+                "text": "Week 25: course catalog fixes, faster code runner start-up and smaller lesson pages."
+              },
+              {
+                "id": "release-notes-2026-26",
+                "title": "Release notes, week 26 of 2026",
+                "text": "Week 26: course catalog fixes, faster code runner start-up and smaller lesson pages."
+              },
+              {
+                "id": "release-notes-2026-27",
+                "title": "Release notes, week 27 of 2026",
+                "text": "Week 27: course catalog fixes, faster code runner start-up and smaller lesson pages."
+              },
+              {
+                "id": "release-notes-2026-28",
+                "title": "Release notes, week 28 of 2026",
+                "text": "Week 28: course catalog fixes, faster code runner start-up and smaller lesson pages."
+              },
+              {
+                "id": "release-notes-2026-29",
+                "title": "Release notes, week 29 of 2026",
+                "text": "Week 29: course catalog fixes, faster code runner start-up and smaller lesson pages."
+              },
+              {
+                "id": "release-notes-2026-30",
+                "title": "Release notes, week 30 of 2026",
+                "text": "Week 30: course catalog fixes, faster code runner start-up and smaller lesson pages."
+              },
+              {
+                "id": "release-notes-2026-31",
+                "title": "Release notes, week 31 of 2026",
+                "text": "Week 31: course catalog fixes, faster code runner start-up and smaller lesson pages."
+              },
+              {
+                "id": "release-notes-2026-32",
+                "title": "Release notes, week 32 of 2026",
+                "text": "Week 32: course catalog fixes, faster code runner start-up and smaller lesson pages."
+              },
+              {
+                "id": "release-notes-2026-33",
+                "title": "Release notes, week 33 of 2026",
+                "text": "Week 33: course catalog fixes, faster code runner start-up and smaller lesson pages."
+              },
+              {
+                "id": "release-notes-2026-34",
+                "title": "Release notes, week 34 of 2026",
+                "text": "Week 34: course catalog fixes, faster code runner start-up and smaller lesson pages."
+              },
+              {
+                "id": "release-notes-2026-35",
+                "title": "Release notes, week 35 of 2026",
+                "text": "Week 35: course catalog fixes, faster code runner start-up and smaller lesson pages."
+              },
+              {
+                "id": "release-notes-2026-36",
+                "title": "Release notes, week 36 of 2026",
+                "text": "Week 36: course catalog fixes, faster code runner start-up and smaller lesson pages."
+              },
+              {
+                "id": "release-notes-2026-37",
+                "title": "Release notes, week 37 of 2026",
+                "text": "Week 37: course catalog fixes, faster code runner start-up and smaller lesson pages."
+              },
+              {
+                "id": "release-notes-2026-38",
+                "title": "Release notes, week 38 of 2026",
+                "text": "Week 38: course catalog fixes, faster code runner start-up and smaller lesson pages."
+              }
+            ],
+            "options": {
+              "maxDocs": 5
+            },
+            "questions": [
+              "How do I submit my lesson when one hidden test still fails?",
+              "Does opening the third hint reduce my EXP?",
+              "How many times can I submit a coding challenge?",
+              "Can I download my certificate as a PDF?"
+            ]
+          },
+          "expected": "Q: How do I submit my lesson when one hidden test still fails?\nA: Tests cannot be skipped: fix the failing test, run codedev test again and call submitLesson({ lessonId, attemptId }) with the new attempt's id. [lab-submit-v2]\nQ: Does opening the third hint reduce my EXP?\nA: Yes. Opening the level 3 hint before your first pass halves the EXP of that challenge. [hints-exp]\nQ: How many times can I submit a coding challenge?\nA: I'm not sure. The documentation I was given does not cover this.\nQ: Can I download my certificate as a PDF?\nA: I'm not sure. The documentation I was given does not cover this.",
+          "hidden": true,
+          "score": 2
+        }
+      ]
+    }
+  ]
+}

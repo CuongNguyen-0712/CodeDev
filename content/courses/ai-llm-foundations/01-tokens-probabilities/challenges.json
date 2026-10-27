@@ -1,0 +1,36 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_aif_111",
+      "name": "tokens-stop-reason-quiz",
+      "type": "quiz",
+      "title": "Tokens, limits and the stop reason",
+      "description": "Two pieces of evidence from the hint bot incident: a token count of the same hint in English and Vietnamese, and a raw API response for a Vietnamese hint.",
+      "difficulty": "medium",
+      "outcomes": ["tokens-context"],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The launch plan estimated hint tokens as words / 0.75, a ratio measured on English hints. Before the Vietnamese launch, a developer counted one hint in both languages with the hint model's own token counter:\n\nlang  words  estimated tokens (words / 0.75)  counted tokens\nen    96     128                              131\nvi    124    165                              338\n\nStatement: \"Applying the ratio measured on English hints to Vietnamese hints gives a token estimate close to the real count.\"",
+          "explanation": "False. The ratio worked for English (128 estimated, 131 counted) but underestimated the Vietnamese hint by about half (165 estimated, 338 counted). A tokenizer splits text into pieces from a vocabulary built mostly from English text, so Vietnamese syllables with diacritics are often split into several tokens. The words-to-tokens rule of thumb is a property of English prose with one tokenizer, not of language in general. The fix is to count real samples per language with the tokenizer of the model you call, and to budget each language separately. The misconception is that a token is roughly a word in every language.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Request sent by the hint service (model name from configuration):\n\n{ \"model\": \"<HINT_MODEL>\", \"max_completion_tokens\": 300,\n  \"messages\": [ { \"role\": \"system\", \"content\": \"...\" }, { \"role\": \"user\", \"content\": \"...\" } ] }\n\nResponse (shortened):\n\n{ \"choices\": [ { \"message\": { \"content\": \"Lỗi này xảy ra vì biến `count` được khai báo bằng `const`, ... Để sửa, bạn có thể\" },\n                \"finish_reason\": \"length\" } ],\n  \"usage\": { \"prompt_tokens\": 1148, \"completion_tokens\": 300 } }\n\nStatement: \"The answer ends mid-sentence because the request's output limit was reached, not because the model decided the answer was complete.\"",
+          "explanation": "True. finish_reason \"length\" means generation was stopped by the max output tokens setting, and completion_tokens equals the limit of 300. When the model ends an answer itself, the reason is \"stop\" (\"end_turn\" for Anthropic, \"STOP\" for Gemini). The API does not shorten an answer to fit the limit, it cuts it, possibly mid-word. The fix is to set the limit from measured answer lengths per language and to treat a \"length\" stop as a partial answer in the UI. The misconception is that max output tokens makes the model write a shorter, complete answer.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        }
+      ]
+    }
+  ]
+}

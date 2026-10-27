@@ -1,0 +1,1130 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_aif_231",
+      "name": "choose-a-model-quiz",
+      "type": "quiz",
+      "title": "Which model fits this task?",
+      "description": "Two model decisions on CodeDev: drafting support replies from tickets that contain learners' personal data, and tagging forum posts with candidates compared on the team's own eval set rather than a public leaderboard.",
+      "difficulty": "medium",
+      "outcomes": [
+        "model-choice"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Task: draft a first reply to each support ticket for an agent to edit. Tickets contain learners' names, email addresses and order IDs. Quality bar on the team's eval set of 120 real tickets (personal data masked for the eval): 0.80. p95 budget: 10,000 ms.\n\nmodel        runs on              approved processor  quality  p95_ms  cost per 1k requests (example prices)\nfast-api     provider API         no                  0.88     2,400   $0.52\nchat-mini    provider API         yes (DPA signed)    0.83     3,900   $0.95\nlocal-27b    CodeDev GPU server   n/a (local)         0.81     8,800   $0.00\n\nStatement: \"fast-api is the right choice for this task, because it has the best quality and is the cheapest hosted model.\"",
+          "explanation": "False. The tickets contain personal data, so the first question is where the data may go, not how good or cheap the model is. fast-api's provider has no approved data processing agreement with CodeDev, so the real tickets may not be sent to it, whatever its score; the eval could use it only because the eval data was masked. That leaves chat-mini (an approved processor) and local-27b (the data never leaves CodeDev's servers); both clear the 0.80 bar and the 10 s budget. local-27b's $0 is only the per-token price: the GPU server, its power and its upkeep are real costs. The misconception is to rank models by quality and price first and treat data rules as a detail to check later; a data rule removes candidates before anything else is compared.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Forum post tagging: when a learner publishes a post, a model picks its topic tags. Posts are public and contain no personal data beyond the public display name. The team ran both candidates on 300 already-tagged posts. Budget: quality >= 0.85, p95 <= 5,000 ms.\n\nmodel       public leaderboard rank  eval quality  p95_ms  cost per 1k requests (example prices)\nchat-large  #2                       0.93          5,800   $3.40\nchat-mini   #31                      0.87          1,400   $0.20\n\nStatement: \"For this feature chat-mini is the better choice: it clears the team's own quality bar and latency budget at a seventeenth of the cost, and chat-large's higher leaderboard rank does not change that.\"",
+          "explanation": "True. The decision is made against this task's constraints: chat-mini scores 0.87 on 300 real posts (bar 0.85), answers within 1.4 s at p95 (budget 5 s) and costs $0.20 against $3.40 per 1,000 requests. chat-large is better on the eval but misses the latency budget, and extra quality above the bar is only worth paying for if the bar itself is wrong - in which case raise the bar from evidence and run the eval again. A public leaderboard averages many tasks that are not yours, with prompts that are not yours. The misconception is that the best-ranked model is the best choice for every feature.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_aif_232",
+      "name": "choose-a-model",
+      "type": "mini_coding",
+      "title": "Choose the cheapest model that fits the task",
+      "description": "Every AI feature on CodeDev now needs a model decision in its design review, made from measured numbers instead of a favourite brand. Write chooseModel(input). The input is { task, models }. task has the typical request size (inputTokens, outputTokens) and the constraints maxCostPer1k (USD per 1,000 requests), maxP95Ms, minQuality (score on the team's eval set, 0..1) and personalData (true when the prompts contain learners' personal data). Each model has name, inputPer1M and outputPer1M (example USD prices per 1M tokens), p95Ms and quality (null when nobody has measured them for this task yet), contextTokens, local (runs on CodeDev's own machines) and approvedProcessor (a hosted provider with an approved data processing agreement). costPer1k = (inputTokens x inputPer1M + outputTokens x outputPer1M) / 1000. Check each model in this order and describe each violation exactly: 1) personalData is true and the model is neither local nor approved -> \"personal data would leave the company\"; 2) contextTokens < inputTokens + outputTokens -> \"context <contextTokens> < <needed> tokens needed\"; 3) quality null -> \"quality not measured\", below minQuality -> \"quality <quality> < <minQuality>\"; 4) p95Ms null -> \"p95 not measured\", above maxP95Ms -> \"p95 <p95Ms>ms > <maxP95Ms>ms\"; 5) costPer1k above maxCostPer1k -> \"cost per 1k <cost.toFixed(2)> > <maxCostPer1k>\". A value equal to its limit fits; numbers print as template strings print them. If at least one model fits, return [\"choose <name>\", \"reason: cheapest fitting model (<fitting> of <candidates> fit); cost per 1k <toFixed(2)>, p95 <p95Ms>ms, quality <quality>, data: <d>\"] for the cheapest fitting model (equal cost: higher quality, then the smaller name in plain string order), where <d> is \"no personal data\" when personalData is false, otherwise \"runs locally\" or \"approved processor\". If none fits, return \"no model fits\" followed by \"<name>: <violations joined with \", \">\" for every candidate in input order; with no candidates at all, return [\"no model fits\", \"(no candidates)\"]. No model is called: the numbers come from recorded evals and timings.",
+      "difficulty": "easy",
+      "outcomes": [
+        "model-choice",
+        "responsible-ai"
+      ],
+      "points": 20,
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "hints": [
+        "Which of the constraints can no amount of money fix, and what should happen to a candidate whose p95 or quality nobody has measured yet for this task?",
+        "Write one function that returns the list of violations for one model, in the given order, and use it twice: an empty list means the model fits, and the same list is what you print when nothing fits. Watch null: in JavaScript null < 0.8 and null > 3000 are both false, so check for null before you compare. Sorting the fitting models with a comparator (cost, then quality, then name) gives the choice.",
+        "A similar case with other numbers: a task with 1,000 input and 100 output tokens, maxCostPer1k 1, maxP95Ms 2000, minQuality 0.8 and personal data. Model X is hosted, not approved, inputPer1M 0.5, outputPer1M 2, p95 1500, quality 0.9: its cost per 1k is (500 + 200) / 1000 = 0.70, so its only violation is \"personal data would leave the company\". Model Y is local, p95 2000, quality 0.79: 2000 equals the limit and fits, so its only violation is \"quality 0.79 < 0.8\". Neither fits, so the answer is \"no model fits\" and one line per model."
+      ],
+      "tests": [
+        {
+          "name": "Explain-error task without personal data: the cheapest model that fits",
+          "input": {
+            "task": {
+              "name": "explain-error",
+              "inputTokens": 1400,
+              "outputTokens": 250,
+              "maxCostPer1k": 2,
+              "maxP95Ms": 3000,
+              "minQuality": 0.8,
+              "personalData": false
+            },
+            "models": [
+              {
+                "name": "chat-large",
+                "inputPer1M": 2.5,
+                "outputPer1M": 10,
+                "p95Ms": 6200,
+                "contextTokens": 200000,
+                "quality": 0.91,
+                "local": false,
+                "approvedProcessor": true
+              },
+              {
+                "name": "chat-mini",
+                "inputPer1M": 0.15,
+                "outputPer1M": 0.6,
+                "p95Ms": 1900,
+                "contextTokens": 128000,
+                "quality": 0.84,
+                "local": false,
+                "approvedProcessor": true
+              },
+              {
+                "name": "budget-api",
+                "inputPer1M": 0.1,
+                "outputPer1M": 0.4,
+                "p95Ms": 1200,
+                "contextTokens": 64000,
+                "quality": 0.78,
+                "local": false,
+                "approvedProcessor": false
+              },
+              {
+                "name": "open-hosted",
+                "inputPer1M": 0.27,
+                "outputPer1M": 1.1,
+                "p95Ms": 2600,
+                "contextTokens": 64000,
+                "quality": 0.83,
+                "local": false,
+                "approvedProcessor": false
+              },
+              {
+                "name": "local-8b",
+                "inputPer1M": 0,
+                "outputPer1M": 0,
+                "p95Ms": 3800,
+                "contextTokens": 8192,
+                "quality": 0.79,
+                "local": true,
+                "approvedProcessor": false
+              },
+              {
+                "name": "local-27b",
+                "inputPer1M": 0,
+                "outputPer1M": 0,
+                "p95Ms": 5400,
+                "contextTokens": 32768,
+                "quality": 0.86,
+                "local": true,
+                "approvedProcessor": false
+              }
+            ]
+          },
+          "expected": "choose chat-mini\nreason: cheapest fitting model (2 of 6 fit); cost per 1k 0.36, p95 1900ms, quality 0.84, data: no personal data",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Autocomplete task that nothing fits: every violated constraint per candidate",
+          "input": {
+            "task": {
+              "name": "live-autocomplete",
+              "inputTokens": 600,
+              "outputTokens": 40,
+              "maxCostPer1k": 0.1,
+              "maxP95Ms": 800,
+              "minQuality": 0.8,
+              "personalData": false
+            },
+            "models": [
+              {
+                "name": "chat-large",
+                "inputPer1M": 2.5,
+                "outputPer1M": 10,
+                "p95Ms": 6200,
+                "contextTokens": 200000,
+                "quality": 0.91,
+                "local": false,
+                "approvedProcessor": true
+              },
+              {
+                "name": "chat-mini",
+                "inputPer1M": 0.15,
+                "outputPer1M": 0.6,
+                "p95Ms": 1900,
+                "contextTokens": 128000,
+                "quality": 0.84,
+                "local": false,
+                "approvedProcessor": true
+              },
+              {
+                "name": "budget-api",
+                "inputPer1M": 0.1,
+                "outputPer1M": 0.4,
+                "p95Ms": 1200,
+                "contextTokens": 64000,
+                "quality": 0.78,
+                "local": false,
+                "approvedProcessor": false
+              },
+              {
+                "name": "open-hosted",
+                "inputPer1M": 0.27,
+                "outputPer1M": 1.1,
+                "p95Ms": 2600,
+                "contextTokens": 64000,
+                "quality": 0.83,
+                "local": false,
+                "approvedProcessor": false
+              },
+              {
+                "name": "local-8b",
+                "inputPer1M": 0,
+                "outputPer1M": 0,
+                "p95Ms": 3800,
+                "contextTokens": 8192,
+                "quality": 0.79,
+                "local": true,
+                "approvedProcessor": false
+              },
+              {
+                "name": "local-27b",
+                "inputPer1M": 0,
+                "outputPer1M": 0,
+                "p95Ms": 5400,
+                "contextTokens": 32768,
+                "quality": 0.86,
+                "local": true,
+                "approvedProcessor": false
+              }
+            ]
+          },
+          "expected": "no model fits\nchat-large: p95 6200ms > 800ms, cost per 1k 1.90 > 0.1\nchat-mini: p95 1900ms > 800ms, cost per 1k 0.11 > 0.1\nbudget-api: quality 0.78 < 0.8, p95 1200ms > 800ms\nopen-hosted: p95 2600ms > 800ms, cost per 1k 0.21 > 0.1\nlocal-8b: quality 0.79 < 0.8, p95 3800ms > 800ms\nlocal-27b: p95 5400ms > 800ms",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Personal data: a cheaper hosted model that is not an approved processor is rejected",
+          "input": {
+            "task": {
+              "name": "feedback-summary",
+              "inputTokens": 6000,
+              "outputTokens": 400,
+              "maxCostPer1k": 20,
+              "maxP95Ms": 15000,
+              "minQuality": 0.82,
+              "personalData": true
+            },
+            "models": [
+              {
+                "name": "budget-api",
+                "inputPer1M": 0.1,
+                "outputPer1M": 0.4,
+                "p95Ms": 3100,
+                "contextTokens": 64000,
+                "quality": 0.83,
+                "local": false,
+                "approvedProcessor": false
+              },
+              {
+                "name": "open-hosted",
+                "inputPer1M": 0.27,
+                "outputPer1M": 1.1,
+                "p95Ms": 5200,
+                "contextTokens": 64000,
+                "quality": 0.85,
+                "local": false,
+                "approvedProcessor": false
+              },
+              {
+                "name": "chat-mini",
+                "inputPer1M": 0.15,
+                "outputPer1M": 0.6,
+                "p95Ms": 4300,
+                "contextTokens": 128000,
+                "quality": 0.84,
+                "local": false,
+                "approvedProcessor": true
+              },
+              {
+                "name": "local-27b",
+                "inputPer1M": 0,
+                "outputPer1M": 0,
+                "p95Ms": 9000,
+                "contextTokens": 32768,
+                "quality": 0.86,
+                "local": true,
+                "approvedProcessor": false
+              },
+              {
+                "name": "local-8b",
+                "inputPer1M": 0,
+                "outputPer1M": 0,
+                "p95Ms": 6100,
+                "contextTokens": 8192,
+                "quality": 0.74,
+                "local": true,
+                "approvedProcessor": false
+              }
+            ]
+          },
+          "expected": "choose local-27b\nreason: cheapest fitting model (2 of 5 fit); cost per 1k 0.00, p95 9000ms, quality 0.86, data: runs locally",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Models never measured on the eval set do not fit; an approved processor is chosen",
+          "input": {
+            "task": {
+              "name": "grade-explanation",
+              "inputTokens": 2000,
+              "outputTokens": 300,
+              "maxCostPer1k": 1,
+              "maxP95Ms": 5000,
+              "minQuality": 0.8,
+              "personalData": true
+            },
+            "models": [
+              {
+                "name": "chat-new",
+                "inputPer1M": 0.05,
+                "outputPer1M": 0.2,
+                "p95Ms": null,
+                "contextTokens": 128000,
+                "quality": 0.9,
+                "local": false,
+                "approvedProcessor": true
+              },
+              {
+                "name": "local-new",
+                "inputPer1M": 0,
+                "outputPer1M": 0,
+                "p95Ms": 2500,
+                "contextTokens": 32768,
+                "quality": null,
+                "local": true,
+                "approvedProcessor": false
+              },
+              {
+                "name": "chat-mini",
+                "inputPer1M": 0.15,
+                "outputPer1M": 0.6,
+                "p95Ms": 2100,
+                "contextTokens": 128000,
+                "quality": 0.82,
+                "local": false,
+                "approvedProcessor": true
+              },
+              {
+                "name": "chat-large",
+                "inputPer1M": 2.5,
+                "outputPer1M": 10,
+                "p95Ms": 4800,
+                "contextTokens": 200000,
+                "quality": 0.93,
+                "local": false,
+                "approvedProcessor": true
+              }
+            ]
+          },
+          "expected": "choose chat-mini\nreason: cheapest fitting model (1 of 4 fit); cost per 1k 0.48, p95 2100ms, quality 0.82, data: approved processor",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Input plus output must fit the context; values equal to a limit fit",
+          "input": {
+            "task": {
+              "name": "review-whole-file",
+              "inputTokens": 30000,
+              "outputTokens": 2000,
+              "maxCostPer1k": 10,
+              "maxP95Ms": 12000,
+              "minQuality": 0.85,
+              "personalData": false
+            },
+            "models": [
+              {
+                "name": "local-8b",
+                "inputPer1M": 0,
+                "outputPer1M": 0,
+                "p95Ms": 8000,
+                "contextTokens": 8192,
+                "quality": 0.86,
+                "local": true,
+                "approvedProcessor": false
+              },
+              {
+                "name": "local-27b",
+                "inputPer1M": 0,
+                "outputPer1M": 0,
+                "p95Ms": 13000,
+                "contextTokens": 32768,
+                "quality": 0.87,
+                "local": true,
+                "approvedProcessor": false
+              },
+              {
+                "name": "long-api",
+                "inputPer1M": 0.2,
+                "outputPer1M": 0.8,
+                "p95Ms": 12000,
+                "contextTokens": 64000,
+                "quality": 0.85,
+                "local": false,
+                "approvedProcessor": false
+              },
+              {
+                "name": "chat-tight",
+                "inputPer1M": 0.1,
+                "outputPer1M": 0.4,
+                "p95Ms": 7000,
+                "contextTokens": 31000,
+                "quality": 0.9,
+                "local": false,
+                "approvedProcessor": true
+              },
+              {
+                "name": "chat-large",
+                "inputPer1M": 2.5,
+                "outputPer1M": 10,
+                "p95Ms": 9000,
+                "contextTokens": 200000,
+                "quality": 0.92,
+                "local": false,
+                "approvedProcessor": true
+              }
+            ]
+          },
+          "expected": "choose long-api\nreason: cheapest fitting model (1 of 5 fit); cost per 1k 7.60, p95 12000ms, quality 0.85, data: no personal data",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Equal cost: the higher quality wins, then the smaller name",
+          "input": {
+            "task": {
+              "name": "tag-forum-posts",
+              "inputTokens": 800,
+              "outputTokens": 20,
+              "maxCostPer1k": 0.5,
+              "maxP95Ms": 20000,
+              "minQuality": 0.7,
+              "personalData": true
+            },
+            "models": [
+              {
+                "name": "local-c",
+                "inputPer1M": 0,
+                "outputPer1M": 0,
+                "p95Ms": 4000,
+                "contextTokens": 8192,
+                "quality": 0.88,
+                "local": true,
+                "approvedProcessor": false
+              },
+              {
+                "name": "local-a",
+                "inputPer1M": 0,
+                "outputPer1M": 0,
+                "p95Ms": 3000,
+                "contextTokens": 8192,
+                "quality": 0.85,
+                "local": true,
+                "approvedProcessor": false
+              },
+              {
+                "name": "local-b",
+                "inputPer1M": 0,
+                "outputPer1M": 0,
+                "p95Ms": 5000,
+                "contextTokens": 8192,
+                "quality": 0.88,
+                "local": true,
+                "approvedProcessor": false
+              },
+              {
+                "name": "budget-api",
+                "inputPer1M": 0.1,
+                "outputPer1M": 0.4,
+                "p95Ms": 900,
+                "contextTokens": 64000,
+                "quality": 0.9,
+                "local": false,
+                "approvedProcessor": false
+              }
+            ]
+          },
+          "expected": "choose local-b\nreason: cheapest fitting model (3 of 4 fit); cost per 1k 0.00, p95 5000ms, quality 0.88, data: runs locally",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "No candidates at all",
+          "input": {
+            "task": {
+              "name": "explain-error",
+              "inputTokens": 1400,
+              "outputTokens": 250,
+              "maxCostPer1k": 2,
+              "maxP95Ms": 3000,
+              "minQuality": 0.8,
+              "personalData": false
+            },
+            "models": []
+          },
+          "expected": "no model fits\n(no candidates)",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Large input: 60 candidates for a task with personal data",
+          "input": {
+            "task": {
+              "name": "course-faq-answer",
+              "inputTokens": 2500,
+              "outputTokens": 350,
+              "maxCostPer1k": 3,
+              "maxP95Ms": 6000,
+              "minQuality": 0.8,
+              "personalData": true
+            },
+            "models": [
+              {
+                "name": "local-01",
+                "inputPer1M": 0,
+                "outputPer1M": 0,
+                "p95Ms": 5251,
+                "contextTokens": 32768,
+                "quality": 0.82,
+                "local": true,
+                "approvedProcessor": false
+              },
+              {
+                "name": "local-02",
+                "inputPer1M": 0,
+                "outputPer1M": 0,
+                "p95Ms": 5518,
+                "contextTokens": 32768,
+                "quality": null,
+                "local": true,
+                "approvedProcessor": false
+              },
+              {
+                "name": "api-03",
+                "inputPer1M": 0.4,
+                "outputPer1M": 1.6,
+                "p95Ms": 2507,
+                "contextTokens": 4096,
+                "quality": 0.6,
+                "local": false,
+                "approvedProcessor": false
+              },
+              {
+                "name": "api-04",
+                "inputPer1M": 0.2,
+                "outputPer1M": 1,
+                "p95Ms": 4034,
+                "contextTokens": 4096,
+                "quality": 0.94,
+                "local": false,
+                "approvedProcessor": true
+              },
+              {
+                "name": "local-05",
+                "inputPer1M": 0,
+                "outputPer1M": 0,
+                "p95Ms": 1371,
+                "contextTokens": 128000,
+                "quality": 0.62,
+                "local": true,
+                "approvedProcessor": false
+              },
+              {
+                "name": "api-06",
+                "inputPer1M": 0.2,
+                "outputPer1M": 0.8,
+                "p95Ms": 7117,
+                "contextTokens": 128000,
+                "quality": 0.64,
+                "local": false,
+                "approvedProcessor": true
+              },
+              {
+                "name": "api-07",
+                "inputPer1M": 0.2,
+                "outputPer1M": 0.4,
+                "p95Ms": 7443,
+                "contextTokens": 32768,
+                "quality": 0.67,
+                "local": false,
+                "approvedProcessor": false
+              },
+              {
+                "name": "api-08",
+                "inputPer1M": 0.8,
+                "outputPer1M": 4,
+                "p95Ms": 5326,
+                "contextTokens": 32768,
+                "quality": 0.88,
+                "local": false,
+                "approvedProcessor": false
+              },
+              {
+                "name": "api-09",
+                "inputPer1M": 0.05,
+                "outputPer1M": 0.1,
+                "p95Ms": 1238,
+                "contextTokens": 8192,
+                "quality": 0.87,
+                "local": false,
+                "approvedProcessor": true
+              },
+              {
+                "name": "api-10",
+                "inputPer1M": 0.27,
+                "outputPer1M": 1.08,
+                "p95Ms": 2231,
+                "contextTokens": 32768,
+                "quality": 0.79,
+                "local": false,
+                "approvedProcessor": false
+              },
+              {
+                "name": "api-11",
+                "inputPer1M": 0.8,
+                "outputPer1M": 4,
+                "p95Ms": 4346,
+                "contextTokens": 8192,
+                "quality": 0.61,
+                "local": false,
+                "approvedProcessor": false
+              },
+              {
+                "name": "local-12",
+                "inputPer1M": 0,
+                "outputPer1M": 0,
+                "p95Ms": 1517,
+                "contextTokens": 4096,
+                "quality": 0.69,
+                "local": true,
+                "approvedProcessor": false
+              },
+              {
+                "name": "api-13",
+                "inputPer1M": 0.8,
+                "outputPer1M": 1.6,
+                "p95Ms": 5821,
+                "contextTokens": 128000,
+                "quality": 0.8,
+                "local": false,
+                "approvedProcessor": false
+              },
+              {
+                "name": "api-14",
+                "inputPer1M": 2.5,
+                "outputPer1M": 10,
+                "p95Ms": 4846,
+                "contextTokens": 8192,
+                "quality": 0.62,
+                "local": false,
+                "approvedProcessor": true
+              },
+              {
+                "name": "api-15",
+                "inputPer1M": 0.6,
+                "outputPer1M": 3,
+                "p95Ms": 8194,
+                "contextTokens": 4096,
+                "quality": null,
+                "local": false,
+                "approvedProcessor": true
+              },
+              {
+                "name": "api-16",
+                "inputPer1M": 2.5,
+                "outputPer1M": 10,
+                "p95Ms": 6140,
+                "contextTokens": 4096,
+                "quality": 0.94,
+                "local": false,
+                "approvedProcessor": false
+              },
+              {
+                "name": "local-17",
+                "inputPer1M": 0,
+                "outputPer1M": 0,
+                "p95Ms": 6245,
+                "contextTokens": 128000,
+                "quality": 0.73,
+                "local": true,
+                "approvedProcessor": false
+              },
+              {
+                "name": "api-18",
+                "inputPer1M": 0.2,
+                "outputPer1M": 1,
+                "p95Ms": 9264,
+                "contextTokens": 8192,
+                "quality": 0.7,
+                "local": false,
+                "approvedProcessor": false
+              },
+              {
+                "name": "api-19",
+                "inputPer1M": 0.15,
+                "outputPer1M": 0.75,
+                "p95Ms": 5384,
+                "contextTokens": 8192,
+                "quality": null,
+                "local": false,
+                "approvedProcessor": false
+              },
+              {
+                "name": "api-20",
+                "inputPer1M": 0.4,
+                "outputPer1M": 0.8,
+                "p95Ms": 3419,
+                "contextTokens": 4096,
+                "quality": 0.71,
+                "local": false,
+                "approvedProcessor": false
+              },
+              {
+                "name": "api-21",
+                "inputPer1M": 0.05,
+                "outputPer1M": 0.25,
+                "p95Ms": 4680,
+                "contextTokens": 32768,
+                "quality": 0.71,
+                "local": false,
+                "approvedProcessor": true
+              },
+              {
+                "name": "api-22",
+                "inputPer1M": 0.05,
+                "outputPer1M": 0.1,
+                "p95Ms": 2423,
+                "contextTokens": 32768,
+                "quality": 0.68,
+                "local": false,
+                "approvedProcessor": false
+              },
+              {
+                "name": "local-23",
+                "inputPer1M": 0,
+                "outputPer1M": 0,
+                "p95Ms": 5977,
+                "contextTokens": 32768,
+                "quality": 0.63,
+                "local": true,
+                "approvedProcessor": false
+              },
+              {
+                "name": "api-24",
+                "inputPer1M": 0.27,
+                "outputPer1M": 1.35,
+                "p95Ms": 1361,
+                "contextTokens": 8192,
+                "quality": 0.76,
+                "local": false,
+                "approvedProcessor": false
+              },
+              {
+                "name": "local-25",
+                "inputPer1M": 0,
+                "outputPer1M": 0,
+                "p95Ms": 4108,
+                "contextTokens": 8192,
+                "quality": 0.74,
+                "local": true,
+                "approvedProcessor": false
+              },
+              {
+                "name": "api-26",
+                "inputPer1M": 1.1,
+                "outputPer1M": 2.2,
+                "p95Ms": 2724,
+                "contextTokens": 128000,
+                "quality": 0.77,
+                "local": false,
+                "approvedProcessor": false
+              },
+              {
+                "name": "api-27",
+                "inputPer1M": 2.5,
+                "outputPer1M": 5,
+                "p95Ms": 8793,
+                "contextTokens": 128000,
+                "quality": 0.6,
+                "local": false,
+                "approvedProcessor": false
+              },
+              {
+                "name": "local-28",
+                "inputPer1M": 0,
+                "outputPer1M": 0,
+                "p95Ms": 8516,
+                "contextTokens": 32768,
+                "quality": 0.65,
+                "local": true,
+                "approvedProcessor": false
+              },
+              {
+                "name": "api-29",
+                "inputPer1M": 0.4,
+                "outputPer1M": 1.6,
+                "p95Ms": 5177,
+                "contextTokens": 128000,
+                "quality": 0.89,
+                "local": false,
+                "approvedProcessor": true
+              },
+              {
+                "name": "api-30",
+                "inputPer1M": 0.4,
+                "outputPer1M": 1.2,
+                "p95Ms": 6524,
+                "contextTokens": 32768,
+                "quality": 0.6,
+                "local": false,
+                "approvedProcessor": false
+              },
+              {
+                "name": "api-31",
+                "inputPer1M": 0.27,
+                "outputPer1M": 1.35,
+                "p95Ms": null,
+                "contextTokens": 4096,
+                "quality": 0.63,
+                "local": false,
+                "approvedProcessor": true
+              },
+              {
+                "name": "api-32",
+                "inputPer1M": 0.15,
+                "outputPer1M": 0.45,
+                "p95Ms": 8922,
+                "contextTokens": 128000,
+                "quality": 0.78,
+                "local": false,
+                "approvedProcessor": true
+              },
+              {
+                "name": "local-33",
+                "inputPer1M": 0,
+                "outputPer1M": 0,
+                "p95Ms": 4860,
+                "contextTokens": 8192,
+                "quality": 0.9,
+                "local": true,
+                "approvedProcessor": false
+              },
+              {
+                "name": "api-34",
+                "inputPer1M": 1.1,
+                "outputPer1M": 2.2,
+                "p95Ms": 1543,
+                "contextTokens": 32768,
+                "quality": 0.93,
+                "local": false,
+                "approvedProcessor": true
+              },
+              {
+                "name": "api-35",
+                "inputPer1M": 0.15,
+                "outputPer1M": 0.3,
+                "p95Ms": 9202,
+                "contextTokens": 128000,
+                "quality": 0.78,
+                "local": false,
+                "approvedProcessor": true
+              },
+              {
+                "name": "api-36",
+                "inputPer1M": 0.2,
+                "outputPer1M": 0.8,
+                "p95Ms": 8110,
+                "contextTokens": 128000,
+                "quality": 0.79,
+                "local": false,
+                "approvedProcessor": true
+              },
+              {
+                "name": "local-37",
+                "inputPer1M": 0,
+                "outputPer1M": 0,
+                "p95Ms": 6385,
+                "contextTokens": 4096,
+                "quality": 0.75,
+                "local": true,
+                "approvedProcessor": false
+              },
+              {
+                "name": "api-38",
+                "inputPer1M": 0.4,
+                "outputPer1M": 2,
+                "p95Ms": 3480,
+                "contextTokens": 128000,
+                "quality": 0.63,
+                "local": false,
+                "approvedProcessor": false
+              },
+              {
+                "name": "local-39",
+                "inputPer1M": 0,
+                "outputPer1M": 0,
+                "p95Ms": 4394,
+                "contextTokens": 4096,
+                "quality": 0.63,
+                "local": true,
+                "approvedProcessor": false
+              },
+              {
+                "name": "api-40",
+                "inputPer1M": 0.27,
+                "outputPer1M": 0.81,
+                "p95Ms": 6086,
+                "contextTokens": 8192,
+                "quality": 0.63,
+                "local": false,
+                "approvedProcessor": false
+              },
+              {
+                "name": "api-41",
+                "inputPer1M": 0.6,
+                "outputPer1M": 3,
+                "p95Ms": 2349,
+                "contextTokens": 32768,
+                "quality": 0.87,
+                "local": false,
+                "approvedProcessor": true
+              },
+              {
+                "name": "local-42",
+                "inputPer1M": 0,
+                "outputPer1M": 0,
+                "p95Ms": 6057,
+                "contextTokens": 8192,
+                "quality": 0.79,
+                "local": true,
+                "approvedProcessor": false
+              },
+              {
+                "name": "api-43",
+                "inputPer1M": 0.1,
+                "outputPer1M": 0.2,
+                "p95Ms": 3553,
+                "contextTokens": 4096,
+                "quality": null,
+                "local": false,
+                "approvedProcessor": false
+              },
+              {
+                "name": "local-44",
+                "inputPer1M": 0,
+                "outputPer1M": 0,
+                "p95Ms": 4925,
+                "contextTokens": 128000,
+                "quality": 0.67,
+                "local": true,
+                "approvedProcessor": false
+              },
+              {
+                "name": "api-45",
+                "inputPer1M": 0.6,
+                "outputPer1M": 3,
+                "p95Ms": 2031,
+                "contextTokens": 4096,
+                "quality": 0.72,
+                "local": false,
+                "approvedProcessor": true
+              },
+              {
+                "name": "local-46",
+                "inputPer1M": 0,
+                "outputPer1M": 0,
+                "p95Ms": 6889,
+                "contextTokens": 32768,
+                "quality": 0.77,
+                "local": true,
+                "approvedProcessor": false
+              },
+              {
+                "name": "local-47",
+                "inputPer1M": 0,
+                "outputPer1M": 0,
+                "p95Ms": 2644,
+                "contextTokens": 8192,
+                "quality": 0.65,
+                "local": true,
+                "approvedProcessor": false
+              },
+              {
+                "name": "api-48",
+                "inputPer1M": 0.2,
+                "outputPer1M": 0.6,
+                "p95Ms": null,
+                "contextTokens": 8192,
+                "quality": 0.78,
+                "local": false,
+                "approvedProcessor": true
+              },
+              {
+                "name": "local-49",
+                "inputPer1M": 0,
+                "outputPer1M": 0,
+                "p95Ms": 2986,
+                "contextTokens": 128000,
+                "quality": 0.79,
+                "local": true,
+                "approvedProcessor": false
+              },
+              {
+                "name": "api-50",
+                "inputPer1M": 0.4,
+                "outputPer1M": 1.6,
+                "p95Ms": 4984,
+                "contextTokens": 4096,
+                "quality": 0.93,
+                "local": false,
+                "approvedProcessor": false
+              },
+              {
+                "name": "api-51",
+                "inputPer1M": 0.4,
+                "outputPer1M": 2,
+                "p95Ms": 5834,
+                "contextTokens": 8192,
+                "quality": 0.68,
+                "local": false,
+                "approvedProcessor": false
+              },
+              {
+                "name": "api-52",
+                "inputPer1M": 0.2,
+                "outputPer1M": 1,
+                "p95Ms": 5129,
+                "contextTokens": 32768,
+                "quality": 0.65,
+                "local": false,
+                "approvedProcessor": false
+              },
+              {
+                "name": "api-53",
+                "inputPer1M": 0.27,
+                "outputPer1M": 1.35,
+                "p95Ms": 9771,
+                "contextTokens": 8192,
+                "quality": 0.93,
+                "local": false,
+                "approvedProcessor": false
+              },
+              {
+                "name": "api-54",
+                "inputPer1M": 0.4,
+                "outputPer1M": 2,
+                "p95Ms": 4095,
+                "contextTokens": 8192,
+                "quality": 0.75,
+                "local": false,
+                "approvedProcessor": false
+              },
+              {
+                "name": "api-55",
+                "inputPer1M": 0.4,
+                "outputPer1M": 1.6,
+                "p95Ms": 6523,
+                "contextTokens": 128000,
+                "quality": 0.81,
+                "local": false,
+                "approvedProcessor": true
+              },
+              {
+                "name": "api-56",
+                "inputPer1M": 0.27,
+                "outputPer1M": 1.08,
+                "p95Ms": null,
+                "contextTokens": 128000,
+                "quality": 0.66,
+                "local": false,
+                "approvedProcessor": false
+              },
+              {
+                "name": "api-57",
+                "inputPer1M": 1.1,
+                "outputPer1M": 2.2,
+                "p95Ms": 9400,
+                "contextTokens": 128000,
+                "quality": 0.77,
+                "local": false,
+                "approvedProcessor": false
+              },
+              {
+                "name": "api-58",
+                "inputPer1M": 0.05,
+                "outputPer1M": 0.15,
+                "p95Ms": null,
+                "contextTokens": 32768,
+                "quality": 0.9,
+                "local": false,
+                "approvedProcessor": false
+              },
+              {
+                "name": "local-59",
+                "inputPer1M": 0,
+                "outputPer1M": 0,
+                "p95Ms": null,
+                "contextTokens": 8192,
+                "quality": 0.67,
+                "local": true,
+                "approvedProcessor": false
+              },
+              {
+                "name": "api-60",
+                "inputPer1M": 0.15,
+                "outputPer1M": 0.3,
+                "p95Ms": 4585,
+                "contextTokens": 8192,
+                "quality": null,
+                "local": false,
+                "approvedProcessor": false
+              }
+            ]
+          },
+          "expected": "choose local-33\nreason: cheapest fitting model (6 of 60 fit); cost per 1k 0.00, p95 4860ms, quality 0.9, data: runs locally",
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

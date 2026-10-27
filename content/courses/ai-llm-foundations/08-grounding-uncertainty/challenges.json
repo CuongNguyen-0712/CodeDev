@@ -1,0 +1,50 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_aif_321",
+      "name": "grounding-and-uncertainty",
+      "type": "quiz",
+      "title": "Grounding and \"I'm not sure\"",
+      "description": "Two statements on the billing FAQ bot that promised a 30-day refund: what a stronger instruction can and cannot do, and how a citation check treats an answer.",
+      "difficulty": "medium",
+      "outcomes": [
+        "hallucination"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Prompt log, request fq_3c90 (the full prompt):\nYou are the CodeDev billing assistant. Answer questions about prices, points and refunds.\nIMPORTANT: Never make up information. Do not hallucinate.\n\nQuestion: Can I get a refund for a premium course I bought last week?\n\nAnswer: Yes! Premium courses can be refunded within 30 days of purchase, no questions asked.\nLog: model=chat-small-2025-01 temperature=0.3 docs_attached=0 finish_reason=stop\nRefund policy page: refundable within 7 days of purchase if less than 20% of the lessons are finished.\n\nStatement: \"Adding one more line - \"Only answer if you are 100% sure\" - would stop answers like this one, because the model would then check how sure it is before it answers.\"",
+          "explanation": "False. The prompt contains no refund policy (docs_attached=0), so the model has no fact to answer from, and it has no reliable signal that tells it a sentence is invented: \"30 days\" and \"7 days\" come out of the same next-token process. Another instruction adds no information and its effect is unmeasured; it may even make the bot refuse questions it could answer. What fixes this answer is grounding - the refund-policy section in the prompt, a rule to answer only from it with a citation, an allowed \"I'm not sure\" - checked with eval cases. The misconception is that a model can be instructed into knowing what it does not know.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "lib/bot/checkAnswer.ts (excerpt):\nconst CITATION = /\\[([a-z0-9-]+)\\]/g;\nfunction checkAnswer(answer: string, sent: Section[]): Checked {\n  if (answer.startsWith(\"I'm not sure\")) return { kind: \"unsure\", text: answer };\n  const ids = [...new Set([...answer.matchAll(CITATION)].map((m) => m[1]))];\n  if (ids.length === 0) return { kind: \"reject\", reason: \"no citation\" };\n  const links: { title: string; url: string }[] = [];\n  for (const id of ids) {\n    const section = sent.find((s) => s.id === id);\n    if (!section) return { kind: \"reject\", reason: `cites ${id}, which was not in the prompt` };\n    links.push({ title: section.title, url: section.url });\n  }\n  return { kind: \"answer\", text: answer.replace(CITATION, \"\").trim(), links };\n}\n\nSections sent in the prompt: [points-pricing], [certificates]\nModel answer: \"Premium courses can be refunded within 14 days. [refund-policy]\"\n\nStatement: \"checkAnswer rejects this answer, so the widget shows the polite \"I'm not sure\" message instead of the 14-day claim.\"",
+          "explanation": "True. The answer is not an \"I'm not sure\" reply and it does contain a citation, so the check reaches the loop: refund-policy is not one of the sections that were sent (points-pricing, certificates), so it returns { kind: \"reject\" } with the reason \"cites refund-policy, which was not in the prompt\". A rejected answer is never shown; the user gets the unsure message with a next step, and the rejection is logged. The misconception is that any citation proves grounding: a model can produce a plausible id just as it produces a plausible fact, so the id must be compared with what was actually sent.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,1558 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_aif_211",
+      "name": "llm-cost-from-tokens-quiz",
+      "type": "quiz",
+      "title": "Where does the LLM bill come from?",
+      "description": "Two pieces of usage evidence from CodeDev's AI features: one day of the \"Ask about this lesson\" bill, and the token counts of one conversation with the chat tutor.",
+      "difficulty": "medium",
+      "outcomes": [
+        "cost-latency"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Usage export for \"Ask about this lesson\", which sends the full text of the lesson with every question. One day, model chat-mini, example prices per 1M tokens: input $0.15, output $0.60.\n\ndate        model      requests  input_tokens  output_tokens  cost_usd\n2026-09-14  chat-mini     8,000    96,000,000      1,200,000     15.12\n\nStatement: \"Output tokens cost four times as much as input tokens, so most of this feature's bill is output, and shorter answers are the biggest saving available.\"",
+          "explanation": "False. Price each column separately: input is 96,000,000 x $0.15 / 1,000,000 = $14.40 and output is 1,200,000 x $0.60 / 1,000,000 = $0.72, so 95% of the $15.12 is input. Each output token costs four times as much, but every request sends 12,000 input tokens (the whole lesson) and gets about 150 back, eighty times fewer. The biggest savings here are on the input side: send only the relevant part of the lesson (lesson 2), or let the repeated lesson text use the provider's prompt cache. The misconception is that output always dominates; which side dominates depends on the feature, so compute both columns before you decide what to cut.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Usage logged by the \"Ask the tutor\" chat for one conversation. The learner's four messages were 40, 35, 25 and 20 tokens long; the system prompt is 680 tokens.\n\nturn  input_tokens  output_tokens\n1     720           310\n2     1,065         290\n3     1,380         260\n4     1,660         240\n\nStatement: \"Turn 4 is billed for more input tokens than turn 1 although the learner typed less, because each turn sends the system prompt and the whole conversation so far again.\"",
+          "explanation": "True. The numbers add up exactly: turn 2 = 720 (turn 1's input) + 310 (the tutor's first answer) + 35 (the new message) = 1,065, and so on. A chat completion request is stateless: to continue a conversation the app sends the system prompt and every earlier message and answer again, and all of it is input. Input per turn therefore grows with the length of the conversation, not with the length of the new message. Even APIs that keep the conversation on the server for you generally still bill the earlier turns as input tokens, so check the provider's pricing notes. The misconception is that the model \"remembers\" the chat and you pay only for the new message.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_aif_212",
+      "name": "llm-cost-estimate",
+      "type": "mini_coding",
+      "title": "Estimate the cost of the hint bot from recorded requests",
+      "description": "The hint bot's first estimate priced only the prompt and was off by a factor of ten. Write the estimate the team should have made, from recorded usage instead of guesses. The input is a JSON object: prices maps a model name to { inputPer1M, outputPer1M, cachedInputPer1M? } in USD per 1 million tokens (example prices); requests is a list of { model, inputTokens, cachedInputTokens, outputTokens }, where cachedInputTokens are part of inputTokens; requestsPerDay and daysPerMonth drive the projection. requestCost(price, r) returns the unrounded USD cost: (uncached input tokens x inputPer1M + cachedInputTokens x cachedInputPer1M + outputTokens x outputPer1M) / 1,000,000, using inputPer1M for cached tokens when the model has no cached price. estimate(input) returns the report lines in this order: one line per request, numbered from 1 - \"#<n> <model> <cost>\" with toFixed(6), or \"#<n> <model> error: unknown model\" when the model is not in the price table, or \"#<n> <model> error: invalid tokens\" when a token count is not a whole number >= 0 or cachedInputTokens > inputTokens (check the model first); then \"model <name> count=<n> cost=<sum>\" for every model with at least one priced request, sorted by name; then \"total count=<priced requests> errors=<error lines> cost=<sum>\"; then \"monthly requests=<requestsPerDay x daysPerMonth> cost=<average cost of a priced request x that number>\". Sums add the unrounded costs and are printed with toFixed(6); the monthly cost uses toFixed(2) and is 0.00 when nothing was priced. A bad request becomes an error line and the report goes on. No real model is called: the requests are recorded usage.",
+      "difficulty": "easy",
+      "outcomes": [
+        "cost-latency"
+      ],
+      "points": 20,
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "hints": [
+        "For one request, which groups of tokens appear on the bill, and which price applies to each group? Which group did the hint bot spreadsheet leave out?",
+        "Look at how cachedInputTokens relates to inputTokens (it is a part of it, not an extra amount), at the optional cachedInputPer1M (the ?? operator gives a fallback), and at the order of the checks: price table first, then token counts. Keep running sums of the unrounded costs per model (a Map works) and overall, and call toFixed only when you build a line.",
+        "A similar case with different numbers: model demo costs inputPer1M 1.00, cachedInputPer1M 0.50 and outputPer1M 4.00. A request with 2,000 input tokens, 1,000 of them cached, and 500 output tokens costs (1,000 x 1.00 + 1,000 x 0.50 + 500 x 4.00) / 1,000,000 = 3,500 / 1,000,000 = 0.0035, printed as 0.003500. If it is the only priced request and the app expects 10 requests a day for 30 days, the projection is 300 requests x 0.0035 = 1.05."
+      ],
+      "tests": [
+        {
+          "name": "The incident: 600 input and 1,350 output tokens per hint on the large model",
+          "input": {
+            "prices": {
+              "chat-large": {
+                "inputPer1M": 2.5,
+                "outputPer1M": 10,
+                "cachedInputPer1M": 1.25
+              },
+              "chat-mini": {
+                "inputPer1M": 0.15,
+                "outputPer1M": 0.6,
+                "cachedInputPer1M": 0.075
+              }
+            },
+            "requests": [
+              {
+                "model": "chat-large",
+                "inputTokens": 600,
+                "cachedInputTokens": 0,
+                "outputTokens": 1350
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 600,
+                "cachedInputTokens": 0,
+                "outputTokens": 1350
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 600,
+                "cachedInputTokens": 0,
+                "outputTokens": 1350
+              }
+            ],
+            "requestsPerDay": 20000,
+            "daysPerMonth": 30
+          },
+          "expected": "#1 chat-large 0.015000\n#2 chat-large 0.015000\n#3 chat-large 0.015000\nmodel chat-large count=3 cost=0.045000\ntotal count=3 errors=0 cost=0.045000\nmonthly requests=600000 cost=9000.00",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Two models; cached prompt tokens are part of the input and use the cached price",
+          "input": {
+            "prices": {
+              "chat-large": {
+                "inputPer1M": 2.5,
+                "outputPer1M": 10,
+                "cachedInputPer1M": 1.25
+              },
+              "chat-mini": {
+                "inputPer1M": 0.15,
+                "outputPer1M": 0.6,
+                "cachedInputPer1M": 0.075
+              }
+            },
+            "requests": [
+              {
+                "model": "chat-mini",
+                "inputTokens": 1800,
+                "cachedInputTokens": 1200,
+                "outputTokens": 250
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 2400,
+                "cachedInputTokens": 2000,
+                "outputTokens": 400
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 900,
+                "cachedInputTokens": 0,
+                "outputTokens": 120
+              }
+            ],
+            "requestsPerDay": 1000,
+            "daysPerMonth": 30
+          },
+          "expected": "#1 chat-mini 0.000330\n#2 chat-large 0.007500\n#3 chat-mini 0.000207\nmodel chat-large count=1 cost=0.007500\nmodel chat-mini count=2 cost=0.000537\ntotal count=3 errors=0 cost=0.008037\nmonthly requests=30000 cost=80.37",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Unknown model and invalid token counts become error lines, not a crash",
+          "input": {
+            "prices": {
+              "chat-large": {
+                "inputPer1M": 2.5,
+                "outputPer1M": 10,
+                "cachedInputPer1M": 1.25
+              },
+              "chat-mini": {
+                "inputPer1M": 0.15,
+                "outputPer1M": 0.6,
+                "cachedInputPer1M": 0.075
+              }
+            },
+            "requests": [
+              {
+                "model": "chat-mini",
+                "inputTokens": 500,
+                "cachedInputTokens": 0,
+                "outputTokens": 100
+              },
+              {
+                "model": "chat-xl",
+                "inputTokens": 500,
+                "cachedInputTokens": 0,
+                "outputTokens": 100
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": -5,
+                "cachedInputTokens": 0,
+                "outputTokens": 100
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 300,
+                "cachedInputTokens": 400,
+                "outputTokens": 50
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 1000,
+                "cachedInputTokens": 0,
+                "outputTokens": 12.5
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 700,
+                "cachedInputTokens": 0
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 1000,
+                "cachedInputTokens": 0,
+                "outputTokens": 200
+              }
+            ],
+            "requestsPerDay": 500,
+            "daysPerMonth": 31
+          },
+          "expected": "#1 chat-mini 0.000135\n#2 chat-xl error: unknown model\n#3 chat-mini error: invalid tokens\n#4 chat-mini error: invalid tokens\n#5 chat-large error: invalid tokens\n#6 chat-large error: invalid tokens\n#7 chat-large 0.004500\nmodel chat-large count=1 cost=0.004500\nmodel chat-mini count=1 cost=0.000135\ntotal count=2 errors=5 cost=0.004635\nmonthly requests=15500 cost=35.92",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "No cached price: cached tokens cost the input price; a local model costs 0; zero output is fine",
+          "input": {
+            "prices": {
+              "open-hosted": {
+                "inputPer1M": 0.27,
+                "outputPer1M": 1.1
+              },
+              "local-8b": {
+                "inputPer1M": 0,
+                "outputPer1M": 0
+              }
+            },
+            "requests": [
+              {
+                "model": "open-hosted",
+                "inputTokens": 3000,
+                "cachedInputTokens": 2500,
+                "outputTokens": 800
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 4000,
+                "cachedInputTokens": 0,
+                "outputTokens": 900
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 1500,
+                "cachedInputTokens": 0,
+                "outputTokens": 0
+              }
+            ],
+            "requestsPerDay": 2000,
+            "daysPerMonth": 30
+          },
+          "expected": "#1 open-hosted 0.001690\n#2 local-8b 0.000000\n#3 open-hosted 0.000405\nmodel local-8b count=1 cost=0.000000\nmodel open-hosted count=2 cost=0.002095\ntotal count=3 errors=0 cost=0.002095\nmonthly requests=60000 cost=41.90",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "No priced request: totals are 0 and the monthly cost is 0.00",
+          "input": {
+            "prices": {
+              "chat-large": {
+                "inputPer1M": 2.5,
+                "outputPer1M": 10,
+                "cachedInputPer1M": 1.25
+              },
+              "chat-mini": {
+                "inputPer1M": 0.15,
+                "outputPer1M": 0.6,
+                "cachedInputPer1M": 0.075
+              }
+            },
+            "requests": [
+              {
+                "model": "chat-xl",
+                "inputTokens": 800,
+                "cachedInputTokens": 0,
+                "outputTokens": 200
+              },
+              {
+                "model": "gpt-unknown",
+                "inputTokens": 100,
+                "cachedInputTokens": 0,
+                "outputTokens": 10
+              }
+            ],
+            "requestsPerDay": 10000,
+            "daysPerMonth": 30
+          },
+          "expected": "#1 chat-xl error: unknown model\n#2 gpt-unknown error: unknown model\ntotal count=0 errors=2 cost=0.000000\nmonthly requests=300000 cost=0.00",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "An empty request list",
+          "input": {
+            "prices": {
+              "chat-large": {
+                "inputPer1M": 2.5,
+                "outputPer1M": 10,
+                "cachedInputPer1M": 1.25
+              },
+              "chat-mini": {
+                "inputPer1M": 0.15,
+                "outputPer1M": 0.6,
+                "cachedInputPer1M": 0.075
+              }
+            },
+            "requests": [],
+            "requestsPerDay": 100,
+            "daysPerMonth": 30
+          },
+          "expected": "total count=0 errors=0 cost=0.000000\nmonthly requests=3000 cost=0.00",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Large input: 200 requests across four models with one unknown model",
+          "input": {
+            "prices": {
+              "chat-large": {
+                "inputPer1M": 2.5,
+                "outputPer1M": 10,
+                "cachedInputPer1M": 1.25
+              },
+              "chat-mini": {
+                "inputPer1M": 0.15,
+                "outputPer1M": 0.6,
+                "cachedInputPer1M": 0.075
+              },
+              "open-hosted": {
+                "inputPer1M": 0.27,
+                "outputPer1M": 1.1
+              },
+              "local-8b": {
+                "inputPer1M": 0,
+                "outputPer1M": 0
+              }
+            },
+            "requests": [
+              {
+                "model": "chat-mini",
+                "inputTokens": 1632,
+                "cachedInputTokens": 89,
+                "outputTokens": 878
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 443,
+                "cachedInputTokens": 0,
+                "outputTokens": 1359
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 1201,
+                "cachedInputTokens": 325,
+                "outputTokens": 638
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 1924,
+                "cachedInputTokens": 995,
+                "outputTokens": 88
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 2836,
+                "cachedInputTokens": 0,
+                "outputTokens": 1074
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 2789,
+                "cachedInputTokens": 2520,
+                "outputTokens": 950
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 1301,
+                "cachedInputTokens": 1137,
+                "outputTokens": 537
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 3133,
+                "cachedInputTokens": 0,
+                "outputTokens": 1045
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 795,
+                "cachedInputTokens": 716,
+                "outputTokens": 322
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 612,
+                "cachedInputTokens": 0,
+                "outputTokens": 657
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 3278,
+                "cachedInputTokens": 1105,
+                "outputTokens": 236
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 568,
+                "cachedInputTokens": 0,
+                "outputTokens": 270
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 688,
+                "cachedInputTokens": 392,
+                "outputTokens": 302
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 3304,
+                "cachedInputTokens": 0,
+                "outputTokens": 974
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 3247,
+                "cachedInputTokens": 1079,
+                "outputTokens": 99
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 3959,
+                "cachedInputTokens": 0,
+                "outputTokens": 74
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 2711,
+                "cachedInputTokens": 676,
+                "outputTokens": 619
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 2420,
+                "cachedInputTokens": 1325,
+                "outputTokens": 925
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 1207,
+                "cachedInputTokens": 868,
+                "outputTokens": 941
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 826,
+                "cachedInputTokens": 36,
+                "outputTokens": 955
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 676,
+                "cachedInputTokens": 504,
+                "outputTokens": 1418
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 2603,
+                "cachedInputTokens": 813,
+                "outputTokens": 90
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 390,
+                "cachedInputTokens": 15,
+                "outputTokens": 438
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 3843,
+                "cachedInputTokens": 707,
+                "outputTokens": 572
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 2977,
+                "cachedInputTokens": 0,
+                "outputTokens": 813
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 315,
+                "cachedInputTokens": 76,
+                "outputTokens": 951
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 1685,
+                "cachedInputTokens": 1682,
+                "outputTokens": 1304
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 2318,
+                "cachedInputTokens": 612,
+                "outputTokens": 294
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 315,
+                "cachedInputTokens": 0,
+                "outputTokens": 1461
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 3909,
+                "cachedInputTokens": 0,
+                "outputTokens": 438
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 1066,
+                "cachedInputTokens": 959,
+                "outputTokens": 841
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 2584,
+                "cachedInputTokens": 0,
+                "outputTokens": 286
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 833,
+                "cachedInputTokens": 164,
+                "outputTokens": 927
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 876,
+                "cachedInputTokens": 0,
+                "outputTokens": 427
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 1313,
+                "cachedInputTokens": 65,
+                "outputTokens": 1455
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 972,
+                "cachedInputTokens": 490,
+                "outputTokens": 1034
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 1646,
+                "cachedInputTokens": 0,
+                "outputTokens": 569
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 2596,
+                "cachedInputTokens": 0,
+                "outputTokens": 1133
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 560,
+                "cachedInputTokens": 52,
+                "outputTokens": 1045
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 428,
+                "cachedInputTokens": 0,
+                "outputTokens": 229
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 3545,
+                "cachedInputTokens": 1540,
+                "outputTokens": 889
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 562,
+                "cachedInputTokens": 0,
+                "outputTokens": 1149
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 1700,
+                "cachedInputTokens": 83,
+                "outputTokens": 1480
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 3409,
+                "cachedInputTokens": 0,
+                "outputTokens": 232
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 3358,
+                "cachedInputTokens": 0,
+                "outputTokens": 851
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 2368,
+                "cachedInputTokens": 1371,
+                "outputTokens": 807
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 2884,
+                "cachedInputTokens": 1624,
+                "outputTokens": 579
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 239,
+                "cachedInputTokens": 22,
+                "outputTokens": 608
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 1952,
+                "cachedInputTokens": 0,
+                "outputTokens": 141
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 3419,
+                "cachedInputTokens": 2068,
+                "outputTokens": 1331
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 1324,
+                "cachedInputTokens": 471,
+                "outputTokens": 519
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 3895,
+                "cachedInputTokens": 265,
+                "outputTokens": 797
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 3726,
+                "cachedInputTokens": 0,
+                "outputTokens": 128
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 2569,
+                "cachedInputTokens": 1493,
+                "outputTokens": 1359
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 3837,
+                "cachedInputTokens": 811,
+                "outputTokens": 1161
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 1511,
+                "cachedInputTokens": 394,
+                "outputTokens": 957
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 2635,
+                "cachedInputTokens": 2075,
+                "outputTokens": 1314
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 607,
+                "cachedInputTokens": 398,
+                "outputTokens": 982
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 2697,
+                "cachedInputTokens": 0,
+                "outputTokens": 1006
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 3693,
+                "cachedInputTokens": 1418,
+                "outputTokens": 1265
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 1730,
+                "cachedInputTokens": 837,
+                "outputTokens": 173
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 424,
+                "cachedInputTokens": 17,
+                "outputTokens": 875
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 2925,
+                "cachedInputTokens": 2212,
+                "outputTokens": 1167
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 353,
+                "cachedInputTokens": 282,
+                "outputTokens": 460
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 1369,
+                "cachedInputTokens": 0,
+                "outputTokens": 515
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 3789,
+                "cachedInputTokens": 1473,
+                "outputTokens": 27
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 389,
+                "cachedInputTokens": 297,
+                "outputTokens": 772
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 986,
+                "cachedInputTokens": 562,
+                "outputTokens": 362
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 3286,
+                "cachedInputTokens": 992,
+                "outputTokens": 1465
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 3251,
+                "cachedInputTokens": 2615,
+                "outputTokens": 1019
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 474,
+                "cachedInputTokens": 147,
+                "outputTokens": 1047
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 244,
+                "cachedInputTokens": 54,
+                "outputTokens": 988
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 906,
+                "cachedInputTokens": 602,
+                "outputTokens": 268
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 1337,
+                "cachedInputTokens": 1128,
+                "outputTokens": 824
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 3428,
+                "cachedInputTokens": 202,
+                "outputTokens": 1327
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 3656,
+                "cachedInputTokens": 0,
+                "outputTokens": 879
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 1350,
+                "cachedInputTokens": 0,
+                "outputTokens": 1426
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 2393,
+                "cachedInputTokens": 0,
+                "outputTokens": 260
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 3297,
+                "cachedInputTokens": 0,
+                "outputTokens": 1443
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 3397,
+                "cachedInputTokens": 0,
+                "outputTokens": 96
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 1939,
+                "cachedInputTokens": 174,
+                "outputTokens": 1146
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 1384,
+                "cachedInputTokens": 276,
+                "outputTokens": 1044
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 2888,
+                "cachedInputTokens": 0,
+                "outputTokens": 376
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 2803,
+                "cachedInputTokens": 0,
+                "outputTokens": 671
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 3274,
+                "cachedInputTokens": 0,
+                "outputTokens": 1184
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 230,
+                "cachedInputTokens": 167,
+                "outputTokens": 716
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 1863,
+                "cachedInputTokens": 0,
+                "outputTokens": 1357
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 1349,
+                "cachedInputTokens": 1291,
+                "outputTokens": 1253
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 677,
+                "cachedInputTokens": 0,
+                "outputTokens": 484
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 3473,
+                "cachedInputTokens": 1374,
+                "outputTokens": 388
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 2372,
+                "cachedInputTokens": 1067,
+                "outputTokens": 1426
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 1391,
+                "cachedInputTokens": 618,
+                "outputTokens": 753
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 346,
+                "cachedInputTokens": 63,
+                "outputTokens": 1493
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 2472,
+                "cachedInputTokens": 2323,
+                "outputTokens": 517
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 3153,
+                "cachedInputTokens": 3100,
+                "outputTokens": 905
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 1734,
+                "cachedInputTokens": 0,
+                "outputTokens": 1325
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 974,
+                "cachedInputTokens": 0,
+                "outputTokens": 802
+              },
+              {
+                "model": "chat-xl",
+                "inputTokens": 900,
+                "cachedInputTokens": 0,
+                "outputTokens": 300
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 2057,
+                "cachedInputTokens": 5,
+                "outputTokens": 1383
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 2786,
+                "cachedInputTokens": 0,
+                "outputTokens": 755
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 1363,
+                "cachedInputTokens": 109,
+                "outputTokens": 927
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 2448,
+                "cachedInputTokens": 0,
+                "outputTokens": 86
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 311,
+                "cachedInputTokens": 211,
+                "outputTokens": 171
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 1165,
+                "cachedInputTokens": 218,
+                "outputTokens": 158
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 3382,
+                "cachedInputTokens": 0,
+                "outputTokens": 92
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 2898,
+                "cachedInputTokens": 716,
+                "outputTokens": 1333
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 1326,
+                "cachedInputTokens": 515,
+                "outputTokens": 763
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 1288,
+                "cachedInputTokens": 826,
+                "outputTokens": 426
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 351,
+                "cachedInputTokens": 345,
+                "outputTokens": 440
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 1686,
+                "cachedInputTokens": 0,
+                "outputTokens": 450
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 2153,
+                "cachedInputTokens": 188,
+                "outputTokens": 339
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 3698,
+                "cachedInputTokens": 0,
+                "outputTokens": 694
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 2264,
+                "cachedInputTokens": 11,
+                "outputTokens": 1140
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 3049,
+                "cachedInputTokens": 0,
+                "outputTokens": 62
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 1602,
+                "cachedInputTokens": 0,
+                "outputTokens": 1508
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 3212,
+                "cachedInputTokens": 0,
+                "outputTokens": 507
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 1902,
+                "cachedInputTokens": 856,
+                "outputTokens": 516
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 2602,
+                "cachedInputTokens": 287,
+                "outputTokens": 972
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 3896,
+                "cachedInputTokens": 0,
+                "outputTokens": 779
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 1521,
+                "cachedInputTokens": 1263,
+                "outputTokens": 359
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 738,
+                "cachedInputTokens": 427,
+                "outputTokens": 137
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 3364,
+                "cachedInputTokens": 0,
+                "outputTokens": 1477
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 1358,
+                "cachedInputTokens": 0,
+                "outputTokens": 701
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 2392,
+                "cachedInputTokens": 2269,
+                "outputTokens": 862
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 592,
+                "cachedInputTokens": 492,
+                "outputTokens": 495
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 1724,
+                "cachedInputTokens": 1515,
+                "outputTokens": 1206
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 2927,
+                "cachedInputTokens": 403,
+                "outputTokens": 581
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 3181,
+                "cachedInputTokens": 2034,
+                "outputTokens": 1202
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 2474,
+                "cachedInputTokens": 0,
+                "outputTokens": 88
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 2644,
+                "cachedInputTokens": 1363,
+                "outputTokens": 288
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 2216,
+                "cachedInputTokens": 1511,
+                "outputTokens": 477
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 1096,
+                "cachedInputTokens": 0,
+                "outputTokens": 1439
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 528,
+                "cachedInputTokens": 133,
+                "outputTokens": 725
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 241,
+                "cachedInputTokens": 0,
+                "outputTokens": 1212
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 3106,
+                "cachedInputTokens": 0,
+                "outputTokens": 917
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 3770,
+                "cachedInputTokens": 1201,
+                "outputTokens": 680
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 3146,
+                "cachedInputTokens": 0,
+                "outputTokens": 1192
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 2442,
+                "cachedInputTokens": 1415,
+                "outputTokens": 1434
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 699,
+                "cachedInputTokens": 0,
+                "outputTokens": 640
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 2094,
+                "cachedInputTokens": 826,
+                "outputTokens": 661
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 1044,
+                "cachedInputTokens": 16,
+                "outputTokens": 1073
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 3172,
+                "cachedInputTokens": 0,
+                "outputTokens": 1459
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 3828,
+                "cachedInputTokens": 2807,
+                "outputTokens": 697
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 3599,
+                "cachedInputTokens": 2194,
+                "outputTokens": 751
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 1825,
+                "cachedInputTokens": 1112,
+                "outputTokens": 1116
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 3046,
+                "cachedInputTokens": 3009,
+                "outputTokens": 1359
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 2686,
+                "cachedInputTokens": 0,
+                "outputTokens": 1297
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 3099,
+                "cachedInputTokens": 299,
+                "outputTokens": 360
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 2763,
+                "cachedInputTokens": 823,
+                "outputTokens": 1321
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 433,
+                "cachedInputTokens": 233,
+                "outputTokens": 361
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 3216,
+                "cachedInputTokens": 869,
+                "outputTokens": 1116
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 440,
+                "cachedInputTokens": 0,
+                "outputTokens": 618
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 3050,
+                "cachedInputTokens": 1096,
+                "outputTokens": 598
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 1904,
+                "cachedInputTokens": 0,
+                "outputTokens": 831
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 3730,
+                "cachedInputTokens": 2061,
+                "outputTokens": 619
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 1246,
+                "cachedInputTokens": 0,
+                "outputTokens": 442
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 299,
+                "cachedInputTokens": 290,
+                "outputTokens": 1095
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 2699,
+                "cachedInputTokens": 1507,
+                "outputTokens": 1245
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 2414,
+                "cachedInputTokens": 0,
+                "outputTokens": 1068
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 3788,
+                "cachedInputTokens": 2364,
+                "outputTokens": 189
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 888,
+                "cachedInputTokens": 0,
+                "outputTokens": 82
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 390,
+                "cachedInputTokens": 0,
+                "outputTokens": 1031
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 3611,
+                "cachedInputTokens": 787,
+                "outputTokens": 842
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 2379,
+                "cachedInputTokens": 2332,
+                "outputTokens": 253
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 1098,
+                "cachedInputTokens": 0,
+                "outputTokens": 1389
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 2880,
+                "cachedInputTokens": 0,
+                "outputTokens": 1345
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 3014,
+                "cachedInputTokens": 0,
+                "outputTokens": 842
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 3313,
+                "cachedInputTokens": 834,
+                "outputTokens": 1411
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 3665,
+                "cachedInputTokens": 727,
+                "outputTokens": 175
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 577,
+                "cachedInputTokens": 238,
+                "outputTokens": 1325
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 3243,
+                "cachedInputTokens": 1169,
+                "outputTokens": 464
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 2500,
+                "cachedInputTokens": 135,
+                "outputTokens": 605
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 3791,
+                "cachedInputTokens": 0,
+                "outputTokens": 251
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 3468,
+                "cachedInputTokens": 0,
+                "outputTokens": 177
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 1328,
+                "cachedInputTokens": 838,
+                "outputTokens": 762
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 936,
+                "cachedInputTokens": 0,
+                "outputTokens": 1178
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 3077,
+                "cachedInputTokens": 0,
+                "outputTokens": 72
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 929,
+                "cachedInputTokens": 519,
+                "outputTokens": 1281
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 776,
+                "cachedInputTokens": 640,
+                "outputTokens": 501
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 1156,
+                "cachedInputTokens": 0,
+                "outputTokens": 1083
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 448,
+                "cachedInputTokens": 0,
+                "outputTokens": 283
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 2929,
+                "cachedInputTokens": 2063,
+                "outputTokens": 890
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 1312,
+                "cachedInputTokens": 0,
+                "outputTokens": 963
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 2270,
+                "cachedInputTokens": 663,
+                "outputTokens": 764
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 2779,
+                "cachedInputTokens": 2128,
+                "outputTokens": 1311
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 258,
+                "cachedInputTokens": 204,
+                "outputTokens": 1188
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 1873,
+                "cachedInputTokens": 1565,
+                "outputTokens": 148
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 2512,
+                "cachedInputTokens": 2259,
+                "outputTokens": 634
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 988,
+                "cachedInputTokens": 0,
+                "outputTokens": 1047
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 3584,
+                "cachedInputTokens": 2260,
+                "outputTokens": 727
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 1137,
+                "cachedInputTokens": 0,
+                "outputTokens": 951
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 3162,
+                "cachedInputTokens": 2845,
+                "outputTokens": 1206
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 538,
+                "cachedInputTokens": 459,
+                "outputTokens": 441
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 2241,
+                "cachedInputTokens": 0,
+                "outputTokens": 157
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 3198,
+                "cachedInputTokens": 0,
+                "outputTokens": 771
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 1821,
+                "cachedInputTokens": 0,
+                "outputTokens": 265
+              },
+              {
+                "model": "chat-mini",
+                "inputTokens": 631,
+                "cachedInputTokens": 421,
+                "outputTokens": 531
+              },
+              {
+                "model": "open-hosted",
+                "inputTokens": 1552,
+                "cachedInputTokens": 1481,
+                "outputTokens": 623
+              },
+              {
+                "model": "local-8b",
+                "inputTokens": 2023,
+                "cachedInputTokens": 1415,
+                "outputTokens": 1302
+              },
+              {
+                "model": "chat-large",
+                "inputTokens": 1155,
+                "cachedInputTokens": 875,
+                "outputTokens": 124
+              }
+            ],
+            "requestsPerDay": 25000,
+            "daysPerMonth": 30
+          },
+          "expected": "#1 chat-mini 0.000765\n#2 chat-mini 0.000882\n#3 chat-large 0.008976\n#4 open-hosted 0.000616\n#5 chat-large 0.017830\n#6 open-hosted 0.001798\n#7 open-hosted 0.000942\n#8 chat-mini 0.001097\n#9 open-hosted 0.000569\n#10 chat-large 0.008100\n#11 chat-large 0.009174\n#12 chat-mini 0.000247\n#13 local-8b 0.000000\n#14 local-8b 0.000000\n#15 local-8b 0.000000\n#16 local-8b 0.000000\n#17 open-hosted 0.001413\n#18 open-hosted 0.001671\n#19 local-8b 0.000000\n#20 chat-mini 0.000694\n#21 local-8b 0.000000\n#22 open-hosted 0.000802\n#23 open-hosted 0.000587\n#24 local-8b 0.000000\n#25 local-8b 0.000000\n#26 chat-mini 0.000612\n#27 chat-mini 0.000909\n#28 chat-mini 0.000478\n#29 chat-mini 0.000924\n#30 open-hosted 0.001537\n#31 open-hosted 0.001213\n#32 local-8b 0.000000\n#33 chat-mini 0.000669\n#34 open-hosted 0.000706\n#35 chat-mini 0.001065\n#36 local-8b 0.000000\n#37 chat-mini 0.000588\n#38 local-8b 0.000000\n#39 chat-mini 0.000707\n#40 local-8b 0.000000\n#41 local-8b 0.000000\n#42 local-8b 0.000000\n#43 local-8b 0.000000\n#44 local-8b 0.000000\n#45 local-8b 0.000000\n#46 open-hosted 0.001527\n#47 chat-large 0.010970\n#48 local-8b 0.000000\n#49 local-8b 0.000000\n#50 chat-mini 0.001156\n#51 open-hosted 0.000928\n#52 local-8b 0.000000\n#53 open-hosted 0.001147\n#54 chat-large 0.018146\n#55 local-8b 0.000000\n#56 open-hosted 0.001461\n#57 chat-large 0.017134\n#58 open-hosted 0.001244\n#59 open-hosted 0.001835\n#60 chat-large 0.020110\n#61 chat-large 0.005009\n#62 open-hosted 0.001077\n#63 local-8b 0.000000\n#64 local-8b 0.000000\n#65 open-hosted 0.000936\n#66 open-hosted 0.001053\n#67 chat-large 0.008321\n#68 chat-mini 0.000323\n#69 local-8b 0.000000\n#70 chat-large 0.015049\n#71 chat-mini 0.000688\n#72 open-hosted 0.001153\n#73 local-8b 0.000000\n#74 chat-mini 0.000610\n#75 local-8b 0.000000\n#76 chat-large 0.017930\n#77 local-8b 0.000000\n#78 open-hosted 0.000932\n#79 chat-mini 0.001360\n#80 open-hosted 0.001023\n#81 local-8b 0.000000\n#82 chat-large 0.013555\n#83 local-8b 0.000000\n#84 chat-mini 0.000823\n#85 chat-large 0.020025\n#86 chat-large 0.007526\n#87 open-hosted 0.001996\n#88 chat-mini 0.000857\n#89 chat-mini 0.000392\n#90 local-8b 0.000000\n#91 chat-mini 0.001131\n#92 chat-mini 0.000614\n#93 chat-mini 0.000943\n#94 chat-large 0.008446\n#95 local-8b 0.000000\n#96 chat-large 0.017585\n#97 local-8b 0.000000\n#98 chat-xl error: unknown model\n#99 local-8b 0.000000\n#100 local-8b 0.000000\n#101 open-hosted 0.001388\n#102 chat-large 0.006980\n#103 open-hosted 0.000272\n#104 local-8b 0.000000\n#105 chat-large 0.009375\n#106 local-8b 0.000000\n#107 chat-mini 0.000618\n#108 local-8b 0.000000\n#109 open-hosted 0.000579\n#110 chat-large 0.008715\n#111 open-hosted 0.000954\n#112 chat-large 0.016185\n#113 open-hosted 0.001865\n#114 local-8b 0.000000\n#115 open-hosted 0.002091\n#116 local-8b 0.000000\n#117 local-8b 0.000000\n#118 chat-mini 0.000952\n#119 chat-large 0.017530\n#120 local-8b 0.000000\n#121 chat-large 0.002681\n#122 chat-large 0.023180\n#123 chat-mini 0.000624\n#124 chat-large 0.011764\n#125 chat-mini 0.000349\n#126 local-8b 0.000000\n#127 chat-large 0.012624\n#128 open-hosted 0.002181\n#129 open-hosted 0.000765\n#130 open-hosted 0.001031\n#131 local-8b 0.000000\n#132 open-hosted 0.001879\n#133 chat-large 0.008404\n#134 open-hosted 0.001398\n#135 local-8b 0.000000\n#136 local-8b 0.000000\n#137 chat-mini 0.001187\n#138 chat-large 0.018676\n#139 open-hosted 0.000893\n#140 chat-mini 0.000649\n#141 local-8b 0.000000\n#142 local-8b 0.000000\n#143 open-hosted 0.001800\n#144 local-8b 0.000000\n#145 local-8b 0.000000\n#146 open-hosted 0.002317\n#147 chat-mini 0.001181\n#148 local-8b 0.000000\n#149 local-8b 0.000000\n#150 local-8b 0.000000\n#151 chat-mini 0.001087\n#152 chat-large 0.007280\n#153 open-hosted 0.001481\n#154 local-8b 0.000000\n#155 open-hosted 0.001688\n#156 open-hosted 0.000823\n#157 chat-large 0.011335\n#158 chat-large 0.017314\n#159 chat-mini 0.001003\n#160 open-hosted 0.001231\n#161 chat-large 0.003040\n#162 chat-mini 0.000677\n#163 local-8b 0.000000\n#164 open-hosted 0.000921\n#165 chat-mini 0.000998\n#166 chat-large 0.020650\n#167 chat-mini 0.000957\n#168 chat-large 0.021350\n#169 local-8b 0.000000\n#170 chat-mini 0.000864\n#171 chat-mini 0.000677\n#172 chat-large 0.012131\n#173 chat-mini 0.000719\n#174 chat-large 0.010440\n#175 local-8b 0.000000\n#176 chat-mini 0.000847\n#177 chat-mini 0.000505\n#178 chat-large 0.014484\n#179 chat-mini 0.000369\n#180 chat-mini 0.000823\n#181 chat-mini 0.000237\n#182 local-8b 0.000000\n#183 chat-large 0.012910\n#184 chat-mini 0.000749\n#185 local-8b 0.000000\n#186 local-8b 0.000000\n#187 chat-large 0.004206\n#188 chat-large 0.009796\n#189 local-8b 0.000000\n#190 local-8b 0.000000\n#191 open-hosted 0.001353\n#192 chat-large 0.016409\n#193 open-hosted 0.000630\n#194 open-hosted 0.000778\n#195 chat-large 0.015705\n#196 local-8b 0.000000\n#197 chat-mini 0.000382\n#198 open-hosted 0.001104\n#199 local-8b 0.000000\n#200 chat-large 0.003034\nmodel chat-large count=43 cost=0.540084\nmodel chat-mini count=46 cost=0.034991\nmodel local-8b count=63 cost=0.000000\nmodel open-hosted count=47 cost=0.057587\ntotal count=199 errors=1 cost=0.632662\nmonthly requests=750000 cost=2384.41",
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

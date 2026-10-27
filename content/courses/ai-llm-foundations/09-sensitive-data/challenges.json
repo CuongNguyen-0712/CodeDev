@@ -1,0 +1,50 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_aif_331",
+      "name": "sensitive-data-in-prompts",
+      "type": "quiz",
+      "title": "What goes into a prompt",
+      "description": "Two statements on the ticket-summary feature that sent learners' personal data and a session token to the LLM provider: a quick fix that removes one field, and a pipeline that minimises and redacts first.",
+      "difficulty": "medium",
+      "outcomes": [
+        "responsible-ai"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The \"quick fix\" for the ticket-summary feature:\nconst { email, ...learner } = user;            // remove the email\nconst prompt = [\n  \"Summarise this support ticket in three lines and suggest a reply.\",\n  `Learner: ${JSON.stringify(learner)}`,\n  `Ticket: ${ticket.body}`,\n  \"Last API requests:\",\n  ...recent,                                    // last 20 lines of the API log\n].join(\"\\n\");\n\nA prompt built by it:\nLearner: {\"id\":\"u_5521\",\"fullName\":\"Nguyen Van An\",\"phone\":\"0912 345 678\",\"dateOfBirth\":\"2004-03-17\",\"plan\":\"premium\",\"points\":1240}\nTicket: I was charged twice for the React course, my card ends in 4417. Please call me.\nLast API requests:\n2026-10-21T08:01:13Z POST /orders 201 ip=203.0.113.24 Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIi...\n\nStatement: \"After this change the prompt no longer sends personal data or secrets to the provider.\"",
+          "explanation": "False. Only the email is gone. The prompt still carries the full name, phone number, date of birth, an IP address, the last digits of a card and a bearer token that may let anyone who reads the provider's logs act as the learner. Removing fields one by one is a blocklist: it misses everything else in the object, plus every field added to the users table later. The fix is an allowlist (a pseudonymous id, the plan, the course title), no raw log lines at all, and redaction of the ticket text. The misconception is that the email address is the only personal data in a user record.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The ticket-summary feature after the rework:\nconst context = {\n  learner: pseudonym(user.id),       // \"L-7f3e\"\n  plan: user.plan,\n  course: ticket.courseTitle,\n  ticket: redact(ticket.body),\n};\nconst prompt = buildSummaryPrompt(context);\nawait llmLog.insert({ ticketId: ticket.id, prompt });\nconst summary = await provider.complete(prompt);\n\nUnit test output:\nredact(\"Hi, I'm an.nguyen@example.com, call me on 0912 345 678.\")\n  -> \"Hi, I'm [EMAIL], call me on [PHONE].\"\n\nStatement: \"With this order of calls, neither the provider nor CodeDev's own llmLog table receives the email address that the learner typed into the ticket.\"",
+          "explanation": "True. The email address can only reach the prompt through the ticket text, and redact() runs while the context is built - before buildSummaryPrompt, before llmLog.insert and before provider.complete. The user record contributes only a pseudonym, the plan and the course title, so its email field is never read. Both copies of the prompt, at the provider and in CodeDev's own log, hold \"[EMAIL]\". The common mistake is to redact only what goes to the provider and to log the raw prompt; the order of calls is what decides who sees the original.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

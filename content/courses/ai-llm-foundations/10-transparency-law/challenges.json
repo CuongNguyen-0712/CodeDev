@@ -1,0 +1,50 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_aif_341",
+      "name": "telling-users-its-ai",
+      "type": "quiz",
+      "title": "Telling users it's AI",
+      "description": "Two statements on the CodeDev in-lesson tutor: whether a sentence in the terms of service tells learners they are talking to an AI, and whether the tutor's feedback can change a score.",
+      "difficulty": "medium",
+      "outcomes": [
+        "responsible-ai"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Tutor panel on the lesson page:\n(photo of a smiling young man)   Mentor Minh\nHi! I'm Minh, your mentor for this lesson. Ask me anything - I've reviewed thousands of solutions.\nMinh: Your solution is wrong. The loop should start at index 1. Rewrite it before you submit.\n\nTerms of Service, section 12.4:\n\"CodeDev may use automated tools, including artificial intelligence, to improve and personalise its services.\"\n\nStatement: \"Section 12.4 of the terms tells learners that they are talking to an AI, so the tutor panel itself needs no AI label.\"",
+          "explanation": "False. The transparency duties discussed in the lesson - Vietnam's AI Law and Article 50 of the EU AI Act - are about people knowing they are interacting with an AI when they interact with it. A general sentence in terms accepted at sign-up does not say that Minh is an AI, and the panel says the opposite: a human photo, \"your mentor\", claims of experience. The learner in ticket #2342 trusted a wrong answer for exactly that reason. The fix is a visible \"AI tutor\" label on the panel and every message, no human persona, and a line saying it can be wrong. The misconception is that disclosure somewhere in the legal pages counts as telling the user.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Submission pipeline of the CodeDev tutor:\nfunction grade(results: { passed: boolean }[]): { score: number; passed: boolean } {\n  const ok = results.filter((r) => r.passed).length;\n  return { score: results.length ? Math.round((100 * ok) / results.length) : 0, passed: ok === results.length && ok > 0 };\n}\n\nasync function onSubmit(sub: Submission) {\n  const results = await runner.runHiddenTests(sub);\n  const result = grade(results);\n  const feedback = await aiTutor.review(sub.code, results);   // shown as \"AI tutor feedback\"\n  await db.submissions.save({ id: sub.id, score: result.score, passed: result.passed, aiFeedback: feedback.text });\n}\n\nStatement: \"In this pipeline the AI tutor's review cannot change the learner's score.\"",
+          "explanation": "True. grade() takes only the hidden-test results, and the score is computed before the tutor is even called. The tutor's output is stored in its own aiFeedback field and never passed to grade(); score and passed come from result alone. That is the design the lesson asks for: AI output is labelled feedback, the score comes from the tests. A proposal like \"adjust the score by up to 10% for code quality\" would have to change grade()'s signature, which makes it visible in review. The misconception is that a model which reviews the code must also have a say in the grade.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
