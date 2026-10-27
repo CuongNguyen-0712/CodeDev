@@ -1,0 +1,36 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nmm_111",
+      "name": "modules-by-domain-quiz",
+      "type": "quiz",
+      "title": "Where does a change reach?",
+      "description": "Two pieces of evidence from the CodeDev API after the AppModule incident: a first attempt to split it into modules, and a grep for writes to the enrollments table.",
+      "difficulty": "medium",
+      "outcomes": ["module-boundaries"],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "After BUG-3107 (a pricing change made progress show 117%), a developer splits the 1,412-line AppService and opens this pull request:\n\nsrc/\n  controllers/controllers.module.ts   CourseController, EnrollmentController, ProgressController, UserController\n  services/services.module.ts         CourseService, EnrollmentService, ProgressService, UserService, helpers.ts\n  repositories/repositories.module.ts CourseRepository, EnrollmentRepository, ProgressRepository, UserRepository\n\n// src/services/helpers.ts\nexport function countLessons(course: Course): number { ... }   // used by EnrollmentService and ProgressService\n\n// src/app.module.ts\n@Module({ imports: [ControllersModule, ServicesModule, RepositoriesModule] })\nexport class AppModule {}\n\nStatement: \"With this split, a future change to how enrollment prices count lessons can no longer change the progress percentage.\"",
+          "explanation": "False. The split is by technical layer, so pricing and progress are still neighbours inside ServicesModule and still share countLessons in helpers.ts: changing it for pricing changes progress exactly as PR #1184 did. A pricing change would also touch all three modules, because each layer holds a slice of it. A boundary helps only when it separates code that changes for different reasons; split by domain instead (EnrollmentModule owns the pricing rule, ProgressModule owns its own lesson count). The misconception is that more modules automatically means more isolation: what matters is what the module boundary separates.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The API now has CourseModule, EnrollmentModule, ProgressModule and UserModule. Before changing how an enrollment is marked as completed, a developer searches for writes to the enrollments table:\n\n$ grep -rniE \"(insert into|update|delete from) +enrollments\" src/\nsrc/enrollments/enrollment.repository.ts:31:  INSERT INTO enrollments (user_id, course_id, status, created_at)\nsrc/enrollments/enrollment.repository.ts:58:  UPDATE enrollments SET status = 'cancelled' WHERE id = $1\nsrc/progress/progress.repository.ts:74:   UPDATE enrollments SET status = 'completed', completed_at = now() WHERE user_id = $1 AND course_id = $2\n\nStatement: \"Because ProgressModule writes the enrollments table itself, a change to how enrollments are completed has to be made, and reviewed, in two modules.\"",
+          "explanation": "True. The enrollments table should have one owner, EnrollmentModule, and every write should go through it. Line 74 of progress.repository.ts is a second writer: a new rule (for example, completing an enrollment must also record a certificate, or a cancelled enrollment must never become completed) has to be added in both repositories, and nothing reminds the developer of the second one. The fix is for ProgressService to call an exported method such as EnrollmentService.markCompleted(userId, courseId) and to delete the query from ProgressRepository. The misconception is that splitting the code into modules is enough while every module can still reach every table: the data needs an owner too.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,696 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nmm_221",
+      "name": "thin-controllers-quiz",
+      "type": "quiz",
+      "title": "Read the controllers: a deny-list response and a rule that lives in two places",
+      "description": "Two pieces of evidence from the CodeDev API: a profile handler that deletes one field before returning a database row, and an enrollment rule copied into two controllers that drifted apart.",
+      "difficulty": "medium",
+      "outcomes": [
+        "thin-layers"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The profile handler after the passwordHash leak was \"fixed\":\n\n// users/users.controller.ts\n@Get(\":id/profile\")\nasync getProfile(@Param(\"id\") id: string) {\n  const user = await this.users.findById(id);   // the full users row as an entity\n  delete user.passwordHash;\n  return user;\n}\n\n// users.controller.spec.ts\nit(\"does not return the password hash\", async () => {\n  const res = await controller.getProfile(\"u_1\");\n  expect(res).not.toHaveProperty(\"passwordHash\");\n});\n\nMigration merged this week:\nALTER TABLE users ADD COLUMN mfa_secret text;\n\nStatement: \"With this test in CI, the endpoint stays safe as the users table grows, because any leak would make the test fail.\"",
+          "explanation": "False. The handler returns the whole row minus one named field, so every column added later is published by default: after the migration the response contains mfaSecret, and the test still passes because it only checks the one field somebody remembered. That is a deny-list. The safe shape is an allow-list: map the entity to a response DTO that names exactly the public fields (id, displayName, avatarUrl, joinedAt), and test the exact set of keys (`expect(Object.keys(res).sort()).toEqual([...])`), which fails as soon as anything new appears. The misconception is that a test for the known leak protects against the next one.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The same rule, written twice:\n\n// enrollments/enrollments.controller.ts (web and mobile)\nif (course.status !== \"published\" && !(course.status === \"beta\" && user.isBetaTester)) {\n  throw new ForbiddenException(\"course not open\");\n}\nreturn this.enrollments.create(user.id, course.id);\n\n// admin/import.controller.ts (CSV import by staff)\nif (course.status !== \"published\") {\n  throw new ForbiddenException(\"course not open\");\n}\nreturn this.enrollments.create(row.userId, course.id);\n\nSupport ticket #5520: \"Beta tester u_311 enrolled in c_1201 from the web app, but the CSV import of the same tester into the same course failed with 403.\"\n\nStatement: \"After both controllers call one EnrollmentsService.enroll() that holds the rule, a unit test of enroll() with a beta course and a beta tester covers the behaviour of both endpoints.\"",
+          "explanation": "True. The two endpoints disagree because each controller holds its own copy of the rule, and only one copy was updated when beta courses were added. Once the rule lives in the service and both controllers only map their input (the session user, or a CSV row) to the same enroll() call, there is one implementation, so one unit test of the service with a fake repository checks what both endpoints do, and a future change to the rule cannot reach only one of them. The controllers still need a small test each for their own mapping, such as where the user id comes from. The misconception is that copying a small if-statement is harmless; copies of business rules drift.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_nmm_222",
+      "name": "thin-controller-handlers",
+      "type": "mini_coding",
+      "title": "Write thin controller handlers",
+      "description": "Two CodeDev controllers had drifted (each held its own copy of an enrollment rule) and GET /users/:id/profile returned a whole user row, passwordHash included. The service is now the only place for rules; your job is the controller around it. The starter contains CatalogService (already written, do not change) and an empty CodeDevController with three handlers. A request is { params, query, body, user } with string query and params values; a response is { status, headers, body }. Each handler maps the request, calls the service once, and maps the result; a 400 never calls the service. listCourses (GET /courses): query page (default 1) and limit (default 20) must be digits only and at least 1, otherwise 400 \"page must be a positive integer\" / \"limit must be a positive integer\"; a limit above 50 becomes 50; level is optional and must be exactly \"beginner\", \"intermediate\" or \"advanced\", otherwise 400 \"level must be one of: beginner, intermediate, advanced\"; check page, limit, level in that order. Call service.listCourses({ page, limit, level }) and answer 200 with headers { \"X-Total-Count\": String(total) } and body { items: [{ id, title, level, priceVnd }], page, limit, total }. enroll (POST /enrollments): the body must be an object (not null, not an array) whose courseId is a string, otherwise 400 \"courseId is required\"; the learner is req.user.id, never a userId sent in the body; call service.enroll({ userId, courseId }) and answer 201 with headers { Location: \"/enrollments/<id>\" } and body { id, courseId, status, createdAt }. getProfile (GET /users/:id/profile): call service.getProfile(req.params.id); null is 404 with body { error: \"user not found\" }; otherwise 200 with body { id, displayName, avatarUrl, joinedAt } where joinedAt is the user's createdAt. Every 400 has headers {} and body { error: \"<message>\" }; 200 and 404 from getProfile have headers {}. Bodies contain exactly the listed fields: never passwordHash, email, role, internalNotes, paymentRef, published or authorPayoutPercent. Input (stdin): { courses? | generateCourses?, users?, requests: [{ route, query?, params?, body?, user? }] }. For each request the runner prints the request, the response with JSON keys sorted, and the service calls your handler made.",
+      "difficulty": "medium",
+      "outcomes": [
+        "thin-layers"
+      ],
+      "points": 30,
+      "hints": [
+        "For each handler, split the work into three questions: what exactly does the service need from this request, what can the request say that the service must never see, and what exactly may the client see from the service's result?",
+        "Look at req.query values: they are always strings, so a page has to pass a digits-only check before you turn it into a number (parseInt accepts \"2.5\" and \"2abc\"). Look at where the learner's id can come from (req.user and req.body) and pick the one the client cannot choose. For the response, build a new object field by field instead of starting from the record and removing things.",
+        "A similar handler for GET /lessons/:id/comments?offset=&size=: with { offset: \"10\" } it calls listComments({ lessonId, offset: 10, size: 25 }) using the default size; { size: \"300\" } becomes size 100 if 100 is the cap; { offset: \"-3\" } and { size: \"2.0\" } are 400 with no call; each comment record { id, text, authorId, ipAddress, flagged } becomes { id, text, authorId } in the response."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "GET /courses with no query: page 1, limit 20, published courses with public fields only",
+          "input": {
+            "courses": [
+              {
+                "id": "c_1042",
+                "title": "NestJS Modular Monolith",
+                "level": "intermediate",
+                "priceVnd": 149000,
+                "published": true,
+                "internalNotes": "notes for c_1042: author asked for a rewrite",
+                "authorPayoutPercent": 70
+              },
+              {
+                "id": "c_88",
+                "title": "Web Application Fundamentals",
+                "level": "beginner",
+                "priceVnd": 0,
+                "published": true,
+                "internalNotes": "notes for c_88: author asked for a rewrite",
+                "authorPayoutPercent": 70
+              },
+              {
+                "id": "c_95",
+                "title": "SQL & Data Modeling",
+                "level": "beginner",
+                "priceVnd": 0,
+                "published": true,
+                "internalNotes": "notes for c_95: author asked for a rewrite",
+                "authorPayoutPercent": 70
+              },
+              {
+                "id": "c_120",
+                "title": "Unreleased: Event Sourcing",
+                "level": "advanced",
+                "priceVnd": 199000,
+                "published": false,
+                "internalNotes": "notes for c_120: author asked for a rewrite",
+                "authorPayoutPercent": 70
+              },
+              {
+                "id": "c_131",
+                "title": "React + TypeScript Architecture",
+                "level": "intermediate",
+                "priceVnd": 149000,
+                "published": true,
+                "internalNotes": "notes for c_131: author asked for a rewrite",
+                "authorPayoutPercent": 70
+              },
+              {
+                "id": "c_140",
+                "title": "Distributed Systems Basics",
+                "level": "advanced",
+                "priceVnd": 199000,
+                "published": true,
+                "internalNotes": "notes for c_140: author asked for a rewrite",
+                "authorPayoutPercent": 70
+              }
+            ],
+            "requests": [
+              {
+                "route": "listCourses",
+                "query": {}
+              },
+              {
+                "route": "listCourses",
+                "query": {
+                  "page": "2",
+                  "limit": "2"
+                }
+              }
+            ]
+          },
+          "expected": "#1 GET /courses\n   -> 200 headers={\"X-Total-Count\":\"5\"} body={\"items\":[{\"id\":\"c_1042\",\"level\":\"intermediate\",\"priceVnd\":149000,\"title\":\"NestJS Modular Monolith\"},{\"id\":\"c_88\",\"level\":\"beginner\",\"priceVnd\":0,\"title\":\"Web Application Fundamentals\"},{\"id\":\"c_95\",\"level\":\"beginner\",\"priceVnd\":0,\"title\":\"SQL & Data Modeling\"},{\"id\":\"c_131\",\"level\":\"intermediate\",\"priceVnd\":149000,\"title\":\"React + TypeScript Architecture\"},{\"id\":\"c_140\",\"level\":\"advanced\",\"priceVnd\":199000,\"title\":\"Distributed Systems Basics\"}],\"limit\":20,\"page\":1,\"total\":5}\n   service: listCourses(page=1, limit=20, level=-)\n#2 GET /courses?page=2&limit=2\n   -> 200 headers={\"X-Total-Count\":\"5\"} body={\"items\":[{\"id\":\"c_95\",\"level\":\"beginner\",\"priceVnd\":0,\"title\":\"SQL & Data Modeling\"},{\"id\":\"c_131\",\"level\":\"intermediate\",\"priceVnd\":149000,\"title\":\"React + TypeScript Architecture\"}],\"limit\":2,\"page\":2,\"total\":5}\n   service: listCourses(page=2, limit=2, level=-)",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "POST /enrollments: 201 with a Location header; the learner comes from the session, not the body",
+          "input": {
+            "courses": [
+              {
+                "id": "c_1042",
+                "title": "NestJS Modular Monolith",
+                "level": "intermediate",
+                "priceVnd": 149000,
+                "published": true,
+                "internalNotes": "notes for c_1042: author asked for a rewrite",
+                "authorPayoutPercent": 70
+              },
+              {
+                "id": "c_88",
+                "title": "Web Application Fundamentals",
+                "level": "beginner",
+                "priceVnd": 0,
+                "published": true,
+                "internalNotes": "notes for c_88: author asked for a rewrite",
+                "authorPayoutPercent": 70
+              },
+              {
+                "id": "c_95",
+                "title": "SQL & Data Modeling",
+                "level": "beginner",
+                "priceVnd": 0,
+                "published": true,
+                "internalNotes": "notes for c_95: author asked for a rewrite",
+                "authorPayoutPercent": 70
+              },
+              {
+                "id": "c_120",
+                "title": "Unreleased: Event Sourcing",
+                "level": "advanced",
+                "priceVnd": 199000,
+                "published": false,
+                "internalNotes": "notes for c_120: author asked for a rewrite",
+                "authorPayoutPercent": 70
+              },
+              {
+                "id": "c_131",
+                "title": "React + TypeScript Architecture",
+                "level": "intermediate",
+                "priceVnd": 149000,
+                "published": true,
+                "internalNotes": "notes for c_131: author asked for a rewrite",
+                "authorPayoutPercent": 70
+              },
+              {
+                "id": "c_140",
+                "title": "Distributed Systems Basics",
+                "level": "advanced",
+                "priceVnd": 199000,
+                "published": true,
+                "internalNotes": "notes for c_140: author asked for a rewrite",
+                "authorPayoutPercent": 70
+              }
+            ],
+            "requests": [
+              {
+                "route": "enroll",
+                "body": {
+                  "courseId": "c_1042"
+                },
+                "user": {
+                  "id": "u_1"
+                }
+              },
+              {
+                "route": "enroll",
+                "body": {
+                  "courseId": "c_88",
+                  "userId": "u_999"
+                },
+                "user": {
+                  "id": "u_7"
+                }
+              }
+            ]
+          },
+          "expected": "#1 POST /enrollments (user u_1) {\"courseId\":\"c_1042\"}\n   -> 201 headers={\"Location\":\"/enrollments/e_5001\"} body={\"courseId\":\"c_1042\",\"createdAt\":\"2026-10-26T09:00:00.000Z\",\"id\":\"e_5001\",\"status\":\"active\"}\n   service: enroll(userId=u_1, courseId=c_1042)\n#2 POST /enrollments (user u_7) {\"courseId\":\"c_88\",\"userId\":\"u_999\"}\n   -> 201 headers={\"Location\":\"/enrollments/e_5002\"} body={\"courseId\":\"c_88\",\"createdAt\":\"2026-10-26T09:00:00.000Z\",\"id\":\"e_5002\",\"status\":\"active\"}\n   service: enroll(userId=u_7, courseId=c_88)",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "The incident: GET /users/:id/profile returns the public profile, never passwordHash or notes",
+          "input": {
+            "users": [
+              {
+                "id": "u_1",
+                "email": "ana@codedev.test",
+                "displayName": "Ana",
+                "avatarUrl": "https://cdn.codedev.test/avatars/u_1.png",
+                "passwordHash": "$argon2id$v=19$m=65536,t=3,p=4$c2FsdA$aGFzaA",
+                "internalNotes": "refund issued 2026-09-12",
+                "role": "learner",
+                "createdAt": "2026-03-14T08:30:00.000Z"
+              },
+              {
+                "id": "u_7",
+                "email": "minh@codedev.test",
+                "displayName": "Minh",
+                "avatarUrl": null,
+                "passwordHash": "$argon2id$v=19$m=65536,t=3,p=4$c2FsdDI$aGFzaDI",
+                "internalNotes": "",
+                "role": "admin",
+                "createdAt": "2025-11-02T17:05:00.000Z"
+              }
+            ],
+            "requests": [
+              {
+                "route": "getProfile",
+                "params": {
+                  "id": "u_1"
+                }
+              }
+            ]
+          },
+          "expected": "#1 GET /users/u_1/profile\n   -> 200 headers={} body={\"avatarUrl\":\"https://cdn.codedev.test/avatars/u_1.png\",\"displayName\":\"Ana\",\"id\":\"u_1\",\"joinedAt\":\"2026-03-14T08:30:00.000Z\"}\n   service: getProfile(u_1)",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "limit above 50 becomes 50; bad page or limit (0, -1, 2.5, abc, 1e3) is 400 with no service call",
+          "input": {
+            "courses": [
+              {
+                "id": "c_1042",
+                "title": "NestJS Modular Monolith",
+                "level": "intermediate",
+                "priceVnd": 149000,
+                "published": true,
+                "internalNotes": "notes for c_1042: author asked for a rewrite",
+                "authorPayoutPercent": 70
+              },
+              {
+                "id": "c_88",
+                "title": "Web Application Fundamentals",
+                "level": "beginner",
+                "priceVnd": 0,
+                "published": true,
+                "internalNotes": "notes for c_88: author asked for a rewrite",
+                "authorPayoutPercent": 70
+              },
+              {
+                "id": "c_95",
+                "title": "SQL & Data Modeling",
+                "level": "beginner",
+                "priceVnd": 0,
+                "published": true,
+                "internalNotes": "notes for c_95: author asked for a rewrite",
+                "authorPayoutPercent": 70
+              },
+              {
+                "id": "c_120",
+                "title": "Unreleased: Event Sourcing",
+                "level": "advanced",
+                "priceVnd": 199000,
+                "published": false,
+                "internalNotes": "notes for c_120: author asked for a rewrite",
+                "authorPayoutPercent": 70
+              },
+              {
+                "id": "c_131",
+                "title": "React + TypeScript Architecture",
+                "level": "intermediate",
+                "priceVnd": 149000,
+                "published": true,
+                "internalNotes": "notes for c_131: author asked for a rewrite",
+                "authorPayoutPercent": 70
+              },
+              {
+                "id": "c_140",
+                "title": "Distributed Systems Basics",
+                "level": "advanced",
+                "priceVnd": 199000,
+                "published": true,
+                "internalNotes": "notes for c_140: author asked for a rewrite",
+                "authorPayoutPercent": 70
+              }
+            ],
+            "requests": [
+              {
+                "route": "listCourses",
+                "query": {
+                  "limit": "51"
+                }
+              },
+              {
+                "route": "listCourses",
+                "query": {
+                  "page": "1",
+                  "limit": "500"
+                }
+              },
+              {
+                "route": "listCourses",
+                "query": {
+                  "page": "0"
+                }
+              },
+              {
+                "route": "listCourses",
+                "query": {
+                  "page": "-1"
+                }
+              },
+              {
+                "route": "listCourses",
+                "query": {
+                  "page": "2.5"
+                }
+              },
+              {
+                "route": "listCourses",
+                "query": {
+                  "limit": "abc"
+                }
+              },
+              {
+                "route": "listCourses",
+                "query": {
+                  "page": ""
+                }
+              },
+              {
+                "route": "listCourses",
+                "query": {
+                  "limit": "1e3"
+                }
+              },
+              {
+                "route": "listCourses",
+                "query": {
+                  "limit": "0"
+                }
+              },
+              {
+                "route": "listCourses",
+                "query": {
+                  "page": "abc",
+                  "limit": "0"
+                }
+              },
+              {
+                "route": "listCourses",
+                "query": {
+                  "page": "007",
+                  "limit": "03"
+                }
+              }
+            ]
+          },
+          "expected": "#1 GET /courses?limit=51\n   -> 200 headers={\"X-Total-Count\":\"5\"} body={\"items\":[{\"id\":\"c_1042\",\"level\":\"intermediate\",\"priceVnd\":149000,\"title\":\"NestJS Modular Monolith\"},{\"id\":\"c_88\",\"level\":\"beginner\",\"priceVnd\":0,\"title\":\"Web Application Fundamentals\"},{\"id\":\"c_95\",\"level\":\"beginner\",\"priceVnd\":0,\"title\":\"SQL & Data Modeling\"},{\"id\":\"c_131\",\"level\":\"intermediate\",\"priceVnd\":149000,\"title\":\"React + TypeScript Architecture\"},{\"id\":\"c_140\",\"level\":\"advanced\",\"priceVnd\":199000,\"title\":\"Distributed Systems Basics\"}],\"limit\":50,\"page\":1,\"total\":5}\n   service: listCourses(page=1, limit=50, level=-)\n#2 GET /courses?page=1&limit=500\n   -> 200 headers={\"X-Total-Count\":\"5\"} body={\"items\":[{\"id\":\"c_1042\",\"level\":\"intermediate\",\"priceVnd\":149000,\"title\":\"NestJS Modular Monolith\"},{\"id\":\"c_88\",\"level\":\"beginner\",\"priceVnd\":0,\"title\":\"Web Application Fundamentals\"},{\"id\":\"c_95\",\"level\":\"beginner\",\"priceVnd\":0,\"title\":\"SQL & Data Modeling\"},{\"id\":\"c_131\",\"level\":\"intermediate\",\"priceVnd\":149000,\"title\":\"React + TypeScript Architecture\"},{\"id\":\"c_140\",\"level\":\"advanced\",\"priceVnd\":199000,\"title\":\"Distributed Systems Basics\"}],\"limit\":50,\"page\":1,\"total\":5}\n   service: listCourses(page=1, limit=50, level=-)\n#3 GET /courses?page=0\n   -> 400 headers={} body={\"error\":\"page must be a positive integer\"}\n   service: (not called)\n#4 GET /courses?page=-1\n   -> 400 headers={} body={\"error\":\"page must be a positive integer\"}\n   service: (not called)\n#5 GET /courses?page=2.5\n   -> 400 headers={} body={\"error\":\"page must be a positive integer\"}\n   service: (not called)\n#6 GET /courses?limit=abc\n   -> 400 headers={} body={\"error\":\"limit must be a positive integer\"}\n   service: (not called)\n#7 GET /courses?page=\n   -> 400 headers={} body={\"error\":\"page must be a positive integer\"}\n   service: (not called)\n#8 GET /courses?limit=1e3\n   -> 400 headers={} body={\"error\":\"limit must be a positive integer\"}\n   service: (not called)\n#9 GET /courses?limit=0\n   -> 400 headers={} body={\"error\":\"limit must be a positive integer\"}\n   service: (not called)\n#10 GET /courses?page=abc&limit=0\n   -> 400 headers={} body={\"error\":\"page must be a positive integer\"}\n   service: (not called)\n#11 GET /courses?page=007&limit=03\n   -> 200 headers={\"X-Total-Count\":\"5\"} body={\"items\":[],\"limit\":3,\"page\":7,\"total\":5}\n   service: listCourses(page=7, limit=3, level=-)",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "level: a known level is passed to the service; an uppercase or unknown level is a 400",
+          "input": {
+            "courses": [
+              {
+                "id": "c_1042",
+                "title": "NestJS Modular Monolith",
+                "level": "intermediate",
+                "priceVnd": 149000,
+                "published": true,
+                "internalNotes": "notes for c_1042: author asked for a rewrite",
+                "authorPayoutPercent": 70
+              },
+              {
+                "id": "c_88",
+                "title": "Web Application Fundamentals",
+                "level": "beginner",
+                "priceVnd": 0,
+                "published": true,
+                "internalNotes": "notes for c_88: author asked for a rewrite",
+                "authorPayoutPercent": 70
+              },
+              {
+                "id": "c_95",
+                "title": "SQL & Data Modeling",
+                "level": "beginner",
+                "priceVnd": 0,
+                "published": true,
+                "internalNotes": "notes for c_95: author asked for a rewrite",
+                "authorPayoutPercent": 70
+              },
+              {
+                "id": "c_120",
+                "title": "Unreleased: Event Sourcing",
+                "level": "advanced",
+                "priceVnd": 199000,
+                "published": false,
+                "internalNotes": "notes for c_120: author asked for a rewrite",
+                "authorPayoutPercent": 70
+              },
+              {
+                "id": "c_131",
+                "title": "React + TypeScript Architecture",
+                "level": "intermediate",
+                "priceVnd": 149000,
+                "published": true,
+                "internalNotes": "notes for c_131: author asked for a rewrite",
+                "authorPayoutPercent": 70
+              },
+              {
+                "id": "c_140",
+                "title": "Distributed Systems Basics",
+                "level": "advanced",
+                "priceVnd": 199000,
+                "published": true,
+                "internalNotes": "notes for c_140: author asked for a rewrite",
+                "authorPayoutPercent": 70
+              }
+            ],
+            "requests": [
+              {
+                "route": "listCourses",
+                "query": {
+                  "level": "beginner"
+                }
+              },
+              {
+                "route": "listCourses",
+                "query": {
+                  "level": "advanced",
+                  "limit": "1"
+                }
+              },
+              {
+                "route": "listCourses",
+                "query": {
+                  "level": "Beginner"
+                }
+              },
+              {
+                "route": "listCourses",
+                "query": {
+                  "level": "expert"
+                }
+              },
+              {
+                "route": "listCourses",
+                "query": {
+                  "level": "beginner",
+                  "limit": "-5"
+                }
+              }
+            ]
+          },
+          "expected": "#1 GET /courses?level=beginner\n   -> 200 headers={\"X-Total-Count\":\"2\"} body={\"items\":[{\"id\":\"c_88\",\"level\":\"beginner\",\"priceVnd\":0,\"title\":\"Web Application Fundamentals\"},{\"id\":\"c_95\",\"level\":\"beginner\",\"priceVnd\":0,\"title\":\"SQL & Data Modeling\"}],\"limit\":20,\"page\":1,\"total\":2}\n   service: listCourses(page=1, limit=20, level=beginner)\n#2 GET /courses?level=advanced&limit=1\n   -> 200 headers={\"X-Total-Count\":\"1\"} body={\"items\":[{\"id\":\"c_140\",\"level\":\"advanced\",\"priceVnd\":199000,\"title\":\"Distributed Systems Basics\"}],\"limit\":1,\"page\":1,\"total\":1}\n   service: listCourses(page=1, limit=1, level=advanced)\n#3 GET /courses?level=Beginner\n   -> 400 headers={} body={\"error\":\"level must be one of: beginner, intermediate, advanced\"}\n   service: (not called)\n#4 GET /courses?level=expert\n   -> 400 headers={} body={\"error\":\"level must be one of: beginner, intermediate, advanced\"}\n   service: (not called)\n#5 GET /courses?level=beginner&limit=-5\n   -> 400 headers={} body={\"error\":\"limit must be a positive integer\"}\n   service: (not called)",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Unknown user is 404; a null avatarUrl stays null; an admin profile shows no role or email",
+          "input": {
+            "users": [
+              {
+                "id": "u_1",
+                "email": "ana@codedev.test",
+                "displayName": "Ana",
+                "avatarUrl": "https://cdn.codedev.test/avatars/u_1.png",
+                "passwordHash": "$argon2id$v=19$m=65536,t=3,p=4$c2FsdA$aGFzaA",
+                "internalNotes": "refund issued 2026-09-12",
+                "role": "learner",
+                "createdAt": "2026-03-14T08:30:00.000Z"
+              },
+              {
+                "id": "u_7",
+                "email": "minh@codedev.test",
+                "displayName": "Minh",
+                "avatarUrl": null,
+                "passwordHash": "$argon2id$v=19$m=65536,t=3,p=4$c2FsdDI$aGFzaDI",
+                "internalNotes": "",
+                "role": "admin",
+                "createdAt": "2025-11-02T17:05:00.000Z"
+              }
+            ],
+            "requests": [
+              {
+                "route": "getProfile",
+                "params": {
+                  "id": "u_404"
+                }
+              },
+              {
+                "route": "getProfile",
+                "params": {
+                  "id": "u_7"
+                }
+              }
+            ]
+          },
+          "expected": "#1 GET /users/u_404/profile\n   -> 404 headers={} body={\"error\":\"user not found\"}\n   service: getProfile(u_404)\n#2 GET /users/u_7/profile\n   -> 200 headers={} body={\"avatarUrl\":null,\"displayName\":\"Minh\",\"id\":\"u_7\",\"joinedAt\":\"2025-11-02T17:05:00.000Z\"}\n   service: getProfile(u_7)",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Bad enrollment bodies (null, array, string, bad courseId) are 400 and never reach the service",
+          "input": {
+            "courses": [
+              {
+                "id": "c_1042",
+                "title": "NestJS Modular Monolith",
+                "level": "intermediate",
+                "priceVnd": 149000,
+                "published": true,
+                "internalNotes": "notes for c_1042: author asked for a rewrite",
+                "authorPayoutPercent": 70
+              },
+              {
+                "id": "c_88",
+                "title": "Web Application Fundamentals",
+                "level": "beginner",
+                "priceVnd": 0,
+                "published": true,
+                "internalNotes": "notes for c_88: author asked for a rewrite",
+                "authorPayoutPercent": 70
+              },
+              {
+                "id": "c_95",
+                "title": "SQL & Data Modeling",
+                "level": "beginner",
+                "priceVnd": 0,
+                "published": true,
+                "internalNotes": "notes for c_95: author asked for a rewrite",
+                "authorPayoutPercent": 70
+              },
+              {
+                "id": "c_120",
+                "title": "Unreleased: Event Sourcing",
+                "level": "advanced",
+                "priceVnd": 199000,
+                "published": false,
+                "internalNotes": "notes for c_120: author asked for a rewrite",
+                "authorPayoutPercent": 70
+              },
+              {
+                "id": "c_131",
+                "title": "React + TypeScript Architecture",
+                "level": "intermediate",
+                "priceVnd": 149000,
+                "published": true,
+                "internalNotes": "notes for c_131: author asked for a rewrite",
+                "authorPayoutPercent": 70
+              },
+              {
+                "id": "c_140",
+                "title": "Distributed Systems Basics",
+                "level": "advanced",
+                "priceVnd": 199000,
+                "published": true,
+                "internalNotes": "notes for c_140: author asked for a rewrite",
+                "authorPayoutPercent": 70
+              }
+            ],
+            "requests": [
+              {
+                "route": "enroll",
+                "body": null
+              },
+              {
+                "route": "enroll",
+                "body": [
+                  {
+                    "courseId": "c_1"
+                  }
+                ]
+              },
+              {
+                "route": "enroll",
+                "body": "c_1042"
+              },
+              {
+                "route": "enroll",
+                "body": {}
+              },
+              {
+                "route": "enroll",
+                "body": {
+                  "courseId": 1042
+                }
+              },
+              {
+                "route": "enroll",
+                "body": {
+                  "courseId": "c_95"
+                },
+                "user": {
+                  "id": "u_3"
+                }
+              }
+            ]
+          },
+          "expected": "#1 POST /enrollments (user u_1) null\n   -> 400 headers={} body={\"error\":\"courseId is required\"}\n   service: (not called)\n#2 POST /enrollments (user u_1) [{\"courseId\":\"c_1\"}]\n   -> 400 headers={} body={\"error\":\"courseId is required\"}\n   service: (not called)\n#3 POST /enrollments (user u_1) \"c_1042\"\n   -> 400 headers={} body={\"error\":\"courseId is required\"}\n   service: (not called)\n#4 POST /enrollments (user u_1) {}\n   -> 400 headers={} body={\"error\":\"courseId is required\"}\n   service: (not called)\n#5 POST /enrollments (user u_1) {\"courseId\":1042}\n   -> 400 headers={} body={\"error\":\"courseId is required\"}\n   service: (not called)\n#6 POST /enrollments (user u_3) {\"courseId\":\"c_95\"}\n   -> 201 headers={\"Location\":\"/enrollments/e_5001\"} body={\"courseId\":\"c_95\",\"createdAt\":\"2026-10-26T09:00:00.000Z\",\"id\":\"e_5001\",\"status\":\"active\"}\n   service: enroll(userId=u_3, courseId=c_95)",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "240 courses: paging through intermediate courses with large and clamped limits",
+          "input": {
+            "generateCourses": 240,
+            "requests": [
+              {
+                "route": "listCourses",
+                "query": {
+                  "level": "intermediate",
+                  "page": "2",
+                  "limit": "50"
+                }
+              },
+              {
+                "route": "listCourses",
+                "query": {
+                  "level": "intermediate",
+                  "page": "3",
+                  "limit": "200"
+                }
+              },
+              {
+                "route": "listCourses",
+                "query": {
+                  "page": "5",
+                  "limit": "50"
+                }
+              },
+              {
+                "route": "listCourses",
+                "query": {
+                  "page": "99"
+                }
+              }
+            ]
+          },
+          "expected": "#1 GET /courses?level=intermediate&page=2&limit=50\n   -> 200 headers={\"X-Total-Count\":\"69\"} body={\"items\":[{\"id\":\"c_176\",\"level\":\"intermediate\",\"priceVnd\":250000,\"title\":\"Course 176\"},{\"id\":\"c_182\",\"level\":\"intermediate\",\"priceVnd\":390000,\"title\":\"Course 182\"},{\"id\":\"c_185\",\"level\":\"intermediate\",\"priceVnd\":460000,\"title\":\"Course 185\"},{\"id\":\"c_188\",\"level\":\"intermediate\",\"priceVnd\":30000,\"title\":\"Course 188\"},{\"id\":\"c_191\",\"level\":\"intermediate\",\"priceVnd\":100000,\"title\":\"Course 191\"},{\"id\":\"c_194\",\"level\":\"intermediate\",\"priceVnd\":170000,\"title\":\"Course 194\"},{\"id\":\"c_197\",\"level\":\"intermediate\",\"priceVnd\":240000,\"title\":\"Course 197\"},{\"id\":\"c_203\",\"level\":\"intermediate\",\"priceVnd\":380000,\"title\":\"Course 203\"},{\"id\":\"c_206\",\"level\":\"intermediate\",\"priceVnd\":450000,\"title\":\"Course 206\"},{\"id\":\"c_209\",\"level\":\"intermediate\",\"priceVnd\":20000,\"title\":\"Course 209\"},{\"id\":\"c_212\",\"level\":\"intermediate\",\"priceVnd\":90000,\"title\":\"Course 212\"},{\"id\":\"c_215\",\"level\":\"intermediate\",\"priceVnd\":160000,\"title\":\"Course 215\"},{\"id\":\"c_218\",\"level\":\"intermediate\",\"priceVnd\":230000,\"title\":\"Course 218\"},{\"id\":\"c_224\",\"level\":\"intermediate\",\"priceVnd\":370000,\"title\":\"Course 224\"},{\"id\":\"c_227\",\"level\":\"intermediate\",\"priceVnd\":440000,\"title\":\"Course 227\"},{\"id\":\"c_230\",\"level\":\"intermediate\",\"priceVnd\":10000,\"title\":\"Course 230\"},{\"id\":\"c_233\",\"level\":\"intermediate\",\"priceVnd\":80000,\"title\":\"Course 233\"},{\"id\":\"c_236\",\"level\":\"intermediate\",\"priceVnd\":150000,\"title\":\"Course 236\"},{\"id\":\"c_239\",\"level\":\"intermediate\",\"priceVnd\":220000,\"title\":\"Course 239\"}],\"limit\":50,\"page\":2,\"total\":69}\n   service: listCourses(page=2, limit=50, level=intermediate)\n#2 GET /courses?level=intermediate&page=3&limit=200\n   -> 200 headers={\"X-Total-Count\":\"69\"} body={\"items\":[],\"limit\":50,\"page\":3,\"total\":69}\n   service: listCourses(page=3, limit=50, level=intermediate)\n#3 GET /courses?page=5&limit=50\n   -> 200 headers={\"X-Total-Count\":\"206\"} body={\"items\":[{\"id\":\"c_234\",\"level\":\"advanced\",\"priceVnd\":270000,\"title\":\"Course 234\"},{\"id\":\"c_236\",\"level\":\"intermediate\",\"priceVnd\":150000,\"title\":\"Course 236\"},{\"id\":\"c_237\",\"level\":\"advanced\",\"priceVnd\":340000,\"title\":\"Course 237\"},{\"id\":\"c_238\",\"level\":\"beginner\",\"priceVnd\":30000,\"title\":\"Course 238\"},{\"id\":\"c_239\",\"level\":\"intermediate\",\"priceVnd\":220000,\"title\":\"Course 239\"},{\"id\":\"c_240\",\"level\":\"advanced\",\"priceVnd\":410000,\"title\":\"Course 240\"}],\"limit\":50,\"page\":5,\"total\":206}\n   service: listCourses(page=5, limit=50, level=-)\n#4 GET /courses?page=99\n   -> 200 headers={\"X-Total-Count\":\"206\"} body={\"items\":[],\"limit\":20,\"page\":99,\"total\":206}\n   service: listCourses(page=99, limit=20, level=-)",
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

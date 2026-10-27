@@ -1,0 +1,158 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nmm_421",
+      "name": "dto-whitelist-runtime",
+      "type": "quiz",
+      "title": "What a DTO type does at runtime",
+      "description": "Two statements on the PATCH /users/me/profile incident: what a TypeScript cast does to the request body, and what ValidationPipe does with a property the DTO does not declare.",
+      "difficulty": "medium",
+      "outcomes": [
+        "request-validation"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "// end of validateUpdateProfile(), written by the AI assistant\n  if (errors.length > 0) return { ok: false, errors };\n  return { ok: true, dto: input as UpdateProfileDto };\n}\n\ntype UpdateProfileDto = { displayName?: string; bio?: string; avatarUrl?: string };\n\nAudit log:\nPATCH /users/me/profile  user=u_4471  200\n  body: {\"displayName\":\"Minh\",\"isAdmin\":true,\"role\":\"admin\",\"exp\":9999999}\n  changed: display_name, is_admin, role, exp\n\nStatement: \"The `as UpdateProfileDto` cast removes isAdmin, role and exp from the object at runtime, so the extra columns must have been written by some other code path.\"",
+          "explanation": "False. A type assertion only tells the compiler what shape to assume; TypeScript erases it, and the emitted JavaScript is `return { ok: true, dto: input }`. The object passed to the repository is the parsed request body with every key the client sent, and the repository writes every key it receives - which is exactly what the audit log shows. To remove fields, code has to build a new object from the allowed fields (or ValidationPipe with whitelist has to strip them). The misconception is that TypeScript types filter or check data at runtime; they never run.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "// main.ts\napp.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));\n\n// users/dto/update-profile.dto.ts\nexport class UpdateProfileDto {\n  @IsOptional() @IsString() @Length(1, 50) displayName?: string;\n  @IsOptional() @IsString() @MaxLength(280) bio?: string;\n}\n\n// users/users.controller.ts\n@Patch(\"me/profile\")\nupdate(@CurrentUser() user: User, @Body() dto: UpdateProfileDto) {\n  return this.users.updateProfile(user.id, dto);\n}\n\nRequest: PATCH /users/me/profile\n{\"displayName\":\"Minh\",\"isAdmin\":true}\n\nStatement: \"This request gets 400 Bad Request with the message \"property isAdmin should not exist\", and the controller method never runs.\"",
+          "explanation": "True. With whitelist: true, ValidationPipe treats every property without a validation decorator as not allowed; forbidNonWhitelisted: true turns that into an error instead of silently stripping it. The pipe runs before the handler, so the request ends with 400 and a message array containing \"property isAdmin should not exist\", and updateProfile() is never called. With whitelist: true alone, isAdmin would be stripped and the request would succeed with only displayName. The misconception is that declaring a DTO class is enough: the global pipe options decide what happens to unknown properties.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_nmm_422",
+      "name": "spot-the-ai-mistake-profile-whitelist",
+      "type": "fix_bug",
+      "title": "Spot the AI Mistake: a DTO that lets unknown fields through",
+      "description": "An AI assistant was asked: \"Write the request validation for PATCH /users/me/profile. UpdateProfileDto has three optional fields: displayName (string, 1-50 characters), bio (string, at most 280 characters) and avatarUrl (https URL, at most 2048 characters). Return 400 with the list of messages when the body is invalid, otherwise pass the DTO to UsersRepository.updateProfile().\" Its validateUpdateProfile() checks the three fields and its tests passed. A week later a learner had 9,999,999 EXP on the leaderboard and admin rights, both set through this endpoint. Fix validateUpdateProfile() so that only displayName, bio and avatarUrl can ever reach the repository. A body with any other own property is rejected with 400 and one message per unknown property, \"property <name> should not exist\", in the order the properties appear in the body, followed by the field messages in the order displayName, bio, avatarUrl. Keep the existing rules and messages for the three fields and for a body that is not a JSON object. Input: { \"userId\": \"u1\", \"body\": \"<raw JSON text of the request body>\" }. Output: the response status and messages, what the repository received, and the stored user row, as printed by the test runner. The public tests pass on the assistant's code; the hidden tests send what an attacker would send.",
+      "difficulty": "medium",
+      "outcomes": [
+        "request-validation"
+      ],
+      "points": 30,
+      "hints": [
+        "The validator checks displayName, bio and avatarUrl. What happens to a fourth property in the body - which object does the function return, and what does the repository do with it?",
+        "Look at the last line of validateUpdateProfile() and at the `as UpdateProfileDto` cast. Does a cast change the object at runtime? Then look at how UsersRepository.updateProfile() copies the changes.",
+        "A similar case: validating { title, price } for a product. `Object.keys(input).filter((key) => !['title', 'price'].includes(key))` lists the keys to reject, and `const product = {}; if (typeof input.title === 'string') product.title = input.title;` builds a new object instead of returning the input. An array lookup does not see inherited names such as toString, while `key in { title: true }` does."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Updates displayName, bio and avatarUrl",
+          "input": {
+            "userId": "u1",
+            "body": "{\"displayName\":\"Lan Tran\",\"bio\":\"Backend learner. NestJS and SQL.\",\"avatarUrl\":\"https://cdn.codedev.test/avatars/u1.png\"}"
+          },
+          "expected": "status 200: updated\nrepository: updateProfile(u1, {\"displayName\":\"Lan Tran\",\"bio\":\"Backend learner. NestJS and SQL.\",\"avatarUrl\":\"https://cdn.codedev.test/avatars/u1.png\"})\nu1: displayName \"Lan Tran\", bio \"Backend learner. NestJS and SQL.\", avatarUrl \"https://cdn.codedev.test/avatars/u1.png\", role learner, isAdmin false, exp 1240",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Rejects a displayName that is not a string",
+          "input": {
+            "userId": "u1",
+            "body": "{\"displayName\":42}"
+          },
+          "expected": "status 400: displayName must be a string\nrepository: not called\nu1: displayName \"Lan Tran\", bio \"\", avatarUrl null, role learner, isAdmin false, exp 1240",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Rejects isAdmin, role and exp sent with a valid displayName",
+          "input": {
+            "userId": "u1",
+            "body": "{\"displayName\":\"Lan\",\"isAdmin\":true,\"role\":\"admin\",\"exp\":9999999}"
+          },
+          "expected": "status 400: property isAdmin should not exist; property role should not exist; property exp should not exist\nrepository: not called\nu1: displayName \"Lan Tran\", bio \"\", avatarUrl null, role learner, isAdmin false, exp 1240",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Rejects a __proto__ key and leaves the user's prototype alone",
+          "input": {
+            "userId": "u1",
+            "body": "{\"displayName\":\"Lan\",\"__proto__\":{\"isAdmin\":true}}"
+          },
+          "expected": "status 400: property __proto__ should not exist\nrepository: not called\nu1: displayName \"Lan Tran\", bio \"\", avatarUrl null, role learner, isAdmin false, exp 1240",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Rejects inherited names: constructor and toString",
+          "input": {
+            "userId": "u1",
+            "body": "{\"bio\":\"hi\",\"constructor\":{\"prototype\":{\"isAdmin\":true}},\"toString\":\"x\"}"
+          },
+          "expected": "status 400: property constructor should not exist; property toString should not exist\nrepository: not called\nu1: displayName \"Lan Tran\", bio \"\", avatarUrl null, role learner, isAdmin false, exp 1240",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Unknown field first, then every wrong type in field order",
+          "input": {
+            "userId": "u1",
+            "body": "{\"emailVerified\":true,\"displayName\":\"\",\"bio\":7,\"avatarUrl\":\"http://cdn.codedev.test/a.png\"}"
+          },
+          "expected": "status 400: property emailVerified should not exist; displayName must be between 1 and 50 characters; bio must be a string; avatarUrl must be an https URL\nrepository: not called\nu1: displayName \"Lan Tran\", bio \"\", avatarUrl null, role learner, isAdmin false, exp 1240",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Large body: a 1,000-character bio and 60 unknown fields",
+          "input": {
+            "userId": "u1",
+            "body": "{\"displayName\":\"Lan\",\"bio\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"field1\":0,\"field2\":1,\"field3\":2,\"field4\":3,\"field5\":4,\"field6\":5,\"field7\":6,\"field8\":7,\"field9\":8,\"field10\":9,\"field11\":10,\"field12\":11,\"field13\":12,\"field14\":13,\"field15\":14,\"field16\":15,\"field17\":16,\"field18\":17,\"field19\":18,\"field20\":19,\"field21\":20,\"field22\":21,\"field23\":22,\"field24\":23,\"field25\":24,\"field26\":25,\"field27\":26,\"field28\":27,\"field29\":28,\"field30\":29,\"field31\":30,\"field32\":31,\"field33\":32,\"field34\":33,\"field35\":34,\"field36\":35,\"field37\":36,\"field38\":37,\"field39\":38,\"field40\":39,\"field41\":40,\"field42\":41,\"field43\":42,\"field44\":43,\"field45\":44,\"field46\":45,\"field47\":46,\"field48\":47,\"field49\":48,\"field50\":49,\"field51\":50,\"field52\":51,\"field53\":52,\"field54\":53,\"field55\":54,\"field56\":55,\"field57\":56,\"field58\":57,\"field59\":58,\"field60\":59}"
+          },
+          "expected": "status 400: property field1 should not exist; property field2 should not exist; property field3 should not exist; property field4 should not exist; property field5 should not exist; property field6 should not exist; property field7 should not exist; property field8 should not exist; property field9 should not exist; property field10 should not exist; property field11 should not exist; property field12 should not exist; property field13 should not exist; property field14 should not exist; property field15 should not exist; property field16 should not exist; property field17 should not exist; property field18 should not exist; property field19 should not exist; property field20 should not exist; property field21 should not exist; property field22 should not exist; property field23 should not exist; property field24 should not exist; property field25 should not exist; property field26 should not exist; property field27 should not exist; property field28 should not exist; property field29 should not exist; property field30 should not exist; property field31 should not exist; property field32 should not exist; property field33 should not exist; property field34 should not exist; property field35 should not exist; property field36 should not exist; property field37 should not exist; property field38 should not exist; property field39 should not exist; property field40 should not exist; property field41 should not exist; property field42 should not exist; property field43 should not exist; property field44 should not exist; property field45 should not exist; property field46 should not exist; property field47 should not exist; property field48 should not exist; property field49 should not exist; property field50 should not exist; property field51 should not exist; property field52 should not exist; property field53 should not exist; property field54 should not exist; property field55 should not exist; property field56 should not exist; property field57 should not exist; property field58 should not exist; property field59 should not exist; property field60 should not exist; bio must be shorter than or equal to 280 characters\nrepository: not called\nu1: displayName \"Lan Tran\", bio \"\", avatarUrl null, role learner, isAdmin false, exp 1240",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Rejects a body that is not a JSON object",
+          "input": {
+            "userId": "u1",
+            "body": "[{\"displayName\":\"Lan\"}]"
+          },
+          "expected": "status 400: body must be a JSON object\nrepository: not called\nu1: displayName \"Lan Tran\", bio \"\", avatarUrl null, role learner, isAdmin false, exp 1240",
+          "hidden": true,
+          "score": 2
+        }
+      ]
+    }
+  ]
+}

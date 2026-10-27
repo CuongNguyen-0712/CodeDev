@@ -1,0 +1,5594 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nmm_321",
+      "name": "idempotent-progress-quiz",
+      "type": "quiz",
+      "title": "Which part of progress is idempotent?",
+      "description": "Two fixes proposed after progress went from 80% back to 40% and a learner got two certificates: a GREATEST update, and an event table that remembers every eventId.",
+      "difficulty": "medium",
+      "outcomes": [
+        "domain-rules"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "First fix proposed in the review:\n\n// progress.repository.ts\nUPDATE lesson_progress SET percent = GREATEST(percent, $4)\nWHERE user_id = $1 AND course_id = $2 AND lesson_id = $3;\n\n// progress.service.ts\nawait this.progress.raise(userId, courseId, lessonId, percent);\nconst coursePercent = await this.progress.coursePercent(userId, courseId);\nif (coursePercent === 100) await this.certificates.issue(userId, courseId);\n\nAPI log for one learner:\n\n14:02:10.481 POST /progress/events ev_802 whf-10 100 -> 200 (2.4 s, client timed out)\n14:02:12.903 POST /progress/events ev_802 whf-10 100 -> 200 (retry)\n\nStatement: \"Because the update uses GREATEST, this code can no longer issue two certificates when the final event is retried.\"",
+          "explanation": "False. GREATEST makes the stored progress idempotent: the retry cannot lower or change the percent. But the certificate is a side effect, and this code runs it after every event that finds the course at 100%, including the retry of ev_802 and any later stale event for that course. Exactly-once needs its own guard: publish only when this event moved the course from below 100 to 100, remember processed eventIds, and in the database a unique constraint on certificates (user_id, course_id) as the last line of defence. The misconception is that an idempotent state update makes everything that follows it idempotent too.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Second fix, in one transaction per event:\n\nBEGIN;\nINSERT INTO processed_events (event_id, received_at) VALUES ($1, now())\n  ON CONFLICT (event_id) DO NOTHING\n  RETURNING event_id;\n-- no row returned: ROLLBACK and answer { status: \"duplicate\" }\n-- one row returned: raise the lesson percent, check for completion, COMMIT\n\nprocessed_events.event_id is the primary key. The mobile app's offline queue and its retry deliver ev_802 twice, 4 ms apart, to two API instances.\n\nStatement: \"Even though both deliveries run at the same time, only one of them gets a row back from the INSERT, so the progress update and the completion check run once for ev_802.\"",
+          "explanation": "True. The primary key makes the second INSERT of the same event_id wait for the first transaction. When the first commits, the second sees the conflict, does nothing and returns no row, so it answers duplicate without touching progress. If the first rolled back, the second would insert and process the event, which is also correct: the event then counts exactly once. This is why the eventId check belongs in the same transaction as the update, enforced by a key, and not in a separate SELECT before it, which two concurrent deliveries could both pass. The misconception is that an in-memory or SELECT-then-INSERT check gives the same guarantee across several API instances.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_nmm_322",
+      "name": "idempotent-progress-service",
+      "type": "mini_coding",
+      "title": "ProgressService: duplicates, late events and one completion",
+      "description": "The CodeDev mobile app sends a progress event while a learner reads or watches a lesson: { eventId, userId, courseId, lessonId, percent }. It keeps unsent events in an offline queue and retries a request after a timeout, so the same event can arrive twice and an older event can arrive after a newer one. The shipped ProgressService stored the last value it received, so a slow older event moved a lesson from 80% back to 40%, and a retried final event issued a second completion certificate. Write ProgressService.record(event) so that progress never goes backwards and the completion is published exactly once. Its stores are injected through the constructor: in-memory fakes here, PostgreSQL tables in production.\n\nRules. Invalid: eventId and userId must be non-empty strings, catalog.lessonIds(courseId) must return a list that contains lessonId, and percent must be an integer from 0 to 100 (the events come from JSON, so check the values at runtime). Otherwise return { status: \"invalid\" } and change nothing - do not remember its eventId. Duplicate: processed.has(eventId) -> { status: \"duplicate\" }, nothing changes. Stale: percent is not higher than the stored percent of that lesson (a lesson with nothing stored counts as 0) -> { status: \"stale\", lessonPercent: <stored>, coursePercent }. Applied: otherwise store the percent -> { status: \"applied\", lessonPercent, coursePercent, courseCompleted }. Every valid event, applied or stale, is remembered with processed.add(eventId). coursePercent is Math.floor(sum of the stored percents of every lesson of the course / number of lessons), with missing lessons counted as 0. When an event moves coursePercent from below 100 to 100, call bus.publish({ type: \"course.completed\", userId, courseId }) once and return courseCompleted: true; in every other case courseCompleted is false and nothing is published.\n\nInput (stdin): { \"courses\": { courseId: lessonId[] }, \"progress\"?: [[userId, courseId, lessonId, percent]], \"processed\"?: [eventId], \"events\": [event], \"summary\"?: true }. progress and processed describe the state before the first event (for example, events stored before a restart). Output: one line per event with its status and percentages, the published events, and the stored percent of every lesson per learner and course; with summary, the count per status, the number of published events, the number of stored lessons and the sum of their percents. Do not change the types, the stores or the test runner.",
+      "difficulty": "medium",
+      "outcomes": [
+        "domain-rules"
+      ],
+      "points": 30,
+      "hints": [
+        "For one incoming event, what has to be true for it to change anything at all - and among the events that do change something, which single one is allowed to announce that the course is finished?",
+        "Look at three moments: before anything is stored (is the event valid, has its eventId been seen), the comparison between the incoming percent and the stored one, and the course percentage computed before and after the store. The completion depends on both of those course percentages, not only on the one after.",
+        "The same shape for a reading streak: events { eventId, day } where the streak may only grow. Event r1 day 5 on a stored day 3 -> stored 5, applied; r0 day 4 arriving late -> stays 5, stale; r1 again -> duplicate. A 7-day badge is awarded when the streak goes from 6 to 7, so a later event that finds the streak at 9 awards nothing, and neither does a retry."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The incident: a slow older event, a retried request and a late offline event, one completion",
+          "input": {
+            "courses": {
+              "web-http-fundamentals": [
+                "whf-01",
+                "whf-02",
+                "whf-03",
+                "whf-04",
+                "whf-05",
+                "whf-06",
+                "whf-07",
+                "whf-08",
+                "whf-09",
+                "whf-10"
+              ],
+              "typescript-foundations": [
+                "tsf-01",
+                "tsf-02",
+                "tsf-03"
+              ],
+              "sql-data-modeling": [
+                "sql-01",
+                "sql-02",
+                "sql-03",
+                "sql-04"
+              ]
+            },
+            "progress": [
+              [
+                "u_2290",
+                "web-http-fundamentals",
+                "whf-01",
+                100
+              ],
+              [
+                "u_2290",
+                "web-http-fundamentals",
+                "whf-02",
+                100
+              ],
+              [
+                "u_2290",
+                "web-http-fundamentals",
+                "whf-03",
+                100
+              ],
+              [
+                "u_2290",
+                "web-http-fundamentals",
+                "whf-04",
+                100
+              ],
+              [
+                "u_2290",
+                "web-http-fundamentals",
+                "whf-05",
+                100
+              ],
+              [
+                "u_2290",
+                "web-http-fundamentals",
+                "whf-06",
+                100
+              ],
+              [
+                "u_2290",
+                "web-http-fundamentals",
+                "whf-07",
+                100
+              ],
+              [
+                "u_2290",
+                "web-http-fundamentals",
+                "whf-08",
+                100
+              ],
+              [
+                "u_2290",
+                "web-http-fundamentals",
+                "whf-09",
+                100
+              ]
+            ],
+            "events": [
+              {
+                "eventId": "ev_7f1",
+                "userId": "u_2290",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-10",
+                "percent": 80
+              },
+              {
+                "eventId": "ev_7e9",
+                "userId": "u_2290",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-10",
+                "percent": 40
+              },
+              {
+                "eventId": "ev_7f1",
+                "userId": "u_2290",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-10",
+                "percent": 80
+              },
+              {
+                "eventId": "ev_802",
+                "userId": "u_2290",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-10",
+                "percent": 100
+              },
+              {
+                "eventId": "ev_802",
+                "userId": "u_2290",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-10",
+                "percent": 100
+              },
+              {
+                "eventId": "ev_7fa",
+                "userId": "u_2290",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-10",
+                "percent": 90
+              }
+            ]
+          },
+          "hidden": false,
+          "score": 3,
+          "expected": "ev_7f1 u_2290 web-http-fundamentals/whf-10 80 -> applied: lesson 80%, course 98%\nev_7e9 u_2290 web-http-fundamentals/whf-10 40 -> stale: lesson stays 80%, course 98%\nev_7f1 u_2290 web-http-fundamentals/whf-10 80 -> duplicate\nev_802 u_2290 web-http-fundamentals/whf-10 100 -> applied: lesson 100%, course 100%, course completed\nev_802 u_2290 web-http-fundamentals/whf-10 100 -> duplicate\nev_7fa u_2290 web-http-fundamentals/whf-10 90 -> stale: lesson stays 100%, course 100%\npublished: course.completed u_2290 web-http-fundamentals\nu_2290 web-http-fundamentals: whf-01=100 whf-02=100 whf-03=100 whf-04=100 whf-05=100 whf-06=100 whf-07=100 whf-08=100 whf-09=100 whf-10=100"
+        },
+        {
+          "name": "Course percent is the floored average of every lesson; a lesson with no progress counts as 0",
+          "input": {
+            "courses": {
+              "web-http-fundamentals": [
+                "whf-01",
+                "whf-02",
+                "whf-03",
+                "whf-04",
+                "whf-05",
+                "whf-06",
+                "whf-07",
+                "whf-08",
+                "whf-09",
+                "whf-10"
+              ],
+              "typescript-foundations": [
+                "tsf-01",
+                "tsf-02",
+                "tsf-03"
+              ],
+              "sql-data-modeling": [
+                "sql-01",
+                "sql-02",
+                "sql-03",
+                "sql-04"
+              ]
+            },
+            "events": [
+              {
+                "eventId": "a1",
+                "userId": "u_1001",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 100
+              },
+              {
+                "eventId": "a2",
+                "userId": "u_1001",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 100
+              },
+              {
+                "eventId": "a3",
+                "userId": "u_1001",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 99
+              },
+              {
+                "eventId": "b1",
+                "userId": "u_1002",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 50
+              },
+              {
+                "eventId": "a4",
+                "userId": "u_1001",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 100
+              },
+              {
+                "eventId": "b2",
+                "userId": "u_1002",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 33
+              }
+            ]
+          },
+          "hidden": false,
+          "score": 3,
+          "expected": "a1 u_1001 typescript-foundations/tsf-01 100 -> applied: lesson 100%, course 33%\na2 u_1001 typescript-foundations/tsf-02 100 -> applied: lesson 100%, course 66%\na3 u_1001 typescript-foundations/tsf-03 99 -> applied: lesson 99%, course 99%\nb1 u_1002 typescript-foundations/tsf-02 50 -> applied: lesson 50%, course 16%\na4 u_1001 typescript-foundations/tsf-03 100 -> applied: lesson 100%, course 100%, course completed\nb2 u_1002 sql-data-modeling/sql-03 33 -> applied: lesson 33%, course 8%\npublished: course.completed u_1001 typescript-foundations\nu_1001 typescript-foundations: tsf-01=100 tsf-02=100 tsf-03=100\nu_1002 sql-data-modeling: sql-03=33\nu_1002 typescript-foundations: tsf-02=50"
+        },
+        {
+          "name": "Invalid events change nothing and their ids are not remembered",
+          "input": {
+            "courses": {
+              "web-http-fundamentals": [
+                "whf-01",
+                "whf-02",
+                "whf-03",
+                "whf-04",
+                "whf-05",
+                "whf-06",
+                "whf-07",
+                "whf-08",
+                "whf-09",
+                "whf-10"
+              ],
+              "typescript-foundations": [
+                "tsf-01",
+                "tsf-02",
+                "tsf-03"
+              ],
+              "sql-data-modeling": [
+                "sql-01",
+                "sql-02",
+                "sql-03",
+                "sql-04"
+              ]
+            },
+            "events": [
+              {
+                "eventId": "x1",
+                "userId": "u_3001",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": "80"
+              },
+              {
+                "eventId": "x2",
+                "userId": "u_3001",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 80.5
+              },
+              {
+                "eventId": "x3",
+                "userId": "u_3001",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": -1
+              },
+              {
+                "eventId": "x4",
+                "userId": "u_3001",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 101
+              },
+              {
+                "eventId": "x5",
+                "userId": "u_3001",
+                "courseId": "typescript-foundation",
+                "lessonId": "tsf-01",
+                "percent": 50
+              },
+              {
+                "eventId": "x6",
+                "userId": "u_3001",
+                "courseId": "typescript-foundations",
+                "lessonId": "sql-01",
+                "percent": 50
+              },
+              {
+                "eventId": "",
+                "userId": "u_3001",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 50
+              },
+              {
+                "eventId": "x7",
+                "userId": "",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 50
+              },
+              {
+                "eventId": "x8",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 50
+              },
+              {
+                "eventId": "x1",
+                "userId": "u_3001",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 60
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 3,
+          "expected": "x1 u_3001 typescript-foundations/tsf-01 \"80\" -> invalid\nx2 u_3001 typescript-foundations/tsf-01 80.5 -> invalid\nx3 u_3001 typescript-foundations/tsf-01 -1 -> invalid\nx4 u_3001 typescript-foundations/tsf-01 101 -> invalid\nx5 u_3001 typescript-foundation/tsf-01 50 -> invalid\nx6 u_3001 typescript-foundations/sql-01 50 -> invalid\n u_3001 typescript-foundations/tsf-01 50 -> invalid\nx7  typescript-foundations/tsf-01 50 -> invalid\nx8 undefined typescript-foundations/tsf-01 50 -> invalid\nx1 u_3001 typescript-foundations/tsf-01 60 -> applied: lesson 60%, course 20%\npublished: none\nu_3001 typescript-foundations: tsf-01=60"
+        },
+        {
+          "name": "A known eventId is a duplicate even with another payload or from before a restart",
+          "input": {
+            "courses": {
+              "web-http-fundamentals": [
+                "whf-01",
+                "whf-02",
+                "whf-03",
+                "whf-04",
+                "whf-05",
+                "whf-06",
+                "whf-07",
+                "whf-08",
+                "whf-09",
+                "whf-10"
+              ],
+              "typescript-foundations": [
+                "tsf-01",
+                "tsf-02",
+                "tsf-03"
+              ],
+              "sql-data-modeling": [
+                "sql-01",
+                "sql-02",
+                "sql-03",
+                "sql-04"
+              ]
+            },
+            "progress": [
+              [
+                "u_4001",
+                "sql-data-modeling",
+                "sql-01",
+                30
+              ]
+            ],
+            "processed": [
+              "ev_old_1"
+            ],
+            "events": [
+              {
+                "eventId": "ev_old_1",
+                "userId": "u_4001",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 90
+              },
+              {
+                "eventId": "ev_10",
+                "userId": "u_4001",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 60
+              },
+              {
+                "eventId": "ev_10",
+                "userId": "u_4001",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 100
+              },
+              {
+                "eventId": "ev_10",
+                "userId": "u_4001",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 100
+              },
+              {
+                "eventId": "ev_11",
+                "userId": "u_4001",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 100
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 3,
+          "expected": "ev_old_1 u_4001 sql-data-modeling/sql-01 90 -> duplicate\nev_10 u_4001 sql-data-modeling/sql-01 60 -> applied: lesson 60%, course 15%\nev_10 u_4001 sql-data-modeling/sql-01 100 -> duplicate\nev_10 u_4001 sql-data-modeling/sql-02 100 -> duplicate\nev_11 u_4001 sql-data-modeling/sql-02 100 -> applied: lesson 100%, course 40%\npublished: none\nu_4001 sql-data-modeling: sql-01=60 sql-02=100"
+        },
+        {
+          "name": "A course completed earlier, or completed now, publishes course.completed exactly once",
+          "input": {
+            "courses": {
+              "web-http-fundamentals": [
+                "whf-01",
+                "whf-02",
+                "whf-03",
+                "whf-04",
+                "whf-05",
+                "whf-06",
+                "whf-07",
+                "whf-08",
+                "whf-09",
+                "whf-10"
+              ],
+              "typescript-foundations": [
+                "tsf-01",
+                "tsf-02",
+                "tsf-03"
+              ],
+              "sql-data-modeling": [
+                "sql-01",
+                "sql-02",
+                "sql-03",
+                "sql-04"
+              ]
+            },
+            "progress": [
+              [
+                "u_5001",
+                "typescript-foundations",
+                "tsf-01",
+                100
+              ],
+              [
+                "u_5001",
+                "typescript-foundations",
+                "tsf-02",
+                100
+              ],
+              [
+                "u_5001",
+                "typescript-foundations",
+                "tsf-03",
+                100
+              ],
+              [
+                "u_5002",
+                "typescript-foundations",
+                "tsf-01",
+                100
+              ],
+              [
+                "u_5002",
+                "typescript-foundations",
+                "tsf-02",
+                100
+              ],
+              [
+                "u_5002",
+                "typescript-foundations",
+                "tsf-03",
+                70
+              ]
+            ],
+            "events": [
+              {
+                "eventId": "c1",
+                "userId": "u_5001",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 100
+              },
+              {
+                "eventId": "c2",
+                "userId": "u_5001",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 20
+              },
+              {
+                "eventId": "c3",
+                "userId": "u_5002",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 100
+              },
+              {
+                "eventId": "c4",
+                "userId": "u_5002",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 100
+              },
+              {
+                "eventId": "c5",
+                "userId": "u_5002",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 95
+              },
+              {
+                "eventId": "c3",
+                "userId": "u_5002",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 100
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 3,
+          "expected": "c1 u_5001 typescript-foundations/tsf-02 100 -> stale: lesson stays 100%, course 100%\nc2 u_5001 typescript-foundations/tsf-03 20 -> stale: lesson stays 100%, course 100%\nc3 u_5002 typescript-foundations/tsf-03 100 -> applied: lesson 100%, course 100%, course completed\nc4 u_5002 typescript-foundations/tsf-03 100 -> stale: lesson stays 100%, course 100%\nc5 u_5002 typescript-foundations/tsf-01 95 -> stale: lesson stays 100%, course 100%\nc3 u_5002 typescript-foundations/tsf-03 100 -> duplicate\npublished: course.completed u_5002 typescript-foundations\nu_5001 typescript-foundations: tsf-01=100 tsf-02=100 tsf-03=100\nu_5002 typescript-foundations: tsf-01=100 tsf-02=100 tsf-03=100"
+        },
+        {
+          "name": "Equal or zero progress is stale, and a retried stale event is a duplicate",
+          "input": {
+            "courses": {
+              "web-http-fundamentals": [
+                "whf-01",
+                "whf-02",
+                "whf-03",
+                "whf-04",
+                "whf-05",
+                "whf-06",
+                "whf-07",
+                "whf-08",
+                "whf-09",
+                "whf-10"
+              ],
+              "typescript-foundations": [
+                "tsf-01",
+                "tsf-02",
+                "tsf-03"
+              ],
+              "sql-data-modeling": [
+                "sql-01",
+                "sql-02",
+                "sql-03",
+                "sql-04"
+              ]
+            },
+            "events": [
+              {
+                "eventId": "d1",
+                "userId": "u_6001",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 0
+              },
+              {
+                "eventId": "d2",
+                "userId": "u_6001",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 25
+              },
+              {
+                "eventId": "d3",
+                "userId": "u_6001",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 25
+              },
+              {
+                "eventId": "d3",
+                "userId": "u_6001",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 25
+              },
+              {
+                "eventId": "d1",
+                "userId": "u_6001",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 0
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 2,
+          "expected": "d1 u_6001 sql-data-modeling/sql-04 0 -> stale: lesson stays 0%, course 0%\nd2 u_6001 sql-data-modeling/sql-04 25 -> applied: lesson 25%, course 6%\nd3 u_6001 sql-data-modeling/sql-04 25 -> stale: lesson stays 25%, course 6%\nd3 u_6001 sql-data-modeling/sql-04 25 -> duplicate\nd1 u_6001 sql-data-modeling/sql-04 0 -> duplicate\npublished: none\nu_6001 sql-data-modeling: sql-04=25"
+        },
+        {
+          "name": "700 events from 12 learners, with retries and out-of-order percents: counts, completions and totals",
+          "input": {
+            "courses": {
+              "web-http-fundamentals": [
+                "whf-01",
+                "whf-02",
+                "whf-03",
+                "whf-04",
+                "whf-05",
+                "whf-06",
+                "whf-07",
+                "whf-08",
+                "whf-09",
+                "whf-10"
+              ],
+              "typescript-foundations": [
+                "tsf-01",
+                "tsf-02",
+                "tsf-03"
+              ],
+              "sql-data-modeling": [
+                "sql-01",
+                "sql-02",
+                "sql-03",
+                "sql-04"
+              ]
+            },
+            "events": [
+              {
+                "eventId": "e0",
+                "userId": "u_7009",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e1",
+                "userId": "u_7008",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e2",
+                "userId": "u_7005",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e3",
+                "userId": "u_7002",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-08",
+                "percent": 40
+              },
+              {
+                "eventId": "e2",
+                "userId": "u_7005",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e1",
+                "userId": "u_7008",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e6",
+                "userId": "u_7008",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 100
+              },
+              {
+                "eventId": "e1",
+                "userId": "u_7008",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e8",
+                "userId": "u_7010",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-01",
+                "percent": 60
+              },
+              {
+                "eventId": "e1",
+                "userId": "u_7008",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e10",
+                "userId": "u_7000",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-07",
+                "percent": 20
+              },
+              {
+                "eventId": "e1",
+                "userId": "u_7008",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e12",
+                "userId": "u_7007",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 20
+              },
+              {
+                "eventId": "e13",
+                "userId": "u_7004",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e14",
+                "userId": "u_7007",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 80
+              },
+              {
+                "eventId": "e15",
+                "userId": "u_7011",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-02",
+                "percent": 40
+              },
+              {
+                "eventId": "e16",
+                "userId": "u_7003",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 40
+              },
+              {
+                "eventId": "e17",
+                "userId": "u_7006",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-10",
+                "percent": 60
+              },
+              {
+                "eventId": "e1",
+                "userId": "u_7008",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e6",
+                "userId": "u_7008",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 100
+              },
+              {
+                "eventId": "e20",
+                "userId": "u_7006",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-04",
+                "percent": 100
+              },
+              {
+                "eventId": "e13",
+                "userId": "u_7004",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e22",
+                "userId": "u_7011",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e23",
+                "userId": "u_7006",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e24",
+                "userId": "u_7004",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-01",
+                "percent": 20
+              },
+              {
+                "eventId": "e25",
+                "userId": "u_7002",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-06",
+                "percent": 0
+              },
+              {
+                "eventId": "e26",
+                "userId": "u_7006",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 0
+              },
+              {
+                "eventId": "e27",
+                "userId": "u_7001",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 20
+              },
+              {
+                "eventId": "e28",
+                "userId": "u_7006",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e29",
+                "userId": "u_7000",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 20
+              },
+              {
+                "eventId": "e30",
+                "userId": "u_7008",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 0
+              },
+              {
+                "eventId": "e30",
+                "userId": "u_7008",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 0
+              },
+              {
+                "eventId": "e32",
+                "userId": "u_7002",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 40
+              },
+              {
+                "eventId": "e33",
+                "userId": "u_7009",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-06",
+                "percent": 0
+              },
+              {
+                "eventId": "e34",
+                "userId": "u_7011",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-05",
+                "percent": 60
+              },
+              {
+                "eventId": "e35",
+                "userId": "u_7008",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-07",
+                "percent": 40
+              },
+              {
+                "eventId": "e36",
+                "userId": "u_7008",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 80
+              },
+              {
+                "eventId": "e37",
+                "userId": "u_7001",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 100
+              },
+              {
+                "eventId": "e38",
+                "userId": "u_7010",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-10",
+                "percent": 20
+              },
+              {
+                "eventId": "e39",
+                "userId": "u_7004",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 40
+              },
+              {
+                "eventId": "e40",
+                "userId": "u_7004",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-10",
+                "percent": 80
+              },
+              {
+                "eventId": "e41",
+                "userId": "u_7006",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 80
+              },
+              {
+                "eventId": "e42",
+                "userId": "u_7011",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 20
+              },
+              {
+                "eventId": "e43",
+                "userId": "u_7002",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 60
+              },
+              {
+                "eventId": "e44",
+                "userId": "u_7004",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 0
+              },
+              {
+                "eventId": "e45",
+                "userId": "u_7010",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 60
+              },
+              {
+                "eventId": "e46",
+                "userId": "u_7006",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-04",
+                "percent": 60
+              },
+              {
+                "eventId": "e47",
+                "userId": "u_7001",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 100
+              },
+              {
+                "eventId": "e48",
+                "userId": "u_7006",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 60
+              },
+              {
+                "eventId": "e49",
+                "userId": "u_7004",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 20
+              },
+              {
+                "eventId": "e50",
+                "userId": "u_7006",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-04",
+                "percent": 80
+              },
+              {
+                "eventId": "e51",
+                "userId": "u_7008",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 100
+              },
+              {
+                "eventId": "e52",
+                "userId": "u_7000",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-04",
+                "percent": 60
+              },
+              {
+                "eventId": "e53",
+                "userId": "u_7001",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 100
+              },
+              {
+                "eventId": "e54",
+                "userId": "u_7002",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 40
+              },
+              {
+                "eventId": "e55",
+                "userId": "u_7004",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 80
+              },
+              {
+                "eventId": "e56",
+                "userId": "u_7011",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 60
+              },
+              {
+                "eventId": "e57",
+                "userId": "u_7000",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-01",
+                "percent": 0
+              },
+              {
+                "eventId": "e58",
+                "userId": "u_7003",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-07",
+                "percent": 0
+              },
+              {
+                "eventId": "e32",
+                "userId": "u_7002",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 40
+              },
+              {
+                "eventId": "e60",
+                "userId": "u_7006",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e40",
+                "userId": "u_7004",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-10",
+                "percent": 80
+              },
+              {
+                "eventId": "e62",
+                "userId": "u_7007",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-08",
+                "percent": 0
+              },
+              {
+                "eventId": "e63",
+                "userId": "u_7000",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-01",
+                "percent": 60
+              },
+              {
+                "eventId": "e1",
+                "userId": "u_7008",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e20",
+                "userId": "u_7006",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-04",
+                "percent": 100
+              },
+              {
+                "eventId": "e66",
+                "userId": "u_7007",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e67",
+                "userId": "u_7007",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-02",
+                "percent": 20
+              },
+              {
+                "eventId": "e68",
+                "userId": "u_7009",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-10",
+                "percent": 0
+              },
+              {
+                "eventId": "e69",
+                "userId": "u_7001",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 80
+              },
+              {
+                "eventId": "e70",
+                "userId": "u_7004",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 0
+              },
+              {
+                "eventId": "e71",
+                "userId": "u_7009",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 100
+              },
+              {
+                "eventId": "e72",
+                "userId": "u_7006",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-04",
+                "percent": 40
+              },
+              {
+                "eventId": "e73",
+                "userId": "u_7003",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 80
+              },
+              {
+                "eventId": "e29",
+                "userId": "u_7000",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 20
+              },
+              {
+                "eventId": "e75",
+                "userId": "u_7007",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 20
+              },
+              {
+                "eventId": "e76",
+                "userId": "u_7003",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 100
+              },
+              {
+                "eventId": "e30",
+                "userId": "u_7008",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 0
+              },
+              {
+                "eventId": "e78",
+                "userId": "u_7002",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 20
+              },
+              {
+                "eventId": "e79",
+                "userId": "u_7000",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e80",
+                "userId": "u_7006",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 40
+              },
+              {
+                "eventId": "e81",
+                "userId": "u_7006",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 0
+              },
+              {
+                "eventId": "e82",
+                "userId": "u_7008",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 20
+              },
+              {
+                "eventId": "e83",
+                "userId": "u_7005",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 100
+              },
+              {
+                "eventId": "e30",
+                "userId": "u_7008",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 0
+              },
+              {
+                "eventId": "e85",
+                "userId": "u_7008",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 80
+              },
+              {
+                "eventId": "e86",
+                "userId": "u_7002",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 80
+              },
+              {
+                "eventId": "e87",
+                "userId": "u_7004",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 80
+              },
+              {
+                "eventId": "e88",
+                "userId": "u_7009",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 100
+              },
+              {
+                "eventId": "e89",
+                "userId": "u_7002",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 60
+              },
+              {
+                "eventId": "e90",
+                "userId": "u_7009",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-02",
+                "percent": 60
+              },
+              {
+                "eventId": "e41",
+                "userId": "u_7006",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 80
+              },
+              {
+                "eventId": "e92",
+                "userId": "u_7007",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 20
+              },
+              {
+                "eventId": "e93",
+                "userId": "u_7011",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 80
+              },
+              {
+                "eventId": "e94",
+                "userId": "u_7011",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 40
+              },
+              {
+                "eventId": "e95",
+                "userId": "u_7009",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-10",
+                "percent": 60
+              },
+              {
+                "eventId": "e96",
+                "userId": "u_7010",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 0
+              },
+              {
+                "eventId": "e97",
+                "userId": "u_7009",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 80
+              },
+              {
+                "eventId": "e98",
+                "userId": "u_7009",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 60
+              },
+              {
+                "eventId": "e16",
+                "userId": "u_7003",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 40
+              },
+              {
+                "eventId": "e100",
+                "userId": "u_7002",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-05",
+                "percent": 40
+              },
+              {
+                "eventId": "e6",
+                "userId": "u_7008",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 100
+              },
+              {
+                "eventId": "e102",
+                "userId": "u_7005",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 20
+              },
+              {
+                "eventId": "e103",
+                "userId": "u_7011",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-09",
+                "percent": 0
+              },
+              {
+                "eventId": "e104",
+                "userId": "u_7006",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 40
+              },
+              {
+                "eventId": "e105",
+                "userId": "u_7004",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 0
+              },
+              {
+                "eventId": "e106",
+                "userId": "u_7001",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 0
+              },
+              {
+                "eventId": "e107",
+                "userId": "u_7007",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-02",
+                "percent": 0
+              },
+              {
+                "eventId": "e108",
+                "userId": "u_7011",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-03",
+                "percent": 100
+              },
+              {
+                "eventId": "e109",
+                "userId": "u_7009",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-02",
+                "percent": 60
+              },
+              {
+                "eventId": "e110",
+                "userId": "u_7009",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 80
+              },
+              {
+                "eventId": "e108",
+                "userId": "u_7011",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-03",
+                "percent": 100
+              },
+              {
+                "eventId": "e112",
+                "userId": "u_7011",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 40
+              },
+              {
+                "eventId": "e113",
+                "userId": "u_7011",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 40
+              },
+              {
+                "eventId": "e114",
+                "userId": "u_7002",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 80
+              },
+              {
+                "eventId": "e20",
+                "userId": "u_7006",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-04",
+                "percent": 100
+              },
+              {
+                "eventId": "e116",
+                "userId": "u_7008",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-02",
+                "percent": 80
+              },
+              {
+                "eventId": "e117",
+                "userId": "u_7001",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 100
+              },
+              {
+                "eventId": "e118",
+                "userId": "u_7002",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-03",
+                "percent": 20
+              },
+              {
+                "eventId": "e119",
+                "userId": "u_7004",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 0
+              },
+              {
+                "eventId": "e120",
+                "userId": "u_7007",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 100
+              },
+              {
+                "eventId": "e121",
+                "userId": "u_7010",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 0
+              },
+              {
+                "eventId": "e122",
+                "userId": "u_7008",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-10",
+                "percent": 0
+              },
+              {
+                "eventId": "e123",
+                "userId": "u_7008",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 100
+              },
+              {
+                "eventId": "e100",
+                "userId": "u_7002",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-05",
+                "percent": 40
+              },
+              {
+                "eventId": "e125",
+                "userId": "u_7011",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-06",
+                "percent": 80
+              },
+              {
+                "eventId": "e126",
+                "userId": "u_7001",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 0
+              },
+              {
+                "eventId": "e90",
+                "userId": "u_7009",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-02",
+                "percent": 60
+              },
+              {
+                "eventId": "e128",
+                "userId": "u_7010",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-01",
+                "percent": 60
+              },
+              {
+                "eventId": "e129",
+                "userId": "u_7009",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-09",
+                "percent": 60
+              },
+              {
+                "eventId": "e130",
+                "userId": "u_7011",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 100
+              },
+              {
+                "eventId": "e131",
+                "userId": "u_7005",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 60
+              },
+              {
+                "eventId": "e132",
+                "userId": "u_7010",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 60
+              },
+              {
+                "eventId": "e133",
+                "userId": "u_7004",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 0
+              },
+              {
+                "eventId": "e134",
+                "userId": "u_7005",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 40
+              },
+              {
+                "eventId": "e135",
+                "userId": "u_7001",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 0
+              },
+              {
+                "eventId": "e22",
+                "userId": "u_7011",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e137",
+                "userId": "u_7009",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-04",
+                "percent": 0
+              },
+              {
+                "eventId": "e138",
+                "userId": "u_7004",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 0
+              },
+              {
+                "eventId": "e105",
+                "userId": "u_7004",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 0
+              },
+              {
+                "eventId": "e140",
+                "userId": "u_7004",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 40
+              },
+              {
+                "eventId": "e141",
+                "userId": "u_7000",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 40
+              },
+              {
+                "eventId": "e28",
+                "userId": "u_7006",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e143",
+                "userId": "u_7007",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-04",
+                "percent": 60
+              },
+              {
+                "eventId": "e144",
+                "userId": "u_7010",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-05",
+                "percent": 20
+              },
+              {
+                "eventId": "e108",
+                "userId": "u_7011",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-03",
+                "percent": 100
+              },
+              {
+                "eventId": "e146",
+                "userId": "u_7001",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 0
+              },
+              {
+                "eventId": "e147",
+                "userId": "u_7003",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 60
+              },
+              {
+                "eventId": "e146",
+                "userId": "u_7001",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 0
+              },
+              {
+                "eventId": "e149",
+                "userId": "u_7002",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 20
+              },
+              {
+                "eventId": "e150",
+                "userId": "u_7010",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-06",
+                "percent": 0
+              },
+              {
+                "eventId": "e151",
+                "userId": "u_7006",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 0
+              },
+              {
+                "eventId": "e152",
+                "userId": "u_7001",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-10",
+                "percent": 80
+              },
+              {
+                "eventId": "e153",
+                "userId": "u_7004",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 60
+              },
+              {
+                "eventId": "e154",
+                "userId": "u_7004",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-02",
+                "percent": 60
+              },
+              {
+                "eventId": "e155",
+                "userId": "u_7008",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 0
+              },
+              {
+                "eventId": "e156",
+                "userId": "u_7007",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e157",
+                "userId": "u_7010",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e2",
+                "userId": "u_7005",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e159",
+                "userId": "u_7001",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 20
+              },
+              {
+                "eventId": "e78",
+                "userId": "u_7002",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 20
+              },
+              {
+                "eventId": "e130",
+                "userId": "u_7011",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 100
+              },
+              {
+                "eventId": "e162",
+                "userId": "u_7009",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 0
+              },
+              {
+                "eventId": "e163",
+                "userId": "u_7003",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-09",
+                "percent": 60
+              },
+              {
+                "eventId": "e164",
+                "userId": "u_7002",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-06",
+                "percent": 80
+              },
+              {
+                "eventId": "e165",
+                "userId": "u_7001",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-10",
+                "percent": 80
+              },
+              {
+                "eventId": "e166",
+                "userId": "u_7006",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 20
+              },
+              {
+                "eventId": "e167",
+                "userId": "u_7002",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-06",
+                "percent": 60
+              },
+              {
+                "eventId": "e168",
+                "userId": "u_7010",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 40
+              },
+              {
+                "eventId": "e169",
+                "userId": "u_7000",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 100
+              },
+              {
+                "eventId": "e170",
+                "userId": "u_7005",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 0
+              },
+              {
+                "eventId": "e92",
+                "userId": "u_7007",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 20
+              },
+              {
+                "eventId": "e172",
+                "userId": "u_7004",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 80
+              },
+              {
+                "eventId": "e173",
+                "userId": "u_7009",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 40
+              },
+              {
+                "eventId": "e174",
+                "userId": "u_7003",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-03",
+                "percent": 60
+              },
+              {
+                "eventId": "e100",
+                "userId": "u_7002",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-05",
+                "percent": 40
+              },
+              {
+                "eventId": "e176",
+                "userId": "u_7008",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-09",
+                "percent": 20
+              },
+              {
+                "eventId": "e177",
+                "userId": "u_7011",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 80
+              },
+              {
+                "eventId": "e178",
+                "userId": "u_7007",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 80
+              },
+              {
+                "eventId": "e70",
+                "userId": "u_7004",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 0
+              },
+              {
+                "eventId": "e180",
+                "userId": "u_7006",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 0
+              },
+              {
+                "eventId": "e181",
+                "userId": "u_7003",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 100
+              },
+              {
+                "eventId": "e182",
+                "userId": "u_7008",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 40
+              },
+              {
+                "eventId": "e183",
+                "userId": "u_7008",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 80
+              },
+              {
+                "eventId": "e38",
+                "userId": "u_7010",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-10",
+                "percent": 20
+              },
+              {
+                "eventId": "e1",
+                "userId": "u_7008",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e105",
+                "userId": "u_7004",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 0
+              },
+              {
+                "eventId": "e187",
+                "userId": "u_7004",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 20
+              },
+              {
+                "eventId": "e188",
+                "userId": "u_7005",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-05",
+                "percent": 80
+              },
+              {
+                "eventId": "e189",
+                "userId": "u_7001",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 40
+              },
+              {
+                "eventId": "e190",
+                "userId": "u_7001",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 20
+              },
+              {
+                "eventId": "e191",
+                "userId": "u_7000",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 60
+              },
+              {
+                "eventId": "e192",
+                "userId": "u_7009",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e193",
+                "userId": "u_7004",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-06",
+                "percent": 40
+              },
+              {
+                "eventId": "e13",
+                "userId": "u_7004",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e195",
+                "userId": "u_7004",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 0
+              },
+              {
+                "eventId": "e196",
+                "userId": "u_7009",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-09",
+                "percent": 60
+              },
+              {
+                "eventId": "e197",
+                "userId": "u_7002",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 60
+              },
+              {
+                "eventId": "e198",
+                "userId": "u_7002",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 40
+              },
+              {
+                "eventId": "e199",
+                "userId": "u_7002",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-09",
+                "percent": 20
+              },
+              {
+                "eventId": "e196",
+                "userId": "u_7009",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-09",
+                "percent": 60
+              },
+              {
+                "eventId": "e201",
+                "userId": "u_7008",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e202",
+                "userId": "u_7008",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 100
+              },
+              {
+                "eventId": "e203",
+                "userId": "u_7001",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 0
+              },
+              {
+                "eventId": "e1",
+                "userId": "u_7008",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e205",
+                "userId": "u_7011",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-09",
+                "percent": 60
+              },
+              {
+                "eventId": "e206",
+                "userId": "u_7000",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 100
+              },
+              {
+                "eventId": "e207",
+                "userId": "u_7009",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 100
+              },
+              {
+                "eventId": "e109",
+                "userId": "u_7009",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-02",
+                "percent": 60
+              },
+              {
+                "eventId": "e209",
+                "userId": "u_7010",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 0
+              },
+              {
+                "eventId": "e210",
+                "userId": "u_7001",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-07",
+                "percent": 80
+              },
+              {
+                "eventId": "e211",
+                "userId": "u_7004",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 100
+              },
+              {
+                "eventId": "e177",
+                "userId": "u_7011",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 80
+              },
+              {
+                "eventId": "e213",
+                "userId": "u_7007",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 100
+              },
+              {
+                "eventId": "e214",
+                "userId": "u_7009",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 40
+              },
+              {
+                "eventId": "e215",
+                "userId": "u_7006",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-10",
+                "percent": 100
+              },
+              {
+                "eventId": "e216",
+                "userId": "u_7003",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-02",
+                "percent": 100
+              },
+              {
+                "eventId": "e217",
+                "userId": "u_7005",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-08",
+                "percent": 80
+              },
+              {
+                "eventId": "e218",
+                "userId": "u_7008",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 40
+              },
+              {
+                "eventId": "e213",
+                "userId": "u_7007",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 100
+              },
+              {
+                "eventId": "e220",
+                "userId": "u_7002",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 40
+              },
+              {
+                "eventId": "e221",
+                "userId": "u_7008",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 0
+              },
+              {
+                "eventId": "e222",
+                "userId": "u_7007",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-09",
+                "percent": 60
+              },
+              {
+                "eventId": "e223",
+                "userId": "u_7003",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 40
+              },
+              {
+                "eventId": "e224",
+                "userId": "u_7007",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-03",
+                "percent": 100
+              },
+              {
+                "eventId": "e225",
+                "userId": "u_7010",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-07",
+                "percent": 40
+              },
+              {
+                "eventId": "e226",
+                "userId": "u_7010",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-03",
+                "percent": 40
+              },
+              {
+                "eventId": "e227",
+                "userId": "u_7005",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-08",
+                "percent": 60
+              },
+              {
+                "eventId": "e228",
+                "userId": "u_7005",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-04",
+                "percent": 40
+              },
+              {
+                "eventId": "e229",
+                "userId": "u_7008",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e108",
+                "userId": "u_7011",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-03",
+                "percent": 100
+              },
+              {
+                "eventId": "e231",
+                "userId": "u_7004",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 100
+              },
+              {
+                "eventId": "e232",
+                "userId": "u_7004",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-07",
+                "percent": 100
+              },
+              {
+                "eventId": "e199",
+                "userId": "u_7002",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-09",
+                "percent": 20
+              },
+              {
+                "eventId": "e234",
+                "userId": "u_7003",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 100
+              },
+              {
+                "eventId": "e114",
+                "userId": "u_7002",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 80
+              },
+              {
+                "eventId": "e166",
+                "userId": "u_7006",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 20
+              },
+              {
+                "eventId": "e237",
+                "userId": "u_7011",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-09",
+                "percent": 40
+              },
+              {
+                "eventId": "e238",
+                "userId": "u_7006",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 100
+              },
+              {
+                "eventId": "e239",
+                "userId": "u_7001",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 40
+              },
+              {
+                "eventId": "e240",
+                "userId": "u_7004",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 60
+              },
+              {
+                "eventId": "e241",
+                "userId": "u_7007",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 20
+              },
+              {
+                "eventId": "e242",
+                "userId": "u_7005",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 60
+              },
+              {
+                "eventId": "e243",
+                "userId": "u_7004",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-05",
+                "percent": 80
+              },
+              {
+                "eventId": "e37",
+                "userId": "u_7001",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 100
+              },
+              {
+                "eventId": "e245",
+                "userId": "u_7006",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 0
+              },
+              {
+                "eventId": "e246",
+                "userId": "u_7003",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 40
+              },
+              {
+                "eventId": "e100",
+                "userId": "u_7002",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-05",
+                "percent": 40
+              },
+              {
+                "eventId": "e248",
+                "userId": "u_7010",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 80
+              },
+              {
+                "eventId": "e249",
+                "userId": "u_7007",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-05",
+                "percent": 40
+              },
+              {
+                "eventId": "e105",
+                "userId": "u_7004",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 0
+              },
+              {
+                "eventId": "e251",
+                "userId": "u_7004",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-08",
+                "percent": 20
+              },
+              {
+                "eventId": "e252",
+                "userId": "u_7002",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-03",
+                "percent": 0
+              },
+              {
+                "eventId": "e253",
+                "userId": "u_7011",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-03",
+                "percent": 40
+              },
+              {
+                "eventId": "e254",
+                "userId": "u_7005",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-07",
+                "percent": 60
+              },
+              {
+                "eventId": "e47",
+                "userId": "u_7001",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 100
+              },
+              {
+                "eventId": "e256",
+                "userId": "u_7007",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 0
+              },
+              {
+                "eventId": "e251",
+                "userId": "u_7004",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-08",
+                "percent": 20
+              },
+              {
+                "eventId": "e258",
+                "userId": "u_7011",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 100
+              },
+              {
+                "eventId": "e259",
+                "userId": "u_7006",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 80
+              },
+              {
+                "eventId": "e260",
+                "userId": "u_7008",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e261",
+                "userId": "u_7000",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-10",
+                "percent": 0
+              },
+              {
+                "eventId": "e262",
+                "userId": "u_7002",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 0
+              },
+              {
+                "eventId": "e44",
+                "userId": "u_7004",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 0
+              },
+              {
+                "eventId": "e264",
+                "userId": "u_7008",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 100
+              },
+              {
+                "eventId": "e265",
+                "userId": "u_7003",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 40
+              },
+              {
+                "eventId": "e266",
+                "userId": "u_7005",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-08",
+                "percent": 20
+              },
+              {
+                "eventId": "e267",
+                "userId": "u_7000",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 40
+              },
+              {
+                "eventId": "e133",
+                "userId": "u_7004",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 0
+              },
+              {
+                "eventId": "e269",
+                "userId": "u_7009",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 60
+              },
+              {
+                "eventId": "e270",
+                "userId": "u_7002",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-03",
+                "percent": 0
+              },
+              {
+                "eventId": "e271",
+                "userId": "u_7003",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 100
+              },
+              {
+                "eventId": "e272",
+                "userId": "u_7001",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 40
+              },
+              {
+                "eventId": "e29",
+                "userId": "u_7000",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 20
+              },
+              {
+                "eventId": "e274",
+                "userId": "u_7002",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 0
+              },
+              {
+                "eventId": "e275",
+                "userId": "u_7010",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 40
+              },
+              {
+                "eventId": "e276",
+                "userId": "u_7006",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 20
+              },
+              {
+                "eventId": "e277",
+                "userId": "u_7000",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 20
+              },
+              {
+                "eventId": "e278",
+                "userId": "u_7002",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 100
+              },
+              {
+                "eventId": "e279",
+                "userId": "u_7001",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 80
+              },
+              {
+                "eventId": "e280",
+                "userId": "u_7004",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-10",
+                "percent": 60
+              },
+              {
+                "eventId": "e228",
+                "userId": "u_7005",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-04",
+                "percent": 40
+              },
+              {
+                "eventId": "e282",
+                "userId": "u_7006",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 80
+              },
+              {
+                "eventId": "e246",
+                "userId": "u_7003",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 40
+              },
+              {
+                "eventId": "e3",
+                "userId": "u_7002",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-08",
+                "percent": 40
+              },
+              {
+                "eventId": "e285",
+                "userId": "u_7007",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-10",
+                "percent": 0
+              },
+              {
+                "eventId": "e286",
+                "userId": "u_7002",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-04",
+                "percent": 100
+              },
+              {
+                "eventId": "e72",
+                "userId": "u_7006",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-04",
+                "percent": 40
+              },
+              {
+                "eventId": "e288",
+                "userId": "u_7007",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 0
+              },
+              {
+                "eventId": "e289",
+                "userId": "u_7000",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 20
+              },
+              {
+                "eventId": "e3",
+                "userId": "u_7002",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-08",
+                "percent": 40
+              },
+              {
+                "eventId": "e224",
+                "userId": "u_7007",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-03",
+                "percent": 100
+              },
+              {
+                "eventId": "e105",
+                "userId": "u_7004",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 0
+              },
+              {
+                "eventId": "e293",
+                "userId": "u_7009",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 80
+              },
+              {
+                "eventId": "e294",
+                "userId": "u_7004",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 80
+              },
+              {
+                "eventId": "e295",
+                "userId": "u_7009",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-05",
+                "percent": 40
+              },
+              {
+                "eventId": "e227",
+                "userId": "u_7005",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-08",
+                "percent": 60
+              },
+              {
+                "eventId": "e297",
+                "userId": "u_7009",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 20
+              },
+              {
+                "eventId": "e298",
+                "userId": "u_7011",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-05",
+                "percent": 60
+              },
+              {
+                "eventId": "e299",
+                "userId": "u_7010",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 40
+              },
+              {
+                "eventId": "e78",
+                "userId": "u_7002",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 20
+              },
+              {
+                "eventId": "e156",
+                "userId": "u_7007",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e76",
+                "userId": "u_7003",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 100
+              },
+              {
+                "eventId": "e303",
+                "userId": "u_7008",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 80
+              },
+              {
+                "eventId": "e304",
+                "userId": "u_7004",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-05",
+                "percent": 20
+              },
+              {
+                "eventId": "e305",
+                "userId": "u_7006",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 80
+              },
+              {
+                "eventId": "e162",
+                "userId": "u_7009",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 0
+              },
+              {
+                "eventId": "e307",
+                "userId": "u_7009",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 100
+              },
+              {
+                "eventId": "e308",
+                "userId": "u_7010",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 60
+              },
+              {
+                "eventId": "e262",
+                "userId": "u_7002",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 0
+              },
+              {
+                "eventId": "e310",
+                "userId": "u_7003",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 0
+              },
+              {
+                "eventId": "e311",
+                "userId": "u_7003",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-10",
+                "percent": 40
+              },
+              {
+                "eventId": "e312",
+                "userId": "u_7008",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-01",
+                "percent": 20
+              },
+              {
+                "eventId": "e313",
+                "userId": "u_7009",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 0
+              },
+              {
+                "eventId": "e314",
+                "userId": "u_7006",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-06",
+                "percent": 100
+              },
+              {
+                "eventId": "e315",
+                "userId": "u_7000",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 0
+              },
+              {
+                "eventId": "e316",
+                "userId": "u_7008",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 0
+              },
+              {
+                "eventId": "e317",
+                "userId": "u_7000",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 0
+              },
+              {
+                "eventId": "e318",
+                "userId": "u_7002",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 20
+              },
+              {
+                "eventId": "e319",
+                "userId": "u_7001",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 0
+              },
+              {
+                "eventId": "e114",
+                "userId": "u_7002",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 80
+              },
+              {
+                "eventId": "e321",
+                "userId": "u_7008",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 40
+              },
+              {
+                "eventId": "e322",
+                "userId": "u_7008",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 100
+              },
+              {
+                "eventId": "e323",
+                "userId": "u_7008",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 60
+              },
+              {
+                "eventId": "e324",
+                "userId": "u_7008",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 20
+              },
+              {
+                "eventId": "e325",
+                "userId": "u_7003",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 40
+              },
+              {
+                "eventId": "e326",
+                "userId": "u_7004",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 100
+              },
+              {
+                "eventId": "e327",
+                "userId": "u_7003",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 100
+              },
+              {
+                "eventId": "e328",
+                "userId": "u_7002",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-07",
+                "percent": 20
+              },
+              {
+                "eventId": "e329",
+                "userId": "u_7004",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-03",
+                "percent": 80
+              },
+              {
+                "eventId": "e126",
+                "userId": "u_7001",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 0
+              },
+              {
+                "eventId": "e331",
+                "userId": "u_7004",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 80
+              },
+              {
+                "eventId": "e332",
+                "userId": "u_7008",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-03",
+                "percent": 80
+              },
+              {
+                "eventId": "e333",
+                "userId": "u_7006",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-03",
+                "percent": 20
+              },
+              {
+                "eventId": "e334",
+                "userId": "u_7005",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 20
+              },
+              {
+                "eventId": "e335",
+                "userId": "u_7006",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 100
+              },
+              {
+                "eventId": "e6",
+                "userId": "u_7008",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 100
+              },
+              {
+                "eventId": "e92",
+                "userId": "u_7007",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 20
+              },
+              {
+                "eventId": "e338",
+                "userId": "u_7006",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 20
+              },
+              {
+                "eventId": "e339",
+                "userId": "u_7007",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-10",
+                "percent": 40
+              },
+              {
+                "eventId": "e340",
+                "userId": "u_7008",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 100
+              },
+              {
+                "eventId": "e341",
+                "userId": "u_7007",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 0
+              },
+              {
+                "eventId": "e342",
+                "userId": "u_7004",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 60
+              },
+              {
+                "eventId": "e3",
+                "userId": "u_7002",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-08",
+                "percent": 40
+              },
+              {
+                "eventId": "e129",
+                "userId": "u_7009",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-09",
+                "percent": 60
+              },
+              {
+                "eventId": "e150",
+                "userId": "u_7010",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-06",
+                "percent": 0
+              },
+              {
+                "eventId": "e342",
+                "userId": "u_7004",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 60
+              },
+              {
+                "eventId": "e347",
+                "userId": "u_7011",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-07",
+                "percent": 60
+              },
+              {
+                "eventId": "e253",
+                "userId": "u_7011",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-03",
+                "percent": 40
+              },
+              {
+                "eventId": "e349",
+                "userId": "u_7003",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-07",
+                "percent": 100
+              },
+              {
+                "eventId": "e350",
+                "userId": "u_7009",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-04",
+                "percent": 100
+              },
+              {
+                "eventId": "e351",
+                "userId": "u_7010",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-05",
+                "percent": 20
+              },
+              {
+                "eventId": "e352",
+                "userId": "u_7011",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 0
+              },
+              {
+                "eventId": "e353",
+                "userId": "u_7011",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 0
+              },
+              {
+                "eventId": "e201",
+                "userId": "u_7008",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e355",
+                "userId": "u_7000",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-10",
+                "percent": 0
+              },
+              {
+                "eventId": "e279",
+                "userId": "u_7001",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 80
+              },
+              {
+                "eventId": "e357",
+                "userId": "u_7005",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-08",
+                "percent": 60
+              },
+              {
+                "eventId": "e358",
+                "userId": "u_7011",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 60
+              },
+              {
+                "eventId": "e359",
+                "userId": "u_7011",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-05",
+                "percent": 20
+              },
+              {
+                "eventId": "e339",
+                "userId": "u_7007",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-10",
+                "percent": 40
+              },
+              {
+                "eventId": "e361",
+                "userId": "u_7011",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 20
+              },
+              {
+                "eventId": "e362",
+                "userId": "u_7008",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 40
+              },
+              {
+                "eventId": "e363",
+                "userId": "u_7008",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 100
+              },
+              {
+                "eventId": "e364",
+                "userId": "u_7005",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-09",
+                "percent": 80
+              },
+              {
+                "eventId": "e350",
+                "userId": "u_7009",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-04",
+                "percent": 100
+              },
+              {
+                "eventId": "e366",
+                "userId": "u_7011",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-02",
+                "percent": 100
+              },
+              {
+                "eventId": "e367",
+                "userId": "u_7004",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-07",
+                "percent": 40
+              },
+              {
+                "eventId": "e206",
+                "userId": "u_7000",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 100
+              },
+              {
+                "eventId": "e369",
+                "userId": "u_7005",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 0
+              },
+              {
+                "eventId": "e370",
+                "userId": "u_7010",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 80
+              },
+              {
+                "eventId": "e313",
+                "userId": "u_7009",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 0
+              },
+              {
+                "eventId": "e372",
+                "userId": "u_7003",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 40
+              },
+              {
+                "eventId": "e373",
+                "userId": "u_7008",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 80
+              },
+              {
+                "eventId": "e363",
+                "userId": "u_7008",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 100
+              },
+              {
+                "eventId": "e375",
+                "userId": "u_7009",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-05",
+                "percent": 20
+              },
+              {
+                "eventId": "e376",
+                "userId": "u_7009",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 100
+              },
+              {
+                "eventId": "e377",
+                "userId": "u_7001",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 20
+              },
+              {
+                "eventId": "e378",
+                "userId": "u_7004",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-09",
+                "percent": 40
+              },
+              {
+                "eventId": "e379",
+                "userId": "u_7004",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 40
+              },
+              {
+                "eventId": "e93",
+                "userId": "u_7011",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 80
+              },
+              {
+                "eventId": "e381",
+                "userId": "u_7004",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-07",
+                "percent": 0
+              },
+              {
+                "eventId": "e382",
+                "userId": "u_7004",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-06",
+                "percent": 20
+              },
+              {
+                "eventId": "e383",
+                "userId": "u_7002",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 100
+              },
+              {
+                "eventId": "e384",
+                "userId": "u_7004",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 40
+              },
+              {
+                "eventId": "e385",
+                "userId": "u_7011",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-05",
+                "percent": 0
+              },
+              {
+                "eventId": "e386",
+                "userId": "u_7008",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 100
+              },
+              {
+                "eventId": "e387",
+                "userId": "u_7003",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 40
+              },
+              {
+                "eventId": "e146",
+                "userId": "u_7001",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 0
+              },
+              {
+                "eventId": "e389",
+                "userId": "u_7011",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 100
+              },
+              {
+                "eventId": "e390",
+                "userId": "u_7006",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-10",
+                "percent": 20
+              },
+              {
+                "eventId": "e391",
+                "userId": "u_7001",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 0
+              },
+              {
+                "eventId": "e392",
+                "userId": "u_7003",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-05",
+                "percent": 80
+              },
+              {
+                "eventId": "e393",
+                "userId": "u_7005",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 80
+              },
+              {
+                "eventId": "e394",
+                "userId": "u_7000",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 80
+              },
+              {
+                "eventId": "e395",
+                "userId": "u_7002",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-04",
+                "percent": 20
+              },
+              {
+                "eventId": "e258",
+                "userId": "u_7011",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 100
+              },
+              {
+                "eventId": "e397",
+                "userId": "u_7003",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 20
+              },
+              {
+                "eventId": "e398",
+                "userId": "u_7001",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-03",
+                "percent": 40
+              },
+              {
+                "eventId": "e399",
+                "userId": "u_7007",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 80
+              },
+              {
+                "eventId": "e400",
+                "userId": "u_7001",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-02",
+                "percent": 40
+              },
+              {
+                "eventId": "e70",
+                "userId": "u_7004",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 0
+              },
+              {
+                "eventId": "e402",
+                "userId": "u_7002",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e403",
+                "userId": "u_7003",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 80
+              },
+              {
+                "eventId": "e404",
+                "userId": "u_7007",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-10",
+                "percent": 0
+              },
+              {
+                "eventId": "e405",
+                "userId": "u_7003",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 40
+              },
+              {
+                "eventId": "e406",
+                "userId": "u_7003",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 40
+              },
+              {
+                "eventId": "e76",
+                "userId": "u_7003",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 100
+              },
+              {
+                "eventId": "e408",
+                "userId": "u_7008",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 0
+              },
+              {
+                "eventId": "e409",
+                "userId": "u_7006",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-05",
+                "percent": 60
+              },
+              {
+                "eventId": "e410",
+                "userId": "u_7010",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-02",
+                "percent": 40
+              },
+              {
+                "eventId": "e411",
+                "userId": "u_7001",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e262",
+                "userId": "u_7002",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 0
+              },
+              {
+                "eventId": "e413",
+                "userId": "u_7001",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-04",
+                "percent": 0
+              },
+              {
+                "eventId": "e414",
+                "userId": "u_7006",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-04",
+                "percent": 20
+              },
+              {
+                "eventId": "e415",
+                "userId": "u_7010",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 60
+              },
+              {
+                "eventId": "e416",
+                "userId": "u_7006",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-04",
+                "percent": 100
+              },
+              {
+                "eventId": "e417",
+                "userId": "u_7001",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 60
+              },
+              {
+                "eventId": "e418",
+                "userId": "u_7006",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 80
+              },
+              {
+                "eventId": "e246",
+                "userId": "u_7003",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 40
+              },
+              {
+                "eventId": "e420",
+                "userId": "u_7003",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-05",
+                "percent": 0
+              },
+              {
+                "eventId": "e421",
+                "userId": "u_7006",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 0
+              },
+              {
+                "eventId": "e422",
+                "userId": "u_7001",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-06",
+                "percent": 100
+              },
+              {
+                "eventId": "e51",
+                "userId": "u_7008",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 100
+              },
+              {
+                "eventId": "e424",
+                "userId": "u_7002",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-05",
+                "percent": 80
+              },
+              {
+                "eventId": "e211",
+                "userId": "u_7004",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 100
+              },
+              {
+                "eventId": "e41",
+                "userId": "u_7006",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 80
+              },
+              {
+                "eventId": "e427",
+                "userId": "u_7009",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 0
+              },
+              {
+                "eventId": "e428",
+                "userId": "u_7003",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 80
+              },
+              {
+                "eventId": "e429",
+                "userId": "u_7005",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 0
+              },
+              {
+                "eventId": "e430",
+                "userId": "u_7005",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-01",
+                "percent": 0
+              },
+              {
+                "eventId": "e117",
+                "userId": "u_7001",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 100
+              },
+              {
+                "eventId": "e432",
+                "userId": "u_7011",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 60
+              },
+              {
+                "eventId": "e177",
+                "userId": "u_7011",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 80
+              },
+              {
+                "eventId": "e434",
+                "userId": "u_7005",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 100
+              },
+              {
+                "eventId": "e435",
+                "userId": "u_7011",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e436",
+                "userId": "u_7009",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-09",
+                "percent": 20
+              },
+              {
+                "eventId": "e437",
+                "userId": "u_7003",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 0
+              },
+              {
+                "eventId": "e216",
+                "userId": "u_7003",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-02",
+                "percent": 100
+              },
+              {
+                "eventId": "e213",
+                "userId": "u_7007",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 100
+              },
+              {
+                "eventId": "e22",
+                "userId": "u_7011",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e379",
+                "userId": "u_7004",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 40
+              },
+              {
+                "eventId": "e442",
+                "userId": "u_7005",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 60
+              },
+              {
+                "eventId": "e274",
+                "userId": "u_7002",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 0
+              },
+              {
+                "eventId": "e444",
+                "userId": "u_7001",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 40
+              },
+              {
+                "eventId": "e445",
+                "userId": "u_7010",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 20
+              },
+              {
+                "eventId": "e446",
+                "userId": "u_7001",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 80
+              },
+              {
+                "eventId": "e447",
+                "userId": "u_7007",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 100
+              },
+              {
+                "eventId": "e448",
+                "userId": "u_7001",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 20
+              },
+              {
+                "eventId": "e449",
+                "userId": "u_7004",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-03",
+                "percent": 20
+              },
+              {
+                "eventId": "e223",
+                "userId": "u_7003",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 40
+              },
+              {
+                "eventId": "e94",
+                "userId": "u_7011",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 40
+              },
+              {
+                "eventId": "e452",
+                "userId": "u_7001",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 60
+              },
+              {
+                "eventId": "e453",
+                "userId": "u_7011",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 20
+              },
+              {
+                "eventId": "e454",
+                "userId": "u_7007",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-06",
+                "percent": 100
+              },
+              {
+                "eventId": "e113",
+                "userId": "u_7011",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 40
+              },
+              {
+                "eventId": "e79",
+                "userId": "u_7000",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e457",
+                "userId": "u_7001",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 20
+              },
+              {
+                "eventId": "e458",
+                "userId": "u_7011",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 60
+              },
+              {
+                "eventId": "e114",
+                "userId": "u_7002",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 80
+              },
+              {
+                "eventId": "e460",
+                "userId": "u_7005",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 100
+              },
+              {
+                "eventId": "e461",
+                "userId": "u_7005",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e462",
+                "userId": "u_7009",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-04",
+                "percent": 20
+              },
+              {
+                "eventId": "e463",
+                "userId": "u_7006",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 80
+              },
+              {
+                "eventId": "e464",
+                "userId": "u_7008",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-08",
+                "percent": 0
+              },
+              {
+                "eventId": "e465",
+                "userId": "u_7001",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-06",
+                "percent": 20
+              },
+              {
+                "eventId": "e466",
+                "userId": "u_7004",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-08",
+                "percent": 100
+              },
+              {
+                "eventId": "e467",
+                "userId": "u_7002",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e468",
+                "userId": "u_7001",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 20
+              },
+              {
+                "eventId": "e469",
+                "userId": "u_7001",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-07",
+                "percent": 40
+              },
+              {
+                "eventId": "e470",
+                "userId": "u_7005",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-02",
+                "percent": 100
+              },
+              {
+                "eventId": "e471",
+                "userId": "u_7004",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-05",
+                "percent": 80
+              },
+              {
+                "eventId": "e472",
+                "userId": "u_7004",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 0
+              },
+              {
+                "eventId": "e473",
+                "userId": "u_7001",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 0
+              },
+              {
+                "eventId": "e333",
+                "userId": "u_7006",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-03",
+                "percent": 20
+              },
+              {
+                "eventId": "e475",
+                "userId": "u_7000",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-08",
+                "percent": 60
+              },
+              {
+                "eventId": "e476",
+                "userId": "u_7007",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-03",
+                "percent": 0
+              },
+              {
+                "eventId": "e477",
+                "userId": "u_7009",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 40
+              },
+              {
+                "eventId": "e478",
+                "userId": "u_7000",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-02",
+                "percent": 80
+              },
+              {
+                "eventId": "e479",
+                "userId": "u_7010",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-06",
+                "percent": 20
+              },
+              {
+                "eventId": "e480",
+                "userId": "u_7004",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 0
+              },
+              {
+                "eventId": "e481",
+                "userId": "u_7005",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-10",
+                "percent": 80
+              },
+              {
+                "eventId": "e482",
+                "userId": "u_7000",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 20
+              },
+              {
+                "eventId": "e483",
+                "userId": "u_7002",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-09",
+                "percent": 100
+              },
+              {
+                "eventId": "e384",
+                "userId": "u_7004",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 40
+              },
+              {
+                "eventId": "e485",
+                "userId": "u_7001",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 100
+              },
+              {
+                "eventId": "e486",
+                "userId": "u_7008",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e487",
+                "userId": "u_7011",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 60
+              },
+              {
+                "eventId": "e488",
+                "userId": "u_7003",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e489",
+                "userId": "u_7005",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-01",
+                "percent": 40
+              },
+              {
+                "eventId": "e159",
+                "userId": "u_7001",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 20
+              },
+              {
+                "eventId": "e491",
+                "userId": "u_7005",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-06",
+                "percent": 20
+              },
+              {
+                "eventId": "e60",
+                "userId": "u_7006",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e493",
+                "userId": "u_7007",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 80
+              },
+              {
+                "eventId": "e251",
+                "userId": "u_7004",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-08",
+                "percent": 20
+              },
+              {
+                "eventId": "e495",
+                "userId": "u_7007",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 80
+              },
+              {
+                "eventId": "e496",
+                "userId": "u_7001",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 80
+              },
+              {
+                "eventId": "e497",
+                "userId": "u_7011",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-02",
+                "percent": 80
+              },
+              {
+                "eventId": "e498",
+                "userId": "u_7001",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 100
+              },
+              {
+                "eventId": "e227",
+                "userId": "u_7005",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-08",
+                "percent": 60
+              },
+              {
+                "eventId": "e500",
+                "userId": "u_7009",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 60
+              },
+              {
+                "eventId": "e131",
+                "userId": "u_7005",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 60
+              },
+              {
+                "eventId": "e403",
+                "userId": "u_7003",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 80
+              },
+              {
+                "eventId": "e503",
+                "userId": "u_7011",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 100
+              },
+              {
+                "eventId": "e1",
+                "userId": "u_7008",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e105",
+                "userId": "u_7004",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 0
+              },
+              {
+                "eventId": "e506",
+                "userId": "u_7001",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 40
+              },
+              {
+                "eventId": "e507",
+                "userId": "u_7001",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 20
+              },
+              {
+                "eventId": "e508",
+                "userId": "u_7006",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 100
+              },
+              {
+                "eventId": "e509",
+                "userId": "u_7009",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 60
+              },
+              {
+                "eventId": "e495",
+                "userId": "u_7007",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 80
+              },
+              {
+                "eventId": "e133",
+                "userId": "u_7004",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 0
+              },
+              {
+                "eventId": "e512",
+                "userId": "u_7004",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-07",
+                "percent": 40
+              },
+              {
+                "eventId": "e513",
+                "userId": "u_7010",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 40
+              },
+              {
+                "eventId": "e3",
+                "userId": "u_7002",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-08",
+                "percent": 40
+              },
+              {
+                "eventId": "e6",
+                "userId": "u_7008",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 100
+              },
+              {
+                "eventId": "e516",
+                "userId": "u_7011",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 80
+              },
+              {
+                "eventId": "e517",
+                "userId": "u_7002",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-09",
+                "percent": 20
+              },
+              {
+                "eventId": "e518",
+                "userId": "u_7006",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 0
+              },
+              {
+                "eventId": "e519",
+                "userId": "u_7002",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 20
+              },
+              {
+                "eventId": "e496",
+                "userId": "u_7001",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 80
+              },
+              {
+                "eventId": "e34",
+                "userId": "u_7011",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-05",
+                "percent": 60
+              },
+              {
+                "eventId": "e522",
+                "userId": "u_7007",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e523",
+                "userId": "u_7003",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 80
+              },
+              {
+                "eventId": "e524",
+                "userId": "u_7008",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 20
+              },
+              {
+                "eventId": "e525",
+                "userId": "u_7005",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-10",
+                "percent": 20
+              },
+              {
+                "eventId": "e469",
+                "userId": "u_7001",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-07",
+                "percent": 40
+              },
+              {
+                "eventId": "e527",
+                "userId": "u_7003",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-02",
+                "percent": 100
+              },
+              {
+                "eventId": "e288",
+                "userId": "u_7007",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 0
+              },
+              {
+                "eventId": "e529",
+                "userId": "u_7005",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 60
+              },
+              {
+                "eventId": "e530",
+                "userId": "u_7003",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 80
+              },
+              {
+                "eventId": "e531",
+                "userId": "u_7000",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-09",
+                "percent": 100
+              },
+              {
+                "eventId": "e532",
+                "userId": "u_7011",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 60
+              },
+              {
+                "eventId": "e533",
+                "userId": "u_7006",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 20
+              },
+              {
+                "eventId": "e534",
+                "userId": "u_7007",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-07",
+                "percent": 40
+              },
+              {
+                "eventId": "e176",
+                "userId": "u_7008",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-09",
+                "percent": 20
+              },
+              {
+                "eventId": "e135",
+                "userId": "u_7001",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 0
+              },
+              {
+                "eventId": "e537",
+                "userId": "u_7011",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-08",
+                "percent": 20
+              },
+              {
+                "eventId": "e538",
+                "userId": "u_7005",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-03",
+                "percent": 100
+              },
+              {
+                "eventId": "e539",
+                "userId": "u_7002",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e540",
+                "userId": "u_7004",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 0
+              },
+              {
+                "eventId": "e541",
+                "userId": "u_7005",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 0
+              },
+              {
+                "eventId": "e542",
+                "userId": "u_7005",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 80
+              },
+              {
+                "eventId": "e470",
+                "userId": "u_7005",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-02",
+                "percent": 100
+              },
+              {
+                "eventId": "e544",
+                "userId": "u_7001",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 60
+              },
+              {
+                "eventId": "e545",
+                "userId": "u_7005",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 60
+              },
+              {
+                "eventId": "e546",
+                "userId": "u_7005",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 0
+              },
+              {
+                "eventId": "e547",
+                "userId": "u_7004",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-10",
+                "percent": 100
+              },
+              {
+                "eventId": "e548",
+                "userId": "u_7004",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-10",
+                "percent": 100
+              },
+              {
+                "eventId": "e549",
+                "userId": "u_7003",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 40
+              },
+              {
+                "eventId": "e550",
+                "userId": "u_7009",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-08",
+                "percent": 60
+              },
+              {
+                "eventId": "e551",
+                "userId": "u_7003",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-04",
+                "percent": 80
+              },
+              {
+                "eventId": "e552",
+                "userId": "u_7005",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 80
+              },
+              {
+                "eventId": "e553",
+                "userId": "u_7006",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 80
+              },
+              {
+                "eventId": "e554",
+                "userId": "u_7002",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-01",
+                "percent": 60
+              },
+              {
+                "eventId": "e555",
+                "userId": "u_7001",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-07",
+                "percent": 20
+              },
+              {
+                "eventId": "e556",
+                "userId": "u_7009",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 0
+              },
+              {
+                "eventId": "e557",
+                "userId": "u_7000",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-01",
+                "percent": 60
+              },
+              {
+                "eventId": "e558",
+                "userId": "u_7005",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 100
+              },
+              {
+                "eventId": "e559",
+                "userId": "u_7009",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e113",
+                "userId": "u_7011",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 40
+              },
+              {
+                "eventId": "e561",
+                "userId": "u_7005",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 60
+              },
+              {
+                "eventId": "e562",
+                "userId": "u_7008",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-10",
+                "percent": 80
+              },
+              {
+                "eventId": "e563",
+                "userId": "u_7010",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 40
+              },
+              {
+                "eventId": "e564",
+                "userId": "u_7004",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-09",
+                "percent": 0
+              },
+              {
+                "eventId": "e565",
+                "userId": "u_7009",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-04",
+                "percent": 40
+              },
+              {
+                "eventId": "e566",
+                "userId": "u_7008",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 100
+              },
+              {
+                "eventId": "e272",
+                "userId": "u_7001",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 40
+              },
+              {
+                "eventId": "e228",
+                "userId": "u_7005",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-04",
+                "percent": 40
+              },
+              {
+                "eventId": "e569",
+                "userId": "u_7007",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 60
+              },
+              {
+                "eventId": "e570",
+                "userId": "u_7001",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 0
+              },
+              {
+                "eventId": "e571",
+                "userId": "u_7009",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-03",
+                "percent": 60
+              },
+              {
+                "eventId": "e572",
+                "userId": "u_7010",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 100
+              },
+              {
+                "eventId": "e424",
+                "userId": "u_7002",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-05",
+                "percent": 80
+              },
+              {
+                "eventId": "e201",
+                "userId": "u_7008",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e575",
+                "userId": "u_7001",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 20
+              },
+              {
+                "eventId": "e129",
+                "userId": "u_7009",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-09",
+                "percent": 60
+              },
+              {
+                "eventId": "e577",
+                "userId": "u_7006",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 60
+              },
+              {
+                "eventId": "e578",
+                "userId": "u_7010",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-04",
+                "percent": 0
+              },
+              {
+                "eventId": "e579",
+                "userId": "u_7000",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 0
+              },
+              {
+                "eventId": "e280",
+                "userId": "u_7004",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-10",
+                "percent": 60
+              },
+              {
+                "eventId": "e581",
+                "userId": "u_7009",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-08",
+                "percent": 20
+              },
+              {
+                "eventId": "e582",
+                "userId": "u_7006",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 0
+              },
+              {
+                "eventId": "e583",
+                "userId": "u_7004",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e584",
+                "userId": "u_7006",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 40
+              },
+              {
+                "eventId": "e585",
+                "userId": "u_7009",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 80
+              },
+              {
+                "eventId": "e586",
+                "userId": "u_7005",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 40
+              },
+              {
+                "eventId": "e587",
+                "userId": "u_7003",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 0
+              },
+              {
+                "eventId": "e588",
+                "userId": "u_7002",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 0
+              },
+              {
+                "eventId": "e589",
+                "userId": "u_7005",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 0
+              },
+              {
+                "eventId": "e463",
+                "userId": "u_7006",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 80
+              },
+              {
+                "eventId": "e591",
+                "userId": "u_7006",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-10",
+                "percent": 20
+              },
+              {
+                "eventId": "e592",
+                "userId": "u_7002",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 60
+              },
+              {
+                "eventId": "e593",
+                "userId": "u_7005",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-02",
+                "percent": 100
+              },
+              {
+                "eventId": "e594",
+                "userId": "u_7002",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 20
+              },
+              {
+                "eventId": "e477",
+                "userId": "u_7009",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 40
+              },
+              {
+                "eventId": "e596",
+                "userId": "u_7010",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-10",
+                "percent": 0
+              },
+              {
+                "eventId": "e79",
+                "userId": "u_7000",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e598",
+                "userId": "u_7002",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-02",
+                "percent": 40
+              },
+              {
+                "eventId": "e599",
+                "userId": "u_7005",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 40
+              },
+              {
+                "eventId": "e600",
+                "userId": "u_7005",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-04",
+                "percent": 0
+              },
+              {
+                "eventId": "e601",
+                "userId": "u_7002",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-05",
+                "percent": 60
+              },
+              {
+                "eventId": "e602",
+                "userId": "u_7001",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 80
+              },
+              {
+                "eventId": "e603",
+                "userId": "u_7003",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-08",
+                "percent": 60
+              },
+              {
+                "eventId": "e225",
+                "userId": "u_7010",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-07",
+                "percent": 40
+              },
+              {
+                "eventId": "e605",
+                "userId": "u_7002",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 60
+              },
+              {
+                "eventId": "e106",
+                "userId": "u_7001",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 0
+              },
+              {
+                "eventId": "e607",
+                "userId": "u_7003",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 100
+              },
+              {
+                "eventId": "e587",
+                "userId": "u_7003",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 0
+              },
+              {
+                "eventId": "e609",
+                "userId": "u_7003",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 40
+              },
+              {
+                "eventId": "e262",
+                "userId": "u_7002",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 0
+              },
+              {
+                "eventId": "e611",
+                "userId": "u_7000",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 60
+              },
+              {
+                "eventId": "e612",
+                "userId": "u_7006",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 0
+              },
+              {
+                "eventId": "e613",
+                "userId": "u_7010",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 60
+              },
+              {
+                "eventId": "e614",
+                "userId": "u_7003",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 0
+              },
+              {
+                "eventId": "e615",
+                "userId": "u_7000",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-08",
+                "percent": 80
+              },
+              {
+                "eventId": "e616",
+                "userId": "u_7007",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-02",
+                "percent": 60
+              },
+              {
+                "eventId": "e617",
+                "userId": "u_7001",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 60
+              },
+              {
+                "eventId": "e618",
+                "userId": "u_7010",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 0
+              },
+              {
+                "eventId": "e476",
+                "userId": "u_7007",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-03",
+                "percent": 0
+              },
+              {
+                "eventId": "e94",
+                "userId": "u_7011",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 40
+              },
+              {
+                "eventId": "e621",
+                "userId": "u_7002",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-05",
+                "percent": 0
+              },
+              {
+                "eventId": "e622",
+                "userId": "u_7001",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 80
+              },
+              {
+                "eventId": "e623",
+                "userId": "u_7010",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-03",
+                "percent": 0
+              },
+              {
+                "eventId": "e624",
+                "userId": "u_7006",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-02",
+                "percent": 40
+              },
+              {
+                "eventId": "e625",
+                "userId": "u_7003",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-07",
+                "percent": 20
+              },
+              {
+                "eventId": "e626",
+                "userId": "u_7009",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 60
+              },
+              {
+                "eventId": "e627",
+                "userId": "u_7008",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 0
+              },
+              {
+                "eventId": "e628",
+                "userId": "u_7003",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 20
+              },
+              {
+                "eventId": "e629",
+                "userId": "u_7000",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-09",
+                "percent": 20
+              },
+              {
+                "eventId": "e630",
+                "userId": "u_7007",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-06",
+                "percent": 40
+              },
+              {
+                "eventId": "e631",
+                "userId": "u_7001",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 80
+              },
+              {
+                "eventId": "e632",
+                "userId": "u_7000",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-02",
+                "percent": 60
+              },
+              {
+                "eventId": "e633",
+                "userId": "u_7008",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 0
+              },
+              {
+                "eventId": "e634",
+                "userId": "u_7011",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 80
+              },
+              {
+                "eventId": "e635",
+                "userId": "u_7011",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 60
+              },
+              {
+                "eventId": "e636",
+                "userId": "u_7006",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-08",
+                "percent": 0
+              },
+              {
+                "eventId": "e637",
+                "userId": "u_7003",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e638",
+                "userId": "u_7005",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-07",
+                "percent": 40
+              },
+              {
+                "eventId": "e639",
+                "userId": "u_7011",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 80
+              },
+              {
+                "eventId": "e640",
+                "userId": "u_7004",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 60
+              },
+              {
+                "eventId": "e641",
+                "userId": "u_7006",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 60
+              },
+              {
+                "eventId": "e642",
+                "userId": "u_7005",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-03",
+                "percent": 80
+              },
+              {
+                "eventId": "e643",
+                "userId": "u_7000",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-06",
+                "percent": 100
+              },
+              {
+                "eventId": "e644",
+                "userId": "u_7011",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 0
+              },
+              {
+                "eventId": "e645",
+                "userId": "u_7005",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 40
+              },
+              {
+                "eventId": "e646",
+                "userId": "u_7007",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 100
+              },
+              {
+                "eventId": "e534",
+                "userId": "u_7007",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-07",
+                "percent": 40
+              },
+              {
+                "eventId": "e648",
+                "userId": "u_7006",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-05",
+                "percent": 100
+              },
+              {
+                "eventId": "e649",
+                "userId": "u_7004",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-01",
+                "percent": 0
+              },
+              {
+                "eventId": "e527",
+                "userId": "u_7003",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-02",
+                "percent": 100
+              },
+              {
+                "eventId": "e651",
+                "userId": "u_7009",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 40
+              },
+              {
+                "eventId": "e652",
+                "userId": "u_7001",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 20
+              },
+              {
+                "eventId": "e653",
+                "userId": "u_7006",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 0
+              },
+              {
+                "eventId": "e654",
+                "userId": "u_7007",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e651",
+                "userId": "u_7009",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 40
+              },
+              {
+                "eventId": "e656",
+                "userId": "u_7005",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-09",
+                "percent": 60
+              },
+              {
+                "eventId": "e657",
+                "userId": "u_7003",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 20
+              },
+              {
+                "eventId": "e658",
+                "userId": "u_7010",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 100
+              },
+              {
+                "eventId": "e659",
+                "userId": "u_7007",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 80
+              },
+              {
+                "eventId": "e98",
+                "userId": "u_7009",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-01",
+                "percent": 60
+              },
+              {
+                "eventId": "e661",
+                "userId": "u_7000",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e512",
+                "userId": "u_7004",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-07",
+                "percent": 40
+              },
+              {
+                "eventId": "e663",
+                "userId": "u_7003",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 40
+              },
+              {
+                "eventId": "e664",
+                "userId": "u_7005",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 40
+              },
+              {
+                "eventId": "e665",
+                "userId": "u_7002",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 20
+              },
+              {
+                "eventId": "e666",
+                "userId": "u_7007",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 0
+              },
+              {
+                "eventId": "e541",
+                "userId": "u_7005",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 0
+              },
+              {
+                "eventId": "e668",
+                "userId": "u_7001",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-01",
+                "percent": 80
+              },
+              {
+                "eventId": "e669",
+                "userId": "u_7000",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 40
+              },
+              {
+                "eventId": "e670",
+                "userId": "u_7007",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-04",
+                "percent": 0
+              },
+              {
+                "eventId": "e671",
+                "userId": "u_7007",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 20
+              },
+              {
+                "eventId": "e45",
+                "userId": "u_7010",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 60
+              },
+              {
+                "eventId": "e673",
+                "userId": "u_7004",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 40
+              },
+              {
+                "eventId": "e674",
+                "userId": "u_7009",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 20
+              },
+              {
+                "eventId": "e261",
+                "userId": "u_7000",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-10",
+                "percent": 0
+              },
+              {
+                "eventId": "e676",
+                "userId": "u_7011",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 80
+              },
+              {
+                "eventId": "e677",
+                "userId": "u_7011",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 40
+              },
+              {
+                "eventId": "e285",
+                "userId": "u_7007",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-10",
+                "percent": 0
+              },
+              {
+                "eventId": "e679",
+                "userId": "u_7009",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-04",
+                "percent": 20
+              },
+              {
+                "eventId": "e680",
+                "userId": "u_7011",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 100
+              },
+              {
+                "eventId": "e681",
+                "userId": "u_7001",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-03",
+                "percent": 100
+              },
+              {
+                "eventId": "e682",
+                "userId": "u_7004",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 40
+              },
+              {
+                "eventId": "e683",
+                "userId": "u_7007",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 20
+              },
+              {
+                "eventId": "e684",
+                "userId": "u_7000",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-08",
+                "percent": 40
+              },
+              {
+                "eventId": "e631",
+                "userId": "u_7001",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 80
+              },
+              {
+                "eventId": "e686",
+                "userId": "u_7007",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 100
+              },
+              {
+                "eventId": "e687",
+                "userId": "u_7000",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e688",
+                "userId": "u_7008",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-03",
+                "percent": 20
+              },
+              {
+                "eventId": "e242",
+                "userId": "u_7005",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 60
+              },
+              {
+                "eventId": "e66",
+                "userId": "u_7007",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e691",
+                "userId": "u_7000",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-10",
+                "percent": 20
+              },
+              {
+                "eventId": "e692",
+                "userId": "u_7003",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-02",
+                "percent": 80
+              },
+              {
+                "eventId": "e584",
+                "userId": "u_7006",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 40
+              },
+              {
+                "eventId": "e23",
+                "userId": "u_7006",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-01",
+                "percent": 100
+              },
+              {
+                "eventId": "e695",
+                "userId": "u_7004",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-03",
+                "percent": 40
+              },
+              {
+                "eventId": "e696",
+                "userId": "u_7005",
+                "courseId": "typescript-foundations",
+                "lessonId": "tsf-02",
+                "percent": 100
+              },
+              {
+                "eventId": "e225",
+                "userId": "u_7010",
+                "courseId": "web-http-fundamentals",
+                "lessonId": "whf-07",
+                "percent": 40
+              },
+              {
+                "eventId": "e698",
+                "userId": "u_7001",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-02",
+                "percent": 20
+              },
+              {
+                "eventId": "e699",
+                "userId": "u_7008",
+                "courseId": "sql-data-modeling",
+                "lessonId": "sql-04",
+                "percent": 100
+              }
+            ],
+            "summary": true
+          },
+          "hidden": true,
+          "score": 3,
+          "expected": "applied: 222; duplicate: 158; stale: 320\npublished: 4; stored lessons: 172; sum of percents: 13140"
+        }
+      ]
+    }
+  ]
+}

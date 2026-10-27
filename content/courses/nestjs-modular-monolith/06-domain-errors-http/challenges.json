@@ -1,0 +1,333 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nmm_231",
+      "name": "domain-errors-http-quiz",
+      "type": "quiz",
+      "title": "Read the error path: which filter answered, and what the mobile app does next",
+      "description": "Two pieces of evidence from the enrollments API: a 500 that slipped past the domain error filter, and the mobile app's retry policy meeting the new 409 response.",
+      "difficulty": "medium",
+      "outcomes": [
+        "thin-layers"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The new filter and how it is registered:\n\n// common/domain-error.filter.ts\n@Catch(DomainError)\nexport class DomainErrorFilter implements ExceptionFilter {\n  catch(error: DomainError, host: ArgumentsHost) {\n    // maps the error and writes an application/problem+json response\n  }\n}\n\n// main.ts\napp.useGlobalFilters(new DomainErrorFilter());\n\nServer log:\nTypeError: Cannot read properties of undefined (reading 'plan')\n    at EnrollmentsService.enroll (enrollments.service.ts:57:31)\n\nResponse to the client:\nHTTP/1.1 500 Internal Server Error\nContent-Type: application/json; charset=utf-8\n\n{\"statusCode\":500,\"message\":\"Internal server error\"}\n\nStatement: \"This response was written by Nest's built-in exception filter, not by DomainErrorFilter, because @Catch(DomainError) only receives DomainError instances.\"",
+          "explanation": "True. @Catch(DomainError) tells Nest to call this filter only for exceptions that are instances of DomainError (or its subclasses). A TypeError is not, so Nest falls back to its built-in global exception filter, which answers every exception that is not an HttpException with exactly this body: {\"statusCode\":500,\"message\":\"Internal server error\"}. The Content-Type confirms it: the custom filter would have written application/problem+json. To give unknown errors the same problem format and a correlation id, use @Catch() with no argument and handle the unknown case yourself, still without putting the error's message in the body. The misconception is that a global filter sees every error; it sees the types listed in @Catch.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The mobile app's API client:\n\n// mobile/api/client.ts\n// retry a request when it fails with a network error or status >= 500:\n// up to 3 retries, after 1 s, 2 s and 4 s. Never retry a 4xx.\n\nAccess log before the fix (one tap on Enroll, the learner was already enrolled):\n10:41:02.118 POST /enrollments 500 31ms\n10:41:03.164 POST /enrollments 500 28ms\n10:41:05.201 POST /enrollments 500 30ms\n10:41:09.236 POST /enrollments 500 29ms\n\nAfter the fix, the API answers the same request with:\nHTTP/1.1 409 Conflict\nContent-Type: application/problem+json\n\n{\"type\":\"https://api.codedev.test/problems/already-enrolled\",\"title\":\"Already enrolled\",\"status\":409, ...}\n\nStatement: \"The app will still send this POST four times per tap until its retry policy is changed as well.\"",
+          "explanation": "False. The retries came from the status code, not from the app: a 500 says \"the server failed, trying again might work\", and the client's policy retries exactly that. With the domain error mapped to 409, the response falls in the 4xx range the policy never retries, so one tap now produces one request and the app can show \"You are already enrolled\" from the problem body. Choosing the right status is how the server tells every client, including ones you do not control, whether a retry can help. The misconception is that each client needs its own fix; a correct status code fixes all of them at once.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_nmm_232",
+      "name": "map-domain-errors-to-problems",
+      "type": "mini_coding",
+      "title": "Map domain errors to problem responses",
+      "description": "Every domain error from the CodeDev enrollment service came back as 500 \"Internal server error\", so the mobile app retried enrollments that had already failed with a conflict. The service throws typed domain errors and knows nothing about HTTP; write the one function at the edge that turns anything thrown into a response: toProblemResponse(error: unknown, req: { method, path, headers }, newId: () => string) returns { status, headers, body }. Correlation id: use req.headers[\"x-correlation-id\"] when it matches /^[A-Za-z0-9-]{8,64}$/; otherwise call newId() exactly once and use its value (never call it when the header is usable). Headers: { \"Content-Type\": \"application/problem+json\", \"X-Correlation-Id\": id }. Body: { type: \"https://api.codedev.test/problems/\" + slug, title, status, detail, instance: req.path, correlationId: id } plus extensions. Match with instanceof: CourseNotFound -> 404, slug course-not-found, title \"Course not found\", detail \"Course <courseId> does not exist.\"; AlreadyEnrolled -> 409, already-enrolled, \"Already enrolled\", \"You are already enrolled in <courseId>.\"; PrerequisitesMissing -> 422, prerequisites-missing, \"Prerequisites missing\", \"Finish <missing joined by \", \"> before enrolling in <courseId>.\", extension missing (the list); ValidationFailed -> 400, validation-failed, \"Invalid request\", \"<number of errors> field(s) failed validation.\", extension errors: [{ field, message }] (copy only those two keys - the errors may carry the rejected value); NotAllowed -> 403, not-allowed, \"Not allowed\", \"You are not allowed to <action>.\"; PaymentRequired -> 402, payment-required, \"Payment required\", \"<courseId> requires a premium plan.\", extension priceVnd. Anything else - a plain Error or TypeError, a thrown string or null, an object that only looks like a domain error, or a DomainError subclass not in this list - is 500, slug internal-error, title \"Internal server error\", detail \"An unexpected error occurred. Quote the correlation id when you contact support.\", and never contains the error's message. Input (stdin): { \"cases\": [{ \"error\": { \"kind\", ... }, \"method\"?, \"path\"?, \"correlationId\"? }] } (correlationId is sent as the x-correlation-id header; newId() returns gen-0001, gen-0002, ... per test) prints each response with JSON keys sorted; { \"generate\": { \"count\", \"seed\" } } prints the responses per status, the number of newId() calls and how many responses contained internal text.",
+      "difficulty": "medium",
+      "outcomes": [
+        "thin-layers"
+      ],
+      "points": 30,
+      "hints": [
+        "Two questions decide every response: which status tells the client whether trying again can help, and which parts of the error is the client allowed to read? What should happen to an error you cannot name?",
+        "Look at instanceof for each class in the table (an object with name \"CourseNotFound\" is not a CourseNotFound), at the order of your checks if you ever add a check for the DomainError base class, and at what you copy from ValidationFailed.errors. Decide the correlation id once, at the top, before you know which branch you will take.",
+        "A similar mapping for a submissions API: SubmissionTooLarge(limitKb: 64) -> 413 with detail \"The submission is larger than 64 KB.\" and extension limitKb 64; LanguageNotSupported(\"cobol\") -> 422; new Error(\"ENOSPC: no space left on device, write '/var/runner/tmp/abc'\") -> 500 with the fixed text \"An unexpected error occurred.\" and no path; header x-correlation-id \"ok-12345678\" is kept, \"ok 1\" is replaced by the next generated id."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The incident: AlreadyEnrolled is 409 and CourseNotFound is 404, keeping the request's correlation id",
+          "input": {
+            "cases": [
+              {
+                "error": {
+                  "kind": "AlreadyEnrolled",
+                  "userId": "u_1",
+                  "courseId": "c_1042"
+                },
+                "correlationId": "mob-7f3a9c21"
+              },
+              {
+                "error": {
+                  "kind": "CourseNotFound",
+                  "courseId": "c_9999"
+                },
+                "method": "GET",
+                "path": "/courses/c_9999",
+                "correlationId": "web-0b5e44d1-2c7a"
+              }
+            ]
+          },
+          "expected": "#1 POST /enrollments AlreadyEnrolled -> 409 headers={\"Content-Type\":\"application/problem+json\",\"X-Correlation-Id\":\"mob-7f3a9c21\"} body={\"correlationId\":\"mob-7f3a9c21\",\"detail\":\"You are already enrolled in c_1042.\",\"instance\":\"/enrollments\",\"status\":409,\"title\":\"Already enrolled\",\"type\":\"https://api.codedev.test/problems/already-enrolled\"}\n#2 GET /courses/c_9999 CourseNotFound -> 404 headers={\"Content-Type\":\"application/problem+json\",\"X-Correlation-Id\":\"web-0b5e44d1-2c7a\"} body={\"correlationId\":\"web-0b5e44d1-2c7a\",\"detail\":\"Course c_9999 does not exist.\",\"instance\":\"/courses/c_9999\",\"status\":404,\"title\":\"Course not found\",\"type\":\"https://api.codedev.test/problems/course-not-found\"}",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "An unknown error is a 500 that hides its message; without a header the id is generated once",
+          "input": {
+            "cases": [
+              {
+                "error": {
+                  "kind": "Error",
+                  "message": "duplicate key value violates unique constraint \"enrollments_user_id_course_id_key\""
+                }
+              },
+              {
+                "error": {
+                  "kind": "AlreadyEnrolled",
+                  "userId": "u_2",
+                  "courseId": "c_88"
+                }
+              }
+            ]
+          },
+          "expected": "#1 POST /enrollments Error -> 500 headers={\"Content-Type\":\"application/problem+json\",\"X-Correlation-Id\":\"gen-0001\"} body={\"correlationId\":\"gen-0001\",\"detail\":\"An unexpected error occurred. Quote the correlation id when you contact support.\",\"instance\":\"/enrollments\",\"status\":500,\"title\":\"Internal server error\",\"type\":\"https://api.codedev.test/problems/internal-error\"}\n#2 POST /enrollments AlreadyEnrolled -> 409 headers={\"Content-Type\":\"application/problem+json\",\"X-Correlation-Id\":\"gen-0002\"} body={\"correlationId\":\"gen-0002\",\"detail\":\"You are already enrolled in c_88.\",\"instance\":\"/enrollments\",\"status\":409,\"title\":\"Already enrolled\",\"type\":\"https://api.codedev.test/problems/already-enrolled\"}",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "PrerequisitesMissing is 422 with the list, PaymentRequired 402 with the price, NotAllowed 403",
+          "input": {
+            "cases": [
+              {
+                "error": {
+                  "kind": "PrerequisitesMissing",
+                  "courseId": "c_1042",
+                  "missing": [
+                    "typescript-foundations",
+                    "web-http-fundamentals"
+                  ]
+                },
+                "correlationId": "req-000001"
+              },
+              {
+                "error": {
+                  "kind": "PrerequisitesMissing",
+                  "courseId": "c_131",
+                  "missing": [
+                    "c_88"
+                  ]
+                },
+                "correlationId": "req-000002"
+              },
+              {
+                "error": {
+                  "kind": "PaymentRequired",
+                  "courseId": "c_1042",
+                  "priceVnd": 149000
+                },
+                "correlationId": "req-000003"
+              },
+              {
+                "error": {
+                  "kind": "NotAllowed",
+                  "action": "enroll in this course"
+                },
+                "correlationId": "req-000004"
+              }
+            ]
+          },
+          "expected": "#1 POST /enrollments PrerequisitesMissing -> 422 headers={\"Content-Type\":\"application/problem+json\",\"X-Correlation-Id\":\"req-000001\"} body={\"correlationId\":\"req-000001\",\"detail\":\"Finish typescript-foundations, web-http-fundamentals before enrolling in c_1042.\",\"instance\":\"/enrollments\",\"missing\":[\"typescript-foundations\",\"web-http-fundamentals\"],\"status\":422,\"title\":\"Prerequisites missing\",\"type\":\"https://api.codedev.test/problems/prerequisites-missing\"}\n#2 POST /enrollments PrerequisitesMissing -> 422 headers={\"Content-Type\":\"application/problem+json\",\"X-Correlation-Id\":\"req-000002\"} body={\"correlationId\":\"req-000002\",\"detail\":\"Finish c_88 before enrolling in c_131.\",\"instance\":\"/enrollments\",\"missing\":[\"c_88\"],\"status\":422,\"title\":\"Prerequisites missing\",\"type\":\"https://api.codedev.test/problems/prerequisites-missing\"}\n#3 POST /enrollments PaymentRequired -> 402 headers={\"Content-Type\":\"application/problem+json\",\"X-Correlation-Id\":\"req-000003\"} body={\"correlationId\":\"req-000003\",\"detail\":\"c_1042 requires a premium plan.\",\"instance\":\"/enrollments\",\"priceVnd\":149000,\"status\":402,\"title\":\"Payment required\",\"type\":\"https://api.codedev.test/problems/payment-required\"}\n#4 POST /enrollments NotAllowed -> 403 headers={\"Content-Type\":\"application/problem+json\",\"X-Correlation-Id\":\"req-000004\"} body={\"correlationId\":\"req-000004\",\"detail\":\"You are not allowed to enroll in this course.\",\"instance\":\"/enrollments\",\"status\":403,\"title\":\"Not allowed\",\"type\":\"https://api.codedev.test/problems/not-allowed\"}",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "ValidationFailed is 400 with field and message only: the rejected values are never echoed",
+          "input": {
+            "cases": [
+              {
+                "error": {
+                  "kind": "ValidationFailed",
+                  "errors": [
+                    {
+                      "field": "email",
+                      "message": "email must be a valid email address",
+                      "value": "ana@@codedev.test"
+                    },
+                    {
+                      "field": "password",
+                      "message": "password must be at least 12 characters",
+                      "value": "hunter2"
+                    }
+                  ]
+                },
+                "correlationId": "req-000010"
+              },
+              {
+                "error": {
+                  "kind": "ValidationFailed",
+                  "errors": [
+                    {
+                      "field": "plan",
+                      "message": "plan must be one of: free, premium"
+                    }
+                  ]
+                },
+                "correlationId": "req-000011"
+              }
+            ]
+          },
+          "expected": "#1 POST /enrollments ValidationFailed -> 400 headers={\"Content-Type\":\"application/problem+json\",\"X-Correlation-Id\":\"req-000010\"} body={\"correlationId\":\"req-000010\",\"detail\":\"2 field(s) failed validation.\",\"errors\":[{\"field\":\"email\",\"message\":\"email must be a valid email address\"},{\"field\":\"password\",\"message\":\"password must be at least 12 characters\"}],\"instance\":\"/enrollments\",\"status\":400,\"title\":\"Invalid request\",\"type\":\"https://api.codedev.test/problems/validation-failed\"}\n#2 POST /enrollments ValidationFailed -> 400 headers={\"Content-Type\":\"application/problem+json\",\"X-Correlation-Id\":\"req-000011\"} body={\"correlationId\":\"req-000011\",\"detail\":\"1 field(s) failed validation.\",\"errors\":[{\"field\":\"plan\",\"message\":\"plan must be one of: free, premium\"}],\"instance\":\"/enrollments\",\"status\":400,\"title\":\"Invalid request\",\"type\":\"https://api.codedev.test/problems/validation-failed\"}",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Look-alike objects, thrown strings, null, TypeError and unmapped DomainError are 500",
+          "input": {
+            "cases": [
+              {
+                "error": {
+                  "kind": "object",
+                  "value": {
+                    "name": "CourseNotFound",
+                    "courseId": "c_5",
+                    "message": "course c_5 not found"
+                  }
+                },
+                "correlationId": "req-000020"
+              },
+              {
+                "error": {
+                  "kind": "string",
+                  "value": "boom: connection to 10.0.3.17:5432 refused"
+                },
+                "correlationId": "req-000021"
+              },
+              {
+                "error": {
+                  "kind": "null"
+                },
+                "correlationId": "req-000022"
+              },
+              {
+                "error": {
+                  "kind": "TypeError",
+                  "message": "Cannot read properties of undefined (reading 'plan')"
+                },
+                "correlationId": "req-000023"
+              },
+              {
+                "error": {
+                  "kind": "EnrollmentClosed",
+                  "courseId": "c_77"
+                },
+                "correlationId": "req-000024"
+              }
+            ]
+          },
+          "expected": "#1 POST /enrollments object -> 500 headers={\"Content-Type\":\"application/problem+json\",\"X-Correlation-Id\":\"req-000020\"} body={\"correlationId\":\"req-000020\",\"detail\":\"An unexpected error occurred. Quote the correlation id when you contact support.\",\"instance\":\"/enrollments\",\"status\":500,\"title\":\"Internal server error\",\"type\":\"https://api.codedev.test/problems/internal-error\"}\n#2 POST /enrollments string -> 500 headers={\"Content-Type\":\"application/problem+json\",\"X-Correlation-Id\":\"req-000021\"} body={\"correlationId\":\"req-000021\",\"detail\":\"An unexpected error occurred. Quote the correlation id when you contact support.\",\"instance\":\"/enrollments\",\"status\":500,\"title\":\"Internal server error\",\"type\":\"https://api.codedev.test/problems/internal-error\"}\n#3 POST /enrollments null -> 500 headers={\"Content-Type\":\"application/problem+json\",\"X-Correlation-Id\":\"req-000022\"} body={\"correlationId\":\"req-000022\",\"detail\":\"An unexpected error occurred. Quote the correlation id when you contact support.\",\"instance\":\"/enrollments\",\"status\":500,\"title\":\"Internal server error\",\"type\":\"https://api.codedev.test/problems/internal-error\"}\n#4 POST /enrollments TypeError -> 500 headers={\"Content-Type\":\"application/problem+json\",\"X-Correlation-Id\":\"req-000023\"} body={\"correlationId\":\"req-000023\",\"detail\":\"An unexpected error occurred. Quote the correlation id when you contact support.\",\"instance\":\"/enrollments\",\"status\":500,\"title\":\"Internal server error\",\"type\":\"https://api.codedev.test/problems/internal-error\"}\n#5 POST /enrollments EnrollmentClosed -> 500 headers={\"Content-Type\":\"application/problem+json\",\"X-Correlation-Id\":\"req-000024\"} body={\"correlationId\":\"req-000024\",\"detail\":\"An unexpected error occurred. Quote the correlation id when you contact support.\",\"instance\":\"/enrollments\",\"status\":500,\"title\":\"Internal server error\",\"type\":\"https://api.codedev.test/problems/internal-error\"}",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Correlation ids too short, too long, with spaces or CRLF are replaced; valid ones kept",
+          "input": {
+            "cases": [
+              {
+                "error": {
+                  "kind": "CourseNotFound",
+                  "courseId": "c_1"
+                },
+                "correlationId": "abc"
+              },
+              {
+                "error": {
+                  "kind": "CourseNotFound",
+                  "courseId": "c_2"
+                },
+                "correlationId": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+              },
+              {
+                "error": {
+                  "kind": "CourseNotFound",
+                  "courseId": "c_3"
+                },
+                "correlationId": "trace id 42"
+              },
+              {
+                "error": {
+                  "kind": "CourseNotFound",
+                  "courseId": "c_4"
+                },
+                "correlationId": "abcdefgh\r\nSet-Cookie: session=1"
+              },
+              {
+                "error": {
+                  "kind": "CourseNotFound",
+                  "courseId": "c_5"
+                },
+                "correlationId": ""
+              },
+              {
+                "error": {
+                  "kind": "CourseNotFound",
+                  "courseId": "c_6"
+                },
+                "correlationId": "A1b2-C3d4"
+              },
+              {
+                "error": {
+                  "kind": "CourseNotFound",
+                  "courseId": "c_7"
+                },
+                "correlationId": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+              }
+            ]
+          },
+          "expected": "#1 POST /enrollments CourseNotFound -> 404 headers={\"Content-Type\":\"application/problem+json\",\"X-Correlation-Id\":\"gen-0001\"} body={\"correlationId\":\"gen-0001\",\"detail\":\"Course c_1 does not exist.\",\"instance\":\"/enrollments\",\"status\":404,\"title\":\"Course not found\",\"type\":\"https://api.codedev.test/problems/course-not-found\"}\n#2 POST /enrollments CourseNotFound -> 404 headers={\"Content-Type\":\"application/problem+json\",\"X-Correlation-Id\":\"gen-0002\"} body={\"correlationId\":\"gen-0002\",\"detail\":\"Course c_2 does not exist.\",\"instance\":\"/enrollments\",\"status\":404,\"title\":\"Course not found\",\"type\":\"https://api.codedev.test/problems/course-not-found\"}\n#3 POST /enrollments CourseNotFound -> 404 headers={\"Content-Type\":\"application/problem+json\",\"X-Correlation-Id\":\"gen-0003\"} body={\"correlationId\":\"gen-0003\",\"detail\":\"Course c_3 does not exist.\",\"instance\":\"/enrollments\",\"status\":404,\"title\":\"Course not found\",\"type\":\"https://api.codedev.test/problems/course-not-found\"}\n#4 POST /enrollments CourseNotFound -> 404 headers={\"Content-Type\":\"application/problem+json\",\"X-Correlation-Id\":\"gen-0004\"} body={\"correlationId\":\"gen-0004\",\"detail\":\"Course c_4 does not exist.\",\"instance\":\"/enrollments\",\"status\":404,\"title\":\"Course not found\",\"type\":\"https://api.codedev.test/problems/course-not-found\"}\n#5 POST /enrollments CourseNotFound -> 404 headers={\"Content-Type\":\"application/problem+json\",\"X-Correlation-Id\":\"gen-0005\"} body={\"correlationId\":\"gen-0005\",\"detail\":\"Course c_5 does not exist.\",\"instance\":\"/enrollments\",\"status\":404,\"title\":\"Course not found\",\"type\":\"https://api.codedev.test/problems/course-not-found\"}\n#6 POST /enrollments CourseNotFound -> 404 headers={\"Content-Type\":\"application/problem+json\",\"X-Correlation-Id\":\"A1b2-C3d4\"} body={\"correlationId\":\"A1b2-C3d4\",\"detail\":\"Course c_6 does not exist.\",\"instance\":\"/enrollments\",\"status\":404,\"title\":\"Course not found\",\"type\":\"https://api.codedev.test/problems/course-not-found\"}\n#7 POST /enrollments CourseNotFound -> 404 headers={\"Content-Type\":\"application/problem+json\",\"X-Correlation-Id\":\"yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\"} body={\"correlationId\":\"yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\",\"detail\":\"Course c_7 does not exist.\",\"instance\":\"/enrollments\",\"status\":404,\"title\":\"Course not found\",\"type\":\"https://api.codedev.test/problems/course-not-found\"}",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "300 generated errors: responses per status, generated ids and responses that leaked internal text",
+          "input": {
+            "generate": {
+              "count": 300,
+              "seed": 41
+            }
+          },
+          "expected": "statuses 400:26 402:33 403:25 404:28 409:44 422:24 500:120; newId calls 231; responses with internal text 0",
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

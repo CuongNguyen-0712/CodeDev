@@ -1,0 +1,66 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nmm_331",
+      "name": "persistence-boundary-quiz",
+      "type": "quiz",
+      "title": "Ports, adapters and injection tokens",
+      "description": "Three pieces of evidence from moving EnrollmentModule behind a repository port: a test that swaps the PostgreSQL adapter, a startup error, and a leaderboard query that broke after a migration in another module.",
+      "difficulty": "medium",
+      "outcomes": [
+        "dependency-injection"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "// src/enrollments/enrollment.module.ts\nproviders: [\n  EnrollmentService,\n  { provide: ENROLLMENT_REPOSITORY, useClass: PgEnrollmentRepository },\n],\n\n// src/enrollments/enrollment.service.ts\nconstructor(\n  @Inject(ENROLLMENT_REPOSITORY) private readonly enrollments: EnrollmentRepository,\n  private readonly courses: CourseService,\n) {}\n\n// test/enrollment.module.spec.ts\nconst moduleRef = await Test.createTestingModule({ imports: [EnrollmentModule] })\n  .overrideProvider(ENROLLMENT_REPOSITORY).useValue(new InMemoryEnrollmentRepository())\n  .overrideProvider(CourseService).useValue(fakeCourses)\n  .compile();\nconst service = moduleRef.get(EnrollmentService);\n\nStatement: \"In this test, EnrollmentService receives the in-memory repository, and nothing in EnrollmentService had to change for that.\"",
+          "explanation": "True. EnrollmentService asks for whatever is registered under the token ENROLLMENT_REPOSITORY and only knows the EnrollmentRepository interface. overrideProvider replaces the registration for that token in the testing module, so Nest injects the InMemoryEnrollmentRepository instead of PgEnrollmentRepository, with no change to the service, its module or its constructor. That is the point of the port: the service depends on what it needs (find, create, save), and the module decides which adapter provides it. The misconception is that the service has to be written with a test mode or a flag to be testable without a database.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "// src/enrollments/enrollment.repository.ts\nexport interface EnrollmentRepository {\n  findByUserAndCourse(userId: string, courseId: string): Promise<Enrollment | null>;\n  create(userId: string, courseId: string): Promise<Enrollment>;\n}\n\n// src/enrollments/enrollment.service.ts\n@Injectable()\nexport class EnrollmentService {\n  constructor(private readonly enrollments: EnrollmentRepository) {}\n}\n\nnpm run start:\n\nError: Nest can't resolve dependencies of the EnrollmentService (?). Please make sure that the argument Object at index [0] is available in the EnrollmentModule context.\n\nStatement: \"Adding PgEnrollmentRepository, which implements EnrollmentRepository, to the providers array of EnrollmentModule fixes this error, because Nest matches the interface to the class that implements it.\"",
+          "explanation": "False. TypeScript interfaces do not exist at runtime. Nest finds constructor dependencies through the type metadata the compiler emits, and for an interface the emitted type is Object, which is exactly what the error message names: \"the argument Object at index [0]\". Nest never sees EnrollmentRepository, so it cannot match it to a class, however many classes implement it. The fix is a token: export const ENROLLMENT_REPOSITORY = Symbol(\"ENROLLMENT_REPOSITORY\"), register { provide: ENROLLMENT_REPOSITORY, useClass: PgEnrollmentRepository } and inject it with @Inject(ENROLLMENT_REPOSITORY). The misconception is that `implements` creates a link Nest can use; it is a compile-time check only.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "// src/leaderboard/leaderboard.service.ts\nimport { EnrollmentEntity } from \"../enrollments/enrollment.entity\";\n...\nconst rows = await this.dataSource.getRepository(EnrollmentEntity)\n  .createQueryBuilder(\"e\")\n  .select(\"e.courseId\", \"courseId\").addSelect(\"COUNT(*)\", \"learners\")\n  .where(\"e.status = :status\", { status: \"active\" })\n  .groupBy(\"e.courseId\").getRawMany();\n\nPR #1302 in EnrollmentModule replaced the status column with cancelled_at (NULL = active). tsc passed, EnrollmentModule's tests passed, and after the deploy:\n\nGET /leaderboard/courses 500\nQueryFailedError: column e.status does not exist\n\nStatement: \"If LeaderboardService called a method exported by EnrollmentModule, such as EnrollmentService.countActiveByCourse(), PR #1302 would have had to update that method inside EnrollmentModule, where its tests run.\"",
+          "explanation": "True. The entity and the table belong to EnrollmentModule, but LeaderboardService reached around its boundary and wrote its own query, in a string the compiler cannot check, in a module whose tests PR #1302 never ran. Moving the query behind an exported method keeps every use of the enrollments table inside the module that owns it: the PR that changes the column also has to change countActiveByCourse, and the module's own tests cover it. The ORM entity is a detail of the adapter, like the column names; exporting it, or importing it from another module's folder, turns the table shape into a public API. The misconception is that a passing type check and passing tests of the changed module prove the change is safe for the rest of the monolith.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

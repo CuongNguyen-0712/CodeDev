@@ -1,0 +1,341 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nmm_211",
+      "name": "dto-validation-quiz",
+      "type": "quiz",
+      "title": "Read the request boundary: a type that checks nothing and a string that became true",
+      "description": "Two pieces of evidence from POST /enrollments: the DTO that let plan \"PREMIUM\" into the database, and a receipt flag that a ValidationPipe option turned around.",
+      "difficulty": "medium",
+      "outcomes": [
+        "request-validation"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The DTO and the handler that shipped:\n\n// enrollments/dto/enroll.dto.ts\nexport class EnrollDto {\n  courseId: string;\n  email: string;\n  plan: \"free\" | \"premium\";\n}\n\n// enrollments/enrollments.controller.ts\n@Post()\nenroll(@Body() dto: EnrollDto) {\n  return this.enrollments.enroll(dto);\n}\n\n// main.ts\napp.useGlobalPipes(new ValidationPipe({ transform: true }));\n\ncurl -i -X POST https://api.codedev.test/enrollments -H \"Content-Type: application/json\" \\\n  -d '{\"courseId\":\"c_1042\",\"email\":\"ana@codedev.test\",\"plan\":\"PREMIUM\"}'\nHTTP/1.1 201 Created\n\nStatement: \"Turning on \\\"strict\\\": true in tsconfig.json would make this request fail, because \\\"PREMIUM\\\" is not assignable to the type \\\"free\\\" | \\\"premium\\\".\"",
+          "explanation": "False. TypeScript checks the code it compiles, and its types are erased from the JavaScript that runs. The body is JSON parsed at runtime; the annotation `dto: EnrollDto` only tells the compiler what to assume, so \"PREMIUM\" reaches the service whatever tsconfig says. The ValidationPipe is installed, but it can only run the rules it finds as class-validator decorators, and this class has none. Adding `@IsIn([\"free\", \"premium\"])` (with `@Matches` and `@IsEmail` on the other fields) is what turns the request into a 400. The misconception is that a TypeScript type is a runtime check: at a trust boundary only code that runs can reject a value.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A receipt option was added to the DTO:\n\nexport class EnrollDto {\n  // courseId, email, plan as before, with their decorators\n  @IsBoolean()\n  sendReceipt: boolean;\n}\n\n// main.ts\napp.useGlobalPipes(new ValidationPipe({\n  transform: true,\n  transformOptions: { enableImplicitConversion: true },\n}));\n\nRequest body: {\"courseId\":\"c_1042\",\"email\":\"ana@codedev.test\",\"plan\":\"premium\",\"sendReceipt\":\"false\"}\nResponse: 201 Created\n\nSELECT send_receipt FROM enrollments ORDER BY created_at DESC LIMIT 1;\n send_receipt\n--------------\n t\n\nStatement: \"The string \\\"false\\\" passed @IsBoolean() because class-transformer converted it to true before the validators ran.\"",
+          "explanation": "True. ValidationPipe first turns the plain body into an EnrollDto instance with class-transformer, then runs class-validator on that instance. With enableImplicitConversion, class-transformer converts each value to the property's reflected type, and for a boolean that is `Boolean(value)`: any non-empty string, \"false\" included, becomes true. @IsBoolean() then sees a real boolean and passes. The safe options are to leave implicit conversion off for JSON bodies (JSON already has booleans and numbers, so a client that sends a string has sent the wrong type), or to write an explicit @Transform that accepts only \"true\" and \"false\". The misconception is that the validator sees what the client sent; it sees what the transformer produced.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_nmm_212",
+      "name": "validate-enroll-request",
+      "type": "mini_coding",
+      "title": "Validate the enrollment request",
+      "description": "POST /enrollments on the CodeDev API stored plan \"PREMIUM\" because nothing checked the body at runtime, and the nightly billing job could not read the row. In the NestJS app an EnrollDto and the ValidationPipe do this job; the code runner has no NestJS, so write the same rules as one function: validateEnrollRequest(body: unknown) receives the parsed JSON body exactly as the client sent it and returns { ok: true, value } or { ok: false, errors }, where errors holds one { field, message } per invalid field in the order courseId, email, plan, couponCode, seats (the first rule each field fails). \"Missing\" means the key is absent or null. A body that is not a JSON object (null, an array, a string, a number) gets one error: field \"body\", message \"body must be a JSON object\". courseId: missing -> \"courseId is required\"; not a string -> \"courseId must be a string\"; not c_ followed by 1 to 9 digits -> \"courseId must be c_ followed by 1 to 9 digits\". email: missing -> \"email is required\"; not a string -> \"email must be a string\"; longer than 254 characters or not matching /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/ -> \"email must be a valid email address\". plan: missing -> \"plan is required\"; not a string -> \"plan must be a string\"; not exactly \"free\" or \"premium\" -> \"plan must be one of: free, premium\". couponCode is optional (missing = no coupon): not a string -> \"couponCode must be a string\"; not 4 to 12 characters A-Z or 0-9 -> \"couponCode must be 4 to 12 characters, A-Z or 0-9\"; a well-formed coupon with plan \"free\" -> \"couponCode is only allowed with plan premium\". seats is optional (missing = 1): not a number or not an integer -> \"seats must be an integer\"; below 1 or above 50 -> \"seats must be between 1 and 50\". Never convert or trim a value: \"PREMIUM\", \"2\" and \" c_12\" are errors, not guesses. value contains courseId, email, plan, seats and couponCode only when a coupon was given; ignore any other key. Input (stdin): { \"bodies\": [...] } prints one line per body (\"#n ok ...\" with every value field, or \"#n rejected field: message | ...\"); { \"generate\": { \"count\", \"seed\" } } builds bodies with a fixed pseudo-random generator and prints how many were valid and the errors per field.",
+      "difficulty": "easy",
+      "outcomes": [
+        "request-validation"
+      ],
+      "points": 20,
+      "hints": [
+        "For each field, which question comes first: is it there at all, is it the right JSON type, or does its content have the right shape? What should happen to the later questions once one of them fails?",
+        "Look at typeof and Array.isArray for the body itself (typeof null is \"object\"), at Number.isInteger for seats, and at the list of plans: a strict equality check against that list rejects \"PREMIUM\" without any extra code. The coupon rule needs the plan's result, so check plan before couponCode.",
+        "A similar rule set for a lesson rating { lessonId, stars, comment? }: { \"lessonId\": \"l_9\", \"stars\": \"5\" } gives one error, stars \"stars must be an integer\" (a string is not a number even when it looks like one); { \"lessonId\": \"l_9\", \"stars\": 4, \"comment\": null } is valid with no comment; { \"stars\": 6 } gives lessonId \"lessonId is required\" and then stars \"stars must be between 1 and 5\", in that order."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The incident: plan \"PREMIUM\" and other plans the billing job cannot read are rejected",
+          "input": {
+            "bodies": [
+              {
+                "courseId": "c_1042",
+                "email": "ana@codedev.test",
+                "plan": "premium",
+                "couponCode": "SPRING25"
+              },
+              {
+                "courseId": "c_1042",
+                "email": "ana@codedev.test",
+                "plan": "PREMIUM"
+              },
+              {
+                "courseId": "c_1042",
+                "email": "ana@codedev.test",
+                "plan": "Premium"
+              },
+              {
+                "courseId": "c_1042",
+                "email": "ana@codedev.test",
+                "plan": "premium "
+              },
+              {
+                "courseId": "c_88",
+                "email": "minh.tran@example.com",
+                "plan": "gold"
+              },
+              {
+                "courseId": "c_88",
+                "email": "minh.tran@example.com",
+                "plan": "free",
+                "seats": 3
+              }
+            ]
+          },
+          "expected": "#1 ok courseId=\"c_1042\" email=\"ana@codedev.test\" plan=\"premium\" seats=1 couponCode=\"SPRING25\"\n#2 rejected plan: plan must be one of: free, premium\n#3 rejected plan: plan must be one of: free, premium\n#4 rejected plan: plan must be one of: free, premium\n#5 rejected plan: plan must be one of: free, premium\n#6 ok courseId=\"c_88\" email=\"minh.tran@example.com\" plan=\"free\" seats=3 couponCode=-",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Missing, null and mistyped required fields get one error each, in field order",
+          "input": {
+            "bodies": [
+              {},
+              {
+                "courseId": 1042,
+                "email": null,
+                "plan": 1
+              },
+              {
+                "courseId": "C_12",
+                "email": "ana@codedev.test",
+                "plan": "free"
+              },
+              {
+                "courseId": "c_7",
+                "email": "ana.codedev.test",
+                "plan": "",
+                "seats": "3"
+              }
+            ]
+          },
+          "expected": "#1 rejected courseId: courseId is required | email: email is required | plan: plan is required\n#2 rejected courseId: courseId must be a string | email: email is required | plan: plan must be a string\n#3 rejected courseId: courseId must be c_ followed by 1 to 9 digits\n#4 rejected email: email must be a valid email address | plan: plan must be one of: free, premium | seats: seats must be an integer",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Numbers are never guessed from strings: seats \"2\", 2.5, 0, 51 and true are rejected",
+          "input": {
+            "bodies": [
+              {
+                "courseId": "c_5",
+                "email": "a@b.co",
+                "plan": "free",
+                "seats": "2"
+              },
+              {
+                "courseId": "c_5",
+                "email": "a@b.co",
+                "plan": "free",
+                "seats": 2.5
+              },
+              {
+                "courseId": "c_5",
+                "email": "a@b.co",
+                "plan": "free",
+                "seats": 0
+              },
+              {
+                "courseId": "c_5",
+                "email": "a@b.co",
+                "plan": "free",
+                "seats": 51
+              },
+              {
+                "courseId": "c_5",
+                "email": "a@b.co",
+                "plan": "free",
+                "seats": true
+              },
+              {
+                "courseId": "c_5",
+                "email": "a@b.co",
+                "plan": "free",
+                "seats": null
+              },
+              {
+                "courseId": "c_5",
+                "email": "a@b.co",
+                "plan": "premium",
+                "seats": 50
+              },
+              {
+                "courseId": "c_5",
+                "email": "a@b.co",
+                "plan": "premium",
+                "seats": 1
+              }
+            ]
+          },
+          "expected": "#1 rejected seats: seats must be an integer\n#2 rejected seats: seats must be an integer\n#3 rejected seats: seats must be between 1 and 50\n#4 rejected seats: seats must be between 1 and 50\n#5 rejected seats: seats must be an integer\n#6 ok courseId=\"c_5\" email=\"a@b.co\" plan=\"free\" seats=1 couponCode=-\n#7 ok courseId=\"c_5\" email=\"a@b.co\" plan=\"premium\" seats=50 couponCode=-\n#8 ok courseId=\"c_5\" email=\"a@b.co\" plan=\"premium\" seats=1 couponCode=-",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Coupons: null means none, the format is checked, and only plan premium may use one",
+          "input": {
+            "bodies": [
+              {
+                "courseId": "c_31",
+                "email": "lan@codedev.test",
+                "plan": "free",
+                "couponCode": null
+              },
+              {
+                "courseId": "c_31",
+                "email": "lan@codedev.test",
+                "plan": "premium",
+                "couponCode": "spring25"
+              },
+              {
+                "courseId": "c_31",
+                "email": "lan@codedev.test",
+                "plan": "free",
+                "couponCode": "SPRING25"
+              },
+              {
+                "courseId": "c_31",
+                "email": "lan@codedev.test",
+                "plan": "premium",
+                "couponCode": "AB12"
+              },
+              {
+                "courseId": "c_31",
+                "email": "lan@codedev.test",
+                "plan": "premium",
+                "couponCode": 25
+              },
+              {
+                "courseId": "c_31",
+                "email": "lan@codedev.test",
+                "plan": "gold",
+                "couponCode": "SPRING25"
+              },
+              {
+                "courseId": "c_31",
+                "email": "lan@codedev.test",
+                "plan": "premium",
+                "couponCode": "ABCDEFGHIJKLM"
+              },
+              {
+                "courseId": "c_31",
+                "email": "lan@codedev.test",
+                "plan": "premium",
+                "couponCode": ""
+              }
+            ]
+          },
+          "expected": "#1 ok courseId=\"c_31\" email=\"lan@codedev.test\" plan=\"free\" seats=1 couponCode=-\n#2 rejected couponCode: couponCode must be 4 to 12 characters, A-Z or 0-9\n#3 rejected couponCode: couponCode is only allowed with plan premium\n#4 ok courseId=\"c_31\" email=\"lan@codedev.test\" plan=\"premium\" seats=1 couponCode=\"AB12\"\n#5 rejected couponCode: couponCode must be a string\n#6 rejected plan: plan must be one of: free, premium\n#7 rejected couponCode: couponCode must be 4 to 12 characters, A-Z or 0-9\n#8 rejected couponCode: couponCode must be 4 to 12 characters, A-Z or 0-9",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "A body that is not a JSON object: null, an array, a string and a number",
+          "input": {
+            "bodies": [
+              null,
+              [],
+              [
+                {
+                  "courseId": "c_1",
+                  "email": "a@b.co",
+                  "plan": "free"
+                }
+              ],
+              "plan=premium",
+              42
+            ]
+          },
+          "expected": "#1 rejected body: body must be a JSON object\n#2 rejected body: body must be a JSON object\n#3 rejected body: body must be a JSON object\n#4 rejected body: body must be a JSON object\n#5 rejected body: body must be a JSON object",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Edge formats: 10-digit or padded courseId, emails with spaces or no dot, a 255-character email",
+          "input": {
+            "bodies": [
+              {
+                "courseId": "c_1234567890",
+                "email": "a@b.co",
+                "plan": "free"
+              },
+              {
+                "courseId": " c_12",
+                "email": "a@b.co",
+                "plan": "free"
+              },
+              {
+                "courseId": "c_123456789",
+                "email": "x@localhost",
+                "plan": "free"
+              },
+              {
+                "courseId": "c_1",
+                "email": "space @example.com",
+                "plan": "free"
+              },
+              {
+                "courseId": "c_1",
+                "email": "two@@example.com",
+                "plan": "free"
+              },
+              {
+                "courseId": "c_1",
+                "email": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@codedev.test",
+                "plan": "free"
+              },
+              {
+                "courseId": "c_1",
+                "email": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab@codedev.test",
+                "plan": "free"
+              }
+            ]
+          },
+          "expected": "#1 rejected courseId: courseId must be c_ followed by 1 to 9 digits\n#2 rejected courseId: courseId must be c_ followed by 1 to 9 digits\n#3 rejected email: email must be a valid email address\n#4 rejected email: email must be a valid email address\n#5 rejected email: email must be a valid email address\n#6 ok courseId=\"c_1\" email=\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@codedev.test\" plan=\"free\" seats=1 couponCode=-\n#7 rejected email: email must be a valid email address",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "400 generated bodies: how many are valid and how many errors each field gets",
+          "input": {
+            "generate": {
+              "count": 400,
+              "seed": 2026
+            }
+          },
+          "expected": "400 bodies: 16 valid; errors body 47, courseId 144, email 184, plan 159, couponCode 135, seats 139",
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

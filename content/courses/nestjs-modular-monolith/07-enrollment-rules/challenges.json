@@ -1,0 +1,3271 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nmm_311",
+      "name": "enrollment-rules-quiz",
+      "type": "quiz",
+      "title": "Where do the enrollment rules hold?",
+      "description": "Two pieces of evidence from the duplicate-enrollment incident: two requests that both passed the service's duplicate check, and a reactivation that skipped the entitlement check.",
+      "difficulty": "medium",
+      "outcomes": [
+        "domain-rules"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "EnrollmentService after the fix:\n\nconst current = await this.enrollments.findByUserAndCourse(userId, courseId);\nif (current?.status === \"active\") return { outcome: \"existing\", enrollment: current };\n// ... published, prerequisite and entitlement checks ...\nreturn { outcome: \"created\", enrollment: await this.enrollments.create(userId, courseId) };\n\nAPI log, one learner double-tapping Enroll in the mobile app (the table has no unique constraint yet):\n\n10:41:07.112 POST /enrollments user=u_1842 course=nestjs-modular-monolith -> 201 enr_9310 (38 ms)\n10:41:07.115 POST /enrollments user=u_1842 course=nestjs-modular-monolith -> 201 enr_9311 (36 ms)\n\nStatement: \"These two rows can appear even with the duplicate check in the service, so the unique constraint on enrollment (user_id, course_id) is still needed.\"",
+          "explanation": "True. The two requests started 3 ms apart and each took over 30 ms, so both ran findByUserAndCourse before either inserted: both saw no row, both passed the check and both called create. A check-then-insert in application code is a race whenever two requests overlap, and only the database can make the second insert fail, with UNIQUE (user_id, course_id) (the race and the constraint are covered in \"Stop duplicate enrollment: races & unique constraints\" in SQL & Data Modeling). The service rule is still worth having: it answers the common sequential retry with a clean \"existing\" result and a good error message, and the repository turns the rare unique violation (SQLSTATE 23505) into the same answer. The misconception is that a rule in the service is enough on its own because each request is handled correctly in isolation.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A reactivation path added by a teammate:\n\nasync enroll(userId: string, courseId: string) {\n  const course = await this.requireCourse(courseId);\n  const current = await this.enrollments.findByUserAndCourse(userId, courseId);\n  if (current?.status === \"active\") return { outcome: \"existing\", enrollment: current };\n  if (current?.status === \"cancelled\") {\n    // they were allowed in once\n    const reactivated = { ...current, status: \"active\" as const };\n    await this.enrollments.save(reactivated);\n    return { outcome: \"reactivated\", enrollment: reactivated };\n  }\n  this.assertPublished(course);\n  await this.assertPrerequisites(userId, course);\n  await this.assertEntitlement(userId, course);\n  // ... create\n}\n\nData for learner u_5002: an enrollment in the premium course nestjs-modular-monolith with status \"cancelled\" since a refund on 2026-09-30, and no entitlement row since then.\n\nStatement: \"Reactivating here without checking the entitlement again is safe, because u_5002 passed every rule when the enrollment was first created.\"",
+          "explanation": "False. The rules describe the state at the time of the request, not at the time of the first enrollment. Since then u_5002 was refunded and lost the entitlement, so this path gives the premium course back for free. The same applies to a course that was unpublished, or that gained a prerequisite, after the learner cancelled. A reactivation is a new decision: run the published, prerequisite and entitlement checks first, then flip the status of the existing row, which keeps one row per learner and course. The only request that may skip the rules is a repeat of one that already succeeded, which is what returning an active enrollment does. The misconception is treating \"was allowed once\" as \"is allowed now\".",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_nmm_312",
+      "name": "enrollment-service-rules",
+      "type": "mini_coding",
+      "title": "EnrollmentService: no duplicates, prerequisites first",
+      "description": "POST /enrollments on the CodeDev API calls EnrollmentService.enroll(userId, courseId). The shipped version inserted a row for every request, so a double tap and a mobile retry left learners enrolled twice, and the prerequisite check only existed in the web client. Write enroll so the rules live in the service. The repositories are injected through the constructor (in production they are backed by PostgreSQL; here they are in-memory fakes) and, like rows read from a database, every object they return is a copy: a change is stored only when you pass the object to enrollments.save().\n\nCheck the rules in this order. 1) courses.findById(courseId) returns undefined: throw new CourseNotFoundError(courseId). 2) The learner has an enrollment in this course with status \"active\": return { outcome: \"existing\", enrollment } with that enrollment and check nothing else (a repeated request gets the same answer even if the course was unpublished or its rules changed since). 3) course.published is false: throw new CourseNotPublishedError(courseId). 4) Some courses in course.prerequisites are not completed by the learner (completions.hasCompleted): throw new PrerequisitesMissingError(courseId, missing) with all of them, in the order of course.prerequisites. 5) course.premium is true and entitlements.hasEntitlement(userId, courseId) is false: throw new EntitlementRequiredError(courseId). 6) The learner has a \"cancelled\" enrollment in this course: set its status to \"active\", save it and return { outcome: \"reactivated\", enrollment } (same id, never a second row). 7) Otherwise return { outcome: \"created\", enrollment: enrollments.create(userId, courseId) }.\n\nInput (stdin): { \"courses\": [{ id, published, premium, prerequisites }], \"completions\": [[userId, courseId]], \"entitlements\": [[userId, courseId]], \"enrollments\": [{ id, userId, courseId, status }], \"operations\": [{ \"op\": \"enroll\" | \"cancel\", userId, courseId }], \"summary\"?: true }. Ids are compared exactly (no trimming, case-sensitive). \"cancel\" is done by the test runner on the repository. Output: one line per operation (the outcome with the enrollment id and status, or \"error <code>\" with the missing prerequisites in brackets), then every enrollment row ordered by id; with summary, only the count per outcome or error code and the number of active and cancelled rows. Do not change the types, error classes, repositories or test runner.",
+      "difficulty": "medium",
+      "outcomes": [
+        "domain-rules"
+      ],
+      "points": 30,
+      "hints": [
+        "For each request, ask two questions in this order: has this exact request already succeeded before (then the answer must not change), and if not, would the rules let this learner in right now?",
+        "Look at what findByUserAndCourse returns - undefined, an active enrollment or a cancelled one - and at where each of the three cases has to leave the function relative to the published, prerequisite and entitlement checks. For the prerequisites, collect every course that fails instead of stopping at the first. An object from the repository is a copy until it goes through save().",
+        "A similar service for workshop seats: register(userId, workshopId) returns the existing seat for a confirmed registration without checking anything else; a learner missing two of the three required badges [git, sql, docker] gets an error listing [git, docker], not only [git]; a withdrawn registration has its capacity and badges checked again, and only then is { ...registration, status: \"confirmed\" } saved under the same id."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The incident: a double click and a mobile retry enroll once; the repeats return the existing row",
+          "input": {
+            "courses": [
+              {
+                "id": "typescript-foundations",
+                "published": true,
+                "premium": false,
+                "prerequisites": []
+              },
+              {
+                "id": "web-http-fundamentals",
+                "published": true,
+                "premium": false,
+                "prerequisites": []
+              },
+              {
+                "id": "nestjs-modular-monolith",
+                "published": true,
+                "premium": true,
+                "prerequisites": [
+                  "typescript-foundations",
+                  "web-http-fundamentals"
+                ]
+              },
+              {
+                "id": "sql-data-modeling",
+                "published": true,
+                "premium": false,
+                "prerequisites": [
+                  "web-http-fundamentals"
+                ]
+              },
+              {
+                "id": "event-driven-systems",
+                "published": false,
+                "premium": true,
+                "prerequisites": [
+                  "nestjs-modular-monolith",
+                  "sql-data-modeling"
+                ]
+              },
+              {
+                "id": "angularjs-legacy",
+                "published": false,
+                "premium": false,
+                "prerequisites": []
+              }
+            ],
+            "completions": [
+              [
+                "u_1842",
+                "typescript-foundations"
+              ],
+              [
+                "u_1842",
+                "web-http-fundamentals"
+              ],
+              [
+                "u_2001",
+                "web-http-fundamentals"
+              ]
+            ],
+            "entitlements": [
+              [
+                "u_1842",
+                "nestjs-modular-monolith"
+              ]
+            ],
+            "enrollments": [
+              {
+                "id": "enr_001",
+                "userId": "u_1842",
+                "courseId": "web-http-fundamentals",
+                "status": "active"
+              }
+            ],
+            "operations": [
+              {
+                "op": "enroll",
+                "userId": "u_1842",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_1842",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_1842",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_2001",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_2001",
+                "courseId": "sql-data-modeling"
+              }
+            ]
+          },
+          "hidden": false,
+          "score": 3,
+          "expected": "enroll u_1842 nestjs-modular-monolith -> created enr_002 active\nenroll u_1842 nestjs-modular-monolith -> existing enr_002 active\nenroll u_1842 nestjs-modular-monolith -> existing enr_002 active\nenroll u_2001 sql-data-modeling -> created enr_003 active\nenroll u_2001 sql-data-modeling -> existing enr_003 active\nenrollments:\nenr_001 u_1842 web-http-fundamentals active\nenr_002 u_1842 nestjs-modular-monolith active\nenr_003 u_2001 sql-data-modeling active"
+        },
+        {
+          "name": "Prerequisites first: every missing course is reported, in the order the course lists them",
+          "input": {
+            "courses": [
+              {
+                "id": "typescript-foundations",
+                "published": true,
+                "premium": false,
+                "prerequisites": []
+              },
+              {
+                "id": "web-http-fundamentals",
+                "published": true,
+                "premium": false,
+                "prerequisites": []
+              },
+              {
+                "id": "nestjs-modular-monolith",
+                "published": true,
+                "premium": true,
+                "prerequisites": [
+                  "typescript-foundations",
+                  "web-http-fundamentals"
+                ]
+              },
+              {
+                "id": "sql-data-modeling",
+                "published": true,
+                "premium": false,
+                "prerequisites": [
+                  "web-http-fundamentals"
+                ]
+              },
+              {
+                "id": "event-driven-systems",
+                "published": false,
+                "premium": true,
+                "prerequisites": [
+                  "nestjs-modular-monolith",
+                  "sql-data-modeling"
+                ]
+              },
+              {
+                "id": "angularjs-legacy",
+                "published": false,
+                "premium": false,
+                "prerequisites": []
+              }
+            ],
+            "completions": [
+              [
+                "u_3105",
+                "web-http-fundamentals"
+              ]
+            ],
+            "entitlements": [
+              [
+                "u_3104",
+                "nestjs-modular-monolith"
+              ],
+              [
+                "u_3105",
+                "nestjs-modular-monolith"
+              ]
+            ],
+            "enrollments": [],
+            "operations": [
+              {
+                "op": "enroll",
+                "userId": "u_3104",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_3105",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_3105",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_3104",
+                "courseId": "typescript-foundations"
+              }
+            ]
+          },
+          "hidden": false,
+          "score": 3,
+          "expected": "enroll u_3104 nestjs-modular-monolith -> error prerequisites_missing [typescript-foundations, web-http-fundamentals]\nenroll u_3105 nestjs-modular-monolith -> error prerequisites_missing [typescript-foundations]\nenroll u_3105 sql-data-modeling -> created enr_001 active\nenroll u_3104 typescript-foundations -> created enr_002 active\nenrollments:\nenr_001 u_3105 sql-data-modeling active\nenr_002 u_3104 typescript-foundations active"
+        },
+        {
+          "name": "Unknown ids, a draft course and a premium course without an entitlement are refused, in rule order",
+          "input": {
+            "courses": [
+              {
+                "id": "typescript-foundations",
+                "published": true,
+                "premium": false,
+                "prerequisites": []
+              },
+              {
+                "id": "web-http-fundamentals",
+                "published": true,
+                "premium": false,
+                "prerequisites": []
+              },
+              {
+                "id": "nestjs-modular-monolith",
+                "published": true,
+                "premium": true,
+                "prerequisites": [
+                  "typescript-foundations",
+                  "web-http-fundamentals"
+                ]
+              },
+              {
+                "id": "sql-data-modeling",
+                "published": true,
+                "premium": false,
+                "prerequisites": [
+                  "web-http-fundamentals"
+                ]
+              },
+              {
+                "id": "event-driven-systems",
+                "published": false,
+                "premium": true,
+                "prerequisites": [
+                  "nestjs-modular-monolith",
+                  "sql-data-modeling"
+                ]
+              },
+              {
+                "id": "angularjs-legacy",
+                "published": false,
+                "premium": false,
+                "prerequisites": []
+              }
+            ],
+            "completions": [
+              [
+                "u_4001",
+                "typescript-foundations"
+              ],
+              [
+                "u_4001",
+                "web-http-fundamentals"
+              ]
+            ],
+            "entitlements": [
+              [
+                "u_4002",
+                "nestjs-modular-monolith"
+              ]
+            ],
+            "enrollments": [],
+            "operations": [
+              {
+                "op": "enroll",
+                "userId": "u_4001",
+                "courseId": "nestjs"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_4001",
+                "courseId": "NestJS-Modular-Monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_4001",
+                "courseId": ""
+              },
+              {
+                "op": "enroll",
+                "userId": "u_4001",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_4001",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_4003",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_4002",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_4001",
+                "courseId": "typescript-foundations"
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 3,
+          "expected": "enroll u_4001 nestjs -> error course_not_found\nenroll u_4001 NestJS-Modular-Monolith -> error course_not_found\nenroll u_4001  -> error course_not_found\nenroll u_4001 event-driven-systems -> error course_not_published\nenroll u_4001 nestjs-modular-monolith -> error entitlement_required\nenroll u_4003 nestjs-modular-monolith -> error prerequisites_missing [typescript-foundations, web-http-fundamentals]\nenroll u_4002 nestjs-modular-monolith -> error prerequisites_missing [typescript-foundations, web-http-fundamentals]\nenroll u_4001 typescript-foundations -> created enr_001 active\nenrollments:\nenr_001 u_4001 typescript-foundations active"
+        },
+        {
+          "name": "A cancelled enrollment is reactivated with the same id, but only when the rules pass again",
+          "input": {
+            "courses": [
+              {
+                "id": "typescript-foundations",
+                "published": true,
+                "premium": false,
+                "prerequisites": []
+              },
+              {
+                "id": "web-http-fundamentals",
+                "published": true,
+                "premium": false,
+                "prerequisites": []
+              },
+              {
+                "id": "nestjs-modular-monolith",
+                "published": true,
+                "premium": true,
+                "prerequisites": [
+                  "typescript-foundations",
+                  "web-http-fundamentals"
+                ]
+              },
+              {
+                "id": "sql-data-modeling",
+                "published": true,
+                "premium": false,
+                "prerequisites": [
+                  "web-http-fundamentals"
+                ]
+              },
+              {
+                "id": "event-driven-systems",
+                "published": false,
+                "premium": true,
+                "prerequisites": [
+                  "nestjs-modular-monolith",
+                  "sql-data-modeling"
+                ]
+              },
+              {
+                "id": "angularjs-legacy",
+                "published": false,
+                "premium": false,
+                "prerequisites": []
+              }
+            ],
+            "completions": [
+              [
+                "u_5001",
+                "web-http-fundamentals"
+              ],
+              [
+                "u_5002",
+                "typescript-foundations"
+              ],
+              [
+                "u_5002",
+                "web-http-fundamentals"
+              ]
+            ],
+            "entitlements": [],
+            "enrollments": [
+              {
+                "id": "enr_001",
+                "userId": "u_5001",
+                "courseId": "sql-data-modeling",
+                "status": "cancelled"
+              },
+              {
+                "id": "enr_002",
+                "userId": "u_5002",
+                "courseId": "nestjs-modular-monolith",
+                "status": "cancelled"
+              },
+              {
+                "id": "enr_003",
+                "userId": "u_5001",
+                "courseId": "web-http-fundamentals",
+                "status": "active"
+              }
+            ],
+            "operations": [
+              {
+                "op": "enroll",
+                "userId": "u_5001",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_5001",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_5002",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_5002",
+                "courseId": "typescript-foundations"
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 3,
+          "expected": "enroll u_5001 sql-data-modeling -> reactivated enr_001 active\nenroll u_5001 sql-data-modeling -> existing enr_001 active\nenroll u_5002 nestjs-modular-monolith -> error entitlement_required\nenroll u_5002 typescript-foundations -> created enr_004 active\nenrollments:\nenr_001 u_5001 sql-data-modeling active\nenr_002 u_5002 nestjs-modular-monolith cancelled\nenr_003 u_5001 web-http-fundamentals active\nenr_004 u_5002 typescript-foundations active"
+        },
+        {
+          "name": "An active enrollment is returned as is, even after the course was unpublished or its rules changed",
+          "input": {
+            "courses": [
+              {
+                "id": "typescript-foundations",
+                "published": true,
+                "premium": false,
+                "prerequisites": []
+              },
+              {
+                "id": "web-http-fundamentals",
+                "published": true,
+                "premium": false,
+                "prerequisites": []
+              },
+              {
+                "id": "nestjs-modular-monolith",
+                "published": true,
+                "premium": true,
+                "prerequisites": [
+                  "typescript-foundations",
+                  "web-http-fundamentals"
+                ]
+              },
+              {
+                "id": "sql-data-modeling",
+                "published": true,
+                "premium": false,
+                "prerequisites": [
+                  "web-http-fundamentals"
+                ]
+              },
+              {
+                "id": "event-driven-systems",
+                "published": false,
+                "premium": true,
+                "prerequisites": [
+                  "nestjs-modular-monolith",
+                  "sql-data-modeling"
+                ]
+              },
+              {
+                "id": "angularjs-legacy",
+                "published": false,
+                "premium": false,
+                "prerequisites": []
+              }
+            ],
+            "completions": [],
+            "entitlements": [],
+            "enrollments": [
+              {
+                "id": "enr_001",
+                "userId": "u_6001",
+                "courseId": "angularjs-legacy",
+                "status": "active"
+              },
+              {
+                "id": "enr_002",
+                "userId": "u_6001",
+                "courseId": "nestjs-modular-monolith",
+                "status": "active"
+              }
+            ],
+            "operations": [
+              {
+                "op": "enroll",
+                "userId": "u_6001",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_6001",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_6001",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_6001",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_6001",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_6001",
+                "courseId": "angularjs-legacy"
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 3,
+          "expected": "enroll u_6001 angularjs-legacy -> existing enr_001 active\nenroll u_6001 nestjs-modular-monolith -> existing enr_002 active\ncancel u_6001 nestjs-modular-monolith -> cancelled enr_002\nenroll u_6001 nestjs-modular-monolith -> error prerequisites_missing [typescript-foundations, web-http-fundamentals]\ncancel u_6001 angularjs-legacy -> cancelled enr_001\nenroll u_6001 angularjs-legacy -> error course_not_published\nenrollments:\nenr_001 u_6001 angularjs-legacy cancelled\nenr_002 u_6001 nestjs-modular-monolith cancelled"
+        },
+        {
+          "name": "Cancel and enroll again three times: one row, same id, never a second row",
+          "input": {
+            "courses": [
+              {
+                "id": "typescript-foundations",
+                "published": true,
+                "premium": false,
+                "prerequisites": []
+              },
+              {
+                "id": "web-http-fundamentals",
+                "published": true,
+                "premium": false,
+                "prerequisites": []
+              },
+              {
+                "id": "nestjs-modular-monolith",
+                "published": true,
+                "premium": true,
+                "prerequisites": [
+                  "typescript-foundations",
+                  "web-http-fundamentals"
+                ]
+              },
+              {
+                "id": "sql-data-modeling",
+                "published": true,
+                "premium": false,
+                "prerequisites": [
+                  "web-http-fundamentals"
+                ]
+              },
+              {
+                "id": "event-driven-systems",
+                "published": false,
+                "premium": true,
+                "prerequisites": [
+                  "nestjs-modular-monolith",
+                  "sql-data-modeling"
+                ]
+              },
+              {
+                "id": "angularjs-legacy",
+                "published": false,
+                "premium": false,
+                "prerequisites": []
+              }
+            ],
+            "completions": [
+              [
+                "u_7001",
+                "web-http-fundamentals"
+              ]
+            ],
+            "entitlements": [],
+            "enrollments": [],
+            "operations": [
+              {
+                "op": "enroll",
+                "userId": "u_7001",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_7001",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_7001",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_7001",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_7001",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_7001",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_7001",
+                "courseId": "sql-data-modeling"
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 2,
+          "expected": "enroll u_7001 sql-data-modeling -> created enr_001 active\ncancel u_7001 sql-data-modeling -> cancelled enr_001\nenroll u_7001 sql-data-modeling -> reactivated enr_001 active\ncancel u_7001 sql-data-modeling -> cancelled enr_001\ncancel u_7001 sql-data-modeling -> nothing to cancel\nenroll u_7001 sql-data-modeling -> reactivated enr_001 active\nenroll u_7001 sql-data-modeling -> existing enr_001 active\nenrollments:\nenr_001 u_7001 sql-data-modeling active"
+        },
+        {
+          "name": "400 enroll and cancel operations from 25 learners: outcome counts and final rows",
+          "input": {
+            "courses": [
+              {
+                "id": "typescript-foundations",
+                "published": true,
+                "premium": false,
+                "prerequisites": []
+              },
+              {
+                "id": "web-http-fundamentals",
+                "published": true,
+                "premium": false,
+                "prerequisites": []
+              },
+              {
+                "id": "nestjs-modular-monolith",
+                "published": true,
+                "premium": true,
+                "prerequisites": [
+                  "typescript-foundations",
+                  "web-http-fundamentals"
+                ]
+              },
+              {
+                "id": "sql-data-modeling",
+                "published": true,
+                "premium": false,
+                "prerequisites": [
+                  "web-http-fundamentals"
+                ]
+              },
+              {
+                "id": "event-driven-systems",
+                "published": false,
+                "premium": true,
+                "prerequisites": [
+                  "nestjs-modular-monolith",
+                  "sql-data-modeling"
+                ]
+              },
+              {
+                "id": "angularjs-legacy",
+                "published": false,
+                "premium": false,
+                "prerequisites": []
+              }
+            ],
+            "completions": [
+              [
+                "u_8000",
+                "typescript-foundations"
+              ],
+              [
+                "u_8000",
+                "event-driven-systems"
+              ],
+              [
+                "u_8000",
+                "angularjs-legacy"
+              ],
+              [
+                "u_8001",
+                "typescript-foundations"
+              ],
+              [
+                "u_8001",
+                "web-http-fundamentals"
+              ],
+              [
+                "u_8001",
+                "sql-data-modeling"
+              ],
+              [
+                "u_8002",
+                "typescript-foundations"
+              ],
+              [
+                "u_8002",
+                "web-http-fundamentals"
+              ],
+              [
+                "u_8002",
+                "nestjs-modular-monolith"
+              ],
+              [
+                "u_8002",
+                "sql-data-modeling"
+              ],
+              [
+                "u_8002",
+                "angularjs-legacy"
+              ],
+              [
+                "u_8003",
+                "typescript-foundations"
+              ],
+              [
+                "u_8003",
+                "web-http-fundamentals"
+              ],
+              [
+                "u_8003",
+                "nestjs-modular-monolith"
+              ],
+              [
+                "u_8003",
+                "angularjs-legacy"
+              ],
+              [
+                "u_8004",
+                "event-driven-systems"
+              ],
+              [
+                "u_8004",
+                "angularjs-legacy"
+              ],
+              [
+                "u_8005",
+                "sql-data-modeling"
+              ],
+              [
+                "u_8005",
+                "angularjs-legacy"
+              ],
+              [
+                "u_8006",
+                "typescript-foundations"
+              ],
+              [
+                "u_8006",
+                "web-http-fundamentals"
+              ],
+              [
+                "u_8006",
+                "sql-data-modeling"
+              ],
+              [
+                "u_8006",
+                "event-driven-systems"
+              ],
+              [
+                "u_8006",
+                "angularjs-legacy"
+              ],
+              [
+                "u_8007",
+                "typescript-foundations"
+              ],
+              [
+                "u_8007",
+                "web-http-fundamentals"
+              ],
+              [
+                "u_8007",
+                "nestjs-modular-monolith"
+              ],
+              [
+                "u_8007",
+                "sql-data-modeling"
+              ],
+              [
+                "u_8007",
+                "event-driven-systems"
+              ],
+              [
+                "u_8007",
+                "angularjs-legacy"
+              ],
+              [
+                "u_8008",
+                "typescript-foundations"
+              ],
+              [
+                "u_8008",
+                "web-http-fundamentals"
+              ],
+              [
+                "u_8008",
+                "nestjs-modular-monolith"
+              ],
+              [
+                "u_8008",
+                "sql-data-modeling"
+              ],
+              [
+                "u_8008",
+                "event-driven-systems"
+              ],
+              [
+                "u_8009",
+                "typescript-foundations"
+              ],
+              [
+                "u_8009",
+                "web-http-fundamentals"
+              ],
+              [
+                "u_8009",
+                "nestjs-modular-monolith"
+              ],
+              [
+                "u_8009",
+                "sql-data-modeling"
+              ],
+              [
+                "u_8009",
+                "angularjs-legacy"
+              ],
+              [
+                "u_8010",
+                "typescript-foundations"
+              ],
+              [
+                "u_8010",
+                "web-http-fundamentals"
+              ],
+              [
+                "u_8010",
+                "nestjs-modular-monolith"
+              ],
+              [
+                "u_8010",
+                "sql-data-modeling"
+              ],
+              [
+                "u_8010",
+                "event-driven-systems"
+              ],
+              [
+                "u_8011",
+                "typescript-foundations"
+              ],
+              [
+                "u_8011",
+                "web-http-fundamentals"
+              ],
+              [
+                "u_8011",
+                "nestjs-modular-monolith"
+              ],
+              [
+                "u_8011",
+                "sql-data-modeling"
+              ],
+              [
+                "u_8011",
+                "event-driven-systems"
+              ],
+              [
+                "u_8012",
+                "typescript-foundations"
+              ],
+              [
+                "u_8012",
+                "web-http-fundamentals"
+              ],
+              [
+                "u_8012",
+                "nestjs-modular-monolith"
+              ],
+              [
+                "u_8012",
+                "sql-data-modeling"
+              ],
+              [
+                "u_8012",
+                "event-driven-systems"
+              ],
+              [
+                "u_8012",
+                "angularjs-legacy"
+              ],
+              [
+                "u_8013",
+                "typescript-foundations"
+              ],
+              [
+                "u_8013",
+                "web-http-fundamentals"
+              ],
+              [
+                "u_8013",
+                "nestjs-modular-monolith"
+              ],
+              [
+                "u_8013",
+                "sql-data-modeling"
+              ],
+              [
+                "u_8013",
+                "angularjs-legacy"
+              ],
+              [
+                "u_8014",
+                "web-http-fundamentals"
+              ],
+              [
+                "u_8014",
+                "nestjs-modular-monolith"
+              ],
+              [
+                "u_8014",
+                "sql-data-modeling"
+              ],
+              [
+                "u_8014",
+                "event-driven-systems"
+              ],
+              [
+                "u_8014",
+                "angularjs-legacy"
+              ],
+              [
+                "u_8015",
+                "sql-data-modeling"
+              ],
+              [
+                "u_8015",
+                "angularjs-legacy"
+              ],
+              [
+                "u_8016",
+                "typescript-foundations"
+              ],
+              [
+                "u_8016",
+                "web-http-fundamentals"
+              ],
+              [
+                "u_8016",
+                "nestjs-modular-monolith"
+              ],
+              [
+                "u_8016",
+                "sql-data-modeling"
+              ],
+              [
+                "u_8017",
+                "typescript-foundations"
+              ],
+              [
+                "u_8017",
+                "web-http-fundamentals"
+              ],
+              [
+                "u_8017",
+                "sql-data-modeling"
+              ],
+              [
+                "u_8017",
+                "event-driven-systems"
+              ],
+              [
+                "u_8017",
+                "angularjs-legacy"
+              ],
+              [
+                "u_8018",
+                "typescript-foundations"
+              ],
+              [
+                "u_8018",
+                "nestjs-modular-monolith"
+              ],
+              [
+                "u_8018",
+                "sql-data-modeling"
+              ],
+              [
+                "u_8018",
+                "angularjs-legacy"
+              ],
+              [
+                "u_8019",
+                "nestjs-modular-monolith"
+              ],
+              [
+                "u_8019",
+                "sql-data-modeling"
+              ],
+              [
+                "u_8019",
+                "event-driven-systems"
+              ],
+              [
+                "u_8020",
+                "angularjs-legacy"
+              ],
+              [
+                "u_8021",
+                "typescript-foundations"
+              ],
+              [
+                "u_8021",
+                "web-http-fundamentals"
+              ],
+              [
+                "u_8021",
+                "sql-data-modeling"
+              ],
+              [
+                "u_8021",
+                "event-driven-systems"
+              ],
+              [
+                "u_8022",
+                "event-driven-systems"
+              ],
+              [
+                "u_8022",
+                "angularjs-legacy"
+              ],
+              [
+                "u_8023",
+                "typescript-foundations"
+              ],
+              [
+                "u_8023",
+                "web-http-fundamentals"
+              ],
+              [
+                "u_8023",
+                "nestjs-modular-monolith"
+              ],
+              [
+                "u_8023",
+                "sql-data-modeling"
+              ],
+              [
+                "u_8023",
+                "event-driven-systems"
+              ],
+              [
+                "u_8024",
+                "typescript-foundations"
+              ],
+              [
+                "u_8024",
+                "web-http-fundamentals"
+              ],
+              [
+                "u_8024",
+                "event-driven-systems"
+              ],
+              [
+                "u_8024",
+                "angularjs-legacy"
+              ]
+            ],
+            "entitlements": [
+              [
+                "u_8000",
+                "nestjs-modular-monolith"
+              ],
+              [
+                "u_8000",
+                "event-driven-systems"
+              ],
+              [
+                "u_8001",
+                "nestjs-modular-monolith"
+              ],
+              [
+                "u_8001",
+                "event-driven-systems"
+              ],
+              [
+                "u_8002",
+                "nestjs-modular-monolith"
+              ],
+              [
+                "u_8003",
+                "nestjs-modular-monolith"
+              ],
+              [
+                "u_8005",
+                "event-driven-systems"
+              ],
+              [
+                "u_8007",
+                "nestjs-modular-monolith"
+              ],
+              [
+                "u_8008",
+                "event-driven-systems"
+              ],
+              [
+                "u_8010",
+                "event-driven-systems"
+              ],
+              [
+                "u_8011",
+                "nestjs-modular-monolith"
+              ],
+              [
+                "u_8012",
+                "nestjs-modular-monolith"
+              ],
+              [
+                "u_8013",
+                "event-driven-systems"
+              ],
+              [
+                "u_8015",
+                "nestjs-modular-monolith"
+              ],
+              [
+                "u_8015",
+                "event-driven-systems"
+              ],
+              [
+                "u_8016",
+                "nestjs-modular-monolith"
+              ],
+              [
+                "u_8017",
+                "event-driven-systems"
+              ],
+              [
+                "u_8018",
+                "nestjs-modular-monolith"
+              ],
+              [
+                "u_8018",
+                "event-driven-systems"
+              ],
+              [
+                "u_8019",
+                "event-driven-systems"
+              ],
+              [
+                "u_8020",
+                "nestjs-modular-monolith"
+              ],
+              [
+                "u_8021",
+                "nestjs-modular-monolith"
+              ],
+              [
+                "u_8022",
+                "nestjs-modular-monolith"
+              ],
+              [
+                "u_8022",
+                "event-driven-systems"
+              ],
+              [
+                "u_8023",
+                "event-driven-systems"
+              ],
+              [
+                "u_8024",
+                "event-driven-systems"
+              ]
+            ],
+            "enrollments": [],
+            "operations": [
+              {
+                "op": "enroll",
+                "userId": "u_8021",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8018",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8004",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8018",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8011",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8020",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8023",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8010",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8008",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8002",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8022",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8009",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8021",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8003",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8024",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8021",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8001",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8006",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8024",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8016",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8006",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8002",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8018",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8006",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8020",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8023",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8022",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8008",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8007",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8011",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8015",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8004",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8006",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8010",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8014",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8023",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8016",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8020",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8015",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8015",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8005",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8019",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8006",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8003",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8018",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8004",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8020",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8017",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8004",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8011",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8015",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8004",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8005",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8000",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8019",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8010",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8004",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8010",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8017",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8022",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8009",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8011",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8020",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8019",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8010",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8014",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8015",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8023",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8019",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8024",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8009",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8013",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8024",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8010",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8012",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8010",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8004",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8004",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8002",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8016",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8004",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8020",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8004",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8000",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8010",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8009",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8021",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8009",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8003",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8009",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8007",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8008",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8020",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8007",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8007",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8001",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8014",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8024",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8021",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8001",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8020",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8005",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8021",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8011",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8023",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8019",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8024",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8003",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8013",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8010",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8011",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8022",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8021",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8022",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8005",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8019",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8024",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8005",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8023",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8001",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8011",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8014",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8016",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8005",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8002",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8005",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8021",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8010",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8001",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8005",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8004",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8017",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8010",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8002",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8018",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8021",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8014",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8012",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8004",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8019",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8002",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8000",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8009",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8009",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8024",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8006",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8016",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8015",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8002",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8016",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8015",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8002",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8023",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8001",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8002",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8005",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8021",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8015",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8001",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8012",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8011",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8004",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8016",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8020",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8022",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8012",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8020",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8006",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8023",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8015",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8004",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8018",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8011",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8024",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8005",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8014",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8017",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8024",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8002",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8002",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8013",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8012",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8023",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8019",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8012",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8014",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8010",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8024",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8008",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8011",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8000",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8008",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8013",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8001",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8002",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8007",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8012",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8020",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8021",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8019",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8019",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8012",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8021",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8023",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8020",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8020",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8004",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8005",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8005",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8000",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8012",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8021",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8018",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8019",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8007",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8020",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8008",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8022",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8014",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8007",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8010",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8012",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8003",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8004",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8022",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8000",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8007",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8005",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8009",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8000",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8022",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8007",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8007",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8012",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8012",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8021",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8002",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8002",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8014",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8017",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8019",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8008",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8018",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8003",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8016",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8005",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8012",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8000",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8002",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8008",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8010",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8019",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8020",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8002",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8006",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8013",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8008",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8019",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8012",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8011",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8008",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8009",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8024",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8024",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8012",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8004",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8024",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8004",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8000",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8017",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8016",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8016",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8007",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8024",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8007",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8003",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8021",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8020",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8014",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8014",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8015",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8015",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8003",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8020",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8012",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8016",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8016",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8008",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8021",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8007",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8009",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8014",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8022",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8004",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8020",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8000",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8024",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8020",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8015",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8023",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8003",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8024",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8021",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8010",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8013",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8000",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8013",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8013",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8008",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8022",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8015",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8003",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8007",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8024",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8017",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8021",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8004",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8007",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8000",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8007",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8001",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8001",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8021",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8019",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8003",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8021",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8015",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8021",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8003",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8015",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8023",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8022",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8003",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8020",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8017",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8008",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8019",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8014",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8018",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8000",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8019",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8015",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8008",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8008",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8006",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8024",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8023",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8013",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8011",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8018",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8015",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8014",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8018",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8001",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8015",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8023",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8011",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8018",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8017",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8020",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8005",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8006",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8000",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8011",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8020",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8020",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8006",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8001",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8007",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8015",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8002",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8020",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8006",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8021",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8007",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8020",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8023",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8017",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8017",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8014",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8001",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8017",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8016",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8014",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8019",
+                "courseId": "sql-data-modeling"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8015",
+                "courseId": "typescript-foundations"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8019",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8017",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8019",
+                "courseId": "angularjs-legacy"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8001",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "cancel",
+                "userId": "u_8010",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8020",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8018",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8008",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8001",
+                "courseId": "unknown-course"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8004",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8009",
+                "courseId": "nestjs-modular-monolith"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8014",
+                "courseId": "event-driven-systems"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8008",
+                "courseId": "web-http-fundamentals"
+              },
+              {
+                "op": "enroll",
+                "userId": "u_8012",
+                "courseId": "event-driven-systems"
+              }
+            ],
+            "summary": true
+          },
+          "hidden": true,
+          "score": 3,
+          "expected": "400 operations; cancelled: 23; created: 67; error course_not_found: 42; error course_not_published: 81; error entitlement_required: 8; error prerequisites_missing: 37; existing: 63; nothing to cancel: 68; reactivated: 11\nrows: 67 (55 active, 12 cancelled)"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nmm_131",
+      "name": "exports-imports-quiz",
+      "type": "quiz",
+      "title": "What can another module inject?",
+      "description": "Three pieces of evidence from the CodeDev API: a chain of module imports, a quick fix for a missing CourseService, and a progress service that remembers the current user.",
+      "difficulty": "medium",
+      "outcomes": ["module-boundaries"],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Three modules of the CodeDev API:\n\n@Module({ providers: [UserService, UserRepository], exports: [UserService] })\nexport class UserModule {}\n\n@Module({\n  imports: [UserModule],\n  providers: [CourseService, CourseRepository],\n  exports: [CourseService],\n})\nexport class CourseModule {}\n\n@Module({ imports: [CourseModule], providers: [EnrollmentService, EnrollmentRepository] })\nexport class EnrollmentModule {}\n\n@Injectable()\nexport class EnrollmentService {\n  constructor(\n    private readonly courses: CourseService,\n    private readonly users: UserService,\n  ) {}\n}\n\nStatement: \"The application starts, because EnrollmentModule imports CourseModule, CourseModule imports UserModule, and so UserService is available to EnrollmentService.\"",
+          "explanation": "False. Imports are not transitive: a module sees only the exports of the modules it imports itself. CourseModule exports CourseService but not UserModule, so EnrollmentModule gets CourseService and nothing else. Startup fails with: Nest can't resolve dependencies of the EnrollmentService (CourseService, ?). Please make sure that the argument UserService at index [1] is available in the EnrollmentModule context. The fix is to add UserModule to EnrollmentModule's imports, which also documents the dependency. Re-exporting UserModule from CourseModule would work too, but then every importer of CourseModule silently depends on users. The misconception is that the module graph shares everything along a path, the way JavaScript imports load everything they touch.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "CourseService caches course outlines in memory for 10 minutes; CourseController calls courseService.invalidate(courseId) after an admin edits a course with PATCH /courses/:id. EnrollmentModule failed at startup because CourseService was missing, and this fix was merged:\n\n// src/enrollments/enrollment.module.ts\n @Module({\n   controllers: [EnrollmentController],\n-  providers: [EnrollmentService, EnrollmentRepository],\n+  providers: [EnrollmentService, EnrollmentRepository, CourseService, CourseRepository],\n })\n export class EnrollmentModule {}\n\n// src/courses/course.module.ts (unchanged)\n@Module({\n  controllers: [CourseController],\n  providers: [CourseService, CourseRepository],\n  exports: [CourseService],\n})\nexport class CourseModule {}\n\nStatement: \"After this fix, when an admin marks two lessons of course 42 as previews with PATCH /courses/42, the price quote from EnrollmentService uses the new outline right away.\"",
+          "explanation": "False. A class listed in the providers of two modules becomes two providers: Nest creates one CourseService for CourseModule and another for EnrollmentModule, each with its own cache. PATCH /courses/42 goes through CourseController and invalidates the cache of CourseModule's instance only; EnrollmentService keeps quoting from its own instance's stale outline for up to 10 minutes. The right fix is imports: [CourseModule] in EnrollmentModule (CourseModule already exports CourseService), which gives EnrollmentService the same instance that CourseController uses. The misconception is that a provider is a single global object no matter where it is declared: sharing comes from exporting and importing, not from naming the class twice.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "ProgressService and its controller:\n\n@Injectable()\nexport class ProgressService {\n  private currentUserId?: string;\n  setUser(userId: string) { this.currentUserId = userId; }\n\n  async complete(lessonId: string) {\n    await this.courses.getOutlineForLesson(lessonId);          // about 25 ms\n    await this.progress.insert(this.currentUserId!, lessonId);\n  }\n}\n\n@Post(\":id/complete\")\nasync complete(@Param(\"id\") lessonId: string, @Req() req: AuthenticatedRequest) {\n  this.progressService.setUser(req.user.id);\n  return this.progressService.complete(lessonId);\n}\n\nAPI log:\n10:41:07.112 POST /lessons/l_301/complete user=u_12\n10:41:07.115 POST /lessons/l_877/complete user=u_95\n10:41:07.140 lesson_progress insert user=u_95 lesson=l_301\n10:41:07.142 lesson_progress insert user=u_95 lesson=l_877\n\nStatement: \"ProgressService has the default scope, so one instance serves both requests: the second request's setUser overwrote currentUserId during the first request's await, and lesson l_301 was recorded for the wrong learner.\"",
+          "explanation": "True. Without a scope option, a provider is a singleton: one ProgressService for the whole application. Request 1 sets currentUserId to u_12 and waits about 25 ms for the outline; 3 ms later request 2 sets the same field to u_95; when request 1 resumes, it reads u_95, which is exactly what the log shows. The fix is to keep per-request data out of singleton fields: complete(userId, lessonId) with the controller passing req.user.id. Scope.REQUEST would also stop the mix-up, but it creates a new service, controller and dependency chain for every request, so it is the expensive answer to a problem an argument solves. The misconception is that each HTTP request gets its own service objects by default.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        }
+      ]
+    }
+  ]
+}

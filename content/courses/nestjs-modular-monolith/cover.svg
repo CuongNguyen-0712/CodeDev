@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Course cover: NestJS modular monolith (domain modules, one-way imports, a removed import cycle). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1A1018"/>
+      <stop offset="0.55" stop-color="#110F16"/>
+      <stop offset="1" stop-color="#0D0B13"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#E0234E" stop-opacity="0.26"/>
+      <stop offset="1" stop-color="#E0234E" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#FFFFFF" fill-opacity="0.07"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8C8399"/></marker>
+    <marker id="arrowRed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2555A"/></marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#dots)"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- Copy -->
+  <g id="copy" font-family="Segoe UI, Inter, Arial, sans-serif">
+    <rect x="112" y="152" width="92" height="92" rx="20" fill="#E0234E"/>
+    <text x="158" y="216" text-anchor="middle" font-size="40" font-weight="800" fill="#FFFFFF">N</text>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#F28AA0">NESTJS · TYPESCRIPT</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">Modular</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">Monolith</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Modules · Dependency injection · Clean boundaries</text>
+    <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#F8D3DC">
+      <rect x="110" y="660" width="160" height="52" rx="26" fill="#2A1320" stroke="#E0234E"/>
+      <text x="190" y="695" text-anchor="middle">@Module</text>
+      <rect x="286" y="660" width="132" height="52" rx="26" fill="#2A1320" stroke="#E0234E"/>
+      <text x="352" y="695" text-anchor="middle">DTO</text>
+      <rect x="434" y="660" width="132" height="52" rx="26" fill="#2A1320" stroke="#E0234E"/>
+      <text x="500" y="695" text-anchor="middle">DI</text>
+    </g>
+  </g>
+
+  <!-- AppModule imports three domain modules; the cycle between courses and enrollments is cut -->
+  <g id="art" font-family="Consolas, Menlo, monospace">
+    <path d="M1180 300 V340 H990 V384 M1180 340 H1400 V384 M1180 340 V384" stroke="#4A3346" stroke-width="3" fill="none"/>
+    <rect x="1080" y="244" width="200" height="56" rx="14" fill="#1C1420" stroke="#4A3346" stroke-width="2"/>
+    <text x="1180" y="280" font-size="22" fill="#F4F2F8" text-anchor="middle">AppModule</text>
+
+    <rect x="900" y="384" width="180" height="56" rx="14" fill="#E0234E" fill-opacity="0.16" stroke="#E0234E" stroke-width="3"/>
+    <text x="990" y="420" font-size="21" fill="#F28AA0" text-anchor="middle">Courses</text>
+    <rect x="1090" y="384" width="180" height="56" rx="14" fill="#E0234E" fill-opacity="0.16" stroke="#E0234E" stroke-width="3"/>
+    <text x="1180" y="420" font-size="21" fill="#F28AA0" text-anchor="middle">Enrollments</text>
+    <rect x="1310" y="384" width="180" height="56" rx="14" fill="#E0234E" fill-opacity="0.16" stroke="#E0234E" stroke-width="3"/>
+    <text x="1400" y="420" font-size="21" fill="#F28AA0" text-anchor="middle">Progress</text>
+
+    <path d="M1010 450 C1040 500, 1130 500, 1160 450" stroke="#F2555A" stroke-width="3" stroke-dasharray="8 8" fill="none" marker-end="url(#arrowRed)"/>
+    <path d="M1060 470 L1110 500 M1110 470 L1060 500" stroke="#F2555A" stroke-width="4"/>
+    <text x="1085" y="540" font-size="19" fill="#F2555A" text-anchor="middle">import cycle removed</text>
+
+    <path d="M990 440 V620 M1180 440 V620" stroke="#8C8399" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+    <rect x="900" y="624" width="370" height="56" rx="14" fill="#1C1420" stroke="#3DBE7B" stroke-width="2"/>
+    <text x="1085" y="660" font-size="21" fill="#3DBE7B" text-anchor="middle">CatalogQueries (exported)</text>
+    <text x="1400" y="480" font-size="18" fill="#B8B2C8" text-anchor="middle">never goes back</text>
+    <text x="900" y="740" font-size="19" fill="#B8B2C8">ValidationPipe({ whitelist: true })</text>
+  </g>
+</svg>

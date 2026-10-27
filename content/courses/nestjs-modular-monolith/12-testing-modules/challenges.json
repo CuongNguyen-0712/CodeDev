@@ -1,0 +1,50 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nmm_431",
+      "name": "testing-module-overrides",
+      "type": "quiz",
+      "title": "What a testing module can see",
+      "description": "Two statements on Test.createTestingModule and overrideProvider: which wiring mistakes a testing-module test catches, and which dependencies an override can actually replace.",
+      "difficulty": "medium",
+      "outcomes": [
+        "dependency-injection"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "// enrollments/enrollment.module.ts\n@Module({\n  imports: [CourseModule, EnrollmentDataModule],\n  providers: [EnrollmentService],          // constructor(enrollments: EnrollmentRepository, courses: CourseService)\n  exports: [EnrollmentService],\n})\nexport class EnrollmentModule {}\n\n// enrollments/enrollment.module.spec.ts\nconst moduleRef = await Test.createTestingModule({ imports: [EnrollmentModule] })\n  .overrideProvider(EnrollmentRepository).useValue(new InMemoryEnrollmentRepository())\n  .overrideProvider(CourseRepository).useValue(new InMemoryCourseRepository(seedCourses))\n  .compile();\nconst enrollments = moduleRef.get(EnrollmentService);\n\nStatement: \"If a later change removed CourseModule from the imports of EnrollmentModule, this test would fail at compile(), even though both repositories are fakes.\"",
+          "explanation": "True. compile() builds the real module graph with Nest's container and resolves every constructor, exactly as the running app does. The overrides only swap the two repositories; EnrollmentService still needs CourseService, and without the CourseModule import that provider is not visible in the EnrollmentModule context, so compile() throws \"Nest can't resolve dependencies of the EnrollmentService (EnrollmentRepository, ?)\". The same test fails if CourseModule stops exporting CourseService or if a module cycle appears. The misconception is that a test with fakes cannot catch wiring errors: a unit test built with new cannot, a testing-module test can.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "// enrollments/enrollment.service.ts\nimport { dataSource } from \"../database/data-source\";\n\n@Injectable()\nexport class EnrollmentService {\n  private readonly enrollments = new EnrollmentRepository(dataSource);\n\n  constructor(private readonly courses: CourseService) {}\n  // enroll(), complete() use this.enrollments\n}\n\n// enrollments/enrollment.module.spec.ts\nconst moduleRef = await Test.createTestingModule({ imports: [EnrollmentModule] })\n  .overrideProvider(EnrollmentRepository).useValue(fakeEnrollments)\n  .compile();\n\nStatement: \"overrideProvider(EnrollmentRepository) makes EnrollmentService use fakeEnrollments in this test.\"",
+          "explanation": "False. overrideProvider() changes what Nest's container hands out for that token. EnrollmentService never asks the container for an EnrollmentRepository: it creates its own with new, using the real dataSource, in a field initializer. The test therefore runs against the real database connection (or fails to connect), and fakeEnrollments is never used. The fix is constructor injection - constructor(private readonly enrollments: EnrollmentRepository, private readonly courses: CourseService) - after which the override reaches the service. The misconception is that overrides patch a class everywhere it is used; they only replace dependencies that come from the container.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -110,6 +110,10 @@ export function checkCourse(course, lessons) {
         if (!Array.isArray(c.hints) || c.hints.length !== 3) errors.push(`${c.publicId}: needs 3 hints (has ${c.hints?.length ?? 0})`);
         if (!c.tests?.some((t) => !t.hidden)) errors.push(`${c.publicId}: needs at least one public test`);
         if (!c.tests?.some((t) => t.hidden)) errors.push(`${c.publicId}: needs at least one hidden test`);
+        // challenge_test_cases.name is varchar(100) (build-seed refuses longer names too).
+        for (const t of c.tests ?? []) if (String(t.name ?? "").length > 100) errors.push(`${c.publicId}: test name over 100 characters: "${t.name}"`);
+        // The code runner refuses a test input over 128 KB (sandbox/server.mjs MAX_INPUT_BYTES).
+        for (const t of c.tests ?? []) if (Buffer.byteLength(JSON.stringify(t.input ?? null)) > 128 * 1024) errors.push(`${c.publicId}: test input over 128 KB: "${t.name}"`);
     }
 
     // Every outcome is checked by at least one quiz and one coding challenge.

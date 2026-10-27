@@ -1,0 +1,84 @@
+{
+  "publicId": "nestjs-modular-monolith",
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1793017314/codedev/courses/nestjs-modular-monolith/cover",
+  "title": "NestJS Modular Monolith: Modules, Dependency Injection & Clean Boundaries",
+  "concept": "Build a backend that one team can keep changing for years: modules split by domain, providers wired by dependency injection, validated request DTOs, thin controllers, domain rules in services and module boundaries without circular dependencies, each checked by tests.",
+  "description": "An intermediate course for developers who can write an HTTP API and want its structure to survive the next ten features. Every lesson starts from an incident on the CodeDev learning platform's API - a learner enrolled twice in the same course, progress that went from 80% back to 40%, a request that wrote an isAdmin field into the database, a deploy that failed with \"Nest can't resolve dependencies\" because two modules needed each other - and fixes it with a boundary you can test: modules by domain, providers and constructor injection, exports and imports, DTO validation with a whitelist, thin controllers, domain errors mapped to HTTP, enrollment and progress rules, repositories, breaking a circular dependency and testing modules with fakes. 12 lessons with True/False quizzes on real code and evidence, and TypeScript challenges graded by hidden tests.",
+  "level": "intermediate",
+  "durationMinutes": 360,
+  "instructor": "CodeDev Engineering Team",
+  "language": "TypeScript",
+  "category": "Backend Development",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 100,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    { "priceType": "points", "amount": 300 },
+    { "priceType": "money", "amount": 149000, "currency": "VND" }
+  ],
+  "completionRules": {},
+  "domain": "backend",
+  "learningOutcomes": [
+    { "code": "module-boundaries", "text": "Organize a NestJS API into modules by domain, with explicit exports and imports and no circular dependencies" },
+    { "code": "dependency-injection", "text": "Wire services through constructor injection so they can be tested with fakes" },
+    { "code": "request-validation", "text": "Validate request DTOs with a whitelist so unknown or malformed fields never reach the database" },
+    { "code": "thin-layers", "text": "Keep controllers thin and map domain errors to the right HTTP responses" },
+    { "code": "domain-rules", "text": "Put enrollment and progress rules in services: no duplicates, prerequisites first, progress that never goes backwards" }
+  ],
+  "testedVersions": { "TypeScript": "5.9.3 (tsc --strict in the code runner)", "NestJS": "11 (lesson examples)", "class-validator": "0.14 (lesson examples)" },
+  "lastReviewedAt": "2026-10-26",
+  "sourceLinks": [
+    "https://docs.nestjs.com/modules",
+    "https://docs.nestjs.com/fundamentals/circular-dependency",
+    "https://docs.nestjs.com/techniques/validation"
+  ],
+  "owner": "CodeDev Engineering Team",
+  "knownIssues": [
+    "No NestJS in the code runner: challenges use plain TypeScript classes and a small module container that follows NestJS's provider, export and import rules"
+  ],
+  "scenario": { "title": "Break the Circular Dependency", "quiz": "chal_quiz_nmm_411", "fixBug": "chal_coding_nmm_412" },
+  "careerRoles": ["backend_developer", "fullstack_developer"],
+  "skills": { "typescript": 4, "api_design": 4, "system_design": 3, "testing": 2 },
+  "goals": ["grow_in_role", "build_projects"],
+  "prerequisites": ["typescript-foundations", "web-http-fundamentals"],
+  "modules": [
+    {
+      "orderIndex": 1,
+      "title": "Modules & Dependency Injection",
+      "lessons": [
+        { "orderIndex": 1, "folder": "01-modules-by-domain", "title": "How to split a NestJS API into modules by domain", "sanityId": "lesson-nmm-1-1" },
+        { "orderIndex": 2, "folder": "02-providers-di", "title": "Providers & dependency injection: constructor injection and fakes", "sanityId": "lesson-nmm-1-2" },
+        { "orderIndex": 3, "folder": "03-exports-imports", "title": "Module exports & imports: what another module may use", "sanityId": "lesson-nmm-1-3" }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "The Request Boundary",
+      "lessons": [
+        { "orderIndex": 1, "folder": "04-dto-validation", "title": "How to validate request DTOs: whitelist, types & enums", "sanityId": "lesson-nmm-2-1" },
+        { "orderIndex": 2, "folder": "05-thin-controllers", "title": "Thin controllers: map the request, call the service, map the response", "sanityId": "lesson-nmm-2-2" },
+        { "orderIndex": 3, "folder": "06-domain-errors-http", "title": "How to map domain errors to HTTP exceptions", "sanityId": "lesson-nmm-2-3" }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Domain Rules",
+      "lessons": [
+        { "orderIndex": 1, "folder": "07-enrollment-rules", "title": "Enrollment rules: no duplicates, prerequisites first", "sanityId": "lesson-nmm-3-1" },
+        { "orderIndex": 2, "folder": "08-idempotent-progress", "title": "Progress that never goes backwards: idempotent updates", "sanityId": "lesson-nmm-3-2" },
+        { "orderIndex": 3, "folder": "09-persistence-boundary", "title": "Repositories & the persistence boundary: when an abstraction pays off", "sanityId": "lesson-nmm-3-3" }
+      ]
+    },
+    {
+      "orderIndex": 4,
+      "title": "Boundaries Under Pressure",
+      "lessons": [
+        { "orderIndex": 1, "folder": "10-break-circular-dependency", "title": "Break the circular dependency between courses and enrollments", "sanityId": "lesson-nmm-4-1" },
+        { "orderIndex": 2, "folder": "11-spot-missing-validation", "title": "Spot the AI mistake: a DTO that lets unknown fields through", "sanityId": "lesson-nmm-4-2" },
+        { "orderIndex": 3, "folder": "12-testing-modules", "title": "Testing modules: unit tests with fakes, integration tests with the testing module", "sanityId": "lesson-nmm-4-3" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,237 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nmm_411",
+      "name": "break-the-circular-dependency-evidence",
+      "type": "quiz",
+      "title": "Break the Circular Dependency: read the evidence",
+      "description": "Release 2026.10.26-2 of the CodeDev API never starts: every new pod crashes on boot because CourseModule and EnrollmentModule now import each other. Six statements on one evidence pack - the boot log (A), the PR diff (B), the dependency graph (C) and the timeline (D) - take you from reading the evidence to a hypothesis, past two wrong explanations, to the fix and how to verify it.",
+      "difficulty": "medium",
+      "outcomes": [
+        "module-boundaries"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence A - boot log of a crashing pod (release 2026.10.26-2):\n[Nest] 1  - 10/26/2026, 9:31:42 AM     LOG [NestFactory] Starting Nest application...\n[Nest] 1  - 10/26/2026, 9:31:42 AM   ERROR [ExceptionHandler] Nest cannot create the EnrollmentModule instance.\nThe module at index [0] of the EnrollmentModule \"imports\" array is undefined.\n\nPotential causes:\n- A circular dependency between modules. Use forwardRef() to avoid it. Read more: https://docs.nestjs.com/fundamentals/circular-dependency\n- The module at index [0] is of type \"undefined\". Check your import statements and the type of the module.\n\nScope [AppModule -> CourseModule]\n\nEvidence B - PR #731 \"enrollments: block enrolling before prerequisites are completed\", enrollment.module.ts:\n import { Module } from \"@nestjs/common\";\n+import { CourseModule } from \"../courses/course.module\";\n import { EnrollmentRepository } from \"./enrollment.repository\";\n import { EnrollmentService } from \"./enrollment.service\";\n\n @Module({\n+  imports: [CourseModule],\n   providers: [EnrollmentRepository, EnrollmentService],\n   exports: [EnrollmentService],\n })\n export class EnrollmentModule {}\n(app.module.ts imports CourseModule first; course.module.ts has imported EnrollmentModule since PR #702.)\n\nStatement: \"The undefined entry at index [0] is CourseModule: enrollment.module.ts ran while course.module.ts was still loading, because the two files import each other.\"",
+          "explanation": "True. Scope [AppModule -> CourseModule] says Nest was scanning the imports of CourseModule when it reached EnrollmentModule, and index [0] of EnrollmentModule's imports is the entry PR #731 added: CourseModule. Node loads course.module.ts, which imports enrollment.module.ts, which imports course.module.ts again. That file has not finished running, so its export CourseModule is still undefined when the @Module() decorator of EnrollmentModule is evaluated. The misconception is to read \"undefined\" as a typo or a missing export: the export exists, it just does not exist yet at that moment.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence A - boot log of a crashing pod (release 2026.10.26-2):\n[Nest] 1  - 10/26/2026, 9:31:42 AM     LOG [NestFactory] Starting Nest application...\n[Nest] 1  - 10/26/2026, 9:31:42 AM   ERROR [ExceptionHandler] Nest cannot create the EnrollmentModule instance.\nThe module at index [0] of the EnrollmentModule \"imports\" array is undefined.\n\nPotential causes:\n- A circular dependency between modules. Use forwardRef() to avoid it. Read more: https://docs.nestjs.com/fundamentals/circular-dependency\n- The module at index [0] is of type \"undefined\". Check your import statements and the type of the module.\n\nScope [AppModule -> CourseModule]\n\nEvidence C - dependency graph:\n$ npx madge --circular --extensions ts src/\nFound 2 circular dependencies!\n1) courses/course.module.ts > enrollments/enrollment.module.ts\n2) courses/course.service.ts > enrollments/enrollment.service.ts\n\nModule imports:\nAppModule        -> CourseModule, EnrollmentModule\nCourseModule     -> EnrollmentModule    (since PR #702, catalog learner counts)\nEnrollmentModule -> CourseModule        (since PR #731, prerequisite check)\n\nCalls across the two modules:\nCourseService.catalog()     -> EnrollmentService.countLearners(courseId)   read\nEnrollmentService.enroll()  -> CourseService.getCourse(courseId)           read\n\nStatement: \"This is a build problem: switching the compiler to SWC, or importing EnrollmentModule before CourseModule in app.module.ts, would make the app boot with the same modules.\"",
+          "explanation": "False. C shows the cycle in the source: the two module files import each other and each service calls the other. madge finds it without running any build. Changing the compiler or the order of imports in app.module.ts only changes which file starts loading first, so the error would name the other module (CourseModule undefined in the imports of EnrollmentModule becomes EnrollmentModule undefined in the imports of CourseModule). The misconception is that a boot error mentioning \"undefined\" is a tooling problem; here it is the runtime reporting a design cycle.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence C - dependency graph:\n$ npx madge --circular --extensions ts src/\nFound 2 circular dependencies!\n1) courses/course.module.ts > enrollments/enrollment.module.ts\n2) courses/course.service.ts > enrollments/enrollment.service.ts\n\nModule imports:\nAppModule        -> CourseModule, EnrollmentModule\nCourseModule     -> EnrollmentModule    (since PR #702, catalog learner counts)\nEnrollmentModule -> CourseModule        (since PR #731, prerequisite check)\n\nCalls across the two modules:\nCourseService.catalog()     -> EnrollmentService.countLearners(courseId)   read\nEnrollmentService.enroll()  -> CourseService.getCourse(courseId)           read\n\nStatement: \"Both calls that cross the boundary are reads, so the cycle can be removed by changing one edge only: the learner count can come from a module that owns the enrollment data, below both features, while EnrollmentModule keeps importing CourseModule.\"",
+          "explanation": "True. The cycle exists only because of two reads: the catalog needs a number derived from enrollment data, and the prerequisite check needs course data. The domain direction is enrollments -> courses (an enrollment refers to a course; a course exists without enrollments), so that edge stays. The other edge exists only for the count, and the count can be read from a lower module that owns the enrollment data (or a narrow read service on top of it). Nothing that an endpoint returns has to change. The misconception is that breaking a cycle means redesigning both features or introducing events for a simple read.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence D - timeline:\nOct 21 15:02  PR #702 merged: catalog shows learner counts. CourseModule imports EnrollmentModule.\nOct 26 09:12  PR #731 merged: prerequisite check. CI green: lint, tsc, 214 unit tests\n              (services built with new and fake repositories).\nOct 26 09:31  Deploy 2026.10.26-2: new pods exit on boot (log A), CrashLoopBackOff.\nOct 26 09:38  Hotfix attempt on staging: imports: [forwardRef(() => CourseModule)] in EnrollmentModule.\n              New boot error: Nest can't resolve dependencies of the EnrollmentService\n              (EnrollmentRepository, ?). Please make sure that the argument dependency at\n              index [1] is available in the EnrollmentModule context.\nOct 26 09:44  Hotfix abandoned, release rolled back.\n\nStatement: \"Once forwardRef() is added on both modules and on both constructor parameters, the app boots and the circular dependency between courses and enrollments is resolved.\"",
+          "explanation": "False. forwardRef() on both sides does make the app boot: it tells Nest to resolve the reference later, after both files have loaded. But the two modules still need each other. Neither can be tested or understood alone, the construction order stays fragile, and the next import added to either side can bring the error back in a new form. The 09:38 attempt in D shows how fragile it is: forwardRef() on one import only moved the error to the constructor parameter (the `?` at index [1]). Nest's documentation says circular dependencies should be avoided where possible, and this codebase's architecture rule forbids forwardRef(). The misconception is \"it boots, so it is fixed\": the cycle is hidden, not removed.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Proposed fix:\n// enrollments/enrollment-data.module.ts (new)\n@Module({ providers: [EnrollmentRepository], exports: [EnrollmentRepository] })\nexport class EnrollmentDataModule {}\n\n// courses/course.module.ts - CourseService now injects EnrollmentRepository and calls countByCourse()\n@Module({ imports: [EnrollmentDataModule], providers: [CourseRepository, CourseService], exports: [CourseService] })\nexport class CourseModule {}\n\n// enrollments/enrollment.module.ts - EnrollmentService injects EnrollmentRepository and CourseService\n@Module({ imports: [CourseModule, EnrollmentDataModule], providers: [EnrollmentService], exports: [EnrollmentService] })\nexport class EnrollmentModule {}\n\n// app.module.ts (unchanged)\n@Module({ imports: [CourseModule, EnrollmentModule] })\nexport class AppModule {}\n\nStatement: \"With this change the module import graph has no cycle, and CourseService and EnrollmentService receive the same EnrollmentRepository instance.\"",
+          "explanation": "True. The edges are CourseModule -> EnrollmentDataModule, EnrollmentModule -> CourseModule, EnrollmentModule -> EnrollmentDataModule and AppModule -> CourseModule, EnrollmentModule; no path leads back to where it started, and course.service.ts no longer imports enrollment.service.ts. EnrollmentRepository is listed in the providers of exactly one module, so Nest creates one instance and every module that imports EnrollmentDataModule receives that instance. The contrast is the tempting shortcut: listing EnrollmentRepository in the providers of CourseModule too. Providers are singletons per module, so that creates a second instance, and with any in-memory state (a cache, a counter) the two would drift apart.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence D - timeline:\nOct 21 15:02  PR #702 merged: catalog shows learner counts. CourseModule imports EnrollmentModule.\nOct 26 09:12  PR #731 merged: prerequisite check. CI green: lint, tsc, 214 unit tests\n              (services built with new and fake repositories).\nOct 26 09:31  Deploy 2026.10.26-2: new pods exit on boot (log A), CrashLoopBackOff.\nOct 26 09:38  Hotfix attempt on staging: imports: [forwardRef(() => CourseModule)] in EnrollmentModule.\n              New boot error: Nest can't resolve dependencies of the EnrollmentService\n              (EnrollmentRepository, ?). Please make sure that the argument dependency at\n              index [1] is available in the EnrollmentModule context.\nOct 26 09:44  Hotfix abandoned, release rolled back.\n\nAfter the fix the team re-runs the same CI pipeline: lint, tsc and the 214 unit tests. All green.\n\nStatement: \"Because the same 214 unit tests still pass after the fix, the app is proven to boot in production.\"",
+          "explanation": "False. The 214 unit tests were also green on PR #731, the commit that could not boot. They build services with `new` and fake repositories, so they never compile the module graph, and they cannot see a cycle, a missing export or a missing import. Green unit tests show that the services still behave the same, which is half of the verification. The other half needs a test that would have failed on PR #731: a boot test that compiles AppModule with Test.createTestingModule({ imports: [AppModule] }), a cycle check such as `npx madge --circular` in CI, and new pods reaching Ready on staging. The misconception is that a green suite proves what the suite never exercises.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_nmm_412",
+      "name": "break-the-circular-dependency",
+      "type": "fix_bug",
+      "title": "Break the Circular Dependency",
+      "description": "Since PR #731 the CodeDev API does not boot: CourseModule imports EnrollmentModule because the catalog shows how many learners each course has, and EnrollmentModule now imports CourseModule because enrolling checks the prerequisites of the course. Restructure the modules so that the import graph has no cycle and the behaviour stays the same. Rules: enrollments depend on courses, so EnrollmentModule may import CourseModule but CourseModule must not depend on EnrollmentModule, directly or through another module; keep AppModule, CourseModule (exporting CourseService) and EnrollmentModule (exporting EnrollmentService); keep CourseService.catalog(), EnrollmentService.enroll() and EnrollmentService.complete() with the same results and error messages; the learner counts in the catalog must always match the enrollments (one EnrollmentRepository for the whole app). You may add classes and modules. forwardRef() does not exist in the container: the architecture rule of this codebase forbids it. The file contains a small module container that follows NestJS's rules: Module(Class, { imports, providers, exports }) is the @Module() decorator; a provider can inject providers of its own module or providers exported by a module it imports; each module creates one instance of each provider it lists; import cycles and provider cycles stop the boot. Input: a list of operations (\"catalog\", \"enroll <userId> <courseId>\", \"complete <userId> <courseId>\", \"bulk <n> <courseId>\", \"instances\"). Output: a boot line with the initialisation order of CourseModule, EnrollmentModule and AppModule, then one line per operation, as printed by the test runner.",
+      "difficulty": "medium",
+      "outcomes": [
+        "module-boundaries"
+      ],
+      "points": 30,
+      "hints": [
+        "Which of the two imports follows the domain - does an enrollment need a course, or does a course need its enrollments? The other import exists for a single read: which one?",
+        "Look at what CourseService really uses from EnrollmentService: one method that only asks EnrollmentRepository for a count. Where could EnrollmentRepository live so that both CourseModule and EnrollmentModule can import it without importing each other?",
+        "A similar case: UserModule imports LeaderboardModule to show a user's rank, and LeaderboardModule imports UserModule to show display names. Moving ScoreRepository into a ScoreDataModule that imports nothing and exports it lets UserModule read the rank from ScoreDataModule, while LeaderboardModule imports UserModule and ScoreDataModule. ScoreRepository stays in the providers of ScoreDataModule only, so there is still one instance."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Boots and lists the catalog with learner counts",
+          "input": [
+            "catalog"
+          ],
+          "expected": "boot: ok, init order CourseModule -> EnrollmentModule -> AppModule\ncatalog: ts-basics 2, nest-intro 0, nest-arch 0, sql-basics 1",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Enrolling checks the prerequisites of the course",
+          "input": [
+            "enroll u2 nest-intro",
+            "complete u2 ts-basics",
+            "enroll u2 nest-intro"
+          ],
+          "expected": "boot: ok, init order CourseModule -> EnrollmentModule -> AppModule\nenroll u2 nest-intro: error nest-intro requires ts-basics to be completed first\ncomplete u2 ts-basics: ok\nenroll u2 nest-intro: ok",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Catalog counts follow new enrollments (one shared repository)",
+          "input": [
+            "enroll u4 ts-basics",
+            "enroll u5 sql-basics",
+            "catalog"
+          ],
+          "expected": "boot: ok, init order CourseModule -> EnrollmentModule -> AppModule\nenroll u4 ts-basics: ok\nenroll u5 sql-basics: ok\ncatalog: ts-basics 3, nest-intro 0, nest-arch 0, sql-basics 2",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "One instance of each repository and service",
+          "input": [
+            "instances"
+          ],
+          "expected": "boot: ok, init order CourseModule -> EnrollmentModule -> AppModule\ninstances: CourseRepository 1, EnrollmentRepository 1, CourseService 1, EnrollmentService 1",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Two prerequisites, a duplicate enrollment, an unknown course and user",
+          "input": [
+            "enroll u1 nest-arch",
+            "enroll u1 nest-intro",
+            "enroll u1 nest-intro",
+            "complete u1 nest-intro",
+            "enroll u1 nest-arch",
+            "enroll u1 nope",
+            "complete u9 ts-basics"
+          ],
+          "expected": "boot: ok, init order CourseModule -> EnrollmentModule -> AppModule\nenroll u1 nest-arch: error nest-arch requires nest-intro to be completed first\nenroll u1 nest-intro: ok\nenroll u1 nest-intro: error u1 is already enrolled in nest-intro\ncomplete u1 nest-intro: ok\nenroll u1 nest-arch: error nest-arch requires sql-basics to be completed first\nenroll u1 nope: error course nope not found\ncomplete u9 ts-basics: error u9 is not enrolled in ts-basics",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Large input: 2,000 enrollments, then the catalog",
+          "input": [
+            "bulk 2000 ts-basics",
+            "enroll b1 nest-intro",
+            "catalog"
+          ],
+          "expected": "boot: ok, init order CourseModule -> EnrollmentModule -> AppModule\nbulk 2000 ts-basics: ok 2000\nenroll b1 nest-intro: error nest-intro requires ts-basics to be completed first\ncatalog: ts-basics 2002, nest-intro 0, nest-arch 0, sql-basics 1",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Invalid operations are reported and change nothing",
+          "input": [
+            "drop-table courses",
+            "enroll u1",
+            "bulk many ts-basics",
+            "catalog"
+          ],
+          "expected": "boot: ok, init order CourseModule -> EnrollmentModule -> AppModule\ndrop-table courses: error unknown operation \"drop-table courses\"\nenroll u1: error unknown operation \"enroll u1\"\nbulk many ts-basics: error unknown operation \"bulk many ts-basics\"\ncatalog: ts-basics 2, nest-intro 0, nest-arch 0, sql-basics 1",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "A learner path through three courses, catalog after each step",
+          "input": [
+            "complete u2 ts-basics",
+            "enroll u2 nest-intro",
+            "catalog",
+            "complete u2 nest-intro",
+            "enroll u2 nest-arch",
+            "enroll u2 sql-basics",
+            "complete u2 sql-basics",
+            "enroll u2 nest-arch",
+            "catalog"
+          ],
+          "expected": "boot: ok, init order CourseModule -> EnrollmentModule -> AppModule\ncomplete u2 ts-basics: ok\nenroll u2 nest-intro: ok\ncatalog: ts-basics 2, nest-intro 1, nest-arch 0, sql-basics 1\ncomplete u2 nest-intro: ok\nenroll u2 nest-arch: error nest-arch requires sql-basics to be completed first\nenroll u2 sql-basics: ok\ncomplete u2 sql-basics: ok\nenroll u2 nest-arch: ok\ncatalog: ts-basics 2, nest-intro 1, nest-arch 1, sql-basics 2",
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}
