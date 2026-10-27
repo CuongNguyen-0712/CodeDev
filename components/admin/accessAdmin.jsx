@@ -7,6 +7,7 @@ import { useApp } from "@/contexts/appContext";
 import { adminQueries } from "@/queries/premium.query";
 import { newIdempotencyKey, useAdminAdjustExperience, useAdminAdjustPoints, useAdminGrant, useAdminRevoke } from "@/mutations/premium.mutation";
 
+import { ConfirmDialog } from "@/components/admin/confirmDialog";
 import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
 import { Input } from "@/components/shadcn/input";
@@ -152,8 +153,9 @@ function Entitlements({ user }) {
     const [courseId, setCourseId] = useState("");
     const [expiresAt, setExpiresAt] = useState("");
     const [reason, setReason] = useState("");
+    const [revoking, setRevoking] = useState(null);
 
-    const fail = (error) => showAlert(error?.status || 500, error?.message || "Request failed");
+    const fail =(error) => showAlert(error?.status || 500, error?.message || "Request failed");
 
     const submitGrant = (event) => {
         event.preventDefault();
@@ -171,11 +173,6 @@ function Entitlements({ user }) {
         );
     };
 
-    const doRevoke = (entitlement) => {
-        const why = window.prompt(`Reason for revoking access to "${entitlement.title}" (kept in the audit log):`);
-        if (!why || why.trim().length < 5) return;
-        revoke.mutate({ entitlementId: entitlement.id, reason: why.trim() }, { onSuccess: () => showAlert(200, "Access revoked"), onError: fail });
-    };
 
     return (
         <section className="space-y-3 rounded-lg border border-border p-4" aria-labelledby="access-heading">
@@ -205,7 +202,7 @@ function Entitlements({ user }) {
                                 <TableCell>{formatDate(e.expires_at)}</TableCell>
                                 <TableCell className="text-right">
                                     {e.status === "active" && (
-                                        <Button size="sm" variant="outline" disabled={revoke.isPending} onClick={() => doRevoke(e)}>Revoke</Button>
+                                        <Button size="sm" variant="outline" disabled={revoke.isPending} onClick={() => setRevoking(e)}>Revoke</Button>
                                     )}
                                 </TableCell>
                             </TableRow>
@@ -243,6 +240,16 @@ function Entitlements({ user }) {
                     </Button>
                 </div>
             </form>
+
+            <ConfirmDialog
+                open={Boolean(revoking)}
+                onOpenChange={(open) => !open && setRevoking(null)}
+                title="Revoke course access?"
+                description={`${user.username} loses access to "${revoking?.title}" immediately.`}
+                confirmLabel="Revoke access"
+                reasonLabel="Reason for revoking"
+                onConfirm={(why) => revoke.mutate({ entitlementId: revoking.id, reason: why }, { onSuccess: () => showAlert(200, "Access revoked"), onError: fail })}
+            />
         </section>
     );
 }

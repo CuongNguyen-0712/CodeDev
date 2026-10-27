@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { useApp } from "@/contexts/appContext";
@@ -7,6 +8,7 @@ import { adminQueries } from "@/queries/premium.query";
 import { useAdminRefund } from "@/mutations/premium.mutation";
 
 import { formatMoney } from "@/components/admin/courseAdmin";
+import { ConfirmDialog } from "@/components/admin/confirmDialog";
 import { ErrorReload } from "@/components/ui/error";
 import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
@@ -24,15 +26,14 @@ export default function OrdersAdmin({ can }) {
     const { showAlert } = useApp();
     const { data, isPending, isError, refetch } = useQuery(adminQueries.orders());
     const refund = useAdminRefund();
+    const [refunding, setRefunding] = useState(null);
 
     if (isPending) return <Loading />;
     if (isError) return <ErrorReload refetch={refetch} />;
 
-    const doRefund = (order) => {
-        const reason = window.prompt(`Refund ${order.points_total} pts to ${order.username} and revoke access? Reason:`);
-        if (!reason || reason.trim().length < 5) return;
+    const doRefund = (order, reason) => {
         refund.mutate(
-            { orderId: order.id, reason: reason.trim() },
+            { orderId: order.id, reason },
             {
                 onSuccess: (result) => showAlert(200, `Refunded. New balance: ${result.balanceAfter} pts`),
                 onError: (error) => showAlert(error?.status || 500, error?.message || "Refund failed"),
@@ -41,6 +42,7 @@ export default function OrdersAdmin({ can }) {
     };
 
     return (
+        <>
         <Table>
             <TableHeader>
                 <TableRow>
@@ -74,13 +76,24 @@ export default function OrdersAdmin({ can }) {
                         </TableCell>
                         <TableCell className="text-right">
                             {can("order.refund") && order.payment_method === "points" && order.status === "completed" && (
-                                <Button size="sm" variant="outline" disabled={refund.isPending} onClick={() => doRefund(order)}>Refund</Button>
+                                <Button size="sm" variant="outline" disabled={refund.isPending} onClick={() => setRefunding(order)}>Refund</Button>
                             )}
                         </TableCell>
                     </TableRow>
                 ))}
             </TableBody>
         </Table>
+
+        <ConfirmDialog
+            open={Boolean(refunding)}
+            onOpenChange={(open) => !open && setRefunding(null)}
+            title="Refund this order?"
+            description={`${refunding?.points_total} pts go back to ${refunding?.username} and their access to "${refunding?.course_title}" is revoked.`}
+            confirmLabel="Refund and revoke"
+            reasonLabel="Reason for the refund"
+            onConfirm={(reason) => doRefund(refunding, reason)}
+        />
+        </>
     );
 }
 

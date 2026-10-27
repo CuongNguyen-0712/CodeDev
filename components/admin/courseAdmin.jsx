@@ -9,6 +9,7 @@ import {
     useAdminPublish, useAdminRemoveOffer, useAdminSetOffer, useAdminUpdateCourse,
 } from "@/mutations/premium.mutation";
 
+import { ConfirmDialog } from "@/components/admin/confirmDialog";
 import { ErrorReload } from "@/components/ui/error";
 import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
@@ -177,6 +178,8 @@ function CourseEditor({ course, courses, taxonomy, can }) {
     const [money, setMoney] = useState(moneyOffer ? String(moneyOffer.amount) : "");
     const [currency, setCurrency] = useState(moneyOffer?.currency || "VND");
     const [points, setPoints] = useState(pointsOffer ? String(pointsOffer.amount) : "");
+    // { title, description, confirmLabel, run } while a destructive action waits for confirmation.
+    const [pendingConfirm, setPendingConfirm] = useState(null);
 
     const otherCourses = useMemo(() => courses.filter((c) => c.id !== course.id && c.publishStatus !== "archived"), [courses, course.id]);
     const set = (patch) => setForm((prev) => ({ ...prev, ...patch }));
@@ -205,8 +208,9 @@ function CourseEditor({ course, courses, taxonomy, can }) {
 
     const applyStatus = () => {
         if (status === course.publishStatus) return;
-        if (status === "archived" && !window.confirm("Archive this course? Learners lose access to archived courses.")) return;
-        publish.mutate({ courseId: course.id, status }, { onSuccess: () => done(`Course is now ${status}`), onError: fail });
+        const run = () => publish.mutate({ courseId: course.id, status }, { onSuccess: () => done(`Course is now ${status}`), onError: fail });
+        if (status !== "archived") return run();
+        setPendingConfirm({ title: "Archive this course?", description: "Learners lose access to archived courses.", confirmLabel: "Archive", run });
     };
 
     const savePrice = (priceType) => {
@@ -222,8 +226,12 @@ function CourseEditor({ course, courses, taxonomy, can }) {
     };
 
     const dropPrice = (priceType) => {
-        if (!window.confirm("Remove this price? Learners will no longer be able to buy the course this way.")) return;
-        removeOffer.mutate({ courseId: course.id, priceType }, { onSuccess: () => done("Price removed"), onError: fail });
+        setPendingConfirm({
+            title: `Remove the ${priceType} price?`,
+            description: "Learners will no longer be able to buy the course this way.",
+            confirmLabel: "Remove price",
+            run: () => removeOffer.mutate({ courseId: course.id, priceType }, { onSuccess: () => done("Price removed"), onError: fail }),
+        });
     };
 
     const busy = update.isPending || publish.isPending || setOffer.isPending || removeOffer.isPending;
@@ -334,6 +342,15 @@ function CourseEditor({ course, courses, taxonomy, can }) {
             <DialogFooter>
                 {canEdit && <Button onClick={saveMetadata} disabled={busy}>{update.isPending ? "Saving..." : "Save metadata"}</Button>}
             </DialogFooter>
+
+            <ConfirmDialog
+                open={Boolean(pendingConfirm)}
+                onOpenChange={(open) => !open && setPendingConfirm(null)}
+                title={pendingConfirm?.title}
+                description={pendingConfirm?.description}
+                confirmLabel={pendingConfirm?.confirmLabel}
+                onConfirm={() => pendingConfirm?.run()}
+            />
         </DialogContent>
     );
 }
