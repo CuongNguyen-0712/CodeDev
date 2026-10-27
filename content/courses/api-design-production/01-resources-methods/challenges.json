@@ -1,0 +1,36 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_adp_111",
+      "name": "put-patch-merge-quiz",
+      "type": "quiz",
+      "title": "Replace or change: what did the request do to the course?",
+      "description": "Two requests against course crs_42: the save from admin app 2.3 that started the incident, and a JSON merge patch sent by the new course editor.",
+      "difficulty": "medium",
+      "outcomes": ["resources-status"],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Before: GET /courses/crs_42 returned\n{\"id\":\"crs_42\",\"title\":\"HTTP Basics\",\"level\":\"beginner\",\"price\":149000,\"prerequisites\":[\"crs_10\"],\"certificate\":true}\n\nAdmin app 2.3 sent:\nPUT /courses/crs_42\nContent-Type: application/json\n\n{\"title\":\"HTTP Fundamentals\",\"description\":\"...\",\"level\":\"beginner\",\"price\":149000}\n\nResponse: 200 OK\n{\"id\":\"crs_42\",\"title\":\"HTTP Fundamentals\",\"level\":\"beginner\",\"price\":149000,\"prerequisites\":[],\"certificate\":false}\n\nStatement: \"The server treated this PUT the way HTTP defines it, and the same edit sent as PATCH with Content-Type application/merge-patch+json and the body {\\\"title\\\":\\\"HTTP Fundamentals\\\"} would have kept the prerequisites and the certificate setting.\"",
+          "explanation": "True. RFC 9110 defines PUT as replacing the state of the target resource with the state in the request body, so a member the body does not contain is not kept: the server reset prerequisites and certificate to their defaults because admin app 2.3 has never heard of them. A JSON merge patch (RFC 7396) works the other way round: members absent from the patch are left unchanged, so a patch with only the new title changes only the title. The misconception is that PUT means \"update whatever I send\"; that is what PATCH with a merge patch means, and it is why edits from forms that an older client builds belong in PATCH.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Before: GET /courses/crs_42 returned\n{\"id\":\"crs_42\",\"title\":\"HTTP Fundamentals\",\"tags\":[\"http\",\"api\"],\"discountPrice\":99000}\n\nThe new course editor sent:\nPATCH /courses/crs_42\nContent-Type: application/merge-patch+json\n\n{\"tags\":[\"http\"],\"discountPrice\":null}\n\nThe server applies the patch with the RFC 7396 algorithm and answers 200 OK.\n\nStatement: \"After this request the course still has the tag \\\"api\\\", because a merge patch only adds or replaces the array elements it lists, and discountPrice is still 99000, because null members in a merge patch are skipped.\"",
+          "explanation": "False, on both counts. RFC 7396 merges objects member by member, but any value that is not an object, arrays included, simply replaces the current value: tags becomes [\"http\"] and the tag \"api\" is gone. A member set to null in a merge patch removes that member, so discountPrice is removed (or reset to its default if the schema requires it). The misconception is to read a merge patch as \"merge everything\": it merges objects only, and null is an instruction, not a placeholder. To add one tag or to set a value to null you need JSON Patch (RFC 6902) or a dedicated endpoint.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        }
+      ]
+    }
+  ]
+}

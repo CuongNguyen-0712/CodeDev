@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Course cover: API design for production (a request with an idempotency key, cursor pagination and a deprecated field). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0E1B1A"/>
+      <stop offset="0.55" stop-color="#110F16"/>
+      <stop offset="1" stop-color="#0D0B13"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#2BB3A3" stop-opacity="0.26"/>
+      <stop offset="1" stop-color="#2BB3A3" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#FFFFFF" fill-opacity="0.07"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8C8399"/></marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#dots)"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- Copy -->
+  <g id="copy" font-family="Segoe UI, Inter, Arial, sans-serif">
+    <rect x="112" y="152" width="92" height="92" rx="20" fill="#2BB3A3"/>
+    <text x="158" y="214" text-anchor="middle" font-size="34" font-weight="800" fill="#FFFFFF">API</text>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#93E4DA">REST · OPENAPI</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">API Design</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">for Production</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Status codes · Pagination · Idempotency</text>
+    <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#CFF5F0">
+      <rect x="110" y="660" width="75" height="52" rx="26" fill="#0F2624" stroke="#2BB3A3"/>
+      <text x="147.4" y="695" text-anchor="middle">409</text>
+      <rect x="200.8" y="660" width="122" height="52" rx="26" fill="#0F2624" stroke="#2BB3A3"/>
+      <text x="261.6" y="695" text-anchor="middle">cursor</text>
+      <rect x="338.4" y="660" width="262" height="52" rx="26" fill="#0F2624" stroke="#2BB3A3"/>
+      <text x="469.4" y="695" text-anchor="middle">Idempotency-Key</text>
+    </g>
+  </g>
+
+  <g id="art" font-family="Consolas, Menlo, monospace">
+    <rect x="880" y="230" width="560" height="150" rx="14" fill="#0F1A19" stroke="#1F5E57" stroke-width="2"/>
+    <text x="905" y="270" font-size="21" fill="#93E4DA" text-anchor="start">POST /enrollments</text>
+    <text x="905" y="305" font-size="19" fill="#CFF5F0" text-anchor="start">Idempotency-Key: 6f1c…</text>
+    <text x="905" y="340" font-size="19" fill="#3DBE7B" text-anchor="start">201 Created · retry → same 201</text>
+    <rect x="880" y="400" width="560" height="110" rx="14" fill="#0F1A19" stroke="#1F5E57" stroke-width="2"/>
+    <text x="905" y="440" font-size="19" fill="#CFF5F0" text-anchor="start">GET /courses?limit=20&amp;cursor=eyJpZCI6…</text>
+    <text x="905" y="478" font-size="18" fill="#B8B2C8" text-anchor="start">next_cursor · stable order (created_at, id)</text>
+    <rect x="880" y="530" width="560" height="90" rx="14" fill="#1F1A0E" stroke="#F2C14E" stroke-width="2"/>
+    <text x="905" y="566" font-size="19" fill="#F6D98E" text-anchor="start">"rating": 4.6  deprecated</text>
+    <text x="905" y="600" font-size="19" fill="#3DBE7B" text-anchor="start">"averageRating": 4.6  added</text>
+  </g>
+</svg>

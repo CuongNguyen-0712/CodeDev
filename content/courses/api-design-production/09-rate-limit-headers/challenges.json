@@ -1,0 +1,36 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_adp_331",
+      "name": "rate-limit-headers-quiz",
+      "type": "quiz",
+      "title": "Read the 429s: what can the client do with them?",
+      "description": "Two responses from the lab-class incident: an HTML 429 from the edge that crashed the mobile app, and a 429 with Retry-After that a client answered with its own backoff.",
+      "difficulty": "medium",
+      "outcomes": ["error-contract"],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Every other error of the CodeDev API is application/problem+json with a code, for example:\n\nHTTP/1.1 422 Unprocessable Content\nContent-Type: application/problem+json\n{\"type\":\"https://api.codedev.test/problems/validation\",\"title\":\"Invalid request\",\"status\":422,\"code\":\"validation_failed\",\"traceId\":\"4bf92f35\"}\n\nThe 429 from the nginx rate limit at the edge:\n\nHTTP/1.1 429 Too Many Requests\nContent-Type: text/html\n<html><head><title>429 Too Many Requests</title></head>...\n\nMobile app crash report: SyntaxError: JSON Parse error: Unexpected character: '<'  at ApiError.fromResponse\n\nStatement: \"If the edge answered 429 with an application/problem+json body carrying a code such as rate_limited, plus a Retry-After header, the app's existing error path could handle rate limiting without crashing.\"",
+          "explanation": "True. The app has one error path: parse the problem+json body and switch on code. The crash happens because one component in front of the API answers in a different format, so the parser meets HTML. Making the 429 follow the same contract (nginx can return a fixed problem+json body from an error_page location, and the API's own limiter goes through the global exception filter) lets the app reach its rate_limited branch, show a message and wait for Retry-After. The app should still guard against non-JSON bodies, because a proxy or a CDN can always answer with something unexpected, but the contract is the server's job. The misconception is that a 429 is \"infrastructure\" and does not need to follow the API's error contract; for the client it is just another error response.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "After the fix, a learner who submits too fast gets:\n\nHTTP/1.1 429 Too Many Requests\nContent-Type: application/problem+json\nRetry-After: 30\n{\"type\":\"https://api.codedev.test/problems/rate-limited\",\"status\":429,\"code\":\"rate_limited\",\"detail\":\"Retry in 30 seconds.\"}\n\nThe web client's submit loop:\n\nfor (let attempt = 0; attempt < 5; attempt++) {\n  const res = await submit(payload);\n  if (res.status !== 429) return res;\n  await sleep(1000 * 2 ** attempt);   // 1, 2, 4, 8, 16 s\n}\nthrow new Error(\"Too many requests\");\n\nStatement: \"This loop handles the 429 well: exponential backoff spaces the retries out, so it does not need to read Retry-After.\"",
+          "explanation": "False. The attempts go out at about 0, 1, 3, 7 and 15 seconds - all inside the 30 seconds the server asked for - so every one of them gets 429 again, adds load to a limiter that is already saying no, and after the last 16 s sleep the loop throws, even though one request after 30 seconds would have succeeded. Backoff is a guess for when the server says nothing; Retry-After is the server telling you the answer. Use it when present (seconds or an HTTP-date), add jitter, cap the wait, and if it is long, stop and tell the learner how long to wait instead of retrying in the background. The misconception is that any exponential backoff is automatically polite.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        }
+      ]
+    }
+  ]
+}

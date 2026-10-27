@@ -1,0 +1,66 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_adp_431",
+      "name": "openapi-versioning-deprecation",
+      "type": "quiz",
+      "title": "OpenAPI, versioning and deprecation",
+      "description": "Three statements on the CodeDev API's generated OpenAPI document, its versioning policy and the headers of a deprecated field.",
+      "difficulty": "medium",
+      "outcomes": [
+        "compatibility"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "// src/courses/course.dto.ts (the OpenAPI document is generated from these decorators)\nexport class CourseDto {\n  @ApiProperty({ type: \"integer\", description: \"Price in dong\" })\n  price: number;\n}\n\n// src/courses/course.mapper.ts\nprice: String(row.priceVnd) as unknown as number,   // \"web wants a string\"\n\nGenerated openapi.json:  \"price\": { \"type\": \"integer\", \"description\": \"Price in dong\" }\nResponse of GET /v1/courses/redis-patterns:  { ..., \"price\": \"249000\" }\n\nStatement: \"Generating the OpenAPI document from the NestJS DTO classes does not prove that responses match it; a test that validates real responses against the generated document would catch this price.\"",
+          "explanation": "True. @nestjs/swagger builds the document from decorators and class metadata, not from what the handler returns at run time. The cast tells TypeScript the string is a number, so neither the compiler nor the generator sees the problem: the document promises an integer and the API sends a string. Code-first generation keeps the document close to the code but does not test it; validating real responses (or responses from the app in memory) against the document closes the gap. The misconception is that a generated spec is correct by construction.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "docs/api-versioning-policy.md (CodeDev API):\n1. The major version is in the URL: /v1/... . A new major version is only for a redesign that cannot be made compatible.\n2. Within /v1, additive changes (new endpoints, new optional request fields, new response properties) ship without notice.\n3. Breaking changes within /v1 follow expand/contract: deprecate, announce with Deprecation and Sunset headers and a changelog entry, remove after the sunset date (at least 90 days for partner endpoints).\n\nPull request #530: adds the response property \"estimatedHours\" (integer) to GET /v1/courses/{slug}.\n\nStatement: \"Under this policy, pull request #530 has to wait for /v2 because it changes the response of a /v1 endpoint.\"",
+          "explanation": "False. Rule 2 says new response properties are additive changes that ship within /v1, and for response readers a new property is safe (as long as clients ignore unknown keys, which the policy implies by calling it additive). A new major version is reserved for changes that cannot be made compatible (rule 1). Teams that open /v2 for every change end up running several versions that each need fixes, tests and documentation. The misconception is that any change to a response is a change of version.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "$ curl -sI https://api.codedev.test/v1/courses/api-design-production\nHTTP/1.1 200 OK\nContent-Type: application/json\nDeprecation: @1792746000\nSunset: Mon, 30 Nov 2026 00:00:00 GMT\nLink: <https://api.codedev.test/docs/changes/2026-10-course-dto>; rel=\"deprecation\"\n\nStatement: \"A client can learn from this response alone that something in it is deprecated (since 23 Oct 2026, 09:00 UTC), the date after which it is expected to stop working, and where to read the migration notice.\"",
+          "explanation": "True. Deprecation (RFC 9745) carries the deprecation date as @ plus Unix seconds: 1792746000 is 23 Oct 2026, 09:00 UTC. Sunset (RFC 8594) carries the date after which the resource or feature is expected to stop working, as an HTTP-date. The Link with rel=\"deprecation\" points to human-readable information. A client library or an API gateway can log or alert on these headers without anyone reading the changelog. The headers do not say which fields are deprecated; that is what the notice and the deprecated flags in the OpenAPI document are for. The misconception is that deprecation only lives in documentation that clients must remember to read.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

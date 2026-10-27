@@ -1,0 +1,46 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_adp_321",
+      "name": "concurrency-etags-quiz",
+      "type": "quiz",
+      "title": "Read the edit log: whose change survives?",
+      "description": "Three pieces of evidence from the course editor: the audit log of a lost description, an UPDATE that matched no row, and a weak ETag sent back in If-Match.",
+      "difficulty": "medium",
+      "outcomes": ["safe-retries"],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Audit log of course 42 (the editor sends every form field in its PATCH):\n\n09:10:04  GET   /courses/42  user=minh  200  (description = \"Learn SQL...\")\n09:11:40  GET   /courses/42  user=lan   200  (description = \"Learn SQL...\")\n09:14:30  PATCH /courses/42  user=lan   200  {\"title\":\"SQL Basics\",\"description\":\"Write your first queries...\",\"level\":\"beginner\"}\n09:15:02  PATCH /courses/42  user=minh  200  {\"title\":\"SQL Basics for Analysts\",\"description\":\"Learn SQL...\",\"level\":\"beginner\"}\n\nEach PATCH runs one UPDATE in its own transaction at READ COMMITTED. A teammate proposes switching these transactions to SERIALIZABLE.\n\nStatement: \"With SERIALIZABLE transactions, Lan's new description would have survived Minh's save.\"",
+          "explanation": "False. The two PATCH transactions are 32 seconds apart and never overlap, so they are already serial: SERIALIZABLE has nothing to detect. The stale value was not read inside a transaction at all - it was read by Minh's browser at 09:10 and sent back in his PATCH at 09:15. A database transaction cannot span the minutes a person spends in an editor. What protects this read-modify-write is a precondition across the two HTTP requests: the GET returns a version (ETag), the PATCH sends it back in If-Match, and the UPDATE only applies WHERE version = the one the client saw, answering 412 otherwise. The misconception is that a stronger isolation level fixes lost updates that happen between requests.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "After the fix, Minh's editor loaded the course with ETag: \"v7\" and saves:\n\nPATCH /courses/42\nIf-Match: \"v7\"\n{\"title\":\"SQL Basics for Analysts\",\"description\":\"Learn SQL...\",\"level\":\"beginner\"}\n\nThe service runs:\nUPDATE courses SET title = $2, description = $3, level = $4, version = version + 1\nWHERE id = $1 AND version = $5      -- $5 = 7\nRETURNING version;\n-> UPDATE 0\n\nSELECT version FROM courses WHERE id = 42;  -> 8\n\nStatement: \"The API should answer 412 Precondition Failed, and the editor should load the course again before Minh can save his change.\"",
+          "explanation": "True. The course exists (version 8), so UPDATE 0 means the precondition failed: someone saved version 8 after Minh loaded version 7. RFC 9110 defines 412 Precondition Failed for exactly this, and nothing was written. The client must not simply resend the same body with the new ETag - that would overwrite Lan's change again, just with extra steps. It loads the current course, shows Minh what changed, and lets him save on top of version 8. A 404 would be the answer only if the SELECT found no row. The misconception is that a 412 is an error to retry automatically; it is a signal that a person or a merge step must look at newer data.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A second team's API runs on NestJS with Express defaults and reuses Express's automatic ETag:\n\nGET /courses/42\n-> 200  ETag: W/\"5c1-qD3k9Lr0bX0Yt1m2Zp8sWv4NcHa\"\n\nPATCH /courses/42\nIf-Match: W/\"5c1-qD3k9Lr0bX0Yt1m2Zp8sWv4NcHa\"\n\nTheir guard:\nif (req.headers[\"if-match\"] !== currentEtag(course)) throw new PreconditionFailedException();\n// otherwise the update is applied\n\nStatement: \"Because the If-Match value is exactly the current ETag, RFC 9110 lets the server apply this PATCH.\"",
+          "explanation": "False. If-Match uses the strong comparison function (RFC 9110, section 13.1.1): two entity tags match only if neither is weak and their opaque values are identical. A weak tag (the W/ prefix) never matches in If-Match, so the condition is false and the server should answer 412. Weak validators promise only \"semantically equivalent\", which is fine for If-None-Match and 304 on a GET (weak comparison) but not enough to guard a write. Express makes weak ETags from a hash of the response body by default; for writes, send a strong ETag from a version column and compare it properly. The misconception is that string equality of the header values is the comparison the RFC defines.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        }
+      ]
+    }
+  ]
+}
