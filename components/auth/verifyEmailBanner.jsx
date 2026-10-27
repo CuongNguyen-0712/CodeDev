@@ -60,6 +60,12 @@ export default function VerifyEmailBanner() {
         }
     }
 
+    // Grace period still running (plan 12): quote the lock date; after it, the deletion date.
+    const lockAhead = me.verify_lock_at && new Date(me.verify_lock_at) > new Date()
+    let notice = "Verify your email to secure your account and unlock purchases."
+    if (lockAhead) notice = `Verify your email by ${formatDeadline(me.verify_lock_at)} to keep using CodeDev.`
+    else if (me.purge_after) notice = `Verify your email by ${formatDeadline(me.purge_after)}, or this account and its data will be deleted.`
+
     const handleDismiss = () => {
         setDismissed(true)
         try { sessionStorage.setItem(DISMISS_KEY, "1") } catch { /* private mode: hide for this page only */ }
@@ -70,9 +76,7 @@ export default function VerifyEmailBanner() {
             <LuMailWarning className="mt-0.5 size-4 shrink-0 text-warning sm:mt-0" aria-hidden="true" />
             <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <p className="min-w-0">
-                    {me.purge_after
-                        ? `Verify your email by ${formatDeadline(me.purge_after)}, or this account and its data will be deleted.`
-                        : "Verify your email to secure your account and unlock purchases."}{" "}
+                    {notice}{" "}
                     <span className="text-muted-foreground">
                         {message || `We sent a link to ${maskEmail(me.email)}.`}
                     </span>

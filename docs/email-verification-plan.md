@@ -597,3 +597,148 @@ Tình huống: user U có email E **đã xác minh**, chưa có GitHub/Google; �
 4. 11.2 phần nhắc (mail + banner có hạn chót), deploy, chờ ít nhất 2 ngày.
 5. 11.2 phần xóa + `vercel.json` cron + `CRON_SECRET` trên Vercel. Trước lần chạy đầu: tạo branch backup Neon, chạy job chế độ `dryRun` liệt kê user sẽ bị xóa.
 6. Docs `docs/auth.md`, test cho từng mục.
+
+## 12. Đợt 3: khóa sau 7 ngày, xóa sau 14 ngày; tài khoản chưa xác minh gặp Google của tài khoản khác
+
+Lên plan 2026-10-26. Thay mốc thời gian của 11.2 (xóa sau 7 ngày → khóa sau 7 ngày, xóa sau 14 ngày). Phần xóa, cascade, `storage.purge`, audit của 11.2 giữ nguyên.
+
+Đã chốt 2026-10-26: tài khoản từng xác minh rồi đổi email bị khóa sau 7 ngày nhưng không bị xóa; user cũ có ân hạn tối thiểu 48h; 12.4 làm phương án 3.
+
+Trạng thái 2026-10-26: bước 1 của 12.7 đã làm và test trên local (migration `20261026_003_verify_lock.sql`, thay cho tên `20261027_001` bên dưới). Đổi email của tài khoản chưa từng xác minh giữ nguyên hạn, để không gia hạn được bằng cách đổi email. Chưa lên prod; bước 2–4 chưa làm.
+
+### 12.1 Mốc thời gian
+
+Tính theo giờ (như migration `20261026_001`), không theo ngày lịch. T0 = lúc đăng ký.
+
+| Mốc | Trạng thái | Người dùng thấy |
+|---|---|---|
+| T0 → T0+168h (ngày 0–7) | **Ân hạn.** Dùng bình thường, chỉ chặn mua (mục 5) | Banner: "Verify by <lock date>. After that you need to verify before using CodeDev." |
+| T0+120h (ngày 5) | Mail nhắc 1 | "Verify by <lock date> to keep using your account" |
+| T0+168h → T0+336h (ngày 7–14) | **Khóa.** Đăng nhập được, nhưng mọi trang sau đăng nhập chuyển về `/auth/verify-required`; API trả `403 EMAIL_VERIFICATION_REQUIRED` | Trang khóa (12.3) |
+| T0+288h (ngày 12) | Mail nhắc 2 (= mail nhắc hiện có của 11.2) | "Verify by <purge date> or the account and its data are deleted" |
+| T0+336h (ngày 14) | **Xóa vĩnh viễn** (job 11.2) | — |
+| Xác minh lúc nào cũng được | Bỏ cả 2 mốc, mở khóa ngay | Banner / trang khóa biến mất |
+
+Vercel Hobby chạy cron 1 lần/ngày: mail nhắc và xóa trễ tối đa 24h. **Khóa không phụ thuộc cron**: so `now()` với hạn khóa lúc request, nên đúng giờ.
+
+### 12.2 Dữ liệu
+
+Migration mới `db/migrations/20261027_001_verify_lock.sql`:
+
+```sql
+ALTER TABLE identity.users ADD COLUMN verify_lock_at timestamptz;   -- hết ân hạn, NULL = không khóa
+ALTER TABLE identity.users ADD COLUMN lock_reminded_at timestamptz; -- mail nhắc 1 đã gửi
+-- purge_after / purge_reminded_at giữ nguyên ý nghĩa (mail nhắc 2 + xóa).
+```
+
+Trigger `identity.users_purge_after` (đổi tên hay giữ tên: quyết khi code):
+
+- INSERT chưa xác minh: `verify_lock_at = now() + 168h`, `purge_after = now() + 336h`.
+- `email_verified` thành true: cả 4 cột về NULL.
+- Đổi email (từng xác minh → chưa xác minh, `userDb.updateProfile`): `verify_lock_at = now() + 168h`, `purge_after` **vẫn NULL** — 11.2 đã chốt không xóa tài khoản từng xác minh. Trigger cần nghe thêm `UPDATE OF email`.
+
+Backfill user hiện có chưa xác minh: `verify_lock_at = greatest(created_at + 168h, now() + 48h)`, `purge_after = greatest(purge_after, verify_lock_at + 168h)`. Không ai bị khóa ngay lúc deploy mà chưa nhận mail nhắc; không ai bị kéo hạn xóa sớm hơn hiện tại.
+
+### 12.3 Chặn truy cập khi khóa
+
+**JWT.** Thêm claim `verifyLockAt` (epoch ms hoặc `null`) khi dựng claims (`startSession` và nhánh refresh trong `app/api/auth/[...nextauth]/route.js`); các hàm đăng nhập SQL trả thêm cột này. `proxy.js` không gọi DB: chỉ so `Date.now() >= token.verifyLockAt`.
+
+**Trang** (`proxy.js`): route `PRIVATE` / `PROTECTED` + đã khóa → redirect `/auth/verify-required?next=<path>`. Không chặn `PUBLIC` (trang chủ, danh mục khóa học xem được như khách).
+
+**API** (`proxy.js` không chạy cho `/api`): kiểm trong `requireAuthSession` / `getAuthSession` của `lib/session.js` → `403 { code: "EMAIL_VERIFICATION_REQUIRED" }`. Danh sách được phép khi khóa (option `allowLocked: true` ở từng route):
+
+- `GET /api/user/me`, `PATCH /api/user/logout`
+- `POST /api/auth/verify-email`, `POST /api/auth/verify-email/resend`
+- đổi email (route profile hiện có, chỉ field email)
+- `POST /api/auth/link/start` (liên kết Google/GitHub **cùng email** = luồng claim 11.1, cũng là một cách xác minh)
+
+Client: `apiClient` gặp 403 này → chuyển `/auth/verify-required`.
+
+**Mở khóa ngay sau khi xác minh.** Claim cũ còn trong cookie tới lần refresh. Trang verify xong và sự kiện realtime `email-verified` gọi `useSession().update()` → callback `jwt` đọc lại user, `verifyLockAt = null`. Server luôn kiểm lại DB khi refresh, nên claim cũ không mở được gì sau khi user bị xóa.
+
+**Trang `/auth/verify-required`:**
+
+```
+Verify your email to continue
+
+Your 7-day grace period ended on 2 Nov. Confirm c***@gmail.com to keep using CodeDev.
+If you don't, this account and its learning data are deleted on 9 Nov.
+
+  [Resend email]   [Change email]   [Sign out]
+  Use Google or GitHub with the same email instead → (luồng claim 11.1)
+```
+
+Trang này gọi `/api/user/me` lúc mở: nếu đã xác minh (claim cũ) → `update()` rồi về `next`.
+
+### 12.4 Tài khoản chưa xác minh liên kết Google đang thuộc tài khoản khác
+
+**Tình huống.** A: đăng ký mật khẩu, email `Ea` chưa xác minh, đang trong 7 ngày đầu, đã có dữ liệu học. B: tạo bằng Google, email `Eg` (đã xác minh). A đăng nhập, vào Settings → "Connect Google", chọn đúng Google của B.
+
+Hiện tại (10.4 bước 3): `(google, id)` thuộc B → `linkError=OAuthAccountInUse`, không đổi gì. Trường hợp `Ea = Eg` không xảy ra (unique `lower(email)`); nếu Google có cùng email với A thì đó là luồng claim 11.1, không phải mục này.
+
+Lúc này người dùng đã chứng minh sở hữu **cả hai**: A qua session, B qua OAuth Google.
+
+| # | Phương án | Được | Mất / rủi ro | Công |
+|---|---|---|---|---|
+| 1 | **Merge dữ liệu A → B** | Giữ hết tiến độ | 37 bảng tham chiếu `identity.users`; mỗi bảng cần luật gộp riêng (tiến độ bài học trùng, enrolment trùng, bạn bè / team / tin nhắn giữa A và B, comment). XP / point là sổ append-only, ranking dựa vào đó: gộp = ghi bút toán bù. **Lạm dụng:** tạo nhiều tài khoản rác chưa xác minh để cày XP rồi gộp vào tài khoản chính. | Rất lớn |
+| 2 | **Cho chọn tài khoản chính** | Linh hoạt | Chọn A làm chính thì phải chuyển Google từ B sang A và xử lý B: B đã xác minh, có thể có order (`RESTRICT`), entitlement → quay về bài toán merge hoặc xóa tài khoản đã xác minh. A vẫn chưa xác minh `Ea`. Rối cho người dùng | Lớn |
+| 3 | **Ưu tiên tài khoản đã xác minh (B), không gộp** | Không đụng dữ liệu, không lỗ hổng ranking, B (có thể đã mua) an toàn | Mất dữ liệu của A nếu người dùng bỏ A. Dữ liệu này tối đa 14 ngày tuổi. Có thể merge thêm dữ liệu tài khoản đăng nhập bằng mật khẩu, có thể hỏi nhắc đổi mật khẩu nếu cần | Nhỏ |
+| 4 | 3 + **nhập tiến độ học có chọn lọc** (đợt sau) | Giữ phần có giá trị nhất | Vẫn cần luật gộp, nhưng chỉ vài bảng; không chuyển XP / point / xã hội | Trung bình |
+**Đề xuất: 3 ngay, 4 chỉ khi có dữ liệu cho thấy người dùng cần.**
+
+Lý do: B là danh tính đã chứng minh, A là tài khoản thử chưa tới 14 ngày, không có giao dịch (checkout cần xác minh). Gộp XP / point mở đường gian lận ranking mà không có lợi gì tương xứng.
+
+Luồng của phương án 3 (thay cho thông báo lỗi `OAuthAccountInUse` hiện tại, chỉ khi A chưa xác minh; A đã xác minh thì giữ thông báo cũ):
+
+```
+This Google account already belongs to @b_username
+
+You can keep learning there. This account (@a_username) has not verified its email
+and will be deleted on 9 Nov unless you verify it.
+
+  [Switch to @b_username]         → signOut() rồi signIn("google"); Google SSO thường không hỏi lại
+  [Delete @a_username and switch] → xác nhận lần 2, xóa A ngay, rồi signIn("google")
+  [Stay here]                     → về Settings, banner xác minh như cũ
+```
+
+- Hiện username của B được: người bấm vừa đăng nhập Google của B.
+- "Delete and switch": POST có `assertSameOrigin` + session của A; dùng `accountPurgeDb.purgeUser` với lý do `user_requested`, bỏ điều kiện `purge_after <= now()` cho lý do này (vẫn yêu cầu `email_verified IS NOT TRUE` và không có order).
+- Muốn dùng A làm chính thật: người dùng tự gỡ Google khỏi B (nếu B còn cách đăng nhập khác, 10.5) hoặc xóa B, rồi Connect từ A. Không làm luồng riêng.
+
+**Phương án 4 (đợt sau, nếu làm):** sau bước "Switch", một lần duy nhất, trong 14 ngày của A, B được "Import learning progress from @a_username". Chỉ chép `learning.register` (enrolment khóa miễn phí), tiến độ bài học, kết quả challenge tốt nhất; bỏ qua dòng B đã có. XP / point **không chép**. Sau import xóa A. Audit `account.merged`.
+
+### 12.5 File thay đổi
+
+| File | Việc |
+|---|---|
+| `db/migrations/20261027_001_verify_lock.sql` | cột mới, trigger, backfill; chạy `db/tools/export-schema.mjs` |
+| `db/accountPurge.db.js`, `services/accountMaintenance.service.js` | thêm mail nhắc 1 (`verify_lock_at - 48h`, `lock_reminded_at`); `purgeUser` nhận `reason: "user_requested"` |
+| `services/emailVerification.service.js`, `components/templates/verifyEmailTemplate.jsx` | `remind(userId, kind: "lock" \| "purge")`, 2 câu chữ hạn chót |
+| SQL đăng nhập + `app/api/auth/[...nextauth]/route.js` | trả / ghi claim `verifyLockAt` |
+| `proxy.js` | redirect khi khóa |
+| `lib/session.js` + các route trong danh sách được phép | 403 `EMAIL_VERIFICATION_REQUIRED`, option `allowLocked` |
+| `app/auth/verify-required/page.jsx` + component | trang khóa |
+| `components/auth/verifyEmailBanner.jsx`, `db/user.db.js` | `/api/user/me` trả `verify_lock_at`; banner ghi hạn khóa (ngày 0–7) |
+| `app/api/auth/[...nextauth]/route.js` (`connectFromSettings`), `components/settings/signInMethodsSection.jsx` | dialog 12.4 khi A chưa xác minh |
+| route mới `POST /api/user/delete-unverified` | "Delete and switch" |
+| `docs/auth.md` | mốc thời gian, trang khóa |
+
+### 12.6 Test
+
+- Trigger: đăng ký → 2 hạn đúng 168h / 336h; xác minh → NULL; đổi email → có hạn khóa, không có hạn xóa; backfill không kéo hạn sớm hơn.
+- Proxy: trước hạn khóa vào `/home` được; sau hạn → `/auth/verify-required`; trang `PUBLIC` không bị chặn.
+- API: sau hạn, route thường → 403; route trong danh sách được phép → chạy; xác minh xong + `update()` → mở.
+- Job: mail nhắc 1 và 2 mỗi loại gửi đúng 1 lần; xóa ở 336h (giữ test 11.2).
+- 12.4: A chưa xác minh connect Google của B → dialog, không liên kết, không đổi dữ liệu B; "Delete and switch" xóa A, không đụng B; A đã xác minh → thông báo `OAuthAccountInUse` cũ; A có order → không xóa được.
+
+### 12.7 Thứ tự làm
+
+1. Migration + trigger + backfill, `/api/user/me` trả hạn khóa, banner mới, mail nhắc 1. Deploy, chờ ≥ 48h (không ai bị khóa trước khi nhận mail).
+2. Claim JWT + `proxy.js` + guard API + trang `/auth/verify-required`.
+3. Dialog 12.4 + route xóa chủ động.
+4. Docs, test (test viết cùng từng bước).
+
+Câu hỏi cần chốt:
+1. Tài khoản **từng xác minh rồi đổi email**: khóa sau 7 ngày nhưng không xóa (đề xuất), hay không khóa?
+2. User chưa xác minh hiện có trên prod: ân hạn tối thiểu 48h từ lúc deploy (đề xuất), hay tính thẳng từ ngày tạo (có thể bị khóa / xóa ngay)?
+3. 12.4: phương án 3 (đề xuất), hay làm luôn 4?

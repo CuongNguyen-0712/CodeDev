@@ -26,7 +26,9 @@ const handlers = {
     // Imported lazily: emailVerification.service imports this module to process its event.
     "email.verify_requested": async (payload) => {
         const { emailVerificationService } = await import("@/services/emailVerification.service");
-        await emailVerificationService.send(payload.userId, { reminder: Boolean(payload.reminder) });
+        // `reminder: true` is the purge reminder queued before migration 20261026_003.
+        const reminder = payload.reminder === true ? "purge" : payload.reminder || null;
+        await emailVerificationService.send(payload.userId, { reminder });
     },
 
     "email.link_requested": async (payload) => {

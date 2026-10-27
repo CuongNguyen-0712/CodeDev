@@ -7,8 +7,8 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 /**
- * GET|POST /api/internal/account-maintenance[?dryRun=1] — daily job for never-verified accounts
- * (docs/email-verification-plan.md 11.2): reminder mail 2 days before the deadline, then permanent
+ * GET|POST /api/internal/account-maintenance[?dryRun=1] — daily job for unverified accounts
+ * (docs/email-verification-plan.md 11.2, 12): reminder mails 2 days before the lock and 2 days before the deletion, then permanent
  * deletion. Vercel Cron (vercel.json) calls it with GET and `Authorization: Bearer $CRON_SECRET`;
  * AUTH_CRON_SECRET works too for other schedulers. 404 when neither secret is configured.
  */

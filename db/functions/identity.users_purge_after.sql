@@ -8,10 +8,21 @@ CREATE OR REPLACE FUNCTION identity.users_purge_after()
 AS $function$
 BEGIN
   IF TG_OP = 'INSERT' THEN
-    NEW.purge_after := CASE WHEN NEW.email_verified IS TRUE THEN NULL ELSE now() + interval '7 days' END;
+    IF NEW.email_verified IS TRUE THEN
+      NEW.verify_lock_at := NULL;
+      NEW.purge_after := NULL;
+    ELSE
+      NEW.verify_lock_at := now() + interval '168 hours';
+      NEW.purge_after := now() + interval '336 hours';
+    END IF;
   ELSIF NEW.email_verified IS TRUE THEN
+    NEW.verify_lock_at := NULL;
+    NEW.lock_reminded_at := NULL;
     NEW.purge_after := NULL;
     NEW.purge_reminded_at := NULL;
+  ELSIF OLD.email_verified IS TRUE THEN
+    NEW.verify_lock_at := now() + interval '168 hours';
+    NEW.lock_reminded_at := NULL;
   END IF;
   RETURN NEW;
 END;

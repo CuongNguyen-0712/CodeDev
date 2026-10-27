@@ -152,7 +152,8 @@ export const userDb = {
                 u.username as username,
                 u.email as email,
                 u.email_verified as email_verified,
-                u.purge_after as purge_after
+                u.purge_after as purge_after,
+                u.verify_lock_at as verify_lock_at
             from identity.users u
             join profile.info i on u.id = i.user_id
             left join profile.exp_level lvl on lvl.level = i.exp_level

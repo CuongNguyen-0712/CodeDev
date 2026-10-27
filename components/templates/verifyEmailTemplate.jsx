@@ -4,10 +4,16 @@ import { Body, Button, Container, Head, Heading, Html, Link, Preview, Section, T
 const BRAND = "#7C3AED";
 
 /**
- * "Verify your email" message (docs/email-verification-plan.md 6.6). `deadline` (a formatted
- * date) adds the deletion notice of never-verified accounts (11.2).
+ * "Verify your email" message (docs/email-verification-plan.md 6.6). Formatted dates add notices:
+ * `lockDeadline` = end of the 7-day grace period, still ahead (12); `deadline` = deletion of a
+ * never-verified account (11.2). With a deadline and no lockDeadline the account is locked already.
  */
-export default function VerifyEmailTemplate({ name, email, url, hours, deadline = null }) {
+export default function VerifyEmailTemplate({ name, email, url, hours, lockDeadline = null, deadline = null }) {
+    const notices = [];
+    if (lockDeadline) notices.push(`Verify by ${lockDeadline} to keep using CodeDev. After that, you need to verify before you can use your account.`);
+    if (lockDeadline && deadline) notices.push(`Accounts that are never verified are deleted, with all their data, on ${deadline}.`);
+    if (!lockDeadline && deadline) notices.push(`Your account is locked until you verify. Verify by ${deadline}, or the account and all its data are deleted.`);
+
     return (
         <Html lang="en">
             <Head />
@@ -21,16 +27,11 @@ export default function VerifyEmailTemplate({ name, email, url, hours, deadline 
                     <Text style={{ color: "#374151", fontSize: 15, lineHeight: "24px" }}>
                         Hi {name || "there"}, confirm that {email} is your email address for CodeDev.
                     </Text>
-                    {deadline && (
-                        <Text style={{ color: "#374151", fontSize: 15, lineHeight: "24px", fontWeight: 600 }}>
-                            Verify by {deadline}. Accounts that are never verified are deleted, with all their data, after 7 days.
+                    {notices.map((notice) => (
+                        <Text key={notice} style={{ color: "#374151", fontSize: 15, lineHeight: "24px", fontWeight: 600 }}>
+                            {notice}
                         </Text>
-                    )}
-                    {deadline && (
-                        <Text style={{ color: "#374151", fontSize: 15, lineHeight: "24px", fontWeight: 600 }}>
-                            Verify by {deadline}. Accounts that are never verified are deleted, with all their data, after 7 days.
-                        </Text>
-                    )}
+                    ))}
                     <Section style={{ margin: "24px 0" }}>
                         <Button
                             href={url}
