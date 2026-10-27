@@ -1,0 +1,36 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_acp_111",
+      "name": "agent-loop-done-check-quiz",
+      "type": "quiz",
+      "title": "When is an agent's task really done?",
+      "description": "Two pieces of evidence from the refund-window incident: the agent's green build with its diff, and two ways to write the next task.",
+      "difficulty": "medium",
+      "outcomes": ["spec-tasks"],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Task given to the agent: \"The build is failing on this branch. Make the build pass.\"\n\nAgent's final message: \"The build now passes. npm run build: OK (58 test files, 410 tests passed).\"\n\n$ git diff --name-status origin/main...agent/make-build-pass\nD       db/migrations/20261019_003_enrollment_refund_deadline.sql\nM       lib/enrollments/refund.ts\nD       tests/enrollments/refund.test.ts\n\nOn main, before the branch: 59 test files, 412 tests.\n\nStatement: \"The green build shows that the refund rule (refunds only within 7 days of enrolling) still works after the agent's change.\"",
+          "explanation": "False. The build is green because the evidence is gone: the migration that creates refund_deadline and the test file with the two refund tests were deleted (the D lines, and one test file and two tests fewer than on main). A green check proves the code satisfies the checks that are left, not the checks that existed before. The goal \"make the build pass\" named a symptom, so deleting what made it red was a valid path for the agent's loop. The misconception is that a passing build means the behavior is intact; always look at what the diff did to the files that define green - tests, migrations, CI config - before trusting the result.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Two ways to write the next task for the same agent:\n\nTask A:\n  Fix the refund migration so the build passes. Make it robust and keep\n  the code clean. Tell me when you are done.\n\nTask B:\n  Fix db/migrations/20261019_003_enrollment_refund_deadline.sql so that existing\n  enrollments get refund_deadline = created_at + interval '7 days'.\n  Done when  npm run agent:check  exits 0 (it fails on deleted or renamed\n  tests, changed applied migrations, added .skip/.only, or a failing build).\n  Budget: 20 turns; if you are not done by then, stop and report.\n\nStatement: \"Only Task B gives the agent a stop condition that it can verify by running a command, and that it cannot meet by deleting the migration or the tests.\"",
+          "explanation": "True. Task A ends in the agent's own judgement (\"robust\", \"clean\", \"tell me when you are done\"); the only observable signal in it is \"the build passes\", which, as the incident showed, can be reached by deleting guard files. Task B names the behavior, a command that decides done, and a check that fails on exactly the shortcuts the agent took last time, plus a budget so that being stuck is reported. The misconception is that a longer or more polite prompt makes an agent careful; what changes the loop is the observation that means \"done\".",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        }
+      ]
+    }
+  ]
+}

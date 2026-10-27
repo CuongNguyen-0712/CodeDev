@@ -1,0 +1,2761 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_acp_421",
+      "name": "secret-in-client-bundle",
+      "type": "quiz",
+      "title": "Where does the key end up?",
+      "description": "Two pieces of evidence from the vibe-coded course studio: a key found in the built JavaScript, and the .env file the agent edited. Decide what each one means for who can read the key.",
+      "difficulty": "medium",
+      "outcomes": [
+        "ownership"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "app/studio/OutlineButton.tsx (written by the agent):\n\"use client\";\nexport function OutlineButton({ title }: { title: string }) {\n  async function suggest() {\n    const res = await fetch(\"https://api.ai-vendor.test/v1/outline\", {\n      method: \"POST\",\n      headers: { authorization: `Bearer ${process.env.NEXT_PUBLIC_AI_API_KEY}` },\n      body: JSON.stringify({ topic: title, sections: 3 }),\n    });\n    // ...\n  }\n  return <button onClick={suggest}>Suggest an outline</button>;\n}\n\nTerminal, after the production build:\n$ grep -rl \"sk-fake-4f9a\" .next/static\n.next/static/chunks/app/studio/page-8c41d2.js\n\nStatement: \"Anyone who opens the studio can copy the key from this chunk, so moving the call to a server route is not enough on its own: the key must also be revoked and replaced.\"",
+          "explanation": "True. A file under .next/static is served to every browser that loads the page; the grep shows the build wrote the key's value into it, so anyone can find it in DevTools > Sources or in the network response, and copies of that chunk may sit in browser caches, CDNs and screenshots. Moving the call behind a server route stops new builds from shipping it, but the old value has already been published: treat it as leaked, revoke it at the vendor, issue a new key that only the server reads, and check the vendor's usage log for calls you did not make. The misconception is that deleting the line removes the leak.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": ".gitignore:\n.env*.local\n\n.env.local (on the build machine, never committed):\nNEXT_PUBLIC_AI_API_KEY=sk-fake-4f9a1c7e2b8d6a0f93e1\n\nStatement: \"Because .env.local is git-ignored, the key stays on the build machine and the server, and visitors of the site cannot read it.\"",
+          "explanation": "False. .gitignore only keeps the file out of the repository. The NEXT_PUBLIC_ prefix tells Next.js to copy the variable's value into the JavaScript built for the browser wherever client code reads it, so the value is published with every deploy, whatever file it came from. A variable without the prefix stays on the server, which is where an API key belongs. The misconception is to treat \"not in git\" as \"secret\"; the question to ask is which code reads the value and where that code runs.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_acp_422",
+      "name": "move-the-api-key-out-of-the-frontend",
+      "type": "fix_bug",
+      "title": "Vibe-coded app: the AI key in the client bundle",
+      "description": "The CodeDev course studio has a \"Suggest an outline\" button. The coding agent first wrote a server route for it, saw it answer 401 in the demo, removed the session check, and then made the browser call the AI vendor directly with the key in NEXT_PUBLIC_AI_API_KEY. The vendor now reports the key in use from addresses that are not CodeDev's. The file models the app as two modules, marked CLIENT (everything inside the `client` object is bundled and shipped to every browser; the build inlines each `publicEnv.NEXT_PUBLIC_*` it reads) and SERVER (the `server` object, which may read `serverEnv`), plus a fake network and a bundle scanner. Fix both modules so that: (1) client.suggestOutline(title) sends exactly one request, POST /api/outline (the same-origin path, which carries the user's session cookie) with the JSON body {\"title\": title}, and returns {ok: true, outline} for a 200 or {ok: false, status, error} with the error string of the response otherwise; (2) server.postOutline answers, checked in this order: no user (req.user is null) 401 {\"error\":\"unauthenticated\"}; a body that is not JSON or whose title is not a string of 1 to 120 characters after trimming 400 {\"error\":\"invalid_title\"}; more than 5 accepted requests by the same user in the same minute 429 {\"error\":\"rate_limited\"} (fixed window: Math.floor(clock.now / 60000); each user has their own counter; requests rejected with 401 or 400 do not count); otherwise it calls the AI vendor with the key from serverEnv.AI_API_KEY and the trimmed title as topic (3 sections, as the agent's route already does) and returns 200 {\"outline\": sections}, or 502 {\"error\":\"upstream_error\"} if the vendor fails; (3) no string the browser can reach contains the key: the client must not read publicEnv.NEXT_PUBLIC_AI_API_KEY, serverEnv or ENV, or keep the key in any property. The test runner prints, for each step, the result and the requests the browser sent (a request that carries the key is marked), the bundle scanner's findings when asked, and finally how many AI calls came from the server and from browsers. The hidden tests scan the bundle, call the route without a session and check the per-user limit and invalid titles.",
+      "difficulty": "medium",
+      "outcomes": [
+        "ownership",
+        "least-privilege"
+      ],
+      "points": 30,
+      "hints": [
+        "Who should hold the AI key: the code that runs in every visitor's browser, or the code that runs on your server? And once the server makes the call for the browser, who decides which callers it makes it for?",
+        "Look at the URL and the headers in client.suggestOutline, and at the first lines of server.postOutline (the comment says what the agent removed). The route also needs a counter per user and per minute before it calls the vendor.",
+        "A similar case: a translation button that called https://translate.example/v2 with publicEnv.NEXT_PUBLIC_TRANSLATE_KEY. The fix sends POST /api/translate {\"text\"} from the browser; the route returns 401 without a user, keeps a counter keyed by the user id and Math.floor(now / 60000) below its limit of 20, and only then reads serverEnv.TRANSLATE_KEY to call the vendor."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Two logged-in instructors get an outline from the studio",
+          "input": [
+            {
+              "browser": "sess_ana",
+              "title": "SQL Joins"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Docker Volumes"
+            }
+          ],
+          "expected": "#1 browser of u_ana: 200 Why SQL Joins matters | SQL Joins step by step | Practice: SQL Joins; requests: POST /api/outline\n#2 browser of u_binh: 200 Why Docker Volumes matters | Docker Volumes step by step | Practice: Docker Volumes; requests: POST /api/outline\nAI vendor calls: from the server 2, from browsers 0",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "The bundle scanner checks what ships to the browser",
+          "input": [
+            {
+              "browser": "sess_ana",
+              "title": "Indexes"
+            },
+            {
+              "scan": true
+            }
+          ],
+          "expected": "#1 browser of u_ana: 200 Why Indexes matters | Indexes step by step | Practice: Indexes; requests: POST /api/outline\n#2 bundle scan: no secrets\nAI vendor calls: from the server 1, from browsers 0",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Anonymous callers are rejected and never reach the AI vendor",
+          "input": [
+            {
+              "browser": null,
+              "title": "SQL Joins"
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":\"Free AI for everyone\"}"
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":\"Free AI for everyone\"}"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":\"Window Functions\"}"
+            }
+          ],
+          "expected": "#1 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#2 curl as anonymous: 401 unauthenticated\n#3 curl as anonymous: 401 unauthenticated\n#4 curl as u_ana: 200 Why Window Functions matters | Window Functions step by step | Practice: Window Functions\nAI vendor calls: from the server 1, from browsers 0",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Five outlines per user per minute, counted for each user separately",
+          "input": [
+            {
+              "browser": "sess_ana",
+              "title": "Topic 1"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Topic 2"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Topic 3"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Topic 4"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Topic 5"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Topic 6"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Docker Volumes"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":\"Topic 7\"}"
+            },
+            {
+              "advance": 60000
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Topic 8"
+            }
+          ],
+          "expected": "#1 browser of u_ana: 200 Why Topic 1 matters | Topic 1 step by step | Practice: Topic 1; requests: POST /api/outline\n#2 browser of u_ana: 200 Why Topic 2 matters | Topic 2 step by step | Practice: Topic 2; requests: POST /api/outline\n#3 browser of u_ana: 200 Why Topic 3 matters | Topic 3 step by step | Practice: Topic 3; requests: POST /api/outline\n#4 browser of u_ana: 200 Why Topic 4 matters | Topic 4 step by step | Practice: Topic 4; requests: POST /api/outline\n#5 browser of u_ana: 200 Why Topic 5 matters | Topic 5 step by step | Practice: Topic 5; requests: POST /api/outline\n#6 browser of u_ana: 429 rate_limited; requests: POST /api/outline\n#7 browser of u_binh: 200 Why Docker Volumes matters | Docker Volumes step by step | Practice: Docker Volumes; requests: POST /api/outline\n#8 curl as u_ana: 429 rate_limited\n#9 clock +60s\n#10 browser of u_ana: 200 Why Topic 8 matters | Topic 8 step by step | Practice: Topic 8; requests: POST /api/outline\nAI vendor calls: from the server 7, from browsers 0",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "No secret in the bundle before and after anonymous and logged-in calls",
+          "input": [
+            {
+              "scan": true
+            },
+            {
+              "browser": null,
+              "title": "SQL Joins"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":\"Caching\"}"
+            },
+            {
+              "scan": true
+            }
+          ],
+          "expected": "#1 bundle scan: no secrets\n#2 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#3 curl as u_binh: 200 Why Caching matters | Caching step by step | Practice: Caching\n#4 bundle scan: no secrets\nAI vendor calls: from the server 1, from browsers 0",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Invalid bodies and titles get 400 and do not use up the limit",
+          "input": [
+            {
+              "curl": "sess_ana",
+              "body": "not json"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":42}"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":\"   \"}"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "null"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "[]"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{}"
+            },
+            {
+              "curl": null,
+              "body": "not json"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "  Spaced Title  "
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":\"yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\"}"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Topic 3"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Topic 4"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Topic 5"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Topic 6"
+            }
+          ],
+          "expected": "#1 curl as u_ana: 400 invalid_title\n#2 curl as u_ana: 400 invalid_title\n#3 curl as u_ana: 400 invalid_title\n#4 curl as u_ana: 400 invalid_title\n#5 curl as u_ana: 400 invalid_title\n#6 curl as u_ana: 400 invalid_title\n#7 curl as u_ana: 400 invalid_title\n#8 curl as anonymous: 401 unauthenticated\n#9 browser of u_ana: 200 Why Spaced Title matters | Spaced Title step by step | Practice: Spaced Title; requests: POST /api/outline\n#10 curl as u_ana: 200 Why yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy matters | yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy step by step | Practice: yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\n#11 browser of u_ana: 200 Why Topic 3 matters | Topic 3 step by step | Practice: Topic 3; requests: POST /api/outline\n#12 browser of u_ana: 200 Why Topic 4 matters | Topic 4 step by step | Practice: Topic 4; requests: POST /api/outline\n#13 browser of u_ana: 200 Why Topic 5 matters | Topic 5 step by step | Practice: Topic 5; requests: POST /api/outline\n#14 browser of u_ana: 429 rate_limited; requests: POST /api/outline\nAI vendor calls: from the server 5, from browsers 0",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "650 mixed steps: browsers, direct calls, clock moves and scans",
+          "input": [
+            {
+              "browser": "sess_ana",
+              "title": "SQL Joins 1"
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":\"Git Rebase 2\"}"
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":\"Docker Volumes 3\"}"
+            },
+            {
+              "curl": null,
+              "body": "{oops"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Rate Limits 5"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Unit Tests 6"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":\"SQL Joins 7\"}"
+            },
+            {
+              "advance": 20000
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":\"Git Rebase 9\"}"
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":\"React Hooks 10\"}"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":\"Rate Limits 11\"}"
+            },
+            {
+              "advance": 20000
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Unit Tests 13"
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":\"SQL Joins 14\"}"
+            },
+            {
+              "browser": null,
+              "title": "Caching 15"
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":\"Unit Tests 16\"}"
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":\"Rate Limits 17\"}"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":\"Rate Limits 18\"}"
+            },
+            {
+              "browser": null,
+              "title": "Caching 19"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":7}"
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":\"Indexes 21\"}"
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":\"Git Rebase 22\"}"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":7}"
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":\"SQL Joins 24\"}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Unit Tests 25"
+            },
+            {
+              "browser": null,
+              "title": "   "
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":\"SQL Joins 27\"}"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":\"Git Rebase 28\"}"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":\"Indexes 29\"}"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Git Rebase 30"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":7}"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":7}"
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":7}"
+            },
+            {
+              "scan": true
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":\"React Hooks 35\"}"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "   "
+            },
+            {
+              "scan": true
+            },
+            {
+              "advance": 20000
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":\"SQL Joins 39\"}"
+            },
+            {
+              "browser": null,
+              "title": "Indexes 40"
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":\"React Hooks 41\"}"
+            },
+            {
+              "advance": 30000
+            },
+            {
+              "browser": "sess_binh",
+              "title": "SQL Joins 43"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "React Hooks 44"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Indexes 45"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "   "
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":7}"
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":\"React Hooks 48\"}"
+            },
+            {
+              "advance": 30000
+            },
+            {
+              "scan": true
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Unit Tests 51"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Rate Limits 52"
+            },
+            {
+              "advance": 30000
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":\"Docker Volumes 54\"}"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":\"Rate Limits 55\"}"
+            },
+            {
+              "browser": null,
+              "title": "   "
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":\"Indexes 57\"}"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":7}"
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":7}"
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{oops"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{oops"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "   "
+            },
+            {
+              "advance": 30000
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{oops"
+            },
+            {
+              "browser": null,
+              "title": "Indexes 65"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Rate Limits 66"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "SQL Joins 67"
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{oops"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":\"Docker Volumes 69\"}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "SQL Joins 70"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "   "
+            },
+            {
+              "browser": null,
+              "title": "Unit Tests 72"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{oops"
+            },
+            {
+              "curl": null,
+              "body": "{oops"
+            },
+            {
+              "advance": 5000
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":7}"
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{oops"
+            },
+            {
+              "scan": true
+            },
+            {
+              "browser": "sess_binh",
+              "title": "React Hooks 79"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "SQL Joins 80"
+            },
+            {
+              "scan": true
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":\"SQL Joins 82\"}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Indexes 83"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "React Hooks 84"
+            },
+            {
+              "advance": 5000
+            },
+            {
+              "scan": true
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":7}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Rate Limits 88"
+            },
+            {
+              "scan": true
+            },
+            {
+              "advance": 30000
+            },
+            {
+              "browser": null,
+              "title": "Docker Volumes 91"
+            },
+            {
+              "advance": 30000
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":7}"
+            },
+            {
+              "advance": 20000
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{oops"
+            },
+            {
+              "curl": null,
+              "body": "{oops"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "   "
+            },
+            {
+              "advance": 30000
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":\"Unit Tests 99\"}"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":\"SQL Joins 100\"}"
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{oops"
+            },
+            {
+              "advance": 5000
+            },
+            {
+              "browser": "sess_binh",
+              "title": "   "
+            },
+            {
+              "browser": null,
+              "title": "Docker Volumes 104"
+            },
+            {
+              "scan": true
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{oops"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":\"Docker Volumes 107\"}"
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":\"SQL Joins 108\"}"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Rate Limits 109"
+            },
+            {
+              "curl": null,
+              "body": "{oops"
+            },
+            {
+              "advance": 5000
+            },
+            {
+              "browser": null,
+              "title": "   "
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Caching 113"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":\"Indexes 114\"}"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":\"Caching 115\"}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "   "
+            },
+            {
+              "browser": "sess_ana",
+              "title": "React Hooks 117"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Indexes 118"
+            },
+            {
+              "browser": null,
+              "title": "   "
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Docker Volumes 120"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Unit Tests 121"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Git Rebase 122"
+            },
+            {
+              "curl": null,
+              "body": "{oops"
+            },
+            {
+              "scan": true
+            },
+            {
+              "browser": "sess_ana",
+              "title": "SQL Joins 125"
+            },
+            {
+              "browser": null,
+              "title": "   "
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":7}"
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":\"Unit Tests 128\"}"
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":\"Caching 129\"}"
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":\"SQL Joins 130\"}"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":7}"
+            },
+            {
+              "browser": null,
+              "title": "   "
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Indexes 133"
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":\"Rate Limits 134\"}"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":\"React Hooks 135\"}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "   "
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":\"React Hooks 137\"}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Docker Volumes 138"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Caching 139"
+            },
+            {
+              "scan": true
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Rate Limits 141"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "React Hooks 142"
+            },
+            {
+              "scan": true
+            },
+            {
+              "scan": true
+            },
+            {
+              "advance": 20000
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":\"Caching 146\"}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "   "
+            },
+            {
+              "browser": null,
+              "title": "React Hooks 148"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Rate Limits 149"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "   "
+            },
+            {
+              "browser": "sess_binh",
+              "title": "SQL Joins 151"
+            },
+            {
+              "advance": 30000
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{oops"
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":\"Indexes 154\"}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Unit Tests 155"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Indexes 156"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{oops"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":\"Docker Volumes 158\"}"
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":7}"
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":\"Unit Tests 160\"}"
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":\"Caching 161\"}"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":\"Docker Volumes 162\"}"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Docker Volumes 163"
+            },
+            {
+              "advance": 20000
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":\"Unit Tests 165\"}"
+            },
+            {
+              "browser": null,
+              "title": "React Hooks 166"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":\"React Hooks 167\"}"
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{oops"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":\"Docker Volumes 169\"}"
+            },
+            {
+              "browser": null,
+              "title": "Rate Limits 170"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "React Hooks 171"
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":7}"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{oops"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "   "
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Rate Limits 175"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "   "
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Docker Volumes 177"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":\"SQL Joins 178\"}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Rate Limits 179"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":\"SQL Joins 180\"}"
+            },
+            {
+              "advance": 5000
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Unit Tests 182"
+            },
+            {
+              "browser": null,
+              "title": "   "
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":\"Git Rebase 184\"}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Docker Volumes 185"
+            },
+            {
+              "browser": null,
+              "title": "Git Rebase 186"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Docker Volumes 187"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":7}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Rate Limits 189"
+            },
+            {
+              "advance": 30000
+            },
+            {
+              "scan": true
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Git Rebase 192"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Indexes 193"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":\"React Hooks 194\"}"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":7}"
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":\"SQL Joins 196\"}"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":\"Git Rebase 197\"}"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":\"Indexes 198\"}"
+            },
+            {
+              "curl": null,
+              "body": "{oops"
+            },
+            {
+              "browser": null,
+              "title": "   "
+            },
+            {
+              "advance": 5000
+            },
+            {
+              "browser": "sess_ana",
+              "title": "React Hooks 202"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "   "
+            },
+            {
+              "browser": "sess_ana",
+              "title": "React Hooks 204"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{oops"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "   "
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":7}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Rate Limits 208"
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":\"SQL Joins 209\"}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "   "
+            },
+            {
+              "browser": "sess_ana",
+              "title": "React Hooks 211"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":\"Rate Limits 212\"}"
+            },
+            {
+              "advance": 30000
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":\"Unit Tests 214\"}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Indexes 215"
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":\"Docker Volumes 216\"}"
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":7}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Indexes 218"
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":7}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "   "
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":\"Indexes 221\"}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "   "
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":7}"
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":\"Indexes 224\"}"
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":7}"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{oops"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":\"Indexes 227\"}"
+            },
+            {
+              "browser": null,
+              "title": "Rate Limits 228"
+            },
+            {
+              "curl": null,
+              "body": "{oops"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Git Rebase 230"
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":7}"
+            },
+            {
+              "scan": true
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":7}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Docker Volumes 234"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "   "
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":7}"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Rate Limits 237"
+            },
+            {
+              "advance": 30000
+            },
+            {
+              "advance": 20000
+            },
+            {
+              "browser": "sess_ana",
+              "title": "SQL Joins 240"
+            },
+            {
+              "curl": null,
+              "body": "{oops"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{oops"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":\"Unit Tests 243\"}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Rate Limits 244"
+            },
+            {
+              "advance": 20000
+            },
+            {
+              "browser": null,
+              "title": "Rate Limits 246"
+            },
+            {
+              "advance": 20000
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Docker Volumes 248"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":\"Rate Limits 249\"}"
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":\"Unit Tests 250\"}"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Indexes 251"
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":\"React Hooks 252\"}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Caching 253"
+            },
+            {
+              "advance": 20000
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":\"Caching 255\"}"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":7}"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "SQL Joins 257"
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":7}"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":\"Git Rebase 259\"}"
+            },
+            {
+              "curl": null,
+              "body": "{oops"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "   "
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":\"Indexes 262\"}"
+            },
+            {
+              "browser": null,
+              "title": "   "
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":\"React Hooks 264\"}"
+            },
+            {
+              "browser": null,
+              "title": "Indexes 265"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":7}"
+            },
+            {
+              "browser": null,
+              "title": "   "
+            },
+            {
+              "advance": 30000
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":7}"
+            },
+            {
+              "browser": null,
+              "title": "Caching 270"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":\"Caching 271\"}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "SQL Joins 272"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":7}"
+            },
+            {
+              "advance": 20000
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{oops"
+            },
+            {
+              "scan": true
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":\"Rate Limits 277\"}"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":\"Unit Tests 278\"}"
+            },
+            {
+              "advance": 30000
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":\"Rate Limits 280\"}"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":\"Caching 281\"}"
+            },
+            {
+              "browser": null,
+              "title": "Indexes 282"
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":7}"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":\"Unit Tests 284\"}"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":\"Indexes 285\"}"
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":\"Git Rebase 286\"}"
+            },
+            {
+              "advance": 5000
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":\"Unit Tests 288\"}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "SQL Joins 289"
+            },
+            {
+              "curl": null,
+              "body": "{oops"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":\"React Hooks 291\"}"
+            },
+            {
+              "advance": 5000
+            },
+            {
+              "curl": null,
+              "body": "{oops"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Caching 294"
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":\"Indexes 295\"}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "   "
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":7}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Docker Volumes 298"
+            },
+            {
+              "scan": true
+            },
+            {
+              "advance": 30000
+            },
+            {
+              "browser": "sess_binh",
+              "title": "   "
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":7}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "React Hooks 303"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":7}"
+            },
+            {
+              "advance": 5000
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":\"Unit Tests 306\"}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "   "
+            },
+            {
+              "browser": "sess_binh",
+              "title": "   "
+            },
+            {
+              "browser": null,
+              "title": "Git Rebase 309"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "React Hooks 310"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{oops"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":\"Rate Limits 312\"}"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":7}"
+            },
+            {
+              "scan": true
+            },
+            {
+              "browser": null,
+              "title": "   "
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":\"React Hooks 316\"}"
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{oops"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "   "
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":7}"
+            },
+            {
+              "browser": null,
+              "title": "React Hooks 320"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Indexes 321"
+            },
+            {
+              "advance": 20000
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Unit Tests 323"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":7}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Unit Tests 325"
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":\"Docker Volumes 326\"}"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Unit Tests 327"
+            },
+            {
+              "browser": null,
+              "title": "   "
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":\"Unit Tests 329\"}"
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{oops"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":\"Unit Tests 331\"}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "   "
+            },
+            {
+              "browser": "sess_binh",
+              "title": "   "
+            },
+            {
+              "advance": 5000
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Rate Limits 335"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Unit Tests 336"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":7}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Docker Volumes 338"
+            },
+            {
+              "advance": 30000
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Git Rebase 340"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{oops"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{oops"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":7}"
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":\"React Hooks 344\"}"
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":7}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Caching 346"
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":\"Git Rebase 347\"}"
+            },
+            {
+              "advance": 5000
+            },
+            {
+              "curl": null,
+              "body": "{oops"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "SQL Joins 350"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Indexes 351"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "React Hooks 352"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":\"Rate Limits 353\"}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Git Rebase 354"
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":7}"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":\"React Hooks 356\"}"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":\"Caching 357\"}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Docker Volumes 358"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Unit Tests 359"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{oops"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "SQL Joins 361"
+            },
+            {
+              "browser": null,
+              "title": "Rate Limits 362"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":7}"
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{oops"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Unit Tests 365"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Indexes 366"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Rate Limits 367"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Rate Limits 368"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Indexes 369"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":7}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Caching 371"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Unit Tests 372"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Unit Tests 373"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{oops"
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":\"React Hooks 375\"}"
+            },
+            {
+              "advance": 30000
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Git Rebase 377"
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{oops"
+            },
+            {
+              "scan": true
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Unit Tests 380"
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":\"React Hooks 381\"}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "   "
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{oops"
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":\"Indexes 384\"}"
+            },
+            {
+              "browser": null,
+              "title": "Indexes 385"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Docker Volumes 386"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Caching 387"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "   "
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":7}"
+            },
+            {
+              "browser": null,
+              "title": "SQL Joins 390"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Git Rebase 391"
+            },
+            {
+              "scan": true
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Indexes 393"
+            },
+            {
+              "scan": true
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":7}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "   "
+            },
+            {
+              "browser": null,
+              "title": "React Hooks 397"
+            },
+            {
+              "advance": 20000
+            },
+            {
+              "advance": 30000
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Indexes 400"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":7}"
+            },
+            {
+              "scan": true
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Indexes 403"
+            },
+            {
+              "browser": null,
+              "title": "Unit Tests 404"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":7}"
+            },
+            {
+              "browser": null,
+              "title": "   "
+            },
+            {
+              "advance": 20000
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Caching 408"
+            },
+            {
+              "curl": null,
+              "body": "{oops"
+            },
+            {
+              "scan": true
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Unit Tests 411"
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":\"Docker Volumes 412\"}"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "   "
+            },
+            {
+              "scan": true
+            },
+            {
+              "curl": null,
+              "body": "{oops"
+            },
+            {
+              "advance": 5000
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Unit Tests 417"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":\"Unit Tests 418\"}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Caching 419"
+            },
+            {
+              "scan": true
+            },
+            {
+              "browser": "sess_binh",
+              "title": "   "
+            },
+            {
+              "curl": null,
+              "body": "{oops"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{oops"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Docker Volumes 424"
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":7}"
+            },
+            {
+              "advance": 20000
+            },
+            {
+              "browser": "sess_ana",
+              "title": "SQL Joins 427"
+            },
+            {
+              "scan": true
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Rate Limits 429"
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":7}"
+            },
+            {
+              "advance": 30000
+            },
+            {
+              "browser": null,
+              "title": "   "
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":7}"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{oops"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Git Rebase 435"
+            },
+            {
+              "advance": 5000
+            },
+            {
+              "browser": "sess_ana",
+              "title": "   "
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":\"Rate Limits 438\"}"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":\"React Hooks 439\"}"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Docker Volumes 440"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":7}"
+            },
+            {
+              "browser": null,
+              "title": "Docker Volumes 442"
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":\"Caching 443\"}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "React Hooks 444"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "React Hooks 445"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Caching 446"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":\"Indexes 447\"}"
+            },
+            {
+              "advance": 20000
+            },
+            {
+              "browser": null,
+              "title": "Rate Limits 449"
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":7}"
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":7}"
+            },
+            {
+              "advance": 5000
+            },
+            {
+              "browser": "sess_ana",
+              "title": "React Hooks 453"
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":7}"
+            },
+            {
+              "advance": 30000
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Git Rebase 456"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":\"Unit Tests 457\"}"
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":\"Git Rebase 458\"}"
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":7}"
+            },
+            {
+              "advance": 5000
+            },
+            {
+              "browser": "sess_binh",
+              "title": "SQL Joins 461"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "React Hooks 462"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Git Rebase 463"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Rate Limits 464"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "   "
+            },
+            {
+              "advance": 5000
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Rate Limits 467"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":7}"
+            },
+            {
+              "scan": true
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":\"Git Rebase 470\"}"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":\"Caching 471\"}"
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":\"SQL Joins 472\"}"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":7}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Rate Limits 474"
+            },
+            {
+              "advance": 5000
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":\"React Hooks 476\"}"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Rate Limits 477"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":\"React Hooks 478\"}"
+            },
+            {
+              "curl": null,
+              "body": "{oops"
+            },
+            {
+              "advance": 20000
+            },
+            {
+              "browser": "sess_binh",
+              "title": "React Hooks 481"
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":7}"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":\"SQL Joins 483\"}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "   "
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":\"Rate Limits 485\"}"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "React Hooks 486"
+            },
+            {
+              "advance": 20000
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Unit Tests 488"
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":\"Unit Tests 489\"}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Unit Tests 490"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Rate Limits 491"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "React Hooks 492"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "SQL Joins 493"
+            },
+            {
+              "advance": 20000
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Docker Volumes 495"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "   "
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Rate Limits 497"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{oops"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":\"Unit Tests 499\"}"
+            },
+            {
+              "scan": true
+            },
+            {
+              "advance": 30000
+            },
+            {
+              "advance": 5000
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":\"Caching 503\"}"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":\"SQL Joins 504\"}"
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":7}"
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":\"Docker Volumes 506\"}"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{oops"
+            },
+            {
+              "curl": null,
+              "body": "{oops"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "   "
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":\"SQL Joins 510\"}"
+            },
+            {
+              "advance": 30000
+            },
+            {
+              "browser": "sess_ana",
+              "title": "   "
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":\"Git Rebase 513\"}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Rate Limits 514"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":\"SQL Joins 515\"}"
+            },
+            {
+              "advance": 30000
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Caching 517"
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":\"Git Rebase 518\"}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "React Hooks 519"
+            },
+            {
+              "advance": 5000
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Unit Tests 521"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":\"Docker Volumes 522\"}"
+            },
+            {
+              "browser": null,
+              "title": "React Hooks 523"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "   "
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":7}"
+            },
+            {
+              "advance": 5000
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Git Rebase 527"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{oops"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":7}"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":\"Docker Volumes 530\"}"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Unit Tests 531"
+            },
+            {
+              "advance": 5000
+            },
+            {
+              "browser": "sess_ana",
+              "title": "   "
+            },
+            {
+              "browser": "sess_binh",
+              "title": "SQL Joins 534"
+            },
+            {
+              "advance": 5000
+            },
+            {
+              "browser": "sess_binh",
+              "title": "   "
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Unit Tests 537"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Rate Limits 538"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":7}"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":\"Rate Limits 540\"}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Rate Limits 541"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "   "
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":\"Caching 543\"}"
+            },
+            {
+              "advance": 20000
+            },
+            {
+              "browser": null,
+              "title": "Unit Tests 545"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "   "
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":\"Rate Limits 547\"}"
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{oops"
+            },
+            {
+              "curl": null,
+              "body": "{oops"
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":\"SQL Joins 550\"}"
+            },
+            {
+              "browser": null,
+              "title": "Docker Volumes 551"
+            },
+            {
+              "advance": 30000
+            },
+            {
+              "advance": 20000
+            },
+            {
+              "advance": 5000
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Docker Volumes 555"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{oops"
+            },
+            {
+              "advance": 30000
+            },
+            {
+              "browser": "sess_binh",
+              "title": "React Hooks 558"
+            },
+            {
+              "advance": 5000
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":\"Unit Tests 560\"}"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":7}"
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":7}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Caching 563"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Indexes 564"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "SQL Joins 565"
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":\"Docker Volumes 566\"}"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Rate Limits 567"
+            },
+            {
+              "advance": 30000
+            },
+            {
+              "curl": null,
+              "body": "{oops"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "React Hooks 570"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{oops"
+            },
+            {
+              "advance": 20000
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Unit Tests 573"
+            },
+            {
+              "browser": null,
+              "title": "   "
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{oops"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "   "
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Indexes 577"
+            },
+            {
+              "advance": 20000
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":7}"
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":7}"
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{oops"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Caching 582"
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{oops"
+            },
+            {
+              "advance": 20000
+            },
+            {
+              "scan": true
+            },
+            {
+              "browser": "sess_binh",
+              "title": "SQL Joins 586"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":\"Caching 587\"}"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":\"SQL Joins 588\"}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Docker Volumes 589"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Indexes 590"
+            },
+            {
+              "advance": 5000
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":7}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "   "
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":\"Unit Tests 594\"}"
+            },
+            {
+              "scan": true
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":\"Unit Tests 596\"}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Git Rebase 597"
+            },
+            {
+              "browser": null,
+              "title": "Rate Limits 598"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "   "
+            },
+            {
+              "browser": null,
+              "title": "Caching 600"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":\"Indexes 601\"}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Git Rebase 602"
+            },
+            {
+              "advance": 20000
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":7}"
+            },
+            {
+              "browser": null,
+              "title": "Unit Tests 605"
+            },
+            {
+              "advance": 20000
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Caching 607"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Indexes 608"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Indexes 609"
+            },
+            {
+              "advance": 30000
+            },
+            {
+              "curl": null,
+              "body": "{oops"
+            },
+            {
+              "advance": 20000
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Rate Limits 613"
+            },
+            {
+              "advance": 20000
+            },
+            {
+              "browser": "sess_binh",
+              "title": "SQL Joins 615"
+            },
+            {
+              "advance": 20000
+            },
+            {
+              "browser": "sess_binh",
+              "title": "SQL Joins 617"
+            },
+            {
+              "browser": null,
+              "title": "Caching 618"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Caching 619"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "SQL Joins 620"
+            },
+            {
+              "browser": null,
+              "title": "Rate Limits 621"
+            },
+            {
+              "browser": null,
+              "title": "   "
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":\"SQL Joins 623\"}"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":\"React Hooks 624\"}"
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":7}"
+            },
+            {
+              "browser": null,
+              "title": "Indexes 626"
+            },
+            {
+              "advance": 30000
+            },
+            {
+              "advance": 30000
+            },
+            {
+              "browser": "sess_binh",
+              "title": "SQL Joins 629"
+            },
+            {
+              "curl": null,
+              "body": "{\"title\":\"Docker Volumes 630\"}"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Docker Volumes 631"
+            },
+            {
+              "advance": 5000
+            },
+            {
+              "browser": null,
+              "title": "   "
+            },
+            {
+              "browser": null,
+              "title": "Git Rebase 634"
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":7}"
+            },
+            {
+              "curl": "sess_expired",
+              "body": "{\"title\":\"SQL Joins 636\"}"
+            },
+            {
+              "advance": 5000
+            },
+            {
+              "browser": null,
+              "title": "Indexes 638"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "Unit Tests 639"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "   "
+            },
+            {
+              "curl": null,
+              "body": "{oops"
+            },
+            {
+              "browser": "sess_ana",
+              "title": "SQL Joins 642"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":7}"
+            },
+            {
+              "browser": null,
+              "title": "   "
+            },
+            {
+              "advance": 5000
+            },
+            {
+              "curl": "sess_binh",
+              "body": "{\"title\":7}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "   "
+            },
+            {
+              "browser": "sess_ana",
+              "title": "SQL Joins 648"
+            },
+            {
+              "curl": "sess_ana",
+              "body": "{\"title\":\"Rate Limits 649\"}"
+            },
+            {
+              "browser": "sess_binh",
+              "title": "Unit Tests 650"
+            }
+          ],
+          "expected": "#1 browser of u_ana: 200 Why SQL Joins 1 matters | SQL Joins 1 step by step | Practice: SQL Joins 1; requests: POST /api/outline\n#2 curl as anonymous: 401 unauthenticated\n#3 curl as anonymous: 401 unauthenticated\n#4 curl as anonymous: 401 unauthenticated\n#5 browser of u_ana: 200 Why Rate Limits 5 matters | Rate Limits 5 step by step | Practice: Rate Limits 5; requests: POST /api/outline\n#6 browser of u_binh: 200 Why Unit Tests 6 matters | Unit Tests 6 step by step | Practice: Unit Tests 6; requests: POST /api/outline\n#7 curl as u_binh: 200 Why SQL Joins 7 matters | SQL Joins 7 step by step | Practice: SQL Joins 7\n#8 clock +20s\n#9 curl as anonymous: 401 unauthenticated\n#10 curl as anonymous: 401 unauthenticated\n#11 curl as u_binh: 200 Why Rate Limits 11 matters | Rate Limits 11 step by step | Practice: Rate Limits 11\n#12 clock +20s\n#13 browser of u_binh: 200 Why Unit Tests 13 matters | Unit Tests 13 step by step | Practice: Unit Tests 13; requests: POST /api/outline\n#14 curl as anonymous: 401 unauthenticated\n#15 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#16 curl as anonymous: 401 unauthenticated\n#17 curl as anonymous: 401 unauthenticated\n#18 curl as u_binh: 200 Why Rate Limits 18 matters | Rate Limits 18 step by step | Practice: Rate Limits 18\n#19 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#20 curl as u_binh: 400 invalid_title\n#21 curl as anonymous: 401 unauthenticated\n#22 curl as anonymous: 401 unauthenticated\n#23 curl as u_ana: 400 invalid_title\n#24 curl as anonymous: 401 unauthenticated\n#25 browser of u_binh: 429 rate_limited; requests: POST /api/outline\n#26 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#27 curl as anonymous: 401 unauthenticated\n#28 curl as u_ana: 200 Why Git Rebase 28 matters | Git Rebase 28 step by step | Practice: Git Rebase 28\n#29 curl as u_binh: 429 rate_limited\n#30 browser of u_ana: 200 Why Git Rebase 30 matters | Git Rebase 30 step by step | Practice: Git Rebase 30; requests: POST /api/outline\n#31 curl as u_ana: 400 invalid_title\n#32 curl as u_ana: 400 invalid_title\n#33 curl as anonymous: 401 unauthenticated\n#34 bundle scan: no secrets\n#35 curl as anonymous: 401 unauthenticated\n#36 browser of u_ana: 400 invalid_title; requests: POST /api/outline\n#37 bundle scan: no secrets\n#38 clock +20s\n#39 curl as u_binh: 200 Why SQL Joins 39 matters | SQL Joins 39 step by step | Practice: SQL Joins 39\n#40 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#41 curl as anonymous: 401 unauthenticated\n#42 clock +30s\n#43 browser of u_binh: 200 Why SQL Joins 43 matters | SQL Joins 43 step by step | Practice: SQL Joins 43; requests: POST /api/outline\n#44 browser of u_binh: 200 Why React Hooks 44 matters | React Hooks 44 step by step | Practice: React Hooks 44; requests: POST /api/outline\n#45 browser of u_binh: 200 Why Indexes 45 matters | Indexes 45 step by step | Practice: Indexes 45; requests: POST /api/outline\n#46 browser of u_binh: 400 invalid_title; requests: POST /api/outline\n#47 curl as u_ana: 400 invalid_title\n#48 curl as anonymous: 401 unauthenticated\n#49 clock +30s\n#50 bundle scan: no secrets\n#51 browser of u_ana: 200 Why Unit Tests 51 matters | Unit Tests 51 step by step | Practice: Unit Tests 51; requests: POST /api/outline\n#52 browser of u_binh: 200 Why Rate Limits 52 matters | Rate Limits 52 step by step | Practice: Rate Limits 52; requests: POST /api/outline\n#53 clock +30s\n#54 curl as anonymous: 401 unauthenticated\n#55 curl as u_ana: 200 Why Rate Limits 55 matters | Rate Limits 55 step by step | Practice: Rate Limits 55\n#56 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#57 curl as anonymous: 401 unauthenticated\n#58 curl as u_ana: 400 invalid_title\n#59 curl as anonymous: 401 unauthenticated\n#60 curl as anonymous: 401 unauthenticated\n#61 curl as u_binh: 400 invalid_title\n#62 browser of u_binh: 400 invalid_title; requests: POST /api/outline\n#63 clock +30s\n#64 curl as u_ana: 400 invalid_title\n#65 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#66 browser of u_ana: 200 Why Rate Limits 66 matters | Rate Limits 66 step by step | Practice: Rate Limits 66; requests: POST /api/outline\n#67 browser of u_ana: 200 Why SQL Joins 67 matters | SQL Joins 67 step by step | Practice: SQL Joins 67; requests: POST /api/outline\n#68 curl as anonymous: 401 unauthenticated\n#69 curl as u_binh: 200 Why Docker Volumes 69 matters | Docker Volumes 69 step by step | Practice: Docker Volumes 69\n#70 browser of u_binh: 200 Why SQL Joins 70 matters | SQL Joins 70 step by step | Practice: SQL Joins 70; requests: POST /api/outline\n#71 browser of u_ana: 400 invalid_title; requests: POST /api/outline\n#72 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#73 curl as u_ana: 400 invalid_title\n#74 curl as anonymous: 401 unauthenticated\n#75 clock +5s\n#76 curl as u_ana: 400 invalid_title\n#77 curl as anonymous: 401 unauthenticated\n#78 bundle scan: no secrets\n#79 browser of u_binh: 200 Why React Hooks 79 matters | React Hooks 79 step by step | Practice: React Hooks 79; requests: POST /api/outline\n#80 browser of u_ana: 200 Why SQL Joins 80 matters | SQL Joins 80 step by step | Practice: SQL Joins 80; requests: POST /api/outline\n#81 bundle scan: no secrets\n#82 curl as anonymous: 401 unauthenticated\n#83 browser of u_binh: 200 Why Indexes 83 matters | Indexes 83 step by step | Practice: Indexes 83; requests: POST /api/outline\n#84 browser of u_binh: 200 Why React Hooks 84 matters | React Hooks 84 step by step | Practice: React Hooks 84; requests: POST /api/outline\n#85 clock +5s\n#86 bundle scan: no secrets\n#87 curl as u_binh: 400 invalid_title\n#88 browser of u_binh: 429 rate_limited; requests: POST /api/outline\n#89 bundle scan: no secrets\n#90 clock +30s\n#91 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#92 clock +30s\n#93 curl as u_binh: 400 invalid_title\n#94 clock +20s\n#95 curl as u_ana: 400 invalid_title\n#96 curl as anonymous: 401 unauthenticated\n#97 browser of u_ana: 400 invalid_title; requests: POST /api/outline\n#98 clock +30s\n#99 curl as u_binh: 200 Why Unit Tests 99 matters | Unit Tests 99 step by step | Practice: Unit Tests 99\n#100 curl as u_ana: 200 Why SQL Joins 100 matters | SQL Joins 100 step by step | Practice: SQL Joins 100\n#101 curl as anonymous: 401 unauthenticated\n#102 clock +5s\n#103 browser of u_binh: 400 invalid_title; requests: POST /api/outline\n#104 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#105 bundle scan: no secrets\n#106 curl as anonymous: 401 unauthenticated\n#107 curl as u_binh: 200 Why Docker Volumes 107 matters | Docker Volumes 107 step by step | Practice: Docker Volumes 107\n#108 curl as anonymous: 401 unauthenticated\n#109 browser of u_ana: 200 Why Rate Limits 109 matters | Rate Limits 109 step by step | Practice: Rate Limits 109; requests: POST /api/outline\n#110 curl as anonymous: 401 unauthenticated\n#111 clock +5s\n#112 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#113 browser of u_binh: 200 Why Caching 113 matters | Caching 113 step by step | Practice: Caching 113; requests: POST /api/outline\n#114 curl as u_ana: 200 Why Indexes 114 matters | Indexes 114 step by step | Practice: Indexes 114\n#115 curl as u_ana: 200 Why Caching 115 matters | Caching 115 step by step | Practice: Caching 115\n#116 browser of u_binh: 400 invalid_title; requests: POST /api/outline\n#117 browser of u_ana: 200 Why React Hooks 117 matters | React Hooks 117 step by step | Practice: React Hooks 117; requests: POST /api/outline\n#118 browser of u_ana: 429 rate_limited; requests: POST /api/outline\n#119 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#120 browser of u_binh: 200 Why Docker Volumes 120 matters | Docker Volumes 120 step by step | Practice: Docker Volumes 120; requests: POST /api/outline\n#121 browser of u_binh: 200 Why Unit Tests 121 matters | Unit Tests 121 step by step | Practice: Unit Tests 121; requests: POST /api/outline\n#122 browser of u_ana: 429 rate_limited; requests: POST /api/outline\n#123 curl as anonymous: 401 unauthenticated\n#124 bundle scan: no secrets\n#125 browser of u_ana: 429 rate_limited; requests: POST /api/outline\n#126 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#127 curl as u_ana: 400 invalid_title\n#128 curl as anonymous: 401 unauthenticated\n#129 curl as anonymous: 401 unauthenticated\n#130 curl as anonymous: 401 unauthenticated\n#131 curl as u_binh: 400 invalid_title\n#132 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#133 browser of u_binh: 429 rate_limited; requests: POST /api/outline\n#134 curl as anonymous: 401 unauthenticated\n#135 curl as u_ana: 429 rate_limited\n#136 browser of u_binh: 400 invalid_title; requests: POST /api/outline\n#137 curl as u_ana: 429 rate_limited\n#138 browser of u_binh: 429 rate_limited; requests: POST /api/outline\n#139 browser of u_ana: 429 rate_limited; requests: POST /api/outline\n#140 bundle scan: no secrets\n#141 browser of u_binh: 429 rate_limited; requests: POST /api/outline\n#142 browser of u_binh: 429 rate_limited; requests: POST /api/outline\n#143 bundle scan: no secrets\n#144 bundle scan: no secrets\n#145 clock +20s\n#146 curl as anonymous: 401 unauthenticated\n#147 browser of u_binh: 400 invalid_title; requests: POST /api/outline\n#148 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#149 browser of u_ana: 429 rate_limited; requests: POST /api/outline\n#150 browser of u_ana: 400 invalid_title; requests: POST /api/outline\n#151 browser of u_binh: 429 rate_limited; requests: POST /api/outline\n#152 clock +30s\n#153 curl as u_ana: 400 invalid_title\n#154 curl as anonymous: 401 unauthenticated\n#155 browser of u_binh: 200 Why Unit Tests 155 matters | Unit Tests 155 step by step | Practice: Unit Tests 155; requests: POST /api/outline\n#156 browser of u_ana: 200 Why Indexes 156 matters | Indexes 156 step by step | Practice: Indexes 156; requests: POST /api/outline\n#157 curl as u_binh: 400 invalid_title\n#158 curl as u_binh: 200 Why Docker Volumes 158 matters | Docker Volumes 158 step by step | Practice: Docker Volumes 158\n#159 curl as anonymous: 401 unauthenticated\n#160 curl as anonymous: 401 unauthenticated\n#161 curl as anonymous: 401 unauthenticated\n#162 curl as u_binh: 200 Why Docker Volumes 162 matters | Docker Volumes 162 step by step | Practice: Docker Volumes 162\n#163 browser of u_ana: 200 Why Docker Volumes 163 matters | Docker Volumes 163 step by step | Practice: Docker Volumes 163; requests: POST /api/outline\n#164 clock +20s\n#165 curl as u_binh: 200 Why Unit Tests 165 matters | Unit Tests 165 step by step | Practice: Unit Tests 165\n#166 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#167 curl as u_binh: 200 Why React Hooks 167 matters | React Hooks 167 step by step | Practice: React Hooks 167\n#168 curl as anonymous: 401 unauthenticated\n#169 curl as u_binh: 429 rate_limited\n#170 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#171 browser of u_binh: 429 rate_limited; requests: POST /api/outline\n#172 curl as anonymous: 401 unauthenticated\n#173 curl as u_ana: 400 invalid_title\n#174 browser of u_binh: 400 invalid_title; requests: POST /api/outline\n#175 browser of u_ana: 200 Why Rate Limits 175 matters | Rate Limits 175 step by step | Practice: Rate Limits 175; requests: POST /api/outline\n#176 browser of u_ana: 400 invalid_title; requests: POST /api/outline\n#177 browser of u_binh: 429 rate_limited; requests: POST /api/outline\n#178 curl as u_binh: 429 rate_limited\n#179 browser of u_binh: 429 rate_limited; requests: POST /api/outline\n#180 curl as u_binh: 429 rate_limited\n#181 clock +5s\n#182 browser of u_binh: 429 rate_limited; requests: POST /api/outline\n#183 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#184 curl as anonymous: 401 unauthenticated\n#185 browser of u_binh: 429 rate_limited; requests: POST /api/outline\n#186 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#187 browser of u_ana: 200 Why Docker Volumes 187 matters | Docker Volumes 187 step by step | Practice: Docker Volumes 187; requests: POST /api/outline\n#188 curl as u_ana: 400 invalid_title\n#189 browser of u_binh: 429 rate_limited; requests: POST /api/outline\n#190 clock +30s\n#191 bundle scan: no secrets\n#192 browser of u_ana: 200 Why Git Rebase 192 matters | Git Rebase 192 step by step | Practice: Git Rebase 192; requests: POST /api/outline\n#193 browser of u_binh: 429 rate_limited; requests: POST /api/outline\n#194 curl as u_ana: 429 rate_limited\n#195 curl as u_ana: 400 invalid_title\n#196 curl as anonymous: 401 unauthenticated\n#197 curl as u_binh: 429 rate_limited\n#198 curl as u_binh: 429 rate_limited\n#199 curl as anonymous: 401 unauthenticated\n#200 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#201 clock +5s\n#202 browser of u_ana: 200 Why React Hooks 202 matters | React Hooks 202 step by step | Practice: React Hooks 202; requests: POST /api/outline\n#203 browser of u_ana: 400 invalid_title; requests: POST /api/outline\n#204 browser of u_ana: 200 Why React Hooks 204 matters | React Hooks 204 step by step | Practice: React Hooks 204; requests: POST /api/outline\n#205 curl as u_binh: 400 invalid_title\n#206 browser of u_binh: 400 invalid_title; requests: POST /api/outline\n#207 curl as anonymous: 401 unauthenticated\n#208 browser of u_binh: 200 Why Rate Limits 208 matters | Rate Limits 208 step by step | Practice: Rate Limits 208; requests: POST /api/outline\n#209 curl as anonymous: 401 unauthenticated\n#210 browser of u_binh: 400 invalid_title; requests: POST /api/outline\n#211 browser of u_ana: 200 Why React Hooks 211 matters | React Hooks 211 step by step | Practice: React Hooks 211; requests: POST /api/outline\n#212 curl as u_ana: 200 Why Rate Limits 212 matters | Rate Limits 212 step by step | Practice: Rate Limits 212\n#213 clock +30s\n#214 curl as anonymous: 401 unauthenticated\n#215 browser of u_binh: 200 Why Indexes 215 matters | Indexes 215 step by step | Practice: Indexes 215; requests: POST /api/outline\n#216 curl as anonymous: 401 unauthenticated\n#217 curl as anonymous: 401 unauthenticated\n#218 browser of u_binh: 200 Why Indexes 218 matters | Indexes 218 step by step | Practice: Indexes 218; requests: POST /api/outline\n#219 curl as anonymous: 401 unauthenticated\n#220 browser of u_binh: 400 invalid_title; requests: POST /api/outline\n#221 curl as anonymous: 401 unauthenticated\n#222 browser of u_binh: 400 invalid_title; requests: POST /api/outline\n#223 curl as u_binh: 400 invalid_title\n#224 curl as anonymous: 401 unauthenticated\n#225 curl as anonymous: 401 unauthenticated\n#226 curl as u_ana: 400 invalid_title\n#227 curl as u_ana: 200 Why Indexes 227 matters | Indexes 227 step by step | Practice: Indexes 227\n#228 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#229 curl as anonymous: 401 unauthenticated\n#230 browser of u_binh: 200 Why Git Rebase 230 matters | Git Rebase 230 step by step | Practice: Git Rebase 230; requests: POST /api/outline\n#231 curl as anonymous: 401 unauthenticated\n#232 bundle scan: no secrets\n#233 curl as u_binh: 400 invalid_title\n#234 browser of u_binh: 200 Why Docker Volumes 234 matters | Docker Volumes 234 step by step | Practice: Docker Volumes 234; requests: POST /api/outline\n#235 browser of u_binh: 400 invalid_title; requests: POST /api/outline\n#236 curl as u_binh: 400 invalid_title\n#237 browser of u_ana: 429 rate_limited; requests: POST /api/outline\n#238 clock +30s\n#239 clock +20s\n#240 browser of u_ana: 200 Why SQL Joins 240 matters | SQL Joins 240 step by step | Practice: SQL Joins 240; requests: POST /api/outline\n#241 curl as anonymous: 401 unauthenticated\n#242 curl as u_binh: 400 invalid_title\n#243 curl as u_binh: 200 Why Unit Tests 243 matters | Unit Tests 243 step by step | Practice: Unit Tests 243\n#244 browser of u_binh: 200 Why Rate Limits 244 matters | Rate Limits 244 step by step | Practice: Rate Limits 244; requests: POST /api/outline\n#245 clock +20s\n#246 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#247 clock +20s\n#248 browser of u_binh: 200 Why Docker Volumes 248 matters | Docker Volumes 248 step by step | Practice: Docker Volumes 248; requests: POST /api/outline\n#249 curl as u_ana: 200 Why Rate Limits 249 matters | Rate Limits 249 step by step | Practice: Rate Limits 249\n#250 curl as anonymous: 401 unauthenticated\n#251 browser of u_ana: 200 Why Indexes 251 matters | Indexes 251 step by step | Practice: Indexes 251; requests: POST /api/outline\n#252 curl as anonymous: 401 unauthenticated\n#253 browser of u_binh: 200 Why Caching 253 matters | Caching 253 step by step | Practice: Caching 253; requests: POST /api/outline\n#254 clock +20s\n#255 curl as anonymous: 401 unauthenticated\n#256 curl as u_binh: 400 invalid_title\n#257 browser of u_ana: 200 Why SQL Joins 257 matters | SQL Joins 257 step by step | Practice: SQL Joins 257; requests: POST /api/outline\n#258 curl as anonymous: 401 unauthenticated\n#259 curl as u_binh: 200 Why Git Rebase 259 matters | Git Rebase 259 step by step | Practice: Git Rebase 259\n#260 curl as anonymous: 401 unauthenticated\n#261 browser of u_ana: 400 invalid_title; requests: POST /api/outline\n#262 curl as u_binh: 200 Why Indexes 262 matters | Indexes 262 step by step | Practice: Indexes 262\n#263 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#264 curl as u_ana: 200 Why React Hooks 264 matters | React Hooks 264 step by step | Practice: React Hooks 264\n#265 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#266 curl as u_ana: 400 invalid_title\n#267 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#268 clock +30s\n#269 curl as anonymous: 401 unauthenticated\n#270 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#271 curl as u_ana: 200 Why Caching 271 matters | Caching 271 step by step | Practice: Caching 271\n#272 browser of u_binh: 200 Why SQL Joins 272 matters | SQL Joins 272 step by step | Practice: SQL Joins 272; requests: POST /api/outline\n#273 curl as u_binh: 400 invalid_title\n#274 clock +20s\n#275 curl as anonymous: 401 unauthenticated\n#276 bundle scan: no secrets\n#277 curl as anonymous: 401 unauthenticated\n#278 curl as u_binh: 200 Why Unit Tests 278 matters | Unit Tests 278 step by step | Practice: Unit Tests 278\n#279 clock +30s\n#280 curl as u_binh: 200 Why Rate Limits 280 matters | Rate Limits 280 step by step | Practice: Rate Limits 280\n#281 curl as u_binh: 200 Why Caching 281 matters | Caching 281 step by step | Practice: Caching 281\n#282 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#283 curl as anonymous: 401 unauthenticated\n#284 curl as u_ana: 200 Why Unit Tests 284 matters | Unit Tests 284 step by step | Practice: Unit Tests 284\n#285 curl as u_binh: 200 Why Indexes 285 matters | Indexes 285 step by step | Practice: Indexes 285\n#286 curl as anonymous: 401 unauthenticated\n#287 clock +5s\n#288 curl as anonymous: 401 unauthenticated\n#289 browser of u_binh: 200 Why SQL Joins 289 matters | SQL Joins 289 step by step | Practice: SQL Joins 289; requests: POST /api/outline\n#290 curl as anonymous: 401 unauthenticated\n#291 curl as u_ana: 200 Why React Hooks 291 matters | React Hooks 291 step by step | Practice: React Hooks 291\n#292 clock +5s\n#293 curl as anonymous: 401 unauthenticated\n#294 browser of u_ana: 200 Why Caching 294 matters | Caching 294 step by step | Practice: Caching 294; requests: POST /api/outline\n#295 curl as anonymous: 401 unauthenticated\n#296 browser of u_binh: 400 invalid_title; requests: POST /api/outline\n#297 curl as anonymous: 401 unauthenticated\n#298 browser of u_binh: 429 rate_limited; requests: POST /api/outline\n#299 bundle scan: no secrets\n#300 clock +30s\n#301 browser of u_binh: 400 invalid_title; requests: POST /api/outline\n#302 curl as anonymous: 401 unauthenticated\n#303 browser of u_binh: 200 Why React Hooks 303 matters | React Hooks 303 step by step | Practice: React Hooks 303; requests: POST /api/outline\n#304 curl as u_ana: 400 invalid_title\n#305 clock +5s\n#306 curl as anonymous: 401 unauthenticated\n#307 browser of u_binh: 400 invalid_title; requests: POST /api/outline\n#308 browser of u_binh: 400 invalid_title; requests: POST /api/outline\n#309 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#310 browser of u_ana: 200 Why React Hooks 310 matters | React Hooks 310 step by step | Practice: React Hooks 310; requests: POST /api/outline\n#311 curl as u_ana: 400 invalid_title\n#312 curl as u_binh: 200 Why Rate Limits 312 matters | Rate Limits 312 step by step | Practice: Rate Limits 312\n#313 curl as u_ana: 400 invalid_title\n#314 bundle scan: no secrets\n#315 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#316 curl as anonymous: 401 unauthenticated\n#317 curl as anonymous: 401 unauthenticated\n#318 browser of u_binh: 400 invalid_title; requests: POST /api/outline\n#319 curl as anonymous: 401 unauthenticated\n#320 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#321 browser of u_binh: 200 Why Indexes 321 matters | Indexes 321 step by step | Practice: Indexes 321; requests: POST /api/outline\n#322 clock +20s\n#323 browser of u_binh: 200 Why Unit Tests 323 matters | Unit Tests 323 step by step | Practice: Unit Tests 323; requests: POST /api/outline\n#324 curl as u_binh: 400 invalid_title\n#325 browser of u_binh: 200 Why Unit Tests 325 matters | Unit Tests 325 step by step | Practice: Unit Tests 325; requests: POST /api/outline\n#326 curl as anonymous: 401 unauthenticated\n#327 browser of u_ana: 200 Why Unit Tests 327 matters | Unit Tests 327 step by step | Practice: Unit Tests 327; requests: POST /api/outline\n#328 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#329 curl as u_ana: 200 Why Unit Tests 329 matters | Unit Tests 329 step by step | Practice: Unit Tests 329\n#330 curl as anonymous: 401 unauthenticated\n#331 curl as u_binh: 429 rate_limited\n#332 browser of u_binh: 400 invalid_title; requests: POST /api/outline\n#333 browser of u_binh: 400 invalid_title; requests: POST /api/outline\n#334 clock +5s\n#335 browser of u_ana: 200 Why Rate Limits 335 matters | Rate Limits 335 step by step | Practice: Rate Limits 335; requests: POST /api/outline\n#336 browser of u_binh: 429 rate_limited; requests: POST /api/outline\n#337 curl as u_ana: 400 invalid_title\n#338 browser of u_binh: 429 rate_limited; requests: POST /api/outline\n#339 clock +30s\n#340 browser of u_binh: 200 Why Git Rebase 340 matters | Git Rebase 340 step by step | Practice: Git Rebase 340; requests: POST /api/outline\n#341 curl as u_binh: 400 invalid_title\n#342 curl as u_binh: 400 invalid_title\n#343 curl as u_binh: 400 invalid_title\n#344 curl as anonymous: 401 unauthenticated\n#345 curl as anonymous: 401 unauthenticated\n#346 browser of u_binh: 200 Why Caching 346 matters | Caching 346 step by step | Practice: Caching 346; requests: POST /api/outline\n#347 curl as anonymous: 401 unauthenticated\n#348 clock +5s\n#349 curl as anonymous: 401 unauthenticated\n#350 browser of u_ana: 200 Why SQL Joins 350 matters | SQL Joins 350 step by step | Practice: SQL Joins 350; requests: POST /api/outline\n#351 browser of u_binh: 200 Why Indexes 351 matters | Indexes 351 step by step | Practice: Indexes 351; requests: POST /api/outline\n#352 browser of u_binh: 200 Why React Hooks 352 matters | React Hooks 352 step by step | Practice: React Hooks 352; requests: POST /api/outline\n#353 curl as u_ana: 200 Why Rate Limits 353 matters | Rate Limits 353 step by step | Practice: Rate Limits 353\n#354 browser of u_binh: 200 Why Git Rebase 354 matters | Git Rebase 354 step by step | Practice: Git Rebase 354; requests: POST /api/outline\n#355 curl as anonymous: 401 unauthenticated\n#356 curl as u_binh: 429 rate_limited\n#357 curl as u_ana: 200 Why Caching 357 matters | Caching 357 step by step | Practice: Caching 357\n#358 browser of u_binh: 429 rate_limited; requests: POST /api/outline\n#359 browser of u_binh: 429 rate_limited; requests: POST /api/outline\n#360 curl as u_binh: 400 invalid_title\n#361 browser of u_binh: 429 rate_limited; requests: POST /api/outline\n#362 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#363 curl as u_binh: 400 invalid_title\n#364 curl as anonymous: 401 unauthenticated\n#365 browser of u_ana: 200 Why Unit Tests 365 matters | Unit Tests 365 step by step | Practice: Unit Tests 365; requests: POST /api/outline\n#366 browser of u_binh: 429 rate_limited; requests: POST /api/outline\n#367 browser of u_ana: 200 Why Rate Limits 367 matters | Rate Limits 367 step by step | Practice: Rate Limits 367; requests: POST /api/outline\n#368 browser of u_binh: 429 rate_limited; requests: POST /api/outline\n#369 browser of u_binh: 429 rate_limited; requests: POST /api/outline\n#370 curl as u_ana: 400 invalid_title\n#371 browser of u_binh: 429 rate_limited; requests: POST /api/outline\n#372 browser of u_binh: 429 rate_limited; requests: POST /api/outline\n#373 browser of u_binh: 429 rate_limited; requests: POST /api/outline\n#374 curl as u_binh: 400 invalid_title\n#375 curl as anonymous: 401 unauthenticated\n#376 clock +30s\n#377 browser of u_binh: 429 rate_limited; requests: POST /api/outline\n#378 curl as anonymous: 401 unauthenticated\n#379 bundle scan: no secrets\n#380 browser of u_binh: 429 rate_limited; requests: POST /api/outline\n#381 curl as anonymous: 401 unauthenticated\n#382 browser of u_binh: 400 invalid_title; requests: POST /api/outline\n#383 curl as u_binh: 400 invalid_title\n#384 curl as anonymous: 401 unauthenticated\n#385 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#386 browser of u_ana: 429 rate_limited; requests: POST /api/outline\n#387 browser of u_binh: 429 rate_limited; requests: POST /api/outline\n#388 browser of u_ana: 400 invalid_title; requests: POST /api/outline\n#389 curl as anonymous: 401 unauthenticated\n#390 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#391 browser of u_binh: 429 rate_limited; requests: POST /api/outline\n#392 bundle scan: no secrets\n#393 browser of u_binh: 429 rate_limited; requests: POST /api/outline\n#394 bundle scan: no secrets\n#395 curl as u_ana: 400 invalid_title\n#396 browser of u_binh: 400 invalid_title; requests: POST /api/outline\n#397 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#398 clock +20s\n#399 clock +30s\n#400 browser of u_binh: 200 Why Indexes 400 matters | Indexes 400 step by step | Practice: Indexes 400; requests: POST /api/outline\n#401 curl as u_ana: 400 invalid_title\n#402 bundle scan: no secrets\n#403 browser of u_ana: 200 Why Indexes 403 matters | Indexes 403 step by step | Practice: Indexes 403; requests: POST /api/outline\n#404 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#405 curl as u_binh: 400 invalid_title\n#406 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#407 clock +20s\n#408 browser of u_binh: 200 Why Caching 408 matters | Caching 408 step by step | Practice: Caching 408; requests: POST /api/outline\n#409 curl as anonymous: 401 unauthenticated\n#410 bundle scan: no secrets\n#411 browser of u_ana: 200 Why Unit Tests 411 matters | Unit Tests 411 step by step | Practice: Unit Tests 411; requests: POST /api/outline\n#412 curl as anonymous: 401 unauthenticated\n#413 browser of u_ana: 400 invalid_title; requests: POST /api/outline\n#414 bundle scan: no secrets\n#415 curl as anonymous: 401 unauthenticated\n#416 clock +5s\n#417 browser of u_binh: 200 Why Unit Tests 417 matters | Unit Tests 417 step by step | Practice: Unit Tests 417; requests: POST /api/outline\n#418 curl as u_ana: 200 Why Unit Tests 418 matters | Unit Tests 418 step by step | Practice: Unit Tests 418\n#419 browser of u_binh: 200 Why Caching 419 matters | Caching 419 step by step | Practice: Caching 419; requests: POST /api/outline\n#420 bundle scan: no secrets\n#421 browser of u_binh: 400 invalid_title; requests: POST /api/outline\n#422 curl as anonymous: 401 unauthenticated\n#423 curl as u_binh: 400 invalid_title\n#424 browser of u_binh: 200 Why Docker Volumes 424 matters | Docker Volumes 424 step by step | Practice: Docker Volumes 424; requests: POST /api/outline\n#425 curl as anonymous: 401 unauthenticated\n#426 clock +20s\n#427 browser of u_ana: 200 Why SQL Joins 427 matters | SQL Joins 427 step by step | Practice: SQL Joins 427; requests: POST /api/outline\n#428 bundle scan: no secrets\n#429 browser of u_binh: 200 Why Rate Limits 429 matters | Rate Limits 429 step by step | Practice: Rate Limits 429; requests: POST /api/outline\n#430 curl as anonymous: 401 unauthenticated\n#431 clock +30s\n#432 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#433 curl as anonymous: 401 unauthenticated\n#434 curl as u_binh: 400 invalid_title\n#435 browser of u_ana: 200 Why Git Rebase 435 matters | Git Rebase 435 step by step | Practice: Git Rebase 435; requests: POST /api/outline\n#436 clock +5s\n#437 browser of u_ana: 400 invalid_title; requests: POST /api/outline\n#438 curl as anonymous: 401 unauthenticated\n#439 curl as u_ana: 200 Why React Hooks 439 matters | React Hooks 439 step by step | Practice: React Hooks 439\n#440 browser of u_ana: 200 Why Docker Volumes 440 matters | Docker Volumes 440 step by step | Practice: Docker Volumes 440; requests: POST /api/outline\n#441 curl as u_ana: 400 invalid_title\n#442 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#443 curl as anonymous: 401 unauthenticated\n#444 browser of u_binh: 200 Why React Hooks 444 matters | React Hooks 444 step by step | Practice: React Hooks 444; requests: POST /api/outline\n#445 browser of u_binh: 200 Why React Hooks 445 matters | React Hooks 445 step by step | Practice: React Hooks 445; requests: POST /api/outline\n#446 browser of u_binh: 200 Why Caching 446 matters | Caching 446 step by step | Practice: Caching 446; requests: POST /api/outline\n#447 curl as u_ana: 200 Why Indexes 447 matters | Indexes 447 step by step | Practice: Indexes 447\n#448 clock +20s\n#449 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#450 curl as anonymous: 401 unauthenticated\n#451 curl as anonymous: 401 unauthenticated\n#452 clock +5s\n#453 browser of u_ana: 200 Why React Hooks 453 matters | React Hooks 453 step by step | Practice: React Hooks 453; requests: POST /api/outline\n#454 curl as anonymous: 401 unauthenticated\n#455 clock +30s\n#456 browser of u_binh: 200 Why Git Rebase 456 matters | Git Rebase 456 step by step | Practice: Git Rebase 456; requests: POST /api/outline\n#457 curl as u_binh: 200 Why Unit Tests 457 matters | Unit Tests 457 step by step | Practice: Unit Tests 457\n#458 curl as anonymous: 401 unauthenticated\n#459 curl as anonymous: 401 unauthenticated\n#460 clock +5s\n#461 browser of u_binh: 200 Why SQL Joins 461 matters | SQL Joins 461 step by step | Practice: SQL Joins 461; requests: POST /api/outline\n#462 browser of u_binh: 200 Why React Hooks 462 matters | React Hooks 462 step by step | Practice: React Hooks 462; requests: POST /api/outline\n#463 browser of u_ana: 200 Why Git Rebase 463 matters | Git Rebase 463 step by step | Practice: Git Rebase 463; requests: POST /api/outline\n#464 browser of u_ana: 200 Why Rate Limits 464 matters | Rate Limits 464 step by step | Practice: Rate Limits 464; requests: POST /api/outline\n#465 browser of u_ana: 400 invalid_title; requests: POST /api/outline\n#466 clock +5s\n#467 browser of u_ana: 200 Why Rate Limits 467 matters | Rate Limits 467 step by step | Practice: Rate Limits 467; requests: POST /api/outline\n#468 curl as u_ana: 400 invalid_title\n#469 bundle scan: no secrets\n#470 curl as anonymous: 401 unauthenticated\n#471 curl as u_ana: 200 Why Caching 471 matters | Caching 471 step by step | Practice: Caching 471\n#472 curl as anonymous: 401 unauthenticated\n#473 curl as u_binh: 400 invalid_title\n#474 browser of u_binh: 200 Why Rate Limits 474 matters | Rate Limits 474 step by step | Practice: Rate Limits 474; requests: POST /api/outline\n#475 clock +5s\n#476 curl as anonymous: 401 unauthenticated\n#477 browser of u_ana: 200 Why Rate Limits 477 matters | Rate Limits 477 step by step | Practice: Rate Limits 477; requests: POST /api/outline\n#478 curl as u_binh: 429 rate_limited\n#479 curl as anonymous: 401 unauthenticated\n#480 clock +20s\n#481 browser of u_binh: 429 rate_limited; requests: POST /api/outline\n#482 curl as anonymous: 401 unauthenticated\n#483 curl as u_ana: 429 rate_limited\n#484 browser of u_binh: 400 invalid_title; requests: POST /api/outline\n#485 curl as anonymous: 401 unauthenticated\n#486 browser of u_ana: 429 rate_limited; requests: POST /api/outline\n#487 clock +20s\n#488 browser of u_ana: 429 rate_limited; requests: POST /api/outline\n#489 curl as anonymous: 401 unauthenticated\n#490 browser of u_binh: 429 rate_limited; requests: POST /api/outline\n#491 browser of u_ana: 429 rate_limited; requests: POST /api/outline\n#492 browser of u_binh: 429 rate_limited; requests: POST /api/outline\n#493 browser of u_binh: 429 rate_limited; requests: POST /api/outline\n#494 clock +20s\n#495 browser of u_ana: 200 Why Docker Volumes 495 matters | Docker Volumes 495 step by step | Practice: Docker Volumes 495; requests: POST /api/outline\n#496 browser of u_ana: 400 invalid_title; requests: POST /api/outline\n#497 browser of u_binh: 200 Why Rate Limits 497 matters | Rate Limits 497 step by step | Practice: Rate Limits 497; requests: POST /api/outline\n#498 curl as u_binh: 400 invalid_title\n#499 curl as u_ana: 200 Why Unit Tests 499 matters | Unit Tests 499 step by step | Practice: Unit Tests 499\n#500 bundle scan: no secrets\n#501 clock +30s\n#502 clock +5s\n#503 curl as u_binh: 200 Why Caching 503 matters | Caching 503 step by step | Practice: Caching 503\n#504 curl as u_ana: 200 Why SQL Joins 504 matters | SQL Joins 504 step by step | Practice: SQL Joins 504\n#505 curl as anonymous: 401 unauthenticated\n#506 curl as anonymous: 401 unauthenticated\n#507 curl as u_ana: 400 invalid_title\n#508 curl as anonymous: 401 unauthenticated\n#509 browser of u_ana: 400 invalid_title; requests: POST /api/outline\n#510 curl as u_binh: 200 Why SQL Joins 510 matters | SQL Joins 510 step by step | Practice: SQL Joins 510\n#511 clock +30s\n#512 browser of u_ana: 400 invalid_title; requests: POST /api/outline\n#513 curl as anonymous: 401 unauthenticated\n#514 browser of u_binh: 200 Why Rate Limits 514 matters | Rate Limits 514 step by step | Practice: Rate Limits 514; requests: POST /api/outline\n#515 curl as u_binh: 200 Why SQL Joins 515 matters | SQL Joins 515 step by step | Practice: SQL Joins 515\n#516 clock +30s\n#517 browser of u_binh: 200 Why Caching 517 matters | Caching 517 step by step | Practice: Caching 517; requests: POST /api/outline\n#518 curl as anonymous: 401 unauthenticated\n#519 browser of u_binh: 200 Why React Hooks 519 matters | React Hooks 519 step by step | Practice: React Hooks 519; requests: POST /api/outline\n#520 clock +5s\n#521 browser of u_binh: 200 Why Unit Tests 521 matters | Unit Tests 521 step by step | Practice: Unit Tests 521; requests: POST /api/outline\n#522 curl as u_ana: 200 Why Docker Volumes 522 matters | Docker Volumes 522 step by step | Practice: Docker Volumes 522\n#523 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#524 browser of u_binh: 400 invalid_title; requests: POST /api/outline\n#525 curl as u_ana: 400 invalid_title\n#526 clock +5s\n#527 browser of u_binh: 200 Why Git Rebase 527 matters | Git Rebase 527 step by step | Practice: Git Rebase 527; requests: POST /api/outline\n#528 curl as u_binh: 400 invalid_title\n#529 curl as u_binh: 400 invalid_title\n#530 curl as u_ana: 200 Why Docker Volumes 530 matters | Docker Volumes 530 step by step | Practice: Docker Volumes 530\n#531 browser of u_ana: 200 Why Unit Tests 531 matters | Unit Tests 531 step by step | Practice: Unit Tests 531; requests: POST /api/outline\n#532 clock +5s\n#533 browser of u_ana: 400 invalid_title; requests: POST /api/outline\n#534 browser of u_binh: 200 Why SQL Joins 534 matters | SQL Joins 534 step by step | Practice: SQL Joins 534; requests: POST /api/outline\n#535 clock +5s\n#536 browser of u_binh: 400 invalid_title; requests: POST /api/outline\n#537 browser of u_ana: 200 Why Unit Tests 537 matters | Unit Tests 537 step by step | Practice: Unit Tests 537; requests: POST /api/outline\n#538 browser of u_binh: 200 Why Rate Limits 538 matters | Rate Limits 538 step by step | Practice: Rate Limits 538; requests: POST /api/outline\n#539 curl as u_binh: 400 invalid_title\n#540 curl as u_binh: 200 Why Rate Limits 540 matters | Rate Limits 540 step by step | Practice: Rate Limits 540\n#541 browser of u_binh: 200 Why Rate Limits 541 matters | Rate Limits 541 step by step | Practice: Rate Limits 541; requests: POST /api/outline\n#542 browser of u_binh: 400 invalid_title; requests: POST /api/outline\n#543 curl as u_ana: 200 Why Caching 543 matters | Caching 543 step by step | Practice: Caching 543\n#544 clock +20s\n#545 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#546 browser of u_binh: 400 invalid_title; requests: POST /api/outline\n#547 curl as anonymous: 401 unauthenticated\n#548 curl as anonymous: 401 unauthenticated\n#549 curl as anonymous: 401 unauthenticated\n#550 curl as anonymous: 401 unauthenticated\n#551 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#552 clock +30s\n#553 clock +20s\n#554 clock +5s\n#555 browser of u_binh: 200 Why Docker Volumes 555 matters | Docker Volumes 555 step by step | Practice: Docker Volumes 555; requests: POST /api/outline\n#556 curl as u_binh: 400 invalid_title\n#557 clock +30s\n#558 browser of u_binh: 200 Why React Hooks 558 matters | React Hooks 558 step by step | Practice: React Hooks 558; requests: POST /api/outline\n#559 clock +5s\n#560 curl as anonymous: 401 unauthenticated\n#561 curl as u_binh: 400 invalid_title\n#562 curl as anonymous: 401 unauthenticated\n#563 browser of u_binh: 200 Why Caching 563 matters | Caching 563 step by step | Practice: Caching 563; requests: POST /api/outline\n#564 browser of u_binh: 200 Why Indexes 564 matters | Indexes 564 step by step | Practice: Indexes 564; requests: POST /api/outline\n#565 browser of u_ana: 200 Why SQL Joins 565 matters | SQL Joins 565 step by step | Practice: SQL Joins 565; requests: POST /api/outline\n#566 curl as anonymous: 401 unauthenticated\n#567 browser of u_ana: 200 Why Rate Limits 567 matters | Rate Limits 567 step by step | Practice: Rate Limits 567; requests: POST /api/outline\n#568 clock +30s\n#569 curl as anonymous: 401 unauthenticated\n#570 browser of u_binh: 200 Why React Hooks 570 matters | React Hooks 570 step by step | Practice: React Hooks 570; requests: POST /api/outline\n#571 curl as u_ana: 400 invalid_title\n#572 clock +20s\n#573 browser of u_binh: 200 Why Unit Tests 573 matters | Unit Tests 573 step by step | Practice: Unit Tests 573; requests: POST /api/outline\n#574 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#575 curl as anonymous: 401 unauthenticated\n#576 browser of u_binh: 400 invalid_title; requests: POST /api/outline\n#577 browser of u_binh: 200 Why Indexes 577 matters | Indexes 577 step by step | Practice: Indexes 577; requests: POST /api/outline\n#578 clock +20s\n#579 curl as u_ana: 400 invalid_title\n#580 curl as anonymous: 401 unauthenticated\n#581 curl as anonymous: 401 unauthenticated\n#582 browser of u_ana: 200 Why Caching 582 matters | Caching 582 step by step | Practice: Caching 582; requests: POST /api/outline\n#583 curl as anonymous: 401 unauthenticated\n#584 clock +20s\n#585 bundle scan: no secrets\n#586 browser of u_binh: 200 Why SQL Joins 586 matters | SQL Joins 586 step by step | Practice: SQL Joins 586; requests: POST /api/outline\n#587 curl as u_ana: 200 Why Caching 587 matters | Caching 587 step by step | Practice: Caching 587\n#588 curl as u_binh: 200 Why SQL Joins 588 matters | SQL Joins 588 step by step | Practice: SQL Joins 588\n#589 browser of u_binh: 200 Why Docker Volumes 589 matters | Docker Volumes 589 step by step | Practice: Docker Volumes 589; requests: POST /api/outline\n#590 browser of u_binh: 200 Why Indexes 590 matters | Indexes 590 step by step | Practice: Indexes 590; requests: POST /api/outline\n#591 clock +5s\n#592 curl as anonymous: 401 unauthenticated\n#593 browser of u_binh: 400 invalid_title; requests: POST /api/outline\n#594 curl as anonymous: 401 unauthenticated\n#595 bundle scan: no secrets\n#596 curl as anonymous: 401 unauthenticated\n#597 browser of u_binh: 200 Why Git Rebase 597 matters | Git Rebase 597 step by step | Practice: Git Rebase 597; requests: POST /api/outline\n#598 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#599 browser of u_binh: 400 invalid_title; requests: POST /api/outline\n#600 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#601 curl as u_ana: 200 Why Indexes 601 matters | Indexes 601 step by step | Practice: Indexes 601\n#602 browser of u_binh: 429 rate_limited; requests: POST /api/outline\n#603 clock +20s\n#604 curl as anonymous: 401 unauthenticated\n#605 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#606 clock +20s\n#607 browser of u_ana: 200 Why Caching 607 matters | Caching 607 step by step | Practice: Caching 607; requests: POST /api/outline\n#608 browser of u_binh: 200 Why Indexes 608 matters | Indexes 608 step by step | Practice: Indexes 608; requests: POST /api/outline\n#609 browser of u_binh: 200 Why Indexes 609 matters | Indexes 609 step by step | Practice: Indexes 609; requests: POST /api/outline\n#610 clock +30s\n#611 curl as anonymous: 401 unauthenticated\n#612 clock +20s\n#613 browser of u_ana: 200 Why Rate Limits 613 matters | Rate Limits 613 step by step | Practice: Rate Limits 613; requests: POST /api/outline\n#614 clock +20s\n#615 browser of u_binh: 200 Why SQL Joins 615 matters | SQL Joins 615 step by step | Practice: SQL Joins 615; requests: POST /api/outline\n#616 clock +20s\n#617 browser of u_binh: 200 Why SQL Joins 617 matters | SQL Joins 617 step by step | Practice: SQL Joins 617; requests: POST /api/outline\n#618 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#619 browser of u_ana: 200 Why Caching 619 matters | Caching 619 step by step | Practice: Caching 619; requests: POST /api/outline\n#620 browser of u_binh: 200 Why SQL Joins 620 matters | SQL Joins 620 step by step | Practice: SQL Joins 620; requests: POST /api/outline\n#621 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#622 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#623 curl as u_binh: 200 Why SQL Joins 623 matters | SQL Joins 623 step by step | Practice: SQL Joins 623\n#624 curl as u_ana: 200 Why React Hooks 624 matters | React Hooks 624 step by step | Practice: React Hooks 624\n#625 curl as anonymous: 401 unauthenticated\n#626 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#627 clock +30s\n#628 clock +30s\n#629 browser of u_binh: 200 Why SQL Joins 629 matters | SQL Joins 629 step by step | Practice: SQL Joins 629; requests: POST /api/outline\n#630 curl as anonymous: 401 unauthenticated\n#631 browser of u_ana: 200 Why Docker Volumes 631 matters | Docker Volumes 631 step by step | Practice: Docker Volumes 631; requests: POST /api/outline\n#632 clock +5s\n#633 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#634 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#635 curl as u_binh: 400 invalid_title\n#636 curl as anonymous: 401 unauthenticated\n#637 clock +5s\n#638 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#639 browser of u_ana: 200 Why Unit Tests 639 matters | Unit Tests 639 step by step | Practice: Unit Tests 639; requests: POST /api/outline\n#640 browser of u_ana: 400 invalid_title; requests: POST /api/outline\n#641 curl as anonymous: 401 unauthenticated\n#642 browser of u_ana: 200 Why SQL Joins 642 matters | SQL Joins 642 step by step | Practice: SQL Joins 642; requests: POST /api/outline\n#643 curl as u_ana: 400 invalid_title\n#644 browser of anonymous: 401 unauthenticated; requests: POST /api/outline\n#645 clock +5s\n#646 curl as u_binh: 400 invalid_title\n#647 browser of u_binh: 400 invalid_title; requests: POST /api/outline\n#648 browser of u_ana: 200 Why SQL Joins 648 matters | SQL Joins 648 step by step | Practice: SQL Joins 648; requests: POST /api/outline\n#649 curl as u_ana: 200 Why Rate Limits 649 matters | Rate Limits 649 step by step | Practice: Rate Limits 649\n#650 browser of u_binh: 200 Why Unit Tests 650 matters | Unit Tests 650 step by step | Practice: Unit Tests 650; requests: POST /api/outline\nAI vendor calls: from the server 177, from browsers 0",
+          "hidden": true,
+          "score": 2
+        }
+      ]
+    }
+  ]
+}

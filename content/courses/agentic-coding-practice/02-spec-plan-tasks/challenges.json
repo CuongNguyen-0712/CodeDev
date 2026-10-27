@@ -1,0 +1,1895 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_acp_121",
+      "name": "spec-plan-tasks-quiz",
+      "type": "quiz",
+      "title": "Is this task ready for an agent?",
+      "description": "Two pieces of evidence from the certificates feature: a task from tasks.md, and the diff an agent produced for another task.",
+      "difficulty": "medium",
+      "outcomes": ["spec-tasks"],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "From docs/specs/certificates/tasks.md:\n\n## T3  Issue the certificate\nGoal: when a learner finishes the course, issue the certificate.\nFiles: lib/certificates/issue.ts, app/api/certificates/route.ts\nAcceptance:\n  - issuing works correctly for eligible learners\n  - errors are handled properly\n  - the code is clean and well tested\nCheck: (none yet)\nDepends on: T1, T2\n\nStatement: \"T3 is ready to hand to an agent: it names the goal, the files and the tasks it depends on, so the agent can tell when it is done.\"",
+          "explanation": "False. Files and dependencies tell the agent where to work, not when to stop. None of the acceptance lines can be checked: \"works correctly\", \"handled properly\" and \"clean\" are judgements, and there is no check command, so the agent ends the task when its own loop decides the code looks right. The questions that caused the first incident are still open: what a second request for the same learner returns, what a revoked learner gets, which status an ineligible learner sees. A ready task has acceptance criteria a test can decide (\"a second POST for the same learner and course returns the existing certificate and inserts no row\") and a command that is red before and green after. The misconception is that naming the files makes a task concrete; the stop condition is what makes it concrete.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "From tasks.md:\n\n## T1  Eligibility check (pure function, no I/O)\nFiles: lib/certificates/eligibility.ts, tests/certificates/eligibility.test.ts\nCheck: npx vitest run tests/certificates/eligibility.test.ts\n\nThe agent's branch for T1:\n\n$ git diff --stat origin/main...agent/t1-eligibility\n app/api/certificates/route.ts                |  64 ++++\n db/migrations/20261026_001_certificates.sql  |  21 +\n lib/certificates/eligibility.ts              |  48 +++\n lib/certificates/pdf.ts                      | 117 +++++++\n tests/certificates/eligibility.test.ts       |  95 +++++\n 5 files changed, 345 insertions(+)\n\n$ npx vitest run tests/certificates/eligibility.test.ts\n Tests  14 passed (14)\n\nStatement: \"The route, the migration and the PDF code are outside T1 and should be split out or reverted before T1 is reviewed, even though the T1 check passes.\"",
+          "explanation": "True. T1 lists two files; the diff has five. The route, the migration and the PDF generator belong to later tasks with their own acceptance criteria and checks, and none of them is exercised by the T1 check, so a green T1 run says nothing about them. Merging them now means 200 unreviewed lines arrive with a passing test as cover, and the later tasks start from code nobody planned or reviewed. Ask the agent to keep only the T1 files (or revert the rest) and treat the extra work as input for T2-T4. The misconception is that extra work done \"for free\" is a bonus; outside the task it is unreviewed scope.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_acp_122",
+      "name": "certificate-eligibility-from-spec",
+      "type": "mini_coding",
+      "title": "Implement the certificate eligibility check from its spec",
+      "description": "CodeDev is adding course certificates. This time the spec came first and was split into tasks; this is task T1, the eligibility check: a pure function that the API route (task T2) will call later. Implement checkEligibility(course, record) exactly as the spec says, nothing more. course = { courseId, requiredLessons: string[], quizzes: string[] (the course's quiz challenge ids), quizPassPercent: an integer 0-100, codingChallenges: string[] } comes from the catalog and is valid. record comes from an import file and is untrusted. 1. Validation: the record is invalid when it is not an object (null, an array, a string ...), when userId is not a string with at least one non-space character, when completedLessons, passedQuizzes or passedCoding is missing or is not an array of strings, when revoked is not a boolean, or when issuedAt is neither null nor a number (a timestamp in ms; null means never issued). An invalid record gives { eligible: false, reasons: [\"invalid_record\"] } and no other reason. 2. Otherwise collect every reason that applies, in this fixed order: \"lessons_incomplete\" when a lesson in requiredLessons is not in completedLessons; \"quiz_rate_too_low\" when (number of the course's quiz ids found in passedQuizzes) * 100 < quizPassPercent * (number of course quizzes) - compare with whole numbers like this, so a rate exactly at the threshold passes, ids from other courses do not count and a course with no quizzes passes this rule; \"coding_not_passed\" when a challenge in codingChallenges is not in passedCoding; \"revoked\" when revoked is true; \"already_issued\" when issuedAt is not null (a certificate is issued once). Ids are compared exactly (case-sensitive, no trimming) and duplicates in the learner's lists count once. 3. eligible is true exactly when reasons is empty. Input (stdin, JSON): { course, records: unknown[] }. Output: the runner prints one JSON array with { userId, eligible, reasons } per record, in input order (userId is null when the record has no string userId). Up to a few hundred records; standard library only.",
+      "difficulty": "easy",
+      "outcomes": ["spec-tasks"],
+      "points": 20,
+      "hints": ["For each sentence of the spec, which record would break it? Then look for records that break several rules at once: what does the spec say the output contains then, and in which order?", "Look at three places. Validation runs before every other rule and checks the type of each field: a list can exist and still contain a number, and 0 is a valid timestamp that is not null. The quiz rule counts the course's quiz ids the learner passed, not the length of the learner's list, and compares with whole numbers. The reasons are pushed in the spec's order and none of them stops the others.", "A similar spec on different data: a mentor badge needs the required reviews r1, r2, r3, at least 50% of the course's forum questions f1-f4 answered, and banned false; reasons in the order reviews_missing, answer_rate_too_low, banned. A learner with reviews [r1, r1, r2, r3], answers [f1, f1, x9] and banned true gets [answer_rate_too_low, banned]: the duplicate r1 changes nothing, f1 counts once and x9 belongs to another course, so 1 * 100 < 50 * 4."],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A learner who meets every rule is eligible; one missing lesson is not",
+          "input": {
+            "course": {
+              "courseId": "agentic-coding-practice",
+              "requiredLessons": ["les_11", "les_12", "les_13", "les_21"],
+              "quizzes": ["qz_01", "qz_02", "qz_03", "qz_04", "qz_05", "qz_06", "qz_07", "qz_08", "qz_09", "qz_10"],
+              "quizPassPercent": 70,
+              "codingChallenges": ["cd_122", "cd_412"]
+            },
+            "records": [
+              {
+                "userId": "u_ana",
+                "completedLessons": ["les_11", "les_12", "les_13", "les_21"],
+                "passedQuizzes": ["qz_01", "qz_02", "qz_03", "qz_04", "qz_05", "qz_06", "qz_07", "qz_08"],
+                "passedCoding": ["cd_122", "cd_412"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_binh",
+                "completedLessons": ["les_11", "les_12", "les_21"],
+                "passedQuizzes": ["qz_01", "qz_02", "qz_03", "qz_04", "qz_05", "qz_06", "qz_07", "qz_08"],
+                "passedCoding": ["cd_122", "cd_412"],
+                "revoked": false,
+                "issuedAt": null
+              }
+            ]
+          },
+          "expected": [
+            {
+              "userId": "u_ana",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_binh",
+              "eligible": false,
+              "reasons": ["lessons_incomplete"]
+            }
+          ],
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Every failed rule is listed, in the order of the spec",
+          "input": {
+            "course": {
+              "courseId": "agentic-coding-practice",
+              "requiredLessons": ["les_11", "les_12", "les_13", "les_21"],
+              "quizzes": ["qz_01", "qz_02", "qz_03", "qz_04", "qz_05", "qz_06", "qz_07", "qz_08", "qz_09", "qz_10"],
+              "quizPassPercent": 70,
+              "codingChallenges": ["cd_122", "cd_412"]
+            },
+            "records": [
+              {
+                "userId": "u_chi",
+                "completedLessons": ["les_11", "les_13"],
+                "passedQuizzes": ["qz_01", "qz_02", "qz_03", "qz_04", "qz_05"],
+                "passedCoding": ["cd_122"],
+                "revoked": true,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_dung",
+                "completedLessons": ["les_11", "les_12", "les_13", "les_21"],
+                "passedQuizzes": ["qz_01", "qz_02", "qz_03", "qz_04", "qz_05", "qz_06", "qz_07", "qz_08"],
+                "passedCoding": ["cd_412"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_em",
+                "completedLessons": ["les_11", "les_12", "les_13", "les_21"],
+                "passedQuizzes": ["qz_01", "qz_02", "qz_03", "qz_04", "qz_05", "qz_06", "qz_07", "qz_08"],
+                "passedCoding": ["cd_122", "cd_412"],
+                "revoked": false,
+                "issuedAt": 1792303200000
+              }
+            ]
+          },
+          "expected": [
+            {
+              "userId": "u_chi",
+              "eligible": false,
+              "reasons": ["lessons_incomplete", "quiz_rate_too_low", "coding_not_passed", "revoked"]
+            },
+            {
+              "userId": "u_dung",
+              "eligible": false,
+              "reasons": ["coding_not_passed"]
+            },
+            {
+              "userId": "u_em",
+              "eligible": false,
+              "reasons": ["already_issued"]
+            }
+          ],
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "A quiz rate exactly at the threshold passes; one quiz short does not",
+          "input": {
+            "course": {
+              "courseId": "agentic-coding-practice",
+              "requiredLessons": ["les_11", "les_12", "les_13", "les_21"],
+              "quizzes": ["qz_01", "qz_02", "qz_03", "qz_04", "qz_05", "qz_06", "qz_07", "qz_08", "qz_09", "qz_10"],
+              "quizPassPercent": 70,
+              "codingChallenges": ["cd_122", "cd_412"]
+            },
+            "records": [
+              {
+                "userId": "u_at_70",
+                "completedLessons": ["les_11", "les_12", "les_13", "les_21"],
+                "passedQuizzes": ["qz_01", "qz_02", "qz_03", "qz_04", "qz_05", "qz_06", "qz_07"],
+                "passedCoding": ["cd_122", "cd_412"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_at_60",
+                "completedLessons": ["les_11", "les_12", "les_13", "les_21"],
+                "passedQuizzes": ["qz_01", "qz_02", "qz_03", "qz_04", "qz_05", "qz_06"],
+                "passedCoding": ["cd_122", "cd_412"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_all",
+                "completedLessons": ["les_11", "les_12", "les_13", "les_21"],
+                "passedQuizzes": ["qz_01", "qz_02", "qz_03", "qz_04", "qz_05", "qz_06", "qz_07", "qz_08", "qz_09", "qz_10"],
+                "passedCoding": ["cd_122", "cd_412"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_none",
+                "completedLessons": ["les_11", "les_12", "les_13", "les_21"],
+                "passedQuizzes": [],
+                "passedCoding": ["cd_122", "cd_412"],
+                "revoked": false,
+                "issuedAt": null
+              }
+            ]
+          },
+          "expected": [
+            {
+              "userId": "u_at_70",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_at_60",
+              "eligible": false,
+              "reasons": ["quiz_rate_too_low"]
+            },
+            {
+              "userId": "u_all",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_none",
+              "eligible": false,
+              "reasons": ["quiz_rate_too_low"]
+            }
+          ],
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Duplicate ids and ids from other courses are not counted",
+          "input": {
+            "course": {
+              "courseId": "agentic-coding-practice",
+              "requiredLessons": ["les_11", "les_12", "les_13", "les_21"],
+              "quizzes": ["qz_01", "qz_02", "qz_03", "qz_04", "qz_05", "qz_06", "qz_07", "qz_08", "qz_09", "qz_10"],
+              "quizPassPercent": 70,
+              "codingChallenges": ["cd_122", "cd_412"]
+            },
+            "records": [
+              {
+                "userId": "u_dup",
+                "completedLessons": ["les_11", "les_12", "les_13", "les_21"],
+                "passedQuizzes": ["qz_01", "qz_01", "qz_02", "qz_02", "qz_03", "qz_04", "qz_05", "qz_06", "qz_06"],
+                "passedCoding": ["cd_122", "cd_412"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_other",
+                "completedLessons": ["les_11", "les_12", "les_13", "les_21"],
+                "passedQuizzes": ["qz_01", "qz_02", "qz_03", "qz_04", "qz_05", "qz_06", "chal_quiz_aad_111", "chal_quiz_aad_121"],
+                "passedCoding": ["cd_122", "cd_412"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_case",
+                "completedLessons": ["les_11", "les_12", "les_13", "les_21", "les_11"],
+                "passedQuizzes": ["QZ_01", "QZ_02", "QZ_03", "QZ_04", "QZ_05", "QZ_06", "QZ_07", "QZ_08", "QZ_09", "QZ_10"],
+                "passedCoding": ["cd_122", "cd_412"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_space",
+                "completedLessons": ["les_11", "les_12", "les_13", "les_21"],
+                "passedQuizzes": ["qz_01", "qz_02", "qz_03", "qz_04", "qz_05", "qz_06", "qz_07", "qz_08"],
+                "passedCoding": ["cd_122 ", "cd_412"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_extra",
+                "completedLessons": ["les_11", "les_12", "les_13", "les_21", "les_99"],
+                "passedQuizzes": ["qz_01", "qz_02", "qz_03", "qz_04", "qz_05", "qz_06", "qz_07", "qz_08"],
+                "passedCoding": ["cd_122", "cd_412", "cd_999"],
+                "revoked": false,
+                "issuedAt": null
+              }
+            ]
+          },
+          "expected": [
+            {
+              "userId": "u_dup",
+              "eligible": false,
+              "reasons": ["quiz_rate_too_low"]
+            },
+            {
+              "userId": "u_other",
+              "eligible": false,
+              "reasons": ["quiz_rate_too_low"]
+            },
+            {
+              "userId": "u_case",
+              "eligible": false,
+              "reasons": ["quiz_rate_too_low"]
+            },
+            {
+              "userId": "u_space",
+              "eligible": false,
+              "reasons": ["coding_not_passed"]
+            },
+            {
+              "userId": "u_extra",
+              "eligible": true,
+              "reasons": []
+            }
+          ],
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "A course with no quizzes, coding or required lessons, and a 100% quiz threshold",
+          "input": {
+            "course": {
+              "courseId": "intro",
+              "requiredLessons": [],
+              "quizzes": [],
+              "quizPassPercent": 100,
+              "codingChallenges": []
+            },
+            "records": [
+              {
+                "userId": "u_new",
+                "completedLessons": [],
+                "passedQuizzes": [],
+                "passedCoding": [],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_old",
+                "completedLessons": [],
+                "passedQuizzes": [],
+                "passedCoding": [],
+                "revoked": false,
+                "issuedAt": 1780000000000
+              }
+            ]
+          },
+          "expected": [
+            {
+              "userId": "u_new",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_old",
+              "eligible": false,
+              "reasons": ["already_issued"]
+            }
+          ],
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Threshold 0 passes with no quiz passed; revoked and already issued are both reported last",
+          "input": {
+            "course": {
+              "courseId": "agentic-coding-practice",
+              "requiredLessons": ["les_11", "les_12", "les_13", "les_21"],
+              "quizzes": ["qz_01", "qz_02", "qz_03", "qz_04", "qz_05", "qz_06", "qz_07", "qz_08", "qz_09", "qz_10"],
+              "quizPassPercent": 0,
+              "codingChallenges": ["cd_122", "cd_412"]
+            },
+            "records": [
+              {
+                "userId": "u_zero",
+                "completedLessons": ["les_11", "les_12", "les_13", "les_21"],
+                "passedQuizzes": [],
+                "passedCoding": ["cd_122", "cd_412"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_cheat",
+                "completedLessons": ["les_11", "les_12", "les_13", "les_21"],
+                "passedQuizzes": ["qz_01", "qz_02", "qz_03", "qz_04", "qz_05", "qz_06", "qz_07", "qz_08"],
+                "passedCoding": ["cd_122", "cd_412"],
+                "revoked": true,
+                "issuedAt": 1791000000000
+              },
+              {
+                "userId": "u_all_wrong",
+                "completedLessons": [],
+                "passedQuizzes": [],
+                "passedCoding": [],
+                "revoked": true,
+                "issuedAt": 0
+              }
+            ]
+          },
+          "expected": [
+            {
+              "userId": "u_zero",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_cheat",
+              "eligible": false,
+              "reasons": ["revoked", "already_issued"]
+            },
+            {
+              "userId": "u_all_wrong",
+              "eligible": false,
+              "reasons": ["lessons_incomplete", "coding_not_passed", "revoked", "already_issued"]
+            }
+          ],
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Invalid records: blank userId, missing or mixed lists, wrong types, null and an array",
+          "input": {
+            "course": {
+              "courseId": "agentic-coding-practice",
+              "requiredLessons": ["les_11", "les_12", "les_13", "les_21"],
+              "quizzes": ["qz_01", "qz_02", "qz_03", "qz_04", "qz_05", "qz_06", "qz_07", "qz_08", "qz_09", "qz_10"],
+              "quizPassPercent": 70,
+              "codingChallenges": ["cd_122", "cd_412"]
+            },
+            "records": [
+              {
+                "userId": "   ",
+                "completedLessons": ["les_11", "les_12", "les_13", "les_21"],
+                "passedQuizzes": ["qz_01", "qz_02", "qz_03", "qz_04", "qz_05", "qz_06", "qz_07", "qz_08"],
+                "passedCoding": ["cd_122", "cd_412"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "",
+                "completedLessons": ["les_11", "les_12", "les_13", "les_21"],
+                "passedQuizzes": ["qz_01", "qz_02", "qz_03", "qz_04", "qz_05", "qz_06", "qz_07", "qz_08"],
+                "passedCoding": ["cd_122", "cd_412"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_nolist",
+                "completedLessons": ["les_11", "les_12", "les_13", "les_21"],
+                "passedQuizzes": ["qz_01", "qz_02", "qz_03", "qz_04", "qz_05", "qz_06", "qz_07", "qz_08"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_mixed",
+                "completedLessons": ["les_11", 12, "les_13", "les_21"],
+                "passedQuizzes": ["qz_01", "qz_02", "qz_03", "qz_04", "qz_05", "qz_06", "qz_07", "qz_08"],
+                "passedCoding": ["cd_122", "cd_412"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_revoked_text",
+                "completedLessons": ["les_11", "les_12", "les_13", "les_21"],
+                "passedQuizzes": ["qz_01", "qz_02", "qz_03", "qz_04", "qz_05", "qz_06", "qz_07", "qz_08"],
+                "passedCoding": ["cd_122", "cd_412"],
+                "revoked": "false",
+                "issuedAt": null
+              },
+              {
+                "userId": "u_date",
+                "completedLessons": ["les_11", "les_12", "les_13", "les_21"],
+                "passedQuizzes": ["qz_01", "qz_02", "qz_03", "qz_04", "qz_05", "qz_06", "qz_07", "qz_08"],
+                "passedCoding": ["cd_122", "cd_412"],
+                "revoked": false,
+                "issuedAt": "2026-10-01"
+              },
+              {
+                "userId": "u_nulllist",
+                "completedLessons": ["les_11", "les_12", "les_13", "les_21"],
+                "passedQuizzes": null,
+                "passedCoding": ["cd_122", "cd_412"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              null,
+              ["u_array"],
+              "u_text",
+              {
+                "userId": 42,
+                "completedLessons": ["les_11", "les_12", "les_13", "les_21"],
+                "passedQuizzes": ["qz_01", "qz_02", "qz_03", "qz_04", "qz_05", "qz_06", "qz_07", "qz_08"],
+                "passedCoding": ["cd_122", "cd_412"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_ok_after_invalid",
+                "completedLessons": ["les_11", "les_12", "les_13", "les_21"],
+                "passedQuizzes": ["qz_01", "qz_02", "qz_03", "qz_04", "qz_05", "qz_06", "qz_07", "qz_08"],
+                "passedCoding": ["cd_122", "cd_412"],
+                "revoked": false,
+                "issuedAt": null
+              }
+            ]
+          },
+          "expected": [
+            {
+              "userId": "   ",
+              "eligible": false,
+              "reasons": ["invalid_record"]
+            },
+            {
+              "userId": "",
+              "eligible": false,
+              "reasons": ["invalid_record"]
+            },
+            {
+              "userId": "u_nolist",
+              "eligible": false,
+              "reasons": ["invalid_record"]
+            },
+            {
+              "userId": "u_mixed",
+              "eligible": false,
+              "reasons": ["invalid_record"]
+            },
+            {
+              "userId": "u_revoked_text",
+              "eligible": false,
+              "reasons": ["invalid_record"]
+            },
+            {
+              "userId": "u_date",
+              "eligible": false,
+              "reasons": ["invalid_record"]
+            },
+            {
+              "userId": "u_nulllist",
+              "eligible": false,
+              "reasons": ["invalid_record"]
+            },
+            {
+              "userId": null,
+              "eligible": false,
+              "reasons": ["invalid_record"]
+            },
+            {
+              "userId": null,
+              "eligible": false,
+              "reasons": ["invalid_record"]
+            },
+            {
+              "userId": null,
+              "eligible": false,
+              "reasons": ["invalid_record"]
+            },
+            {
+              "userId": null,
+              "eligible": false,
+              "reasons": ["invalid_record"]
+            },
+            {
+              "userId": "u_ok_after_invalid",
+              "eligible": true,
+              "reasons": []
+            }
+          ],
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Large cohort: 100 learners, 40 lessons, 50 quizzes at 58% (29 of 50 passes)",
+          "input": {
+            "course": {
+              "courseId": "nodejs-api-security",
+              "requiredLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+              "quizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37", "q38", "q39", "q40", "q41", "q42", "q43", "q44", "q45", "q46", "q47", "q48", "q49", "q50"],
+              "quizPassPercent": 58,
+              "codingChallenges": ["c01", "c02", "c03", "c04"]
+            },
+            "records": [
+              {
+                "userId": "u_001",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25"],
+                "passedCoding": ["c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_002",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37", "q38", "q39", "q40"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_003",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": 1790259200000
+              },
+              {
+                "userId": "u_004",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37", "q38", "q39", "q40", "q41", "q42", "q43", "q44"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_005",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37", "q38", "q39", "q40", "q41", "q42"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_006",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_007",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30"],
+                "passedCoding": ["c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_008",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37", "q38"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": 1790691200000
+              },
+              {
+                "userId": "u_009",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26"],
+                "passedCoding": ["c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_010",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_011",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_012",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l06", "l07", "l09", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l33", "l34", "l35", "l36", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37", "q38", "q39", "q40"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_013",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37", "q38", "q39", "q40", "q41"],
+                "passedCoding": ["c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_014",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l11", "l13", "l14", "l15", "l16", "l17", "l18", "l20", "l21", "l22", "l23", "l24", "l25", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37", "q38", "q39", "q40"],
+                "passedCoding": ["c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_015",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_016",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37", "q38", "q39"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_017",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37", "q38", "q39", "q40", "q41", "q42", "q43", "q44", "q45", "q46", "q47", "q48"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_018",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37", "q38", "q39", "q40"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_019",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23"],
+                "passedCoding": ["c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_020",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_021",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37", "q38", "q39", "q40", "q41", "q42", "q43", "q44", "q45", "q46", "q47"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_022",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37", "q38", "q39", "q40", "q41", "q42", "q43", "q44", "q45", "q46", "q47"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_023",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37", "q38", "q39", "q40", "q41", "q42", "q43", "q44", "q45", "q46", "q47"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_024",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l24", "l25", "l26", "l28", "l29", "l30", "l31", "l32", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37", "q38", "q39", "q40", "q41", "q42", "q43", "q44", "q45", "q46", "q47", "q48", "q49", "q50"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_025",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37", "q38", "q39", "q40", "q41", "q42", "q43", "q44", "q45", "q46", "q47"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_026",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_027",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37", "q38", "q39", "q40", "q41"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_028",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27"],
+                "passedCoding": ["c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_029",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21"],
+                "passedCoding": ["c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_030",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_031",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l12", "l13", "l14", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_032",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37", "q38"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_033",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37", "q38", "q39", "q40", "q41"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_034",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37", "q38", "q39"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_035",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_036",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_037",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37"],
+                "passedCoding": ["c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_038",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37", "q38", "q39", "q40", "q41", "q42", "q43"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_039",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37", "q38", "q39", "q40", "q41", "q42", "q43", "q44", "q45", "q46"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_040",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_041",
+                "completedLessons": ["l01", "l02", "l03", "l05", "l06", "l07", "l08", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_042",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_043",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37", "q38", "q39", "q40", "q41", "q42", "q43", "q44"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": true,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_044",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_045",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37", "q38", "q39", "q40", "q41", "q42"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_046",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37"],
+                "passedCoding": ["c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_047",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37", "q38", "q39", "q40", "q41"],
+                "passedCoding": ["c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_048",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37", "q38", "q39", "q40", "q41", "q42"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_049",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28"],
+                "passedCoding": ["c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_050",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_051",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l18", "l19", "l21", "l22", "l23", "l24", "l25", "l26", "l28", "l29", "l30", "l32", "l33", "l34", "l35", "l36", "l37", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37", "q38", "q39", "q40", "q41", "q42", "q43", "q44", "q45", "q46"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_052",
+                "completedLessons": ["l01", "l02", "l03", "l05", "l06", "l07", "l08", "l09", "l10", "l12", "l13", "l14", "l15", "l16", "l18", "l19", "l21", "l22", "l23", "l24", "l26", "l27", "l28", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37", "q38", "q39", "q40", "q41", "q42", "q43", "q44", "q45"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_053",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_054",
+                "completedLessons": ["l02", "l03", "l05", "l06", "l07", "l08", "l09", "l11", "l12", "l13", "l14", "l16", "l18", "l19", "l20", "l22", "l23", "l24", "l25", "l26", "l27", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37", "q38", "q39", "q40", "q41"],
+                "passedCoding": ["c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_055",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_056",
+                "completedLessons": ["l02", "l03", "l04", "l05", "l06", "l08", "l09", "l10", "l11", "l12", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l24", "l25", "l27", "l29", "l30", "l31", "l32", "l33", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_057",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_058",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_059",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_060",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_061",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_062",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37", "q38", "q39", "q40", "q41", "q42", "q43"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_063",
+                "completedLessons": ["l01", "l03", "l04", "l05", "l06", "l08", "l09", "l10", "l11", "l13", "l14", "l15", "l16", "l17", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37", "q38", "q39", "q40", "q41", "q42", "q43", "q44", "q45", "q46", "q47", "q48", "q49"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_064",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37", "q38", "q39", "q40", "q41", "q42", "q43", "q44"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": true,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_065",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": true,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_066",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_067",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37", "q38", "q39", "q40", "q41", "q42", "q43", "q44", "q45", "q46", "q47", "q48", "q49"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_068",
+                "completedLessons": ["l01", "l02", "l03", "l05", "l06", "l07", "l09", "l11", "l12", "l13", "l15", "l16", "l18", "l19", "l20", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l33", "l34", "l35", "l36", "l37", "l38", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37", "q38", "q39", "q40", "q41", "q42"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_069",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37", "q38", "q39", "q40", "q41", "q42", "q43", "q44", "q45", "q46", "q47"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_070",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": 1796048000000
+              },
+              {
+                "userId": "u_071",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_072",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37", "q38", "q39", "q40", "q41", "q42"],
+                "passedCoding": ["c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_073",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28"],
+                "passedCoding": ["c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_074",
+                "completedLessons": ["l01", "l03", "l04", "l05", "l07", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l31", "l32", "l33", "l34", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_075",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_076",
+                "completedLessons": ["l01", "l03", "l04", "l05", "l06", "l07", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l19", "l20", "l21", "l22", "l24", "l25", "l26", "l27", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37", "q38", "q39"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_077",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_078",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37", "q38", "q39", "q40", "q41", "q42", "q43", "q44", "q45", "q46", "q47", "q48", "q49", "q50"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_079",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l08", "l09", "l10", "l12", "l13", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l29", "l30", "l31", "l32", "l33", "l34", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37", "q38", "q39", "q40", "q41", "q42", "q43", "q44", "q45", "q46", "q47", "q48", "q49"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_080",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_081",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_082",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22"],
+                "passedCoding": ["c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_083",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_084",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37", "q38", "q39", "q40", "q41", "q42"],
+                "passedCoding": ["c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_085",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37", "q38", "q39", "q40", "q41"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_086",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_087",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37", "q38", "q39", "q40", "q41", "q42", "q43", "q44"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_088",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l09", "l10", "l11", "l12", "l13", "l14", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_089",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37", "q38", "q39", "q40", "q41", "q42", "q43", "q44", "q45", "q46", "q47"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": true,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_090",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_091",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_092",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32", "q33", "q34", "q35", "q36", "q37", "q38", "q39", "q40", "q41", "q42", "q43", "q44", "q45"],
+                "passedCoding": ["c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_093",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_094",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31", "q32"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_095",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_096",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_097",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_098",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              },
+              {
+                "userId": "u_099",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": 1798553600000
+              },
+              {
+                "userId": "u_100",
+                "completedLessons": ["l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22", "l23", "l24", "l25", "l26", "l27", "l28", "l29", "l30", "l31", "l32", "l33", "l34", "l35", "l36", "l37", "l38", "l39", "l40"],
+                "passedQuizzes": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29"],
+                "passedCoding": ["c01", "c02", "c03", "c04"],
+                "revoked": false,
+                "issuedAt": null
+              }
+            ]
+          },
+          "expected": [
+            {
+              "userId": "u_001",
+              "eligible": false,
+              "reasons": ["quiz_rate_too_low", "coding_not_passed"]
+            },
+            {
+              "userId": "u_002",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_003",
+              "eligible": false,
+              "reasons": ["already_issued"]
+            },
+            {
+              "userId": "u_004",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_005",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_006",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_007",
+              "eligible": false,
+              "reasons": ["coding_not_passed"]
+            },
+            {
+              "userId": "u_008",
+              "eligible": false,
+              "reasons": ["already_issued"]
+            },
+            {
+              "userId": "u_009",
+              "eligible": false,
+              "reasons": ["quiz_rate_too_low", "coding_not_passed"]
+            },
+            {
+              "userId": "u_010",
+              "eligible": false,
+              "reasons": ["lessons_incomplete"]
+            },
+            {
+              "userId": "u_011",
+              "eligible": false,
+              "reasons": ["quiz_rate_too_low"]
+            },
+            {
+              "userId": "u_012",
+              "eligible": false,
+              "reasons": ["lessons_incomplete"]
+            },
+            {
+              "userId": "u_013",
+              "eligible": false,
+              "reasons": ["coding_not_passed"]
+            },
+            {
+              "userId": "u_014",
+              "eligible": false,
+              "reasons": ["lessons_incomplete", "coding_not_passed"]
+            },
+            {
+              "userId": "u_015",
+              "eligible": false,
+              "reasons": ["quiz_rate_too_low"]
+            },
+            {
+              "userId": "u_016",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_017",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_018",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_019",
+              "eligible": false,
+              "reasons": ["lessons_incomplete", "quiz_rate_too_low", "coding_not_passed"]
+            },
+            {
+              "userId": "u_020",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_021",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_022",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_023",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_024",
+              "eligible": false,
+              "reasons": ["lessons_incomplete"]
+            },
+            {
+              "userId": "u_025",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_026",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_027",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_028",
+              "eligible": false,
+              "reasons": ["quiz_rate_too_low", "coding_not_passed"]
+            },
+            {
+              "userId": "u_029",
+              "eligible": false,
+              "reasons": ["quiz_rate_too_low", "coding_not_passed"]
+            },
+            {
+              "userId": "u_030",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_031",
+              "eligible": false,
+              "reasons": ["lessons_incomplete", "quiz_rate_too_low"]
+            },
+            {
+              "userId": "u_032",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_033",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_034",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_035",
+              "eligible": false,
+              "reasons": ["quiz_rate_too_low"]
+            },
+            {
+              "userId": "u_036",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_037",
+              "eligible": false,
+              "reasons": ["coding_not_passed"]
+            },
+            {
+              "userId": "u_038",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_039",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_040",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_041",
+              "eligible": false,
+              "reasons": ["lessons_incomplete"]
+            },
+            {
+              "userId": "u_042",
+              "eligible": false,
+              "reasons": ["quiz_rate_too_low"]
+            },
+            {
+              "userId": "u_043",
+              "eligible": false,
+              "reasons": ["lessons_incomplete", "revoked"]
+            },
+            {
+              "userId": "u_044",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_045",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_046",
+              "eligible": false,
+              "reasons": ["coding_not_passed"]
+            },
+            {
+              "userId": "u_047",
+              "eligible": false,
+              "reasons": ["coding_not_passed"]
+            },
+            {
+              "userId": "u_048",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_049",
+              "eligible": false,
+              "reasons": ["quiz_rate_too_low", "coding_not_passed"]
+            },
+            {
+              "userId": "u_050",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_051",
+              "eligible": false,
+              "reasons": ["lessons_incomplete"]
+            },
+            {
+              "userId": "u_052",
+              "eligible": false,
+              "reasons": ["lessons_incomplete"]
+            },
+            {
+              "userId": "u_053",
+              "eligible": false,
+              "reasons": ["quiz_rate_too_low"]
+            },
+            {
+              "userId": "u_054",
+              "eligible": false,
+              "reasons": ["lessons_incomplete", "coding_not_passed"]
+            },
+            {
+              "userId": "u_055",
+              "eligible": false,
+              "reasons": ["quiz_rate_too_low"]
+            },
+            {
+              "userId": "u_056",
+              "eligible": false,
+              "reasons": ["lessons_incomplete"]
+            },
+            {
+              "userId": "u_057",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_058",
+              "eligible": false,
+              "reasons": ["quiz_rate_too_low"]
+            },
+            {
+              "userId": "u_059",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_060",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_061",
+              "eligible": false,
+              "reasons": ["quiz_rate_too_low"]
+            },
+            {
+              "userId": "u_062",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_063",
+              "eligible": false,
+              "reasons": ["lessons_incomplete"]
+            },
+            {
+              "userId": "u_064",
+              "eligible": false,
+              "reasons": ["revoked"]
+            },
+            {
+              "userId": "u_065",
+              "eligible": false,
+              "reasons": ["quiz_rate_too_low", "revoked"]
+            },
+            {
+              "userId": "u_066",
+              "eligible": false,
+              "reasons": ["quiz_rate_too_low"]
+            },
+            {
+              "userId": "u_067",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_068",
+              "eligible": false,
+              "reasons": ["lessons_incomplete"]
+            },
+            {
+              "userId": "u_069",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_070",
+              "eligible": false,
+              "reasons": ["already_issued"]
+            },
+            {
+              "userId": "u_071",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_072",
+              "eligible": false,
+              "reasons": ["coding_not_passed"]
+            },
+            {
+              "userId": "u_073",
+              "eligible": false,
+              "reasons": ["lessons_incomplete", "quiz_rate_too_low", "coding_not_passed"]
+            },
+            {
+              "userId": "u_074",
+              "eligible": false,
+              "reasons": ["lessons_incomplete", "quiz_rate_too_low"]
+            },
+            {
+              "userId": "u_075",
+              "eligible": false,
+              "reasons": ["quiz_rate_too_low"]
+            },
+            {
+              "userId": "u_076",
+              "eligible": false,
+              "reasons": ["lessons_incomplete"]
+            },
+            {
+              "userId": "u_077",
+              "eligible": false,
+              "reasons": ["quiz_rate_too_low"]
+            },
+            {
+              "userId": "u_078",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_079",
+              "eligible": false,
+              "reasons": ["lessons_incomplete"]
+            },
+            {
+              "userId": "u_080",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_081",
+              "eligible": false,
+              "reasons": ["quiz_rate_too_low"]
+            },
+            {
+              "userId": "u_082",
+              "eligible": false,
+              "reasons": ["lessons_incomplete", "quiz_rate_too_low", "coding_not_passed"]
+            },
+            {
+              "userId": "u_083",
+              "eligible": false,
+              "reasons": ["quiz_rate_too_low"]
+            },
+            {
+              "userId": "u_084",
+              "eligible": false,
+              "reasons": ["coding_not_passed"]
+            },
+            {
+              "userId": "u_085",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_086",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_087",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_088",
+              "eligible": false,
+              "reasons": ["lessons_incomplete"]
+            },
+            {
+              "userId": "u_089",
+              "eligible": false,
+              "reasons": ["revoked"]
+            },
+            {
+              "userId": "u_090",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_091",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_092",
+              "eligible": false,
+              "reasons": ["coding_not_passed"]
+            },
+            {
+              "userId": "u_093",
+              "eligible": false,
+              "reasons": ["lessons_incomplete"]
+            },
+            {
+              "userId": "u_094",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_095",
+              "eligible": false,
+              "reasons": ["quiz_rate_too_low"]
+            },
+            {
+              "userId": "u_096",
+              "eligible": false,
+              "reasons": ["quiz_rate_too_low"]
+            },
+            {
+              "userId": "u_097",
+              "eligible": true,
+              "reasons": []
+            },
+            {
+              "userId": "u_098",
+              "eligible": false,
+              "reasons": ["quiz_rate_too_low"]
+            },
+            {
+              "userId": "u_099",
+              "eligible": false,
+              "reasons": ["already_issued"]
+            },
+            {
+              "userId": "u_100",
+              "eligible": true,
+              "reasons": []
+            }
+          ],
+          "hidden": true,
+          "score": 2
+        }
+      ]
+    }
+  ]
+}

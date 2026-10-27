@@ -1,0 +1,3809 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_acp_231",
+      "name": "mutation-testing-quiz",
+      "type": "quiz",
+      "title": "What does the mutation report say?",
+      "description": "A surviving mutant in CodeDev's pricing rule next to a 100% coverage report, and the summary of a mutation run checked against a CI gate.",
+      "difficulty": "medium",
+      "outcomes": [
+        "feedback-loops"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "src/progress/streak.ts\n 3  export function streakBonus(days: number): number {\n 4    if (days >= 7) {\n 5      return 50;\n 6    }\n 7    return days * 5;\n 8  }\n\ntest/progress/streak.test.ts\n  it(\"a short streak earns 5 EXP per day\", () => expect(streakBonus(3)).toBe(15));\n  it(\"a long streak earns the weekly bonus\", () => expect(streakBonus(12)).toBe(50));\n\nCoverage: src/progress/streak.ts  100% statements, 100% branches\n\nMutation report:\n  streak.ts:4  EqualityOperator  days >= 7  ->  days > 7   Survived\n\nStatement: \"The surviving mutant shows that no test checks a streak of exactly 7 days; a test expecting streakBonus(7) to be 50 would kill it.\"",
+          "explanation": "True. The mutant changes >= to >, which only behaves differently for 7 itself. A streak of 3 takes the second branch under both versions and a streak of 12 takes the first under both, so both tests pass on the mutant and it survives. With the mutant, streakBonus(7) returns 7 * 5 = 35 instead of 50, so a test expecting 50 fails and the mutant is killed. Coverage is 100% because both branches run, but coverage only says the lines were executed, not that a test would notice if they were wrong. The misconception is that full branch coverage means the boundary is tested.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Mutation run for src/enrollments (80 mutants):\n  killed 40 · timeout 5 · survived 10 · no coverage 5 · compile error 20 · ignored 0\n\nCI gate: fail the build when the mutation score is below 70, with the score defined as StrykerJS documents it.\n\nStatement: \"The mutation score is 50% (40 of the 80 mutants were killed), so this run fails the gate.\"",
+          "explanation": "False. With the StrykerJS definition, a mutant is detected when it is killed or times out (45 here), undetected when it survives or no test covers it (15), and the valid mutants are detected plus undetected (60). Compile errors are invalid mutants: the changed code never ran, so they say nothing about the tests and are left out, like ignored mutants. The score is 45 / 60 = 75%, which passes a gate of 70. The misconception is that the score is killed divided by all mutants generated; that undercounts timeouts and punishes the tests for mutants that could not even compile.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_acp_232",
+      "name": "mutation-score-gate",
+      "type": "mini_coding",
+      "title": "Mutation score as the agent's quality gate",
+      "description": "CodeDev's agents may only open a pull request when the tests they wrote catch mistakes, not just run the code. The CI job records a mutation-testing run as JSON, and you write mutationReport(run), which turns it into a report and a pass/fail decision. Input: { \"threshold\": integer 0-100, \"mutants\": [{ \"id\": integer, \"file\": string, \"line\": integer, \"mutator\": string, \"status\": string }] }.\n\nStatuses (the same definitions StrykerJS documents):\n- detected = \"killed\" + \"timeout\"; undetected = \"survived\" + \"no-coverage\"; valid = detected + undetected.\n- \"compile-error\" and \"ignored\" mutants are not valid: they count nowhere.\n- Any other status (letter case matters): return { \"error\": \"unknown status \\\"<status>\\\" for mutant <id>\" } for the first such mutant in input order, and nothing else.\n\nScore of a group of mutants: null when valid is 0, otherwise the percentage rounded half up to one decimal: Math.round(detected * 1000 / valid) / 10.\n\nReturn { files, overall, undetected, gate }:\n- \"files\": one { \"file\", \"detected\", \"valid\", \"score\" } per file that has at least one mutant (any status), sorted by file name in code-unit order.\n- \"overall\": { \"detected\", \"valid\", \"score\" } for all mutants.\n- \"undetected\": one string \"<file>:<line> <mutator> <status> #<id>\" per survived or no-coverage mutant, sorted by file (code-unit order), then line, then id (both as numbers).\n- \"gate\": \"pass\" when overall valid > 0 and the exact score, not the rounded one, is at least the threshold (detected / valid >= threshold / 100); otherwise \"fail\".\n\nThe test runner prints the returned object as JSON. A run has at most about 500 mutants.",
+      "difficulty": "medium",
+      "outcomes": [
+        "feedback-loops"
+      ],
+      "points": 30,
+      "hints": [
+        "For each status, ask: did the tests notice this mutant, miss it, or tell us nothing about the tests at all? Which group does a timeout belong to, and which a compile error?",
+        "Count detected and valid with one helper, use it for each file and for the whole run, and compare the gate with whole numbers (detected * 100 against threshold * valid) instead of the rounded score. Check how your sort compares line 9 with line 12.",
+        "A similar run: 7 killed, 1 timeout, 2 survived, 1 no coverage and 3 compile errors gives detected 8 and valid 11, so the score is Math.round(8000 / 11) / 10 = 72.7. Against a threshold of 73 it fails, even though 72.7 would be shown as \"73\" with no decimals."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The pricing incident: one surviving boundary mutant per file",
+          "input": {
+            "threshold": 85,
+            "mutants": [
+              {
+                "id": 1,
+                "file": "src/pricing/price.ts",
+                "line": 8,
+                "mutator": "EqualityOperator",
+                "status": "survived"
+              },
+              {
+                "id": 2,
+                "file": "src/pricing/price.ts",
+                "line": 8,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 3,
+                "file": "src/pricing/price.ts",
+                "line": 9,
+                "mutator": "ArithmeticOperator",
+                "status": "killed"
+              },
+              {
+                "id": 4,
+                "file": "src/pricing/price.ts",
+                "line": 9,
+                "mutator": "ArithmeticOperator",
+                "status": "killed"
+              },
+              {
+                "id": 5,
+                "file": "src/pricing/price.ts",
+                "line": 12,
+                "mutator": "BlockStatement",
+                "status": "killed"
+              },
+              {
+                "id": 6,
+                "file": "src/pricing/price.ts",
+                "line": 14,
+                "mutator": "MethodExpression",
+                "status": "killed"
+              },
+              {
+                "id": 7,
+                "file": "src/pricing/vouchers.ts",
+                "line": 5,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 8,
+                "file": "src/pricing/vouchers.ts",
+                "line": 6,
+                "mutator": "StringLiteral",
+                "status": "survived"
+              },
+              {
+                "id": 9,
+                "file": "src/pricing/vouchers.ts",
+                "line": 11,
+                "mutator": "BooleanLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 10,
+                "file": "src/pricing/vouchers.ts",
+                "line": 11,
+                "mutator": "LogicalOperator",
+                "status": "killed"
+              }
+            ]
+          },
+          "expected": {
+            "files": [
+              {
+                "file": "src/pricing/price.ts",
+                "detected": 5,
+                "valid": 6,
+                "score": 83.3
+              },
+              {
+                "file": "src/pricing/vouchers.ts",
+                "detected": 3,
+                "valid": 4,
+                "score": 75
+              }
+            ],
+            "overall": {
+              "detected": 8,
+              "valid": 10,
+              "score": 80
+            },
+            "undetected": [
+              "src/pricing/price.ts:8 EqualityOperator survived #1",
+              "src/pricing/vouchers.ts:6 StringLiteral survived #8"
+            ],
+            "gate": "fail"
+          },
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Timeouts count as detected; compile errors and ignored mutants are left out",
+          "input": {
+            "threshold": 60,
+            "mutants": [
+              {
+                "id": 1,
+                "file": "src/progress/percent.ts",
+                "line": 3,
+                "mutator": "ArithmeticOperator",
+                "status": "killed"
+              },
+              {
+                "id": 2,
+                "file": "src/progress/percent.ts",
+                "line": 3,
+                "mutator": "ArithmeticOperator",
+                "status": "timeout"
+              },
+              {
+                "id": 3,
+                "file": "src/progress/percent.ts",
+                "line": 4,
+                "mutator": "ConditionalExpression",
+                "status": "timeout"
+              },
+              {
+                "id": 4,
+                "file": "src/progress/percent.ts",
+                "line": 4,
+                "mutator": "EqualityOperator",
+                "status": "survived"
+              },
+              {
+                "id": 5,
+                "file": "src/progress/percent.ts",
+                "line": 6,
+                "mutator": "StringLiteral",
+                "status": "compile-error"
+              },
+              {
+                "id": 6,
+                "file": "src/progress/percent.ts",
+                "line": 6,
+                "mutator": "ObjectLiteral",
+                "status": "compile-error"
+              },
+              {
+                "id": 7,
+                "file": "src/progress/percent.ts",
+                "line": 7,
+                "mutator": "BlockStatement",
+                "status": "ignored"
+              },
+              {
+                "id": 8,
+                "file": "src/progress/streak.ts",
+                "line": 10,
+                "mutator": "UpdateOperator",
+                "status": "no-coverage"
+              },
+              {
+                "id": 9,
+                "file": "src/progress/streak.ts",
+                "line": 11,
+                "mutator": "EqualityOperator",
+                "status": "killed"
+              },
+              {
+                "id": 10,
+                "file": "src/progress/streak.ts",
+                "line": 12,
+                "mutator": "BooleanLiteral",
+                "status": "compile-error"
+              }
+            ]
+          },
+          "expected": {
+            "files": [
+              {
+                "file": "src/progress/percent.ts",
+                "detected": 3,
+                "valid": 4,
+                "score": 75
+              },
+              {
+                "file": "src/progress/streak.ts",
+                "detected": 1,
+                "valid": 2,
+                "score": 50
+              }
+            ],
+            "overall": {
+              "detected": 4,
+              "valid": 6,
+              "score": 66.7
+            },
+            "undetected": [
+              "src/progress/percent.ts:4 EqualityOperator survived #4",
+              "src/progress/streak.ts:10 UpdateOperator no-coverage #8"
+            ],
+            "gate": "pass"
+          },
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "79.95% is shown as 80 but fails a threshold of 80 (434 mutants)",
+          "input": {
+            "threshold": 80,
+            "mutants": [
+              {
+                "id": 1,
+                "file": "src/leaderboard/rank.ts",
+                "line": 1,
+                "mutator": "EqualityOperator",
+                "status": "killed"
+              },
+              {
+                "id": 323,
+                "file": "src/courses/catalog.ts",
+                "line": 35,
+                "mutator": "ArithmeticOperator",
+                "status": "timeout"
+              },
+              {
+                "id": 23,
+                "file": "src/courses/catalog.ts",
+                "line": 95,
+                "mutator": "BooleanLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 19,
+                "file": "src/courses/catalog.ts",
+                "line": 127,
+                "mutator": "ArithmeticOperator",
+                "status": "killed"
+              },
+              {
+                "id": 59,
+                "file": "src/courses/catalog.ts",
+                "line": 167,
+                "mutator": "ArithmeticOperator",
+                "status": "killed"
+              },
+              {
+                "id": 8,
+                "file": "src/leaderboard/ties.ts",
+                "line": 80,
+                "mutator": "BlockStatement",
+                "status": "killed"
+              },
+              {
+                "id": 14,
+                "file": "src/enrollments/enroll.ts",
+                "line": 122,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 9,
+                "file": "src/leaderboard/rank.ts",
+                "line": 117,
+                "mutator": "EqualityOperator",
+                "status": "killed"
+              },
+              {
+                "id": 10,
+                "file": "src/enrollments/enroll.ts",
+                "line": 154,
+                "mutator": "StringLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 11,
+                "file": "src/courses/catalog.ts",
+                "line": 11,
+                "mutator": "ArithmeticOperator",
+                "status": "killed"
+              },
+              {
+                "id": 187,
+                "file": "src/courses/catalog.ts",
+                "line": 43,
+                "mutator": "ArithmeticOperator",
+                "status": "killed"
+              },
+              {
+                "id": 15,
+                "file": "src/courses/catalog.ts",
+                "line": 159,
+                "mutator": "BooleanLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 331,
+                "file": "src/courses/catalog.ts",
+                "line": 151,
+                "mutator": "ArithmeticOperator",
+                "status": "survived"
+              },
+              {
+                "id": 29,
+                "file": "src/leaderboard/rank.ts",
+                "line": 137,
+                "mutator": "LogicalOperator",
+                "status": "killed"
+              },
+              {
+                "id": 16,
+                "file": "src/leaderboard/ties.ts",
+                "line": 16,
+                "mutator": "BlockStatement",
+                "status": "killed"
+              },
+              {
+                "id": 31,
+                "file": "src/courses/catalog.ts",
+                "line": 31,
+                "mutator": "BooleanLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 56,
+                "file": "src/leaderboard/ties.ts",
+                "line": 56,
+                "mutator": "BlockStatement",
+                "status": "killed"
+              },
+              {
+                "id": 21,
+                "file": "src/leaderboard/rank.ts",
+                "line": 21,
+                "mutator": "LogicalOperator",
+                "status": "killed"
+              },
+              {
+                "id": 145,
+                "file": "src/leaderboard/rank.ts",
+                "line": 109,
+                "mutator": "EqualityOperator",
+                "status": "killed"
+              },
+              {
+                "id": 397,
+                "file": "src/leaderboard/rank.ts",
+                "line": 73,
+                "mutator": "LogicalOperator",
+                "status": "no-coverage"
+              },
+              {
+                "id": 241,
+                "file": "src/leaderboard/rank.ts",
+                "line": 61,
+                "mutator": "EqualityOperator",
+                "status": "killed"
+              },
+              {
+                "id": 131,
+                "file": "src/courses/catalog.ts",
+                "line": 131,
+                "mutator": "ArithmeticOperator",
+                "status": "killed"
+              },
+              {
+                "id": 163,
+                "file": "src/courses/catalog.ts",
+                "line": 55,
+                "mutator": "ArithmeticOperator",
+                "status": "killed"
+              },
+              {
+                "id": 30,
+                "file": "src/enrollments/enroll.ts",
+                "line": 174,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 317,
+                "file": "src/leaderboard/rank.ts",
+                "line": 173,
+                "mutator": "LogicalOperator",
+                "status": "timeout"
+              },
+              {
+                "id": 79,
+                "file": "src/courses/catalog.ts",
+                "line": 7,
+                "mutator": "BooleanLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 199,
+                "file": "src/courses/catalog.ts",
+                "line": 127,
+                "mutator": "BooleanLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 283,
+                "file": "src/courses/catalog.ts",
+                "line": 175,
+                "mutator": "ArithmeticOperator",
+                "status": "killed"
+              },
+              {
+                "id": 58,
+                "file": "src/enrollments/enroll.ts",
+                "line": 130,
+                "mutator": "StringLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 33,
+                "file": "src/leaderboard/rank.ts",
+                "line": 105,
+                "mutator": "EqualityOperator",
+                "status": "killed"
+              },
+              {
+                "id": 127,
+                "file": "src/courses/catalog.ts",
+                "line": 163,
+                "mutator": "BooleanLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 70,
+                "file": "src/enrollments/enroll.ts",
+                "line": 34,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 379,
+                "file": "src/courses/catalog.ts",
+                "line": 127,
+                "mutator": "ArithmeticOperator",
+                "status": "survived"
+              },
+              {
+                "id": 355,
+                "file": "src/courses/catalog.ts",
+                "line": 139,
+                "mutator": "ArithmeticOperator",
+                "status": "survived"
+              },
+              {
+                "id": 227,
+                "file": "src/courses/catalog.ts",
+                "line": 83,
+                "mutator": "ArithmeticOperator",
+                "status": "killed"
+              },
+              {
+                "id": 181,
+                "file": "src/leaderboard/rank.ts",
+                "line": 1,
+                "mutator": "LogicalOperator",
+                "status": "killed"
+              },
+              {
+                "id": 419,
+                "file": "src/courses/catalog.ts",
+                "line": 214,
+                "mutator": "StringLiteral",
+                "status": "compile-error"
+              },
+              {
+                "id": 301,
+                "file": "src/leaderboard/rank.ts",
+                "line": 121,
+                "mutator": "LogicalOperator",
+                "status": "timeout"
+              },
+              {
+                "id": 51,
+                "file": "src/courses/catalog.ts",
+                "line": 51,
+                "mutator": "ArithmeticOperator",
+                "status": "killed"
+              },
+              {
+                "id": 44,
+                "file": "src/leaderboard/ties.ts",
+                "line": 152,
+                "mutator": "MethodExpression",
+                "status": "killed"
+              },
+              {
+                "id": 211,
+                "file": "src/courses/catalog.ts",
+                "line": 31,
+                "mutator": "ArithmeticOperator",
+                "status": "killed"
+              },
+              {
+                "id": 327,
+                "file": "src/courses/catalog.ts",
+                "line": 3,
+                "mutator": "BooleanLiteral",
+                "status": "survived"
+              },
+              {
+                "id": 219,
+                "file": "src/courses/catalog.ts",
+                "line": 147,
+                "mutator": "ArithmeticOperator",
+                "status": "killed"
+              },
+              {
+                "id": 45,
+                "file": "src/leaderboard/rank.ts",
+                "line": 9,
+                "mutator": "LogicalOperator",
+                "status": "killed"
+              },
+              {
+                "id": 48,
+                "file": "src/leaderboard/ties.ts",
+                "line": 120,
+                "mutator": "BlockStatement",
+                "status": "killed"
+              },
+              {
+                "id": 261,
+                "file": "src/leaderboard/rank.ts",
+                "line": 81,
+                "mutator": "LogicalOperator",
+                "status": "killed"
+              },
+              {
+                "id": 169,
+                "file": "src/leaderboard/rank.ts",
+                "line": 97,
+                "mutator": "EqualityOperator",
+                "status": "killed"
+              },
+              {
+                "id": 67,
+                "file": "src/courses/catalog.ts",
+                "line": 103,
+                "mutator": "ArithmeticOperator",
+                "status": "killed"
+              },
+              {
+                "id": 54,
+                "file": "src/enrollments/enroll.ts",
+                "line": 162,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 53,
+                "file": "src/leaderboard/rank.ts",
+                "line": 125,
+                "mutator": "LogicalOperator",
+                "status": "killed"
+              },
+              {
+                "id": 52,
+                "file": "src/leaderboard/ties.ts",
+                "line": 88,
+                "mutator": "MethodExpression",
+                "status": "killed"
+              },
+              {
+                "id": 121,
+                "file": "src/leaderboard/rank.ts",
+                "line": 121,
+                "mutator": "EqualityOperator",
+                "status": "killed"
+              },
+              {
+                "id": 75,
+                "file": "src/courses/catalog.ts",
+                "line": 39,
+                "mutator": "ArithmeticOperator",
+                "status": "killed"
+              },
+              {
+                "id": 347,
+                "file": "src/courses/catalog.ts",
+                "line": 23,
+                "mutator": "ArithmeticOperator",
+                "status": "survived"
+              },
+              {
+                "id": 60,
+                "file": "src/leaderboard/ties.ts",
+                "line": 24,
+                "mutator": "MethodExpression",
+                "status": "killed"
+              },
+              {
+                "id": 71,
+                "file": "src/courses/catalog.ts",
+                "line": 71,
+                "mutator": "BooleanLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 139,
+                "file": "src/courses/catalog.ts",
+                "line": 67,
+                "mutator": "ArithmeticOperator",
+                "status": "killed"
+              },
+              {
+                "id": 179,
+                "file": "src/courses/catalog.ts",
+                "line": 107,
+                "mutator": "ArithmeticOperator",
+                "status": "killed"
+              },
+              {
+                "id": 135,
+                "file": "src/courses/catalog.ts",
+                "line": 99,
+                "mutator": "BooleanLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 66,
+                "file": "src/enrollments/enroll.ts",
+                "line": 66,
+                "mutator": "StringLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 65,
+                "file": "src/leaderboard/rank.ts",
+                "line": 29,
+                "mutator": "EqualityOperator",
+                "status": "killed"
+              },
+              {
+                "id": 329,
+                "file": "src/leaderboard/rank.ts",
+                "line": 77,
+                "mutator": "EqualityOperator",
+                "status": "survived"
+              },
+              {
+                "id": 421,
+                "file": "src/leaderboard/rank.ts",
+                "line": 216,
+                "mutator": "StringLiteral",
+                "status": "compile-error"
+              },
+              {
+                "id": 124,
+                "file": "src/leaderboard/ties.ts",
+                "line": 52,
+                "mutator": "MethodExpression",
+                "status": "killed"
+              },
+              {
+                "id": 183,
+                "file": "src/courses/catalog.ts",
+                "line": 75,
+                "mutator": "BooleanLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 151,
+                "file": "src/courses/catalog.ts",
+                "line": 151,
+                "mutator": "BooleanLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 141,
+                "file": "src/leaderboard/rank.ts",
+                "line": 141,
+                "mutator": "LogicalOperator",
+                "status": "killed"
+              },
+              {
+                "id": 78,
+                "file": "src/enrollments/enroll.ts",
+                "line": 150,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 277,
+                "file": "src/leaderboard/rank.ts",
+                "line": 133,
+                "mutator": "LogicalOperator",
+                "status": "killed"
+              },
+              {
+                "id": 76,
+                "file": "src/leaderboard/ties.ts",
+                "line": 76,
+                "mutator": "MethodExpression",
+                "status": "killed"
+              },
+              {
+                "id": 311,
+                "file": "src/courses/catalog.ts",
+                "line": 131,
+                "mutator": "BooleanLiteral",
+                "status": "timeout"
+              },
+              {
+                "id": 87,
+                "file": "src/courses/catalog.ts",
+                "line": 123,
+                "mutator": "BooleanLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 349,
+                "file": "src/leaderboard/rank.ts",
+                "line": 97,
+                "mutator": "LogicalOperator",
+                "status": "survived"
+              },
+              {
+                "id": 108,
+                "file": "src/leaderboard/ties.ts",
+                "line": 180,
+                "mutator": "MethodExpression",
+                "status": "killed"
+              },
+              {
+                "id": 164,
+                "file": "src/leaderboard/ties.ts",
+                "line": 92,
+                "mutator": "MethodExpression",
+                "status": "killed"
+              },
+              {
+                "id": 84,
+                "file": "src/leaderboard/ties.ts",
+                "line": 12,
+                "mutator": "MethodExpression",
+                "status": "killed"
+              },
+              {
+                "id": 103,
+                "file": "src/courses/catalog.ts",
+                "line": 175,
+                "mutator": "BooleanLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 401,
+                "file": "src/leaderboard/rank.ts",
+                "line": 41,
+                "mutator": "EqualityOperator",
+                "status": "no-coverage"
+              },
+              {
+                "id": 243,
+                "file": "src/courses/catalog.ts",
+                "line": 135,
+                "mutator": "ArithmeticOperator",
+                "status": "killed"
+              },
+              {
+                "id": 88,
+                "file": "src/leaderboard/ties.ts",
+                "line": 160,
+                "mutator": "BlockStatement",
+                "status": "killed"
+              },
+              {
+                "id": 281,
+                "file": "src/leaderboard/rank.ts",
+                "line": 101,
+                "mutator": "EqualityOperator",
+                "status": "killed"
+              },
+              {
+                "id": 229,
+                "file": "src/leaderboard/rank.ts",
+                "line": 157,
+                "mutator": "LogicalOperator",
+                "status": "killed"
+              },
+              {
+                "id": 96,
+                "file": "src/leaderboard/ties.ts",
+                "line": 96,
+                "mutator": "BlockStatement",
+                "status": "killed"
+              },
+              {
+                "id": 95,
+                "file": "src/courses/catalog.ts",
+                "line": 59,
+                "mutator": "BooleanLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 94,
+                "file": "src/enrollments/enroll.ts",
+                "line": 22,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 93,
+                "file": "src/leaderboard/rank.ts",
+                "line": 165,
+                "mutator": "LogicalOperator",
+                "status": "killed"
+              },
+              {
+                "id": 184,
+                "file": "src/leaderboard/ties.ts",
+                "line": 112,
+                "mutator": "BlockStatement",
+                "status": "killed"
+              },
+              {
+                "id": 91,
+                "file": "src/courses/catalog.ts",
+                "line": 91,
+                "mutator": "ArithmeticOperator",
+                "status": "killed"
+              },
+              {
+                "id": 3,
+                "file": "src/courses/catalog.ts",
+                "line": 75,
+                "mutator": "ArithmeticOperator",
+                "status": "killed"
+              },
+              {
+                "id": 99,
+                "file": "src/courses/catalog.ts",
+                "line": 27,
+                "mutator": "ArithmeticOperator",
+                "status": "killed"
+              },
+              {
+                "id": 191,
+                "file": "src/courses/catalog.ts",
+                "line": 11,
+                "mutator": "BooleanLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 206,
+                "file": "src/enrollments/enroll.ts",
+                "line": 26,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 129,
+                "file": "src/leaderboard/rank.ts",
+                "line": 57,
+                "mutator": "EqualityOperator",
+                "status": "killed"
+              },
+              {
+                "id": 337,
+                "file": "src/leaderboard/rank.ts",
+                "line": 13,
+                "mutator": "EqualityOperator",
+                "status": "survived"
+              },
+              {
+                "id": 113,
+                "file": "src/leaderboard/rank.ts",
+                "line": 5,
+                "mutator": "EqualityOperator",
+                "status": "killed"
+              },
+              {
+                "id": 172,
+                "file": "src/leaderboard/ties.ts",
+                "line": 28,
+                "mutator": "MethodExpression",
+                "status": "killed"
+              },
+              {
+                "id": 239,
+                "file": "src/courses/catalog.ts",
+                "line": 167,
+                "mutator": "BooleanLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 126,
+                "file": "src/enrollments/enroll.ts",
+                "line": 126,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 223,
+                "file": "src/courses/catalog.ts",
+                "line": 115,
+                "mutator": "BooleanLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 383,
+                "file": "src/courses/catalog.ts",
+                "line": 95,
+                "mutator": "BooleanLiteral",
+                "status": "survived"
+              },
+              {
+                "id": 61,
+                "file": "src/leaderboard/rank.ts",
+                "line": 61,
+                "mutator": "LogicalOperator",
+                "status": "killed"
+              },
+              {
+                "id": 117,
+                "file": "src/leaderboard/rank.ts",
+                "line": 153,
+                "mutator": "LogicalOperator",
+                "status": "killed"
+              },
+              {
+                "id": 13,
+                "file": "src/leaderboard/rank.ts",
+                "line": 85,
+                "mutator": "LogicalOperator",
+                "status": "killed"
+              },
+              {
+                "id": 143,
+                "file": "src/courses/catalog.ts",
+                "line": 35,
+                "mutator": "BooleanLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 389,
+                "file": "src/leaderboard/rank.ts",
+                "line": 137,
+                "mutator": "LogicalOperator",
+                "status": "survived"
+              },
+              {
+                "id": 150,
+                "file": "src/enrollments/enroll.ts",
+                "line": 114,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 321,
+                "file": "src/leaderboard/rank.ts",
+                "line": 141,
+                "mutator": "EqualityOperator",
+                "status": "timeout"
+              },
+              {
+                "id": 217,
+                "file": "src/leaderboard/rank.ts",
+                "line": 73,
+                "mutator": "EqualityOperator",
+                "status": "killed"
+              },
+              {
+                "id": 39,
+                "file": "src/courses/catalog.ts",
+                "line": 147,
+                "mutator": "BooleanLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 120,
+                "file": "src/leaderboard/ties.ts",
+                "line": 84,
+                "mutator": "BlockStatement",
+                "status": "killed"
+              },
+              {
+                "id": 226,
+                "file": "src/enrollments/enroll.ts",
+                "line": 46,
+                "mutator": "StringLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 325,
+                "file": "src/leaderboard/rank.ts",
+                "line": 109,
+                "mutator": "LogicalOperator",
+                "status": "survived"
+              },
+              {
+                "id": 105,
+                "file": "src/leaderboard/rank.ts",
+                "line": 69,
+                "mutator": "EqualityOperator",
+                "status": "killed"
+              },
+              {
+                "id": 133,
+                "file": "src/leaderboard/rank.ts",
+                "line": 25,
+                "mutator": "LogicalOperator",
+                "status": "killed"
+              },
+              {
+                "id": 345,
+                "file": "src/leaderboard/rank.ts",
+                "line": 129,
+                "mutator": "EqualityOperator",
+                "status": "survived"
+              },
+              {
+                "id": 269,
+                "file": "src/leaderboard/rank.ts",
+                "line": 17,
+                "mutator": "LogicalOperator",
+                "status": "killed"
+              },
+              {
+                "id": 153,
+                "file": "src/leaderboard/rank.ts",
+                "line": 45,
+                "mutator": "EqualityOperator",
+                "status": "killed"
+              },
+              {
+                "id": 136,
+                "file": "src/leaderboard/ties.ts",
+                "line": 136,
+                "mutator": "BlockStatement",
+                "status": "killed"
+              },
+              {
+                "id": 55,
+                "file": "src/courses/catalog.ts",
+                "line": 19,
+                "mutator": "BooleanLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 161,
+                "file": "src/leaderboard/rank.ts",
+                "line": 161,
+                "mutator": "EqualityOperator",
+                "status": "killed"
+              },
+              {
+                "id": 255,
+                "file": "src/courses/catalog.ts",
+                "line": 39,
+                "mutator": "BooleanLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 130,
+                "file": "src/enrollments/enroll.ts",
+                "line": 94,
+                "mutator": "StringLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 427,
+                "file": "src/courses/catalog.ts",
+                "line": 222,
+                "mutator": "StringLiteral",
+                "status": "compile-error"
+              },
+              {
+                "id": 149,
+                "file": "src/leaderboard/rank.ts",
+                "line": 77,
+                "mutator": "LogicalOperator",
+                "status": "killed"
+              },
+              {
+                "id": 160,
+                "file": "src/leaderboard/ties.ts",
+                "line": 124,
+                "mutator": "BlockStatement",
+                "status": "killed"
+              },
+              {
+                "id": 147,
+                "file": "src/courses/catalog.ts",
+                "line": 3,
+                "mutator": "ArithmeticOperator",
+                "status": "killed"
+              },
+              {
+                "id": 381,
+                "file": "src/leaderboard/rank.ts",
+                "line": 21,
+                "mutator": "LogicalOperator",
+                "status": "survived"
+              },
+              {
+                "id": 248,
+                "file": "src/leaderboard/ties.ts",
+                "line": 140,
+                "mutator": "BlockStatement",
+                "status": "killed"
+              },
+              {
+                "id": 186,
+                "file": "src/enrollments/enroll.ts",
+                "line": 6,
+                "mutator": "StringLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 305,
+                "file": "src/leaderboard/rank.ts",
+                "line": 89,
+                "mutator": "EqualityOperator",
+                "status": "timeout"
+              },
+              {
+                "id": 73,
+                "file": "src/leaderboard/rank.ts",
+                "line": 145,
+                "mutator": "EqualityOperator",
+                "status": "killed"
+              },
+              {
+                "id": 278,
+                "file": "src/enrollments/enroll.ts",
+                "line": 170,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 158,
+                "file": "src/enrollments/enroll.ts",
+                "line": 50,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 353,
+                "file": "src/leaderboard/rank.ts",
+                "line": 65,
+                "mutator": "EqualityOperator",
+                "status": "survived"
+              },
+              {
+                "id": 177,
+                "file": "src/leaderboard/rank.ts",
+                "line": 33,
+                "mutator": "EqualityOperator",
+                "status": "killed"
+              },
+              {
+                "id": 411,
+                "file": "src/courses/catalog.ts",
+                "line": 206,
+                "mutator": "StringLiteral",
+                "status": "compile-error"
+              },
+              {
+                "id": 274,
+                "file": "src/enrollments/enroll.ts",
+                "line": 22,
+                "mutator": "StringLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 238,
+                "file": "src/enrollments/enroll.ts",
+                "line": 130,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 417,
+                "file": "src/leaderboard/rank.ts",
+                "line": 212,
+                "mutator": "StringLiteral",
+                "status": "compile-error"
+              },
+              {
+                "id": 190,
+                "file": "src/enrollments/enroll.ts",
+                "line": 154,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 171,
+                "file": "src/courses/catalog.ts",
+                "line": 171,
+                "mutator": "ArithmeticOperator",
+                "status": "killed"
+              },
+              {
+                "id": 284,
+                "file": "src/leaderboard/ties.ts",
+                "line": 32,
+                "mutator": "MethodExpression",
+                "status": "killed"
+              },
+              {
+                "id": 154,
+                "file": "src/enrollments/enroll.ts",
+                "line": 82,
+                "mutator": "StringLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 165,
+                "file": "src/leaderboard/rank.ts",
+                "line": 129,
+                "mutator": "LogicalOperator",
+                "status": "killed"
+              },
+              {
+                "id": 275,
+                "file": "src/courses/catalog.ts",
+                "line": 59,
+                "mutator": "ArithmeticOperator",
+                "status": "killed"
+              },
+              {
+                "id": 365,
+                "file": "src/leaderboard/rank.ts",
+                "line": 149,
+                "mutator": "LogicalOperator",
+                "status": "survived"
+              },
+              {
+                "id": 203,
+                "file": "src/courses/catalog.ts",
+                "line": 95,
+                "mutator": "ArithmeticOperator",
+                "status": "killed"
+              },
+              {
+                "id": 216,
+                "file": "src/leaderboard/ties.ts",
+                "line": 36,
+                "mutator": "BlockStatement",
+                "status": "killed"
+              },
+              {
+                "id": 358,
+                "file": "src/enrollments/enroll.ts",
+                "line": 70,
+                "mutator": "ConditionalExpression",
+                "status": "survived"
+              },
+              {
+                "id": 197,
+                "file": "src/leaderboard/rank.ts",
+                "line": 53,
+                "mutator": "LogicalOperator",
+                "status": "killed"
+              },
+              {
+                "id": 85,
+                "file": "src/leaderboard/rank.ts",
+                "line": 49,
+                "mutator": "LogicalOperator",
+                "status": "killed"
+              },
+              {
+                "id": 431,
+                "file": "src/courses/catalog.ts",
+                "line": 226,
+                "mutator": "StringLiteral",
+                "status": "compile-error"
+              },
+              {
+                "id": 367,
+                "file": "src/courses/catalog.ts",
+                "line": 43,
+                "mutator": "BooleanLiteral",
+                "status": "survived"
+              },
+              {
+                "id": 225,
+                "file": "src/leaderboard/rank.ts",
+                "line": 9,
+                "mutator": "EqualityOperator",
+                "status": "killed"
+              },
+              {
+                "id": 434,
+                "file": "src/leaderboard/ties.ts",
+                "line": 229,
+                "mutator": "StringLiteral",
+                "status": "ignored"
+              },
+              {
+                "id": 409,
+                "file": "src/leaderboard/rank.ts",
+                "line": 204,
+                "mutator": "StringLiteral",
+                "status": "compile-error"
+              },
+              {
+                "id": 89,
+                "file": "src/leaderboard/rank.ts",
+                "line": 17,
+                "mutator": "EqualityOperator",
+                "status": "killed"
+              },
+              {
+                "id": 237,
+                "file": "src/leaderboard/rank.ts",
+                "line": 93,
+                "mutator": "LogicalOperator",
+                "status": "killed"
+              },
+              {
+                "id": 265,
+                "file": "src/leaderboard/rank.ts",
+                "line": 49,
+                "mutator": "EqualityOperator",
+                "status": "killed"
+              },
+              {
+                "id": 343,
+                "file": "src/courses/catalog.ts",
+                "line": 55,
+                "mutator": "BooleanLiteral",
+                "status": "survived"
+              },
+              {
+                "id": 175,
+                "file": "src/courses/catalog.ts",
+                "line": 139,
+                "mutator": "BooleanLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 189,
+                "file": "src/leaderboard/rank.ts",
+                "line": 117,
+                "mutator": "LogicalOperator",
+                "status": "killed"
+              },
+              {
+                "id": 69,
+                "file": "src/leaderboard/rank.ts",
+                "line": 177,
+                "mutator": "LogicalOperator",
+                "status": "killed"
+              },
+              {
+                "id": 196,
+                "file": "src/leaderboard/ties.ts",
+                "line": 16,
+                "mutator": "MethodExpression",
+                "status": "killed"
+              },
+              {
+                "id": 213,
+                "file": "src/leaderboard/rank.ts",
+                "line": 105,
+                "mutator": "LogicalOperator",
+                "status": "killed"
+              },
+              {
+                "id": 249,
+                "file": "src/leaderboard/rank.ts",
+                "line": 177,
+                "mutator": "EqualityOperator",
+                "status": "killed"
+              },
+              {
+                "id": 334,
+                "file": "src/enrollments/enroll.ts",
+                "line": 82,
+                "mutator": "ConditionalExpression",
+                "status": "survived"
+              },
+              {
+                "id": 192,
+                "file": "src/leaderboard/ties.ts",
+                "line": 48,
+                "mutator": "BlockStatement",
+                "status": "killed"
+              },
+              {
+                "id": 25,
+                "file": "src/leaderboard/rank.ts",
+                "line": 169,
+                "mutator": "EqualityOperator",
+                "status": "killed"
+              },
+              {
+                "id": 303,
+                "file": "src/courses/catalog.ts",
+                "line": 15,
+                "mutator": "BooleanLiteral",
+                "status": "timeout"
+              },
+              {
+                "id": 423,
+                "file": "src/courses/catalog.ts",
+                "line": 218,
+                "mutator": "StringLiteral",
+                "status": "compile-error"
+              },
+              {
+                "id": 193,
+                "file": "src/leaderboard/rank.ts",
+                "line": 85,
+                "mutator": "EqualityOperator",
+                "status": "killed"
+              },
+              {
+                "id": 346,
+                "file": "src/enrollments/enroll.ts",
+                "line": 166,
+                "mutator": "StringLiteral",
+                "status": "survived"
+              },
+              {
+                "id": 276,
+                "file": "src/leaderboard/ties.ts",
+                "line": 96,
+                "mutator": "MethodExpression",
+                "status": "killed"
+              },
+              {
+                "id": 291,
+                "file": "src/courses/catalog.ts",
+                "line": 111,
+                "mutator": "ArithmeticOperator",
+                "status": "killed"
+              },
+              {
+                "id": 180,
+                "file": "src/leaderboard/ties.ts",
+                "line": 144,
+                "mutator": "MethodExpression",
+                "status": "killed"
+              },
+              {
+                "id": 295,
+                "file": "src/courses/catalog.ts",
+                "line": 79,
+                "mutator": "BooleanLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 267,
+                "file": "src/courses/catalog.ts",
+                "line": 123,
+                "mutator": "ArithmeticOperator",
+                "status": "killed"
+              },
+              {
+                "id": 137,
+                "file": "src/leaderboard/rank.ts",
+                "line": 173,
+                "mutator": "EqualityOperator",
+                "status": "killed"
+              },
+              {
+                "id": 198,
+                "file": "src/enrollments/enroll.ts",
+                "line": 90,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 414,
+                "file": "src/leaderboard/ties.ts",
+                "line": 209,
+                "mutator": "StringLiteral",
+                "status": "ignored"
+              },
+              {
+                "id": 357,
+                "file": "src/leaderboard/rank.ts",
+                "line": 33,
+                "mutator": "LogicalOperator",
+                "status": "survived"
+              },
+              {
+                "id": 371,
+                "file": "src/courses/catalog.ts",
+                "line": 11,
+                "mutator": "ArithmeticOperator",
+                "status": "survived"
+              },
+              {
+                "id": 253,
+                "file": "src/leaderboard/rank.ts",
+                "line": 145,
+                "mutator": "LogicalOperator",
+                "status": "killed"
+              },
+              {
+                "id": 215,
+                "file": "src/courses/catalog.ts",
+                "line": 179,
+                "mutator": "BooleanLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 292,
+                "file": "src/leaderboard/ties.ts",
+                "line": 148,
+                "mutator": "MethodExpression",
+                "status": "killed"
+              },
+              {
+                "id": 123,
+                "file": "src/courses/catalog.ts",
+                "line": 15,
+                "mutator": "ArithmeticOperator",
+                "status": "killed"
+              },
+              {
+                "id": 166,
+                "file": "src/enrollments/enroll.ts",
+                "line": 166,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 294,
+                "file": "src/enrollments/enroll.ts",
+                "line": 42,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 254,
+                "file": "src/enrollments/enroll.ts",
+                "line": 2,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 415,
+                "file": "src/courses/catalog.ts",
+                "line": 210,
+                "mutator": "StringLiteral",
+                "status": "compile-error"
+              },
+              {
+                "id": 395,
+                "file": "src/courses/catalog.ts",
+                "line": 179,
+                "mutator": "ArithmeticOperator",
+                "status": "no-coverage"
+              },
+              {
+                "id": 386,
+                "file": "src/enrollments/enroll.ts",
+                "line": 26,
+                "mutator": "StringLiteral",
+                "status": "survived"
+              },
+              {
+                "id": 36,
+                "file": "src/leaderboard/ties.ts",
+                "line": 36,
+                "mutator": "MethodExpression",
+                "status": "killed"
+              },
+              {
+                "id": 205,
+                "file": "src/leaderboard/rank.ts",
+                "line": 169,
+                "mutator": "LogicalOperator",
+                "status": "killed"
+              },
+              {
+                "id": 287,
+                "file": "src/courses/catalog.ts",
+                "line": 143,
+                "mutator": "BooleanLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 159,
+                "file": "src/courses/catalog.ts",
+                "line": 87,
+                "mutator": "BooleanLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 313,
+                "file": "src/leaderboard/rank.ts",
+                "line": 25,
+                "mutator": "EqualityOperator",
+                "status": "timeout"
+              },
+              {
+                "id": 398,
+                "file": "src/enrollments/enroll.ts",
+                "line": 110,
+                "mutator": "ConditionalExpression",
+                "status": "no-coverage"
+              },
+              {
+                "id": 250,
+                "file": "src/enrollments/enroll.ts",
+                "line": 34,
+                "mutator": "StringLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 268,
+                "file": "src/leaderboard/ties.ts",
+                "line": 160,
+                "mutator": "MethodExpression",
+                "status": "killed"
+              },
+              {
+                "id": 404,
+                "file": "src/leaderboard/ties.ts",
+                "line": 152,
+                "mutator": "MethodExpression",
+                "status": "no-coverage"
+              },
+              {
+                "id": 326,
+                "file": "src/enrollments/enroll.ts",
+                "line": 146,
+                "mutator": "ConditionalExpression",
+                "status": "survived"
+              },
+              {
+                "id": 221,
+                "file": "src/leaderboard/rank.ts",
+                "line": 41,
+                "mutator": "LogicalOperator",
+                "status": "killed"
+              },
+              {
+                "id": 77,
+                "file": "src/leaderboard/rank.ts",
+                "line": 113,
+                "mutator": "LogicalOperator",
+                "status": "killed"
+              },
+              {
+                "id": 433,
+                "file": "src/leaderboard/rank.ts",
+                "line": 228,
+                "mutator": "StringLiteral",
+                "status": "compile-error"
+              },
+              {
+                "id": 299,
+                "file": "src/courses/catalog.ts",
+                "line": 47,
+                "mutator": "ArithmeticOperator",
+                "status": "killed"
+              },
+              {
+                "id": 312,
+                "file": "src/leaderboard/ties.ts",
+                "line": 168,
+                "mutator": "BlockStatement",
+                "status": "timeout"
+              },
+              {
+                "id": 361,
+                "file": "src/leaderboard/rank.ts",
+                "line": 1,
+                "mutator": "EqualityOperator",
+                "status": "survived"
+              },
+              {
+                "id": 228,
+                "file": "src/leaderboard/ties.ts",
+                "line": 120,
+                "mutator": "MethodExpression",
+                "status": "killed"
+              },
+              {
+                "id": 422,
+                "file": "src/leaderboard/ties.ts",
+                "line": 217,
+                "mutator": "StringLiteral",
+                "status": "ignored"
+              },
+              {
+                "id": 424,
+                "file": "src/enrollments/enroll.ts",
+                "line": 219,
+                "mutator": "StringLiteral",
+                "status": "ignored"
+              },
+              {
+                "id": 426,
+                "file": "src/leaderboard/ties.ts",
+                "line": 221,
+                "mutator": "StringLiteral",
+                "status": "ignored"
+              },
+              {
+                "id": 428,
+                "file": "src/enrollments/enroll.ts",
+                "line": 223,
+                "mutator": "StringLiteral",
+                "status": "ignored"
+              },
+              {
+                "id": 37,
+                "file": "src/leaderboard/rank.ts",
+                "line": 73,
+                "mutator": "LogicalOperator",
+                "status": "killed"
+              },
+              {
+                "id": 370,
+                "file": "src/enrollments/enroll.ts",
+                "line": 154,
+                "mutator": "StringLiteral",
+                "status": "survived"
+              },
+              {
+                "id": 259,
+                "file": "src/courses/catalog.ts",
+                "line": 7,
+                "mutator": "ArithmeticOperator",
+                "status": "killed"
+              },
+              {
+                "id": 148,
+                "file": "src/leaderboard/ties.ts",
+                "line": 40,
+                "mutator": "MethodExpression",
+                "status": "killed"
+              },
+              {
+                "id": 185,
+                "file": "src/leaderboard/rank.ts",
+                "line": 149,
+                "mutator": "EqualityOperator",
+                "status": "killed"
+              },
+              {
+                "id": 240,
+                "file": "src/leaderboard/ties.ts",
+                "line": 24,
+                "mutator": "BlockStatement",
+                "status": "killed"
+              },
+              {
+                "id": 234,
+                "file": "src/enrollments/enroll.ts",
+                "line": 162,
+                "mutator": "StringLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 296,
+                "file": "src/leaderboard/ties.ts",
+                "line": 116,
+                "mutator": "BlockStatement",
+                "status": "killed"
+              },
+              {
+                "id": 110,
+                "file": "src/enrollments/enroll.ts",
+                "line": 74,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 430,
+                "file": "src/leaderboard/ties.ts",
+                "line": 225,
+                "mutator": "StringLiteral",
+                "status": "ignored"
+              },
+              {
+                "id": 394,
+                "file": "src/enrollments/enroll.ts",
+                "line": 142,
+                "mutator": "StringLiteral",
+                "status": "survived"
+              },
+              {
+                "id": 359,
+                "file": "src/courses/catalog.ts",
+                "line": 107,
+                "mutator": "BooleanLiteral",
+                "status": "survived"
+              },
+              {
+                "id": 27,
+                "file": "src/courses/catalog.ts",
+                "line": 63,
+                "mutator": "ArithmeticOperator",
+                "status": "killed"
+              },
+              {
+                "id": 341,
+                "file": "src/leaderboard/rank.ts",
+                "line": 161,
+                "mutator": "LogicalOperator",
+                "status": "survived"
+              },
+              {
+                "id": 97,
+                "file": "src/leaderboard/rank.ts",
+                "line": 133,
+                "mutator": "EqualityOperator",
+                "status": "killed"
+              },
+              {
+                "id": 412,
+                "file": "src/enrollments/enroll.ts",
+                "line": 207,
+                "mutator": "StringLiteral",
+                "status": "ignored"
+              },
+              {
+                "id": 245,
+                "file": "src/leaderboard/rank.ts",
+                "line": 29,
+                "mutator": "LogicalOperator",
+                "status": "killed"
+              },
+              {
+                "id": 280,
+                "file": "src/leaderboard/ties.ts",
+                "line": 64,
+                "mutator": "BlockStatement",
+                "status": "killed"
+              },
+              {
+                "id": 4,
+                "file": "src/leaderboard/ties.ts",
+                "line": 112,
+                "mutator": "MethodExpression",
+                "status": "killed"
+              },
+              {
+                "id": 306,
+                "file": "src/enrollments/enroll.ts",
+                "line": 126,
+                "mutator": "StringLiteral",
+                "status": "timeout"
+              },
+              {
+                "id": 72,
+                "file": "src/leaderboard/ties.ts",
+                "line": 108,
+                "mutator": "BlockStatement",
+                "status": "killed"
+              },
+              {
+                "id": 106,
+                "file": "src/enrollments/enroll.ts",
+                "line": 106,
+                "mutator": "StringLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 140,
+                "file": "src/leaderboard/ties.ts",
+                "line": 104,
+                "mutator": "MethodExpression",
+                "status": "killed"
+              },
+              {
+                "id": 289,
+                "file": "src/leaderboard/rank.ts",
+                "line": 37,
+                "mutator": "EqualityOperator",
+                "status": "killed"
+              },
+              {
+                "id": 208,
+                "file": "src/leaderboard/ties.ts",
+                "line": 100,
+                "mutator": "BlockStatement",
+                "status": "killed"
+              },
+              {
+                "id": 264,
+                "file": "src/leaderboard/ties.ts",
+                "line": 12,
+                "mutator": "BlockStatement",
+                "status": "killed"
+              },
+              {
+                "id": 35,
+                "file": "src/courses/catalog.ts",
+                "line": 179,
+                "mutator": "ArithmeticOperator",
+                "status": "killed"
+              },
+              {
+                "id": 363,
+                "file": "src/courses/catalog.ts",
+                "line": 75,
+                "mutator": "ArithmeticOperator",
+                "status": "survived"
+              },
+              {
+                "id": 297,
+                "file": "src/leaderboard/rank.ts",
+                "line": 153,
+                "mutator": "EqualityOperator",
+                "status": "killed"
+              },
+              {
+                "id": 366,
+                "file": "src/enrollments/enroll.ts",
+                "line": 6,
+                "mutator": "ConditionalExpression",
+                "status": "survived"
+              },
+              {
+                "id": 385,
+                "file": "src/leaderboard/rank.ts",
+                "line": 169,
+                "mutator": "EqualityOperator",
+                "status": "survived"
+              },
+              {
+                "id": 369,
+                "file": "src/leaderboard/rank.ts",
+                "line": 117,
+                "mutator": "EqualityOperator",
+                "status": "survived"
+              },
+              {
+                "id": 429,
+                "file": "src/leaderboard/rank.ts",
+                "line": 224,
+                "mutator": "StringLiteral",
+                "status": "compile-error"
+              },
+              {
+                "id": 256,
+                "file": "src/leaderboard/ties.ts",
+                "line": 76,
+                "mutator": "BlockStatement",
+                "status": "killed"
+              },
+              {
+                "id": 375,
+                "file": "src/courses/catalog.ts",
+                "line": 159,
+                "mutator": "BooleanLiteral",
+                "status": "survived"
+              },
+              {
+                "id": 320,
+                "file": "src/leaderboard/ties.ts",
+                "line": 104,
+                "mutator": "BlockStatement",
+                "status": "timeout"
+              },
+              {
+                "id": 114,
+                "file": "src/enrollments/enroll.ts",
+                "line": 42,
+                "mutator": "StringLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 373,
+                "file": "src/leaderboard/rank.ts",
+                "line": 85,
+                "mutator": "LogicalOperator",
+                "status": "survived"
+              },
+              {
+                "id": 352,
+                "file": "src/leaderboard/ties.ts",
+                "line": 28,
+                "mutator": "BlockStatement",
+                "status": "survived"
+              },
+              {
+                "id": 210,
+                "file": "src/enrollments/enroll.ts",
+                "line": 174,
+                "mutator": "StringLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 273,
+                "file": "src/leaderboard/rank.ts",
+                "line": 165,
+                "mutator": "EqualityOperator",
+                "status": "killed"
+              },
+              {
+                "id": 18,
+                "file": "src/enrollments/enroll.ts",
+                "line": 90,
+                "mutator": "StringLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 49,
+                "file": "src/leaderboard/rank.ts",
+                "line": 157,
+                "mutator": "EqualityOperator",
+                "status": "killed"
+              },
+              {
+                "id": 80,
+                "file": "src/leaderboard/ties.ts",
+                "line": 44,
+                "mutator": "BlockStatement",
+                "status": "killed"
+              },
+              {
+                "id": 111,
+                "file": "src/courses/catalog.ts",
+                "line": 111,
+                "mutator": "BooleanLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 374,
+                "file": "src/enrollments/enroll.ts",
+                "line": 122,
+                "mutator": "ConditionalExpression",
+                "status": "survived"
+              },
+              {
+                "id": 279,
+                "file": "src/courses/catalog.ts",
+                "line": 27,
+                "mutator": "BooleanLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 204,
+                "file": "src/leaderboard/ties.ts",
+                "line": 132,
+                "mutator": "MethodExpression",
+                "status": "killed"
+              },
+              {
+                "id": 235,
+                "file": "src/courses/catalog.ts",
+                "line": 19,
+                "mutator": "ArithmeticOperator",
+                "status": "killed"
+              },
+              {
+                "id": 330,
+                "file": "src/enrollments/enroll.ts",
+                "line": 114,
+                "mutator": "StringLiteral",
+                "status": "survived"
+              },
+              {
+                "id": 318,
+                "file": "src/enrollments/enroll.ts",
+                "line": 30,
+                "mutator": "ConditionalExpression",
+                "status": "timeout"
+              },
+              {
+                "id": 285,
+                "file": "src/leaderboard/rank.ts",
+                "line": 69,
+                "mutator": "LogicalOperator",
+                "status": "killed"
+              },
+              {
+                "id": 92,
+                "file": "src/leaderboard/ties.ts",
+                "line": 128,
+                "mutator": "MethodExpression",
+                "status": "killed"
+              },
+              {
+                "id": 393,
+                "file": "src/leaderboard/rank.ts",
+                "line": 105,
+                "mutator": "EqualityOperator",
+                "status": "survived"
+              },
+              {
+                "id": 152,
+                "file": "src/leaderboard/ties.ts",
+                "line": 8,
+                "mutator": "BlockStatement",
+                "status": "killed"
+              },
+              {
+                "id": 300,
+                "file": "src/leaderboard/ties.ts",
+                "line": 84,
+                "mutator": "MethodExpression",
+                "status": "killed"
+              },
+              {
+                "id": 212,
+                "file": "src/leaderboard/ties.ts",
+                "line": 68,
+                "mutator": "MethodExpression",
+                "status": "killed"
+              },
+              {
+                "id": 340,
+                "file": "src/leaderboard/ties.ts",
+                "line": 124,
+                "mutator": "MethodExpression",
+                "status": "survived"
+              },
+              {
+                "id": 315,
+                "file": "src/courses/catalog.ts",
+                "line": 99,
+                "mutator": "ArithmeticOperator",
+                "status": "timeout"
+              },
+              {
+                "id": 28,
+                "file": "src/leaderboard/ties.ts",
+                "line": 100,
+                "mutator": "MethodExpression",
+                "status": "killed"
+              },
+              {
+                "id": 319,
+                "file": "src/courses/catalog.ts",
+                "line": 67,
+                "mutator": "BooleanLiteral",
+                "status": "timeout"
+              },
+              {
+                "id": 348,
+                "file": "src/leaderboard/ties.ts",
+                "line": 60,
+                "mutator": "MethodExpression",
+                "status": "survived"
+              },
+              {
+                "id": 115,
+                "file": "src/courses/catalog.ts",
+                "line": 79,
+                "mutator": "ArithmeticOperator",
+                "status": "killed"
+              },
+              {
+                "id": 144,
+                "file": "src/leaderboard/ties.ts",
+                "line": 72,
+                "mutator": "BlockStatement",
+                "status": "killed"
+              },
+              {
+                "id": 173,
+                "file": "src/leaderboard/rank.ts",
+                "line": 65,
+                "mutator": "LogicalOperator",
+                "status": "killed"
+              },
+              {
+                "id": 304,
+                "file": "src/leaderboard/ties.ts",
+                "line": 52,
+                "mutator": "BlockStatement",
+                "status": "timeout"
+              },
+              {
+                "id": 231,
+                "file": "src/courses/catalog.ts",
+                "line": 51,
+                "mutator": "BooleanLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 260,
+                "file": "src/leaderboard/ties.ts",
+                "line": 44,
+                "mutator": "MethodExpression",
+                "status": "killed"
+              },
+              {
+                "id": 6,
+                "file": "src/enrollments/enroll.ts",
+                "line": 6,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 34,
+                "file": "src/enrollments/enroll.ts",
+                "line": 142,
+                "mutator": "StringLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 380,
+                "file": "src/leaderboard/ties.ts",
+                "line": 164,
+                "mutator": "MethodExpression",
+                "status": "survived"
+              },
+              {
+                "id": 308,
+                "file": "src/leaderboard/ties.ts",
+                "line": 20,
+                "mutator": "MethodExpression",
+                "status": "timeout"
+              },
+              {
+                "id": 118,
+                "file": "src/enrollments/enroll.ts",
+                "line": 10,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 336,
+                "file": "src/leaderboard/ties.ts",
+                "line": 156,
+                "mutator": "BlockStatement",
+                "status": "survived"
+              },
+              {
+                "id": 174,
+                "file": "src/enrollments/enroll.ts",
+                "line": 102,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 406,
+                "file": "src/leaderboard/ties.ts",
+                "line": 201,
+                "mutator": "StringLiteral",
+                "status": "ignored"
+              },
+              {
+                "id": 388,
+                "file": "src/leaderboard/ties.ts",
+                "line": 100,
+                "mutator": "MethodExpression",
+                "status": "survived"
+              },
+              {
+                "id": 258,
+                "file": "src/enrollments/enroll.ts",
+                "line": 150,
+                "mutator": "StringLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 286,
+                "file": "src/enrollments/enroll.ts",
+                "line": 106,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 378,
+                "file": "src/enrollments/enroll.ts",
+                "line": 90,
+                "mutator": "StringLiteral",
+                "status": "survived"
+              },
+              {
+                "id": 47,
+                "file": "src/courses/catalog.ts",
+                "line": 83,
+                "mutator": "BooleanLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 333,
+                "file": "src/leaderboard/rank.ts",
+                "line": 45,
+                "mutator": "LogicalOperator",
+                "status": "survived"
+              },
+              {
+                "id": 101,
+                "file": "src/leaderboard/rank.ts",
+                "line": 101,
+                "mutator": "LogicalOperator",
+                "status": "killed"
+              },
+              {
+                "id": 128,
+                "file": "src/leaderboard/ties.ts",
+                "line": 20,
+                "mutator": "BlockStatement",
+                "status": "killed"
+              },
+              {
+                "id": 351,
+                "file": "src/courses/catalog.ts",
+                "line": 171,
+                "mutator": "BooleanLiteral",
+                "status": "survived"
+              },
+              {
+                "id": 324,
+                "file": "src/leaderboard/ties.ts",
+                "line": 72,
+                "mutator": "MethodExpression",
+                "status": "survived"
+              },
+              {
+                "id": 387,
+                "file": "src/courses/catalog.ts",
+                "line": 63,
+                "mutator": "ArithmeticOperator",
+                "status": "survived"
+              },
+              {
+                "id": 236,
+                "file": "src/leaderboard/ties.ts",
+                "line": 56,
+                "mutator": "MethodExpression",
+                "status": "killed"
+              },
+              {
+                "id": 263,
+                "file": "src/courses/catalog.ts",
+                "line": 155,
+                "mutator": "BooleanLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 413,
+                "file": "src/leaderboard/rank.ts",
+                "line": 208,
+                "mutator": "StringLiteral",
+                "status": "compile-error"
+              },
+              {
+                "id": 12,
+                "file": "src/leaderboard/ties.ts",
+                "line": 48,
+                "mutator": "MethodExpression",
+                "status": "killed"
+              },
+              {
+                "id": 38,
+                "file": "src/enrollments/enroll.ts",
+                "line": 110,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 64,
+                "file": "src/leaderboard/ties.ts",
+                "line": 172,
+                "mutator": "BlockStatement",
+                "status": "killed"
+              },
+              {
+                "id": 364,
+                "file": "src/leaderboard/ties.ts",
+                "line": 112,
+                "mutator": "MethodExpression",
+                "status": "survived"
+              },
+              {
+                "id": 116,
+                "file": "src/leaderboard/ties.ts",
+                "line": 116,
+                "mutator": "MethodExpression",
+                "status": "killed"
+              },
+              {
+                "id": 403,
+                "file": "src/courses/catalog.ts",
+                "line": 115,
+                "mutator": "ArithmeticOperator",
+                "status": "no-coverage"
+              },
+              {
+                "id": 168,
+                "file": "src/leaderboard/ties.ts",
+                "line": 60,
+                "mutator": "BlockStatement",
+                "status": "killed"
+              },
+              {
+                "id": 344,
+                "file": "src/leaderboard/ties.ts",
+                "line": 92,
+                "mutator": "BlockStatement",
+                "status": "survived"
+              },
+              {
+                "id": 220,
+                "file": "src/leaderboard/ties.ts",
+                "line": 4,
+                "mutator": "MethodExpression",
+                "status": "killed"
+              },
+              {
+                "id": 246,
+                "file": "src/enrollments/enroll.ts",
+                "line": 66,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 390,
+                "file": "src/enrollments/enroll.ts",
+                "line": 174,
+                "mutator": "ConditionalExpression",
+                "status": "survived"
+              },
+              {
+                "id": 298,
+                "file": "src/enrollments/enroll.ts",
+                "line": 10,
+                "mutator": "StringLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 7,
+                "file": "src/courses/catalog.ts",
+                "line": 43,
+                "mutator": "BooleanLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 32,
+                "file": "src/leaderboard/ties.ts",
+                "line": 68,
+                "mutator": "BlockStatement",
+                "status": "killed"
+              },
+              {
+                "id": 57,
+                "file": "src/leaderboard/rank.ts",
+                "line": 93,
+                "mutator": "EqualityOperator",
+                "status": "killed"
+              },
+              {
+                "id": 400,
+                "file": "src/leaderboard/ties.ts",
+                "line": 4,
+                "mutator": "BlockStatement",
+                "status": "no-coverage"
+              },
+              {
+                "id": 107,
+                "file": "src/courses/catalog.ts",
+                "line": 143,
+                "mutator": "ArithmeticOperator",
+                "status": "killed"
+              },
+              {
+                "id": 350,
+                "file": "src/enrollments/enroll.ts",
+                "line": 134,
+                "mutator": "ConditionalExpression",
+                "status": "survived"
+              },
+              {
+                "id": 425,
+                "file": "src/leaderboard/rank.ts",
+                "line": 220,
+                "mutator": "StringLiteral",
+                "status": "compile-error"
+              },
+              {
+                "id": 405,
+                "file": "src/leaderboard/rank.ts",
+                "line": 200,
+                "mutator": "StringLiteral",
+                "status": "compile-error"
+              },
+              {
+                "id": 207,
+                "file": "src/courses/catalog.ts",
+                "line": 63,
+                "mutator": "BooleanLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 232,
+                "file": "src/leaderboard/ties.ts",
+                "line": 88,
+                "mutator": "BlockStatement",
+                "status": "killed"
+              },
+              {
+                "id": 257,
+                "file": "src/leaderboard/rank.ts",
+                "line": 113,
+                "mutator": "EqualityOperator",
+                "status": "killed"
+              },
+              {
+                "id": 410,
+                "file": "src/leaderboard/ties.ts",
+                "line": 205,
+                "mutator": "StringLiteral",
+                "status": "ignored"
+              },
+              {
+                "id": 307,
+                "file": "src/courses/catalog.ts",
+                "line": 163,
+                "mutator": "ArithmeticOperator",
+                "status": "timeout"
+              },
+              {
+                "id": 360,
+                "file": "src/leaderboard/ties.ts",
+                "line": 144,
+                "mutator": "BlockStatement",
+                "status": "survived"
+              },
+              {
+                "id": 26,
+                "file": "src/enrollments/enroll.ts",
+                "line": 26,
+                "mutator": "StringLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 50,
+                "file": "src/enrollments/enroll.ts",
+                "line": 14,
+                "mutator": "StringLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 74,
+                "file": "src/enrollments/enroll.ts",
+                "line": 2,
+                "mutator": "StringLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 98,
+                "file": "src/enrollments/enroll.ts",
+                "line": 170,
+                "mutator": "StringLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 416,
+                "file": "src/enrollments/enroll.ts",
+                "line": 211,
+                "mutator": "StringLiteral",
+                "status": "ignored"
+              },
+              {
+                "id": 384,
+                "file": "src/leaderboard/ties.ts",
+                "line": 132,
+                "mutator": "BlockStatement",
+                "status": "survived"
+              },
+              {
+                "id": 170,
+                "file": "src/enrollments/enroll.ts",
+                "line": 134,
+                "mutator": "StringLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 194,
+                "file": "src/enrollments/enroll.ts",
+                "line": 122,
+                "mutator": "StringLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 218,
+                "file": "src/enrollments/enroll.ts",
+                "line": 110,
+                "mutator": "StringLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 408,
+                "file": "src/enrollments/enroll.ts",
+                "line": 203,
+                "mutator": "StringLiteral",
+                "status": "ignored"
+              },
+              {
+                "id": 372,
+                "file": "src/leaderboard/ties.ts",
+                "line": 48,
+                "mutator": "MethodExpression",
+                "status": "survived"
+              },
+              {
+                "id": 432,
+                "file": "src/enrollments/enroll.ts",
+                "line": 227,
+                "mutator": "StringLiteral",
+                "status": "ignored"
+              },
+              {
+                "id": 392,
+                "file": "src/leaderboard/ties.ts",
+                "line": 68,
+                "mutator": "BlockStatement",
+                "status": "survived"
+              },
+              {
+                "id": 338,
+                "file": "src/enrollments/enroll.ts",
+                "line": 50,
+                "mutator": "StringLiteral",
+                "status": "survived"
+              },
+              {
+                "id": 17,
+                "file": "src/leaderboard/rank.ts",
+                "line": 53,
+                "mutator": "EqualityOperator",
+                "status": "killed"
+              },
+              {
+                "id": 40,
+                "file": "src/leaderboard/ties.ts",
+                "line": 4,
+                "mutator": "BlockStatement",
+                "status": "killed"
+              },
+              {
+                "id": 63,
+                "file": "src/courses/catalog.ts",
+                "line": 135,
+                "mutator": "BooleanLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 86,
+                "file": "src/enrollments/enroll.ts",
+                "line": 86,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 109,
+                "file": "src/leaderboard/rank.ts",
+                "line": 37,
+                "mutator": "LogicalOperator",
+                "status": "killed"
+              },
+              {
+                "id": 132,
+                "file": "src/leaderboard/ties.ts",
+                "line": 168,
+                "mutator": "MethodExpression",
+                "status": "killed"
+              },
+              {
+                "id": 155,
+                "file": "src/courses/catalog.ts",
+                "line": 119,
+                "mutator": "ArithmeticOperator",
+                "status": "killed"
+              },
+              {
+                "id": 368,
+                "file": "src/leaderboard/ties.ts",
+                "line": 80,
+                "mutator": "BlockStatement",
+                "status": "survived"
+              },
+              {
+                "id": 201,
+                "file": "src/leaderboard/rank.ts",
+                "line": 21,
+                "mutator": "EqualityOperator",
+                "status": "killed"
+              },
+              {
+                "id": 224,
+                "file": "src/leaderboard/ties.ts",
+                "line": 152,
+                "mutator": "BlockStatement",
+                "status": "killed"
+              },
+              {
+                "id": 247,
+                "file": "src/courses/catalog.ts",
+                "line": 103,
+                "mutator": "BooleanLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 270,
+                "file": "src/enrollments/enroll.ts",
+                "line": 54,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 391,
+                "file": "src/courses/catalog.ts",
+                "line": 31,
+                "mutator": "BooleanLiteral",
+                "status": "survived"
+              },
+              {
+                "id": 316,
+                "file": "src/leaderboard/ties.ts",
+                "line": 136,
+                "mutator": "MethodExpression",
+                "status": "timeout"
+              },
+              {
+                "id": 339,
+                "file": "src/courses/catalog.ts",
+                "line": 87,
+                "mutator": "ArithmeticOperator",
+                "status": "survived"
+              },
+              {
+                "id": 396,
+                "file": "src/leaderboard/ties.ts",
+                "line": 36,
+                "mutator": "MethodExpression",
+                "status": "no-coverage"
+              },
+              {
+                "id": 418,
+                "file": "src/leaderboard/ties.ts",
+                "line": 213,
+                "mutator": "StringLiteral",
+                "status": "ignored"
+              },
+              {
+                "id": 46,
+                "file": "src/enrollments/enroll.ts",
+                "line": 46,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 68,
+                "file": "src/leaderboard/ties.ts",
+                "line": 140,
+                "mutator": "MethodExpression",
+                "status": "killed"
+              },
+              {
+                "id": 90,
+                "file": "src/enrollments/enroll.ts",
+                "line": 54,
+                "mutator": "StringLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 112,
+                "file": "src/leaderboard/ties.ts",
+                "line": 148,
+                "mutator": "BlockStatement",
+                "status": "killed"
+              },
+              {
+                "id": 134,
+                "file": "src/enrollments/enroll.ts",
+                "line": 62,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 156,
+                "file": "src/leaderboard/ties.ts",
+                "line": 156,
+                "mutator": "MethodExpression",
+                "status": "killed"
+              },
+              {
+                "id": 178,
+                "file": "src/enrollments/enroll.ts",
+                "line": 70,
+                "mutator": "StringLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 200,
+                "file": "src/leaderboard/ties.ts",
+                "line": 164,
+                "mutator": "BlockStatement",
+                "status": "killed"
+              },
+              {
+                "id": 407,
+                "file": "src/courses/catalog.ts",
+                "line": 202,
+                "mutator": "StringLiteral",
+                "status": "compile-error"
+              },
+              {
+                "id": 244,
+                "file": "src/leaderboard/ties.ts",
+                "line": 172,
+                "mutator": "MethodExpression",
+                "status": "killed"
+              },
+              {
+                "id": 266,
+                "file": "src/enrollments/enroll.ts",
+                "line": 86,
+                "mutator": "StringLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 288,
+                "file": "src/leaderboard/ties.ts",
+                "line": 180,
+                "mutator": "BlockStatement",
+                "status": "killed"
+              },
+              {
+                "id": 310,
+                "file": "src/enrollments/enroll.ts",
+                "line": 94,
+                "mutator": "ConditionalExpression",
+                "status": "timeout"
+              },
+              {
+                "id": 332,
+                "file": "src/leaderboard/ties.ts",
+                "line": 8,
+                "mutator": "MethodExpression",
+                "status": "survived"
+              },
+              {
+                "id": 354,
+                "file": "src/enrollments/enroll.ts",
+                "line": 102,
+                "mutator": "StringLiteral",
+                "status": "survived"
+              },
+              {
+                "id": 376,
+                "file": "src/leaderboard/ties.ts",
+                "line": 16,
+                "mutator": "BlockStatement",
+                "status": "survived"
+              },
+              {
+                "id": 20,
+                "file": "src/leaderboard/ties.ts",
+                "line": 164,
+                "mutator": "MethodExpression",
+                "status": "killed"
+              },
+              {
+                "id": 41,
+                "file": "src/leaderboard/rank.ts",
+                "line": 41,
+                "mutator": "EqualityOperator",
+                "status": "killed"
+              },
+              {
+                "id": 399,
+                "file": "src/courses/catalog.ts",
+                "line": 147,
+                "mutator": "BooleanLiteral",
+                "status": "no-coverage"
+              },
+              {
+                "id": 83,
+                "file": "src/courses/catalog.ts",
+                "line": 155,
+                "mutator": "ArithmeticOperator",
+                "status": "killed"
+              },
+              {
+                "id": 104,
+                "file": "src/leaderboard/ties.ts",
+                "line": 32,
+                "mutator": "BlockStatement",
+                "status": "killed"
+              },
+              {
+                "id": 125,
+                "file": "src/leaderboard/rank.ts",
+                "line": 89,
+                "mutator": "LogicalOperator",
+                "status": "killed"
+              },
+              {
+                "id": 146,
+                "file": "src/enrollments/enroll.ts",
+                "line": 146,
+                "mutator": "StringLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 167,
+                "file": "src/courses/catalog.ts",
+                "line": 23,
+                "mutator": "BooleanLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 188,
+                "file": "src/leaderboard/ties.ts",
+                "line": 80,
+                "mutator": "MethodExpression",
+                "status": "killed"
+              },
+              {
+                "id": 209,
+                "file": "src/leaderboard/rank.ts",
+                "line": 137,
+                "mutator": "EqualityOperator",
+                "status": "killed"
+              },
+              {
+                "id": 230,
+                "file": "src/enrollments/enroll.ts",
+                "line": 14,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 251,
+                "file": "src/courses/catalog.ts",
+                "line": 71,
+                "mutator": "ArithmeticOperator",
+                "status": "killed"
+              },
+              {
+                "id": 272,
+                "file": "src/leaderboard/ties.ts",
+                "line": 128,
+                "mutator": "BlockStatement",
+                "status": "killed"
+              },
+              {
+                "id": 293,
+                "file": "src/leaderboard/rank.ts",
+                "line": 5,
+                "mutator": "LogicalOperator",
+                "status": "killed"
+              },
+              {
+                "id": 314,
+                "file": "src/enrollments/enroll.ts",
+                "line": 62,
+                "mutator": "StringLiteral",
+                "status": "timeout"
+              },
+              {
+                "id": 335,
+                "file": "src/courses/catalog.ts",
+                "line": 119,
+                "mutator": "BooleanLiteral",
+                "status": "survived"
+              },
+              {
+                "id": 356,
+                "file": "src/leaderboard/ties.ts",
+                "line": 176,
+                "mutator": "MethodExpression",
+                "status": "survived"
+              },
+              {
+                "id": 377,
+                "file": "src/leaderboard/rank.ts",
+                "line": 53,
+                "mutator": "EqualityOperator",
+                "status": "survived"
+              },
+              {
+                "id": 2,
+                "file": "src/enrollments/enroll.ts",
+                "line": 38,
+                "mutator": "StringLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 22,
+                "file": "src/enrollments/enroll.ts",
+                "line": 58,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 42,
+                "file": "src/enrollments/enroll.ts",
+                "line": 78,
+                "mutator": "StringLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 420,
+                "file": "src/enrollments/enroll.ts",
+                "line": 215,
+                "mutator": "StringLiteral",
+                "status": "ignored"
+              },
+              {
+                "id": 82,
+                "file": "src/enrollments/enroll.ts",
+                "line": 118,
+                "mutator": "StringLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 102,
+                "file": "src/enrollments/enroll.ts",
+                "line": 138,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 122,
+                "file": "src/enrollments/enroll.ts",
+                "line": 158,
+                "mutator": "StringLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 142,
+                "file": "src/enrollments/enroll.ts",
+                "line": 178,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 162,
+                "file": "src/enrollments/enroll.ts",
+                "line": 18,
+                "mutator": "StringLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 182,
+                "file": "src/enrollments/enroll.ts",
+                "line": 38,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 202,
+                "file": "src/enrollments/enroll.ts",
+                "line": 58,
+                "mutator": "StringLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 222,
+                "file": "src/enrollments/enroll.ts",
+                "line": 78,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 242,
+                "file": "src/enrollments/enroll.ts",
+                "line": 98,
+                "mutator": "StringLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 262,
+                "file": "src/enrollments/enroll.ts",
+                "line": 118,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 282,
+                "file": "src/enrollments/enroll.ts",
+                "line": 138,
+                "mutator": "StringLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 302,
+                "file": "src/enrollments/enroll.ts",
+                "line": 158,
+                "mutator": "ConditionalExpression",
+                "status": "timeout"
+              },
+              {
+                "id": 322,
+                "file": "src/enrollments/enroll.ts",
+                "line": 178,
+                "mutator": "StringLiteral",
+                "status": "timeout"
+              },
+              {
+                "id": 342,
+                "file": "src/enrollments/enroll.ts",
+                "line": 18,
+                "mutator": "ConditionalExpression",
+                "status": "survived"
+              },
+              {
+                "id": 362,
+                "file": "src/enrollments/enroll.ts",
+                "line": 38,
+                "mutator": "StringLiteral",
+                "status": "survived"
+              },
+              {
+                "id": 382,
+                "file": "src/enrollments/enroll.ts",
+                "line": 58,
+                "mutator": "ConditionalExpression",
+                "status": "survived"
+              },
+              {
+                "id": 402,
+                "file": "src/enrollments/enroll.ts",
+                "line": 78,
+                "mutator": "StringLiteral",
+                "status": "no-coverage"
+              },
+              {
+                "id": 5,
+                "file": "src/leaderboard/rank.ts",
+                "line": 149,
+                "mutator": "LogicalOperator",
+                "status": "killed"
+              },
+              {
+                "id": 24,
+                "file": "src/leaderboard/ties.ts",
+                "line": 132,
+                "mutator": "BlockStatement",
+                "status": "killed"
+              },
+              {
+                "id": 43,
+                "file": "src/courses/catalog.ts",
+                "line": 115,
+                "mutator": "ArithmeticOperator",
+                "status": "killed"
+              },
+              {
+                "id": 62,
+                "file": "src/enrollments/enroll.ts",
+                "line": 98,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 81,
+                "file": "src/leaderboard/rank.ts",
+                "line": 81,
+                "mutator": "EqualityOperator",
+                "status": "killed"
+              },
+              {
+                "id": 100,
+                "file": "src/leaderboard/ties.ts",
+                "line": 64,
+                "mutator": "MethodExpression",
+                "status": "killed"
+              },
+              {
+                "id": 119,
+                "file": "src/courses/catalog.ts",
+                "line": 47,
+                "mutator": "BooleanLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 138,
+                "file": "src/enrollments/enroll.ts",
+                "line": 30,
+                "mutator": "StringLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 157,
+                "file": "src/leaderboard/rank.ts",
+                "line": 13,
+                "mutator": "LogicalOperator",
+                "status": "killed"
+              },
+              {
+                "id": 176,
+                "file": "src/leaderboard/ties.ts",
+                "line": 176,
+                "mutator": "BlockStatement",
+                "status": "killed"
+              },
+              {
+                "id": 195,
+                "file": "src/courses/catalog.ts",
+                "line": 159,
+                "mutator": "ArithmeticOperator",
+                "status": "killed"
+              },
+              {
+                "id": 214,
+                "file": "src/enrollments/enroll.ts",
+                "line": 142,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 233,
+                "file": "src/leaderboard/rank.ts",
+                "line": 125,
+                "mutator": "EqualityOperator",
+                "status": "killed"
+              },
+              {
+                "id": 252,
+                "file": "src/leaderboard/ties.ts",
+                "line": 108,
+                "mutator": "MethodExpression",
+                "status": "killed"
+              },
+              {
+                "id": 271,
+                "file": "src/courses/catalog.ts",
+                "line": 91,
+                "mutator": "BooleanLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 290,
+                "file": "src/enrollments/enroll.ts",
+                "line": 74,
+                "mutator": "StringLiteral",
+                "status": "killed"
+              },
+              {
+                "id": 309,
+                "file": "src/leaderboard/rank.ts",
+                "line": 57,
+                "mutator": "LogicalOperator",
+                "status": "timeout"
+              },
+              {
+                "id": 328,
+                "file": "src/leaderboard/ties.ts",
+                "line": 40,
+                "mutator": "BlockStatement",
+                "status": "survived"
+              }
+            ]
+          },
+          "expected": {
+            "files": [
+              {
+                "file": "src/courses/catalog.ts",
+                "detected": 81,
+                "valid": 101,
+                "score": 80.2
+              },
+              {
+                "file": "src/enrollments/enroll.ts",
+                "detected": 81,
+                "valid": 101,
+                "score": 80.2
+              },
+              {
+                "file": "src/leaderboard/rank.ts",
+                "detected": 81,
+                "valid": 101,
+                "score": 80.2
+              },
+              {
+                "file": "src/leaderboard/ties.ts",
+                "detected": 80,
+                "valid": 101,
+                "score": 79.2
+              }
+            ],
+            "overall": {
+              "detected": 323,
+              "valid": 404,
+              "score": 80
+            },
+            "undetected": [
+              "src/courses/catalog.ts:3 BooleanLiteral survived #327",
+              "src/courses/catalog.ts:11 ArithmeticOperator survived #371",
+              "src/courses/catalog.ts:23 ArithmeticOperator survived #347",
+              "src/courses/catalog.ts:31 BooleanLiteral survived #391",
+              "src/courses/catalog.ts:43 BooleanLiteral survived #367",
+              "src/courses/catalog.ts:55 BooleanLiteral survived #343",
+              "src/courses/catalog.ts:63 ArithmeticOperator survived #387",
+              "src/courses/catalog.ts:75 ArithmeticOperator survived #363",
+              "src/courses/catalog.ts:87 ArithmeticOperator survived #339",
+              "src/courses/catalog.ts:95 BooleanLiteral survived #383",
+              "src/courses/catalog.ts:107 BooleanLiteral survived #359",
+              "src/courses/catalog.ts:115 ArithmeticOperator no-coverage #403",
+              "src/courses/catalog.ts:119 BooleanLiteral survived #335",
+              "src/courses/catalog.ts:127 ArithmeticOperator survived #379",
+              "src/courses/catalog.ts:139 ArithmeticOperator survived #355",
+              "src/courses/catalog.ts:147 BooleanLiteral no-coverage #399",
+              "src/courses/catalog.ts:151 ArithmeticOperator survived #331",
+              "src/courses/catalog.ts:159 BooleanLiteral survived #375",
+              "src/courses/catalog.ts:171 BooleanLiteral survived #351",
+              "src/courses/catalog.ts:179 ArithmeticOperator no-coverage #395",
+              "src/enrollments/enroll.ts:6 ConditionalExpression survived #366",
+              "src/enrollments/enroll.ts:18 ConditionalExpression survived #342",
+              "src/enrollments/enroll.ts:26 StringLiteral survived #386",
+              "src/enrollments/enroll.ts:38 StringLiteral survived #362",
+              "src/enrollments/enroll.ts:50 StringLiteral survived #338",
+              "src/enrollments/enroll.ts:58 ConditionalExpression survived #382",
+              "src/enrollments/enroll.ts:70 ConditionalExpression survived #358",
+              "src/enrollments/enroll.ts:78 StringLiteral no-coverage #402",
+              "src/enrollments/enroll.ts:82 ConditionalExpression survived #334",
+              "src/enrollments/enroll.ts:90 StringLiteral survived #378",
+              "src/enrollments/enroll.ts:102 StringLiteral survived #354",
+              "src/enrollments/enroll.ts:110 ConditionalExpression no-coverage #398",
+              "src/enrollments/enroll.ts:114 StringLiteral survived #330",
+              "src/enrollments/enroll.ts:122 ConditionalExpression survived #374",
+              "src/enrollments/enroll.ts:134 ConditionalExpression survived #350",
+              "src/enrollments/enroll.ts:142 StringLiteral survived #394",
+              "src/enrollments/enroll.ts:146 ConditionalExpression survived #326",
+              "src/enrollments/enroll.ts:154 StringLiteral survived #370",
+              "src/enrollments/enroll.ts:166 StringLiteral survived #346",
+              "src/enrollments/enroll.ts:174 ConditionalExpression survived #390",
+              "src/leaderboard/rank.ts:1 EqualityOperator survived #361",
+              "src/leaderboard/rank.ts:13 EqualityOperator survived #337",
+              "src/leaderboard/rank.ts:21 LogicalOperator survived #381",
+              "src/leaderboard/rank.ts:33 LogicalOperator survived #357",
+              "src/leaderboard/rank.ts:41 EqualityOperator no-coverage #401",
+              "src/leaderboard/rank.ts:45 LogicalOperator survived #333",
+              "src/leaderboard/rank.ts:53 EqualityOperator survived #377",
+              "src/leaderboard/rank.ts:65 EqualityOperator survived #353",
+              "src/leaderboard/rank.ts:73 LogicalOperator no-coverage #397",
+              "src/leaderboard/rank.ts:77 EqualityOperator survived #329",
+              "src/leaderboard/rank.ts:85 LogicalOperator survived #373",
+              "src/leaderboard/rank.ts:97 LogicalOperator survived #349",
+              "src/leaderboard/rank.ts:105 EqualityOperator survived #393",
+              "src/leaderboard/rank.ts:109 LogicalOperator survived #325",
+              "src/leaderboard/rank.ts:117 EqualityOperator survived #369",
+              "src/leaderboard/rank.ts:129 EqualityOperator survived #345",
+              "src/leaderboard/rank.ts:137 LogicalOperator survived #389",
+              "src/leaderboard/rank.ts:149 LogicalOperator survived #365",
+              "src/leaderboard/rank.ts:161 LogicalOperator survived #341",
+              "src/leaderboard/rank.ts:169 EqualityOperator survived #385",
+              "src/leaderboard/ties.ts:4 BlockStatement no-coverage #400",
+              "src/leaderboard/ties.ts:8 MethodExpression survived #332",
+              "src/leaderboard/ties.ts:16 BlockStatement survived #376",
+              "src/leaderboard/ties.ts:28 BlockStatement survived #352",
+              "src/leaderboard/ties.ts:36 MethodExpression no-coverage #396",
+              "src/leaderboard/ties.ts:40 BlockStatement survived #328",
+              "src/leaderboard/ties.ts:48 MethodExpression survived #372",
+              "src/leaderboard/ties.ts:60 MethodExpression survived #348",
+              "src/leaderboard/ties.ts:68 BlockStatement survived #392",
+              "src/leaderboard/ties.ts:72 MethodExpression survived #324",
+              "src/leaderboard/ties.ts:80 BlockStatement survived #368",
+              "src/leaderboard/ties.ts:92 BlockStatement survived #344",
+              "src/leaderboard/ties.ts:100 MethodExpression survived #388",
+              "src/leaderboard/ties.ts:112 MethodExpression survived #364",
+              "src/leaderboard/ties.ts:124 MethodExpression survived #340",
+              "src/leaderboard/ties.ts:132 BlockStatement survived #384",
+              "src/leaderboard/ties.ts:144 BlockStatement survived #360",
+              "src/leaderboard/ties.ts:152 MethodExpression no-coverage #404",
+              "src/leaderboard/ties.ts:156 BlockStatement survived #336",
+              "src/leaderboard/ties.ts:164 MethodExpression survived #380",
+              "src/leaderboard/ties.ts:176 MethodExpression survived #356"
+            ],
+            "gate": "fail"
+          },
+          "hidden": true,
+          "score": 4
+        },
+        {
+          "name": "Exactly at the threshold passes",
+          "input": {
+            "threshold": 80,
+            "mutants": [
+              {
+                "id": 1,
+                "file": "src/certificates/eligibility.ts",
+                "line": 20,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 2,
+                "file": "src/certificates/eligibility.ts",
+                "line": 21,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 3,
+                "file": "src/certificates/eligibility.ts",
+                "line": 22,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 4,
+                "file": "src/certificates/eligibility.ts",
+                "line": 23,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 5,
+                "file": "src/certificates/eligibility.ts",
+                "line": 24,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 6,
+                "file": "src/certificates/eligibility.ts",
+                "line": 25,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 7,
+                "file": "src/certificates/eligibility.ts",
+                "line": 26,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 8,
+                "file": "src/certificates/eligibility.ts",
+                "line": 27,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 9,
+                "file": "src/certificates/eligibility.ts",
+                "line": 28,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 10,
+                "file": "src/certificates/eligibility.ts",
+                "line": 29,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 11,
+                "file": "src/certificates/eligibility.ts",
+                "line": 40,
+                "mutator": "BlockStatement",
+                "status": "timeout"
+              },
+              {
+                "id": 12,
+                "file": "src/certificates/eligibility.ts",
+                "line": 41,
+                "mutator": "BlockStatement",
+                "status": "timeout"
+              },
+              {
+                "id": 13,
+                "file": "src/certificates/eligibility.ts",
+                "line": 50,
+                "mutator": "EqualityOperator",
+                "status": "no-coverage"
+              },
+              {
+                "id": 14,
+                "file": "src/certificates/eligibility.ts",
+                "line": 51,
+                "mutator": "EqualityOperator",
+                "status": "survived"
+              },
+              {
+                "id": 15,
+                "file": "src/certificates/eligibility.ts",
+                "line": 52,
+                "mutator": "EqualityOperator",
+                "status": "survived"
+              }
+            ]
+          },
+          "expected": {
+            "files": [
+              {
+                "file": "src/certificates/eligibility.ts",
+                "detected": 12,
+                "valid": 15,
+                "score": 80
+              }
+            ],
+            "overall": {
+              "detected": 12,
+              "valid": 15,
+              "score": 80
+            },
+            "undetected": [
+              "src/certificates/eligibility.ts:50 EqualityOperator no-coverage #13",
+              "src/certificates/eligibility.ts:51 EqualityOperator survived #14",
+              "src/certificates/eligibility.ts:52 EqualityOperator survived #15"
+            ],
+            "gate": "pass"
+          },
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Undetected mutants sorted by file, line as a number, then id",
+          "input": {
+            "threshold": 50,
+            "mutants": [
+              {
+                "id": 31,
+                "file": "src/b.ts",
+                "line": 12,
+                "mutator": "EqualityOperator",
+                "status": "survived"
+              },
+              {
+                "id": 40,
+                "file": "src/b.ts",
+                "line": 9,
+                "mutator": "ConditionalExpression",
+                "status": "survived"
+              },
+              {
+                "id": 7,
+                "file": "src/a.ts",
+                "line": 30,
+                "mutator": "BooleanLiteral",
+                "status": "no-coverage"
+              },
+              {
+                "id": 4,
+                "file": "src/b.ts",
+                "line": 12,
+                "mutator": "ArithmeticOperator",
+                "status": "no-coverage"
+              },
+              {
+                "id": 2,
+                "file": "src/B.ts",
+                "line": 1,
+                "mutator": "StringLiteral",
+                "status": "survived"
+              },
+              {
+                "id": 1,
+                "file": "src/a.ts",
+                "line": 30,
+                "mutator": "BlockStatement",
+                "status": "killed"
+              },
+              {
+                "id": 12,
+                "file": "src/b.ts",
+                "line": 100,
+                "mutator": "LogicalOperator",
+                "status": "survived"
+              }
+            ]
+          },
+          "expected": {
+            "files": [
+              {
+                "file": "src/B.ts",
+                "detected": 0,
+                "valid": 1,
+                "score": 0
+              },
+              {
+                "file": "src/a.ts",
+                "detected": 1,
+                "valid": 2,
+                "score": 50
+              },
+              {
+                "file": "src/b.ts",
+                "detected": 0,
+                "valid": 4,
+                "score": 0
+              }
+            ],
+            "overall": {
+              "detected": 1,
+              "valid": 7,
+              "score": 14.3
+            },
+            "undetected": [
+              "src/B.ts:1 StringLiteral survived #2",
+              "src/a.ts:30 BooleanLiteral no-coverage #7",
+              "src/b.ts:9 ConditionalExpression survived #40",
+              "src/b.ts:12 ArithmeticOperator no-coverage #4",
+              "src/b.ts:12 EqualityOperator survived #31",
+              "src/b.ts:100 LogicalOperator survived #12"
+            ],
+            "gate": "fail"
+          },
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "A file with only ignored and compile-error mutants has no score",
+          "input": {
+            "threshold": 70,
+            "mutants": [
+              {
+                "id": 1,
+                "file": "src/api/routes.ts",
+                "line": 4,
+                "mutator": "StringLiteral",
+                "status": "ignored"
+              },
+              {
+                "id": 2,
+                "file": "src/api/routes.ts",
+                "line": 5,
+                "mutator": "ObjectLiteral",
+                "status": "compile-error"
+              },
+              {
+                "id": 3,
+                "file": "src/api/auth.ts",
+                "line": 9,
+                "mutator": "ConditionalExpression",
+                "status": "killed"
+              },
+              {
+                "id": 4,
+                "file": "src/api/auth.ts",
+                "line": 10,
+                "mutator": "EqualityOperator",
+                "status": "killed"
+              },
+              {
+                "id": 5,
+                "file": "src/api/auth.ts",
+                "line": 11,
+                "mutator": "BooleanLiteral",
+                "status": "survived"
+              }
+            ]
+          },
+          "expected": {
+            "files": [
+              {
+                "file": "src/api/auth.ts",
+                "detected": 2,
+                "valid": 3,
+                "score": 66.7
+              },
+              {
+                "file": "src/api/routes.ts",
+                "detected": 0,
+                "valid": 0,
+                "score": null
+              }
+            ],
+            "overall": {
+              "detected": 2,
+              "valid": 3,
+              "score": 66.7
+            },
+            "undetected": [
+              "src/api/auth.ts:11 BooleanLiteral survived #5"
+            ],
+            "gate": "fail"
+          },
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "No mutants at all: nothing measured, the gate fails",
+          "input": {
+            "threshold": 0,
+            "mutants": []
+          },
+          "expected": {
+            "files": [],
+            "overall": {
+              "detected": 0,
+              "valid": 0,
+              "score": null
+            },
+            "undetected": [],
+            "gate": "fail"
+          },
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "An unknown status is reported, not counted",
+          "input": {
+            "threshold": 80,
+            "mutants": [
+              {
+                "id": 1,
+                "file": "src/pricing/price.ts",
+                "line": 8,
+                "mutator": "EqualityOperator",
+                "status": "killed"
+              },
+              {
+                "id": 2,
+                "file": "src/pricing/price.ts",
+                "line": 9,
+                "mutator": "ArithmeticOperator",
+                "status": "Survived"
+              },
+              {
+                "id": 3,
+                "file": "src/pricing/price.ts",
+                "line": 10,
+                "mutator": "BlockStatement",
+                "status": "pending"
+              }
+            ]
+          },
+          "expected": {
+            "error": "unknown status \"Survived\" for mutant 2"
+          },
+          "hidden": true,
+          "score": 2
+        }
+      ]
+    }
+  ]
+}

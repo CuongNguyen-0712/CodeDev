@@ -1,0 +1,5186 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_acp_411",
+      "name": "harden-vibe-coded-app-evidence",
+      "type": "quiz",
+      "title": "Harden the Vibe-Coded App: read the evidence",
+      "description": "Instructor Binh edited a course that belongs to instructor Ana through the vibe-coded course studio API, and one of his requests moved another of Ana's courses to him. Six statements on one evidence pack - the access log and the courses table (A), the handler (B), the agent conversation (C) and the agent's tests (D) - take you from reading the evidence to a hypothesis, past two wrong explanations, to the fix and its verification.",
+      "difficulty": "medium",
+      "outcomes": [
+        "ownership"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence A - API access log (api.codedev.test) and the courses table afterwards:\n2026-10-19T08:58:02Z POST  /api/auth/login        200 user=u_binh role=instructor sess=s_91c4 ip=198.51.100.7 ua=Firefox/131\n2026-10-19T09:02:11Z PATCH /api/courses/c_101     200 user=u_ana  role=instructor sess=s_7f2a ip=203.0.113.24 ua=Chrome/130 keys=title,price\n2026-10-19T09:12:40Z PATCH /api/courses/c_101     200 user=u_binh role=instructor sess=s_91c4 ip=198.51.100.7 ua=curl/8.5.0 keys=title\n2026-10-19T09:14:03Z PATCH /api/courses/c_102     200 user=u_binh role=instructor sess=s_91c4 ip=198.51.100.7 ua=curl/8.5.0 keys=ownerId,title\n2026-10-19T09:30:55Z GET   /api/studio/my-courses 200 user=u_ana  role=instructor sess=s_7f2a ip=203.0.113.24 ua=Chrome/130 count=1\n\n id    | owner_id | title\n c_101 | u_ana    | Binh was here\n c_102 | u_binh   | Indexes (test)\n\nStatement: \"Binh changed the title of Ana's course c_101 with his own session, and his request to c_102 with the keys ownerId and title moved that course to him, which is why Ana's dashboard now shows one course.\"",
+          "explanation": "True. Every PATCH from Binh carries user=u_binh and sess=s_91c4, the session created by his own login at 08:58 from his own IP, and both answered 200. The table shows c_101 still owned by u_ana but with Binh's title, and c_102 now owned by u_binh: the request with keys=ownerId,title rewrote the owner. Ana's \"my courses\" query (count=1) lists courses by owner_id, so c_102 left her dashboard. Reading the evidence line by line first keeps you from fixing the wrong thing: this is not a lost course or a display bug, it is a write the API accepted.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence B - the handler, as the agent wrote it (app/api/courses/[id]/route.ts):\nexport async function PATCH(req: Request, { params }: { params: { id: string } }) {\n  const user = await getSessionUser(req);\n  if (!user) return json({ error: \"unauthenticated\" }, 401);\n  if (user.role !== \"instructor\" && user.role !== \"admin\") {\n    return json({ error: \"forbidden\" }, 403);\n  }\n  const course = await db.course.findUnique({ where: { id: params.id } });\n  if (!course) return json({ error: \"not_found\" }, 404);\n  const body = await req.json();\n  const updated = await db.course.update({ where: { id: params.id }, data: body });\n  return json(updated, 200);\n}\n\nEvidence C - the agent conversation (Friday night):\n[22:41] Minh: add an edit endpoint for courses in the studio. only instructors can edit. keep it simple, demo is monday\n[22:44] agent: Added PATCH /api/courses/:id. It returns 401 without a session and 403 unless the user is an instructor or an admin. The body is passed to db.course.update, so new course fields work without changing the handler. Added 3 tests in route.test.ts, all passing.\n[22:45] Minh: perfect, ship it\n\nStatement: \"The handler checks that there is a session and that the role is instructor or admin, but nothing compares the course's owner with the caller, and data: body also lets a request overwrite ownerId; the agent built exactly the one-line requirement in C.\"",
+          "explanation": "True. B answers \"who are you?\" (authentication) and \"what kind of user are you?\" (the role), but never \"is this object yours?\" - the missing object-level authorization that the OWASP API Security Top 10 lists first, as Broken Object Level Authorization (BOLA). Passing the whole body to the update is the property-level version of the same problem (mass assignment): every column, ownerId included, becomes writable. C shows the agent did what it was asked: \"only instructors can edit\" was the whole requirement, and its summary even says the body is passed through. The common misconception is that the agent disobeyed; the requirement was incomplete, and the person who merged it owns that gap.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence A - API access log (api.codedev.test) and the courses table afterwards:\n2026-10-19T08:58:02Z POST  /api/auth/login        200 user=u_binh role=instructor sess=s_91c4 ip=198.51.100.7 ua=Firefox/131\n2026-10-19T09:02:11Z PATCH /api/courses/c_101     200 user=u_ana  role=instructor sess=s_7f2a ip=203.0.113.24 ua=Chrome/130 keys=title,price\n2026-10-19T09:12:40Z PATCH /api/courses/c_101     200 user=u_binh role=instructor sess=s_91c4 ip=198.51.100.7 ua=curl/8.5.0 keys=title\n2026-10-19T09:14:03Z PATCH /api/courses/c_102     200 user=u_binh role=instructor sess=s_91c4 ip=198.51.100.7 ua=curl/8.5.0 keys=ownerId,title\n2026-10-19T09:30:55Z GET   /api/studio/my-courses 200 user=u_ana  role=instructor sess=s_7f2a ip=203.0.113.24 ua=Chrome/130 count=1\n\n id    | owner_id | title\n c_101 | u_ana    | Binh was here\n c_102 | u_binh   | Indexes (test)\n\nStatement: \"Ana's session was hijacked: the edits were made with a stolen session, so invalidating every session and forcing a new login closes the hole.\"",
+          "explanation": "False. The edits came from s_91c4, which belongs to u_binh: it was created by his own login at 08:58 from 198.51.100.7, and every PATCH from it is logged as user=u_binh. Ana's session s_7f2a was only used from her own IP and browser. Invalidating sessions changes nothing: Binh logs in again with his own valid account and the same request works, because the API lets any instructor edit any course. The misconception is to reach for the scariest explanation (a stolen session) before reading the user and session fields in the log.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence A - API access log (api.codedev.test) and the courses table afterwards:\n2026-10-19T08:58:02Z POST  /api/auth/login        200 user=u_binh role=instructor sess=s_91c4 ip=198.51.100.7 ua=Firefox/131\n2026-10-19T09:02:11Z PATCH /api/courses/c_101     200 user=u_ana  role=instructor sess=s_7f2a ip=203.0.113.24 ua=Chrome/130 keys=title,price\n2026-10-19T09:12:40Z PATCH /api/courses/c_101     200 user=u_binh role=instructor sess=s_91c4 ip=198.51.100.7 ua=curl/8.5.0 keys=title\n2026-10-19T09:14:03Z PATCH /api/courses/c_102     200 user=u_binh role=instructor sess=s_91c4 ip=198.51.100.7 ua=curl/8.5.0 keys=ownerId,title\n2026-10-19T09:30:55Z GET   /api/studio/my-courses 200 user=u_ana  role=instructor sess=s_7f2a ip=203.0.113.24 ua=Chrome/130 count=1\n\n id    | owner_id | title\n c_101 | u_ana    | Binh was here\n c_102 | u_binh   | Indexes (test)\n\nEvidence B - the handler, as the agent wrote it (app/api/courses/[id]/route.ts):\nexport async function PATCH(req: Request, { params }: { params: { id: string } }) {\n  const user = await getSessionUser(req);\n  if (!user) return json({ error: \"unauthenticated\" }, 401);\n  if (user.role !== \"instructor\" && user.role !== \"admin\") {\n    return json({ error: \"forbidden\" }, 403);\n  }\n  const course = await db.course.findUnique({ where: { id: params.id } });\n  if (!course) return json({ error: \"not_found\" }, 404);\n  const body = await req.json();\n  const updated = await db.course.update({ where: { id: params.id }, data: body });\n  return json(updated, 200);\n}\n\nStatement: \"Binh's account was given the wrong role and the API treated him as an admin; fixing the role mapping closes the hole.\"",
+          "explanation": "False. The log shows role=instructor on every one of Binh's requests, and B lets any instructor through: the role check worked exactly as written, and any other instructor could do the same thing tomorrow. A role answers \"may this kind of user edit courses at all?\"; it cannot answer \"may this user edit this course?\", which needs the course's owner_id compared with the caller's id. The misconception is to treat an object-level question as a role (RBAC) problem.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence A - API access log (api.codedev.test) and the courses table afterwards:\n2026-10-19T08:58:02Z POST  /api/auth/login        200 user=u_binh role=instructor sess=s_91c4 ip=198.51.100.7 ua=Firefox/131\n2026-10-19T09:02:11Z PATCH /api/courses/c_101     200 user=u_ana  role=instructor sess=s_7f2a ip=203.0.113.24 ua=Chrome/130 keys=title,price\n2026-10-19T09:12:40Z PATCH /api/courses/c_101     200 user=u_binh role=instructor sess=s_91c4 ip=198.51.100.7 ua=curl/8.5.0 keys=title\n2026-10-19T09:14:03Z PATCH /api/courses/c_102     200 user=u_binh role=instructor sess=s_91c4 ip=198.51.100.7 ua=curl/8.5.0 keys=ownerId,title\n2026-10-19T09:30:55Z GET   /api/studio/my-courses 200 user=u_ana  role=instructor sess=s_7f2a ip=203.0.113.24 ua=Chrome/130 count=1\n\n id    | owner_id | title\n c_101 | u_ana    | Binh was here\n c_102 | u_binh   | Indexes (test)\n\nEvidence B - the handler, as the agent wrote it (app/api/courses/[id]/route.ts):\nexport async function PATCH(req: Request, { params }: { params: { id: string } }) {\n  const user = await getSessionUser(req);\n  if (!user) return json({ error: \"unauthenticated\" }, 401);\n  if (user.role !== \"instructor\" && user.role !== \"admin\") {\n    return json({ error: \"forbidden\" }, 403);\n  }\n  const course = await db.course.findUnique({ where: { id: params.id } });\n  if (!course) return json({ error: \"not_found\" }, 404);\n  const body = await req.json();\n  const updated = await db.course.update({ where: { id: params.id }, data: body });\n  return json(updated, 200);\n}\n\nStatement: \"Hiding the Edit button in the studio for courses the instructor does not own fixes the incident, because instructors can only reach the API through the studio.\"",
+          "explanation": "False. Binh's two PATCH requests were sent with ua=curl/8.5.0, not from the studio: anyone with a valid session can call the API directly, with any course id and any body. The UI is a convenience, not a security boundary. The fix belongs in the handler: compare the course owner with the caller (admins excepted, with one documented answer such as 404 for \"missing or not yours\"), and accept only an allowlist of editable fields so that ownerId, id and createdAt can never be set through PATCH. Hiding the button is still good UX, as an addition to the server check.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence B - the handler, as the agent wrote it (app/api/courses/[id]/route.ts):\nexport async function PATCH(req: Request, { params }: { params: { id: string } }) {\n  const user = await getSessionUser(req);\n  if (!user) return json({ error: \"unauthenticated\" }, 401);\n  if (user.role !== \"instructor\" && user.role !== \"admin\") {\n    return json({ error: \"forbidden\" }, 403);\n  }\n  const course = await db.course.findUnique({ where: { id: params.id } });\n  if (!course) return json({ error: \"not_found\" }, 404);\n  const body = await req.json();\n  const updated = await db.course.update({ where: { id: params.id }, data: body });\n  return json(updated, 200);\n}\n\nEvidence D - the test file the agent wrote (route.test.ts), 3 passed:\nit(\"lets an instructor update a course\", async () => {\n  const ana = await createUser({ role: \"instructor\" });\n  const course = await createCourse({ ownerId: ana.id, title: \"Old\" });\n  expect((await patchCourse(course.id, { title: \"New\" }, ana)).status).toBe(200);\n  expect((await getCourse(course.id)).title).toBe(\"New\");\n});\nit(\"rejects anonymous requests\", async () => {\n  const course = await createCourse({ title: \"Old\" });\n  expect((await patchCourse(course.id, { title: \"x\" }, null)).status).toBe(401);\n});\nit(\"rejects learners\", async () => {\n  const lan = await createUser({ role: \"learner\" });\n  const course = await createCourse({ title: \"Old\" });\n  expect((await patchCourse(course.id, { title: \"x\" }, lan)).status).toBe(403);\n});\n\nStatement: \"All three tests in D pass on this handler; a new test in which a second instructor PATCHes the first instructor's course and expects 404 with the course unchanged would fail on this handler and pass after the owner check is added.\"",
+          "explanation": "True. Every test in D has a single user: the owner on the happy path, then an anonymous user and a learner, whom the session and role checks already reject. No test has two instructors, so the missing owner check is invisible to the suite: it is green because it never asks the question. A test with Ana and Binh fails today (B returns 200 and the title changes) and passes once the handler compares owner_id with the caller. Add one with ownerId in the body and one with an admin, and the suite pins the whole policy. The misconception is that passing tests written by the same agent prove the requirement is safe; they prove only what they check.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_acp_412",
+      "name": "spot-the-ai-mistake-admin-api-owner-check",
+      "type": "fix_bug",
+      "title": "Spot the AI Mistake: an admin API without an owner check",
+      "description": "The CodeDev course studio was vibe-coded in a weekend. The request sent to the coding agent was: \"Add an edit endpoint for courses in the course studio. Only instructors can edit. Keep it simple, the demo is on Monday.\" Its handler updateCourse (PATCH /api/courses/:id, plain TypeScript with an in-memory store and sessions that the auth middleware has already resolved) passes the agent's tests, but on Monday instructor Binh edited a course owned by instructor Ana, and a request from Binh with \"ownerId\" in the body moved another of Ana's courses to him. Fix updateCourse so that it follows this policy, checked in this order: (1) no user (missing or unknown session): 401 {\"error\":\"unauthenticated\"}; (2) a role other than instructor or admin: 403 {\"error\":\"forbidden\"}; (3) a body that is not a JSON object (null, an array, a string): 400 {\"error\":\"invalid_body\"}; (4) the course does not exist, or the caller is an instructor who does not own it (course.ownerId differs from user.id): 404 {\"error\":\"not_found\"}, the same answer in both cases so that the API does not reveal which course ids exist; an admin may edit any course; (5) the body keys, in their order: a key other than title, description and price (id, ownerId, createdAt or any unknown field) gives 400 {\"error\":\"field_not_editable\",\"field\":<key>}; an invalid value gives 400 {\"error\":\"invalid_field\",\"field\":<key>} (title: a string that is not blank, description: a string, price: an integer >= 0); the first failing key decides; (6) otherwise 200 with the updated course, in which only the keys of the body changed. A rejected request changes nothing, and nobody can change ownerId through this endpoint, not even an admin. The test runner sends a list of requests, prints one line per request (status and error) and then every course in the store. The public tests pass on the agent's code; the hidden tests use a second instructor, ownerId in the body, a missing course and an admin.",
+      "difficulty": "medium",
+      "outcomes": [
+        "ownership"
+      ],
+      "points": 30,
+      "hints": [
+        "The agent's code asks two questions about the caller: is there a session, and is the role instructor or admin? Which question about this particular course does it never ask, and which keys of the body can end up in the stored course?",
+        "Look at the lines between `courses.get(req.params.id)` and the spread `{ ...course, ...changes }`. Which field of the course says whose it is, and what does the loop over the body do with a key it does not recognise?",
+        "A similar case on another resource: announcements { id, authorId, text, pinned }. `const a = store.get(id); if (!a || (user.role !== \"admin\" && a.authorId !== user.id)) return { status: 404 };` treats \"missing\" and \"not yours\" the same. For PATCH, a list of allowed keys such as `new Set([\"text\"])` rejects `authorId` and `pinned` before anything is copied."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The owner edits her own course, another instructor edits his own",
+          "input": [
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "title": "SQL for Absolute Beginners",
+                "price": 79000
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_201",
+              "body": {
+                "description": "Images, containers and volumes."
+              }
+            }
+          ],
+          "expected": "#1 PATCH /api/courses/c_101 as u_ana: 200 ok\n#2 PATCH /api/courses/c_201 as u_binh: 200 ok\nc_101: id=c_101 owner=u_ana title=\"SQL for Absolute Beginners\" description=\"Tables, SELECT and WHERE.\" price=79000 createdAt=2026-09-01\nc_102: id=c_102 owner=u_ana title=\"Indexes in Practice\" description=\"B-trees and query plans.\" price=149000 createdAt=2026-09-15\nc_201: id=c_201 owner=u_binh title=\"Docker Basics\" description=\"Images, containers and volumes.\" price=0 createdAt=2026-10-02",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Anonymous, learner, a negative price and a blank title are rejected",
+          "input": [
+            {
+              "session": null,
+              "courseId": "c_101",
+              "body": {
+                "title": "Hacked"
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_101",
+              "body": {
+                "title": "Hacked"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_102",
+              "body": {
+                "price": -5
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_102",
+              "body": {
+                "title": "   "
+              }
+            }
+          ],
+          "expected": "#1 PATCH /api/courses/c_101 as anonymous: 401 unauthenticated\n#2 PATCH /api/courses/c_101 as u_lan: 403 forbidden\n#3 PATCH /api/courses/c_102 as u_ana: 400 invalid_field (price)\n#4 PATCH /api/courses/c_102 as u_ana: 400 invalid_field (title)\nc_101: id=c_101 owner=u_ana title=\"SQL for Beginners\" description=\"Tables, SELECT and WHERE.\" price=99000 createdAt=2026-09-01\nc_102: id=c_102 owner=u_ana title=\"Indexes in Practice\" description=\"B-trees and query plans.\" price=149000 createdAt=2026-09-15\nc_201: id=c_201 owner=u_binh title=\"Docker Basics\" description=\"Images and containers.\" price=0 createdAt=2026-10-02",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "A second instructor cannot edit another instructor's courses: 404, nothing changes",
+          "input": [
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "title": "Binh was here"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {
+                "price": 0
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_201",
+              "body": {
+                "title": "Docker in Practice"
+              }
+            }
+          ],
+          "expected": "#1 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#2 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#3 PATCH /api/courses/c_201 as u_binh: 200 ok\nc_101: id=c_101 owner=u_ana title=\"SQL for Beginners\" description=\"Tables, SELECT and WHERE.\" price=99000 createdAt=2026-09-01\nc_102: id=c_102 owner=u_ana title=\"Indexes in Practice\" description=\"B-trees and query plans.\" price=149000 createdAt=2026-09-15\nc_201: id=c_201 owner=u_binh title=\"Docker in Practice\" description=\"Images and containers.\" price=0 createdAt=2026-10-02",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "ownerId in the body: no takeover, and id, ownerId, createdAt are not editable by the owner",
+          "input": [
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {
+                "ownerId": "u_binh",
+                "title": "Indexes (test)"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_102",
+              "body": {
+                "title": "Indexes in Practice, 2nd ed.",
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "id": "c_999"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            }
+          ],
+          "expected": "#1 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#2 PATCH /api/courses/c_102 as u_ana: 400 field_not_editable (ownerId)\n#3 PATCH /api/courses/c_101 as u_ana: 400 field_not_editable (id)\n#4 PATCH /api/courses/c_101 as u_ana: 400 field_not_editable (createdAt)\nc_101: id=c_101 owner=u_ana title=\"SQL for Beginners\" description=\"Tables, SELECT and WHERE.\" price=99000 createdAt=2026-09-01\nc_102: id=c_102 owner=u_ana title=\"Indexes in Practice\" description=\"B-trees and query plans.\" price=149000 createdAt=2026-09-15\nc_201: id=c_201 owner=u_binh title=\"Docker Basics\" description=\"Images and containers.\" price=0 createdAt=2026-10-02",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "A missing course is 404; the session and role are checked before the course lookup",
+          "input": [
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {
+                "title": "Ghost"
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_404",
+              "body": {
+                "title": "Ghost"
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_404",
+              "body": {
+                "title": "Ghost"
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_404",
+              "body": {
+                "title": "Ghost"
+              }
+            }
+          ],
+          "expected": "#1 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#2 PATCH /api/courses/c_404 as u_admin: 404 not_found\n#3 PATCH /api/courses/c_404 as u_lan: 403 forbidden\n#4 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\nc_101: id=c_101 owner=u_ana title=\"SQL for Beginners\" description=\"Tables, SELECT and WHERE.\" price=99000 createdAt=2026-09-01\nc_102: id=c_102 owner=u_ana title=\"Indexes in Practice\" description=\"B-trees and query plans.\" price=149000 createdAt=2026-09-15\nc_201: id=c_201 owner=u_binh title=\"Docker Basics\" description=\"Images and containers.\" price=0 createdAt=2026-10-02",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "An admin may edit any course but cannot change its owner",
+          "input": [
+            {
+              "session": "sess_admin",
+              "courseId": "c_201",
+              "body": {
+                "title": "Docker Basics (reviewed)",
+                "price": 49000
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_101",
+              "body": {
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_102",
+              "body": {
+                "description": "B-trees, query plans and EXPLAIN."
+              }
+            }
+          ],
+          "expected": "#1 PATCH /api/courses/c_201 as u_admin: 200 ok\n#2 PATCH /api/courses/c_101 as u_admin: 400 field_not_editable (ownerId)\n#3 PATCH /api/courses/c_102 as u_admin: 200 ok\nc_101: id=c_101 owner=u_ana title=\"SQL for Beginners\" description=\"Tables, SELECT and WHERE.\" price=99000 createdAt=2026-09-01\nc_102: id=c_102 owner=u_ana title=\"Indexes in Practice\" description=\"B-trees, query plans and EXPLAIN.\" price=149000 createdAt=2026-09-15\nc_201: id=c_201 owner=u_binh title=\"Docker Basics (reviewed)\" description=\"Images and containers.\" price=49000 createdAt=2026-10-02",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Invalid bodies, unknown fields and bad values change nothing",
+          "input": [
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": null
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": [
+                {
+                  "title": "x"
+                }
+              ]
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": "title=x"
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "title": "Fine title",
+                "featured": true
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "price": 10.5
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "price": "99000"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "description": 42
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {}
+            }
+          ],
+          "expected": "#1 PATCH /api/courses/c_101 as u_ana: 400 invalid_body\n#2 PATCH /api/courses/c_101 as u_ana: 400 invalid_body\n#3 PATCH /api/courses/c_101 as u_ana: 400 invalid_body\n#4 PATCH /api/courses/c_101 as u_ana: 400 field_not_editable (published)\n#5 PATCH /api/courses/c_101 as u_ana: 400 field_not_editable (featured)\n#6 PATCH /api/courses/c_101 as u_ana: 400 invalid_field (price)\n#7 PATCH /api/courses/c_101 as u_ana: 400 invalid_field (price)\n#8 PATCH /api/courses/c_101 as u_ana: 400 invalid_field (description)\n#9 PATCH /api/courses/c_101 as u_ana: 200 ok\nc_101: id=c_101 owner=u_ana title=\"SQL for Beginners\" description=\"Tables, SELECT and WHERE.\" price=99000 createdAt=2026-09-01\nc_102: id=c_102 owner=u_ana title=\"Indexes in Practice\" description=\"B-trees and query plans.\" price=149000 createdAt=2026-09-15\nc_201: id=c_201 owner=u_binh title=\"Docker Basics\" description=\"Images and containers.\" price=0 createdAt=2026-10-02",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "700 mixed requests from every kind of user",
+          "input": [
+            {
+              "session": "sess_ana",
+              "courseId": "c_102",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_201",
+              "body": {}
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "title": "Draft 3"
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_201",
+              "body": {
+                "title": "Draft 4"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "price": -5
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "title": "Take 6",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {
+                "title": "Take 7",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_404",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_404",
+              "body": {
+                "description": "Revision 9"
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_101",
+              "body": null
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_404",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_404",
+              "body": null
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_404",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_404",
+              "body": {
+                "price": -14
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_102",
+              "body": null
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {
+                "title": "Final 16",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_201",
+              "body": {
+                "price": -17
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_102",
+              "body": null
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_404",
+              "body": {
+                "title": "Take 19",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_404",
+              "body": {
+                "title": "Draft 20"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_201",
+              "body": {
+                "title": "Draft 21"
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_404",
+              "body": {
+                "title": "Take 22",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_102",
+              "body": {
+                "price": 23000
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_102",
+              "body": {
+                "price": 24000
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_102",
+              "body": {
+                "price": -25
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_101",
+              "body": {
+                "title": "Final 26",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_201",
+              "body": {
+                "title": "Take 27",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_101",
+              "body": {
+                "id": "c_28"
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_101",
+              "body": null
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_201",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_101",
+              "body": {
+                "price": 31000
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_102",
+              "body": null
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_201",
+              "body": {
+                "description": "Revision 34"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_101",
+              "body": {
+                "description": "Revision 36"
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_201",
+              "body": {
+                "title": "Draft 37"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_404",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_201",
+              "body": {
+                "title": "   "
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_102",
+              "body": {
+                "title": "Final 40",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_102",
+              "body": {
+                "title": "Take 41",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_102",
+              "body": {}
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_201",
+              "body": {
+                "title": "Draft 43"
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_201",
+              "body": {
+                "price": -44
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_101",
+              "body": {
+                "title": "   "
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_201",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_102",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "title": "   "
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_101",
+              "body": {
+                "id": "c_49"
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_102",
+              "body": null
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_102",
+              "body": {}
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_201",
+              "body": {
+                "id": "c_53"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {
+                "title": "   "
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_404",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {
+                "title": "Take 56",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_101",
+              "body": null
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_102",
+              "body": {
+                "title": "Final 59",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_101",
+              "body": {
+                "description": "Revision 60"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_102",
+              "body": {
+                "description": "Revision 61"
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_101",
+              "body": {
+                "price": 62000
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_201",
+              "body": {
+                "title": "Final 63",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_102",
+              "body": {
+                "price": 64000
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "id": "c_65"
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_201",
+              "body": {}
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_102",
+              "body": {
+                "price": -67
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_102",
+              "body": {
+                "price": -68
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_102",
+              "body": {}
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "id": "c_70"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {
+                "title": "Take 71",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_404",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {
+                "title": "Draft 74"
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_101",
+              "body": null
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_404",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_404",
+              "body": null
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {
+                "description": "Revision 79"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "id": "c_80"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "id": "c_81"
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_201",
+              "body": {
+                "title": "Take 82",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_102",
+              "body": null
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_201",
+              "body": null
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {}
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_102",
+              "body": {
+                "title": "Take 86",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_201",
+              "body": {
+                "title": "Draft 87"
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_102",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_404",
+              "body": null
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_201",
+              "body": null
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_101",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {}
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "title": "   "
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_201",
+              "body": {
+                "price": 96000
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_201",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_201",
+              "body": {
+                "title": "Take 98",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "title": "Final 100",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "description": "Revision 101"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "price": -102
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_201",
+              "body": {
+                "description": "Revision 103"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "title": "Final 104",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_404",
+              "body": {
+                "title": "Final 105",
+                "price": 50000
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_201",
+              "body": {
+                "price": -106
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_201",
+              "body": {
+                "price": 107000
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_404",
+              "body": {
+                "title": "Final 108",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_102",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "price": -110
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_201",
+              "body": {
+                "title": "Take 111",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_102",
+              "body": {
+                "id": "c_112"
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_101",
+              "body": {
+                "price": 113000
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_102",
+              "body": {
+                "title": "   "
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {
+                "title": "Take 115",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_201",
+              "body": {
+                "title": "Final 117",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {
+                "title": "Draft 118"
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_201",
+              "body": {
+                "description": "Revision 119"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_201",
+              "body": {
+                "price": -120
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_102",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_404",
+              "body": {
+                "description": "Revision 122"
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_102",
+              "body": {
+                "title": "Take 123",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_201",
+              "body": {
+                "title": "Take 124",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_102",
+              "body": {
+                "title": "Take 125",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_101",
+              "body": {
+                "description": "Revision 126"
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_101",
+              "body": {
+                "title": "Final 127",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_101",
+              "body": {
+                "id": "c_128"
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_102",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_201",
+              "body": {
+                "description": "Revision 132"
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_102",
+              "body": {
+                "title": "Draft 133"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_102",
+              "body": {
+                "title": "   "
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_201",
+              "body": {}
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {}
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "title": "   "
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_201",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_201",
+              "body": {}
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_101",
+              "body": {
+                "price": 140000
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_201",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_201",
+              "body": {
+                "title": "   "
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": null
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_404",
+              "body": {
+                "title": "Final 144",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_102",
+              "body": {
+                "title": "   "
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_102",
+              "body": {
+                "description": "Revision 146"
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_101",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_201",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "price": -149
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_102",
+              "body": {
+                "id": "c_150"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "title": "Draft 151"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_201",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_201",
+              "body": null
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": null
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_102",
+              "body": {
+                "price": 155000
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_201",
+              "body": {
+                "description": "Revision 156"
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_404",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_404",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_101",
+              "body": {}
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_404",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_404",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {
+                "price": -163
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_404",
+              "body": {
+                "id": "c_164"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "title": "Final 165",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_404",
+              "body": {
+                "title": "Final 166",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_102",
+              "body": {}
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "description": "Revision 169"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {
+                "title": "Final 170",
+                "price": 50000
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_102",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_201",
+              "body": {
+                "title": "Take 173",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_102",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_201",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_201",
+              "body": {
+                "title": "   "
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {
+                "price": 177000
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "description": "Revision 178"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_201",
+              "body": {}
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_404",
+              "body": {
+                "id": "c_180"
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_201",
+              "body": {}
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_201",
+              "body": {
+                "id": "c_182"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "title": "   "
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_404",
+              "body": {
+                "title": "Final 184",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_101",
+              "body": {
+                "title": "Final 185",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {
+                "price": 186000
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_101",
+              "body": null
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {}
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_201",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_404",
+              "body": {
+                "price": -190
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_404",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_404",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_102",
+              "body": {
+                "title": "Take 193",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_201",
+              "body": {
+                "title": "Draft 194"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_102",
+              "body": {
+                "price": 195000
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "id": "c_197"
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_201",
+              "body": {
+                "title": "   "
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_101",
+              "body": {
+                "title": "Final 199",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_101",
+              "body": {
+                "description": "Revision 200"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "description": "Revision 201"
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_201",
+              "body": {
+                "title": "Draft 202"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_102",
+              "body": {
+                "description": "Revision 203"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_404",
+              "body": {
+                "title": "Draft 205"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "description": "Revision 206"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_404",
+              "body": {
+                "title": "Take 207",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_101",
+              "body": {}
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_201",
+              "body": {
+                "price": -209
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_101",
+              "body": {
+                "title": "Draft 210"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_101",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_201",
+              "body": {
+                "title": "Take 213",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_101",
+              "body": {
+                "title": "   "
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "price": 215000
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "title": "Take 216",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_201",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_101",
+              "body": {
+                "title": "   "
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_101",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "description": "Revision 221"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {}
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_201",
+              "body": {
+                "title": "Final 223",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_101",
+              "body": {
+                "price": -224
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_201",
+              "body": {
+                "title": "Final 225",
+                "price": 50000
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_101",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_102",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_404",
+              "body": {
+                "title": "Draft 228"
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_404",
+              "body": {
+                "price": 229000
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_201",
+              "body": null
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_201",
+              "body": {
+                "title": "Final 231",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": null
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {
+                "title": "Draft 234"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_404",
+              "body": null
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_201",
+              "body": null
+            },
+            {
+              "session": null,
+              "courseId": "c_201",
+              "body": {
+                "id": "c_237"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_201",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_201",
+              "body": {
+                "description": "Revision 239"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {
+                "title": "Final 240",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_101",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_102",
+              "body": {
+                "title": "Take 242",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_102",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_201",
+              "body": {
+                "price": 244000
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_201",
+              "body": {
+                "title": "Take 245",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_404",
+              "body": {}
+            },
+            {
+              "session": null,
+              "courseId": "c_201",
+              "body": {
+                "id": "c_248"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_404",
+              "body": {}
+            },
+            {
+              "session": null,
+              "courseId": "c_404",
+              "body": {
+                "id": "c_250"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_102",
+              "body": {}
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_102",
+              "body": {
+                "title": "Take 252",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_404",
+              "body": {
+                "title": "Draft 253"
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_102",
+              "body": {}
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_101",
+              "body": {
+                "title": "Final 255",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_201",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {
+                "title": "   "
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "title": "Final 258",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_201",
+              "body": {
+                "title": "Final 259",
+                "price": 50000
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_101",
+              "body": {
+                "title": "Draft 260"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {
+                "price": -261
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_404",
+              "body": {
+                "title": "Take 262",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_404",
+              "body": {
+                "description": "Revision 263"
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_201",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_201",
+              "body": {
+                "price": -265
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_201",
+              "body": {
+                "title": "Take 266",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_404",
+              "body": {
+                "title": "Draft 267"
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_201",
+              "body": {
+                "description": "Revision 268"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_201",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_201",
+              "body": {
+                "price": 271000
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_101",
+              "body": {
+                "title": "Final 273",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_102",
+              "body": {
+                "price": -274
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_201",
+              "body": {}
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {}
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_404",
+              "body": {
+                "description": "Revision 277"
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_404",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_101",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_404",
+              "body": {
+                "id": "c_280"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "description": "Revision 281"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "price": 282000
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {
+                "description": "Revision 283"
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_201",
+              "body": {
+                "title": "Final 284",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_102",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {
+                "id": "c_286"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {}
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_404",
+              "body": {}
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_201",
+              "body": {}
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_201",
+              "body": {
+                "id": "c_290"
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_102",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_102",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_102",
+              "body": {
+                "title": "Take 293",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_404",
+              "body": {
+                "price": -294
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_201",
+              "body": {
+                "price": -295
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_404",
+              "body": {
+                "id": "c_296"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_404",
+              "body": {
+                "price": 297000
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_404",
+              "body": {
+                "price": 298000
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_201",
+              "body": {
+                "title": "Final 299",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {
+                "title": "Take 300",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_201",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "title": "   "
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {
+                "title": "Take 303",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_101",
+              "body": {
+                "title": "   "
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_404",
+              "body": {
+                "title": "   "
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "title": "Draft 306"
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_201",
+              "body": {
+                "title": "Draft 307"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_102",
+              "body": {
+                "id": "c_308"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {
+                "title": "Final 309",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_102",
+              "body": {
+                "title": "Final 310",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "title": "Final 311",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_101",
+              "body": {
+                "price": -312
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_201",
+              "body": {
+                "title": "Draft 313"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {
+                "price": -314
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_404",
+              "body": {}
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "title": "Draft 316"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {
+                "title": "Final 318",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_102",
+              "body": null
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": null
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_201",
+              "body": {
+                "id": "c_322"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "title": "Final 323",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_404",
+              "body": {
+                "title": "   "
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "title": "   "
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_404",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_201",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_101",
+              "body": null
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_102",
+              "body": {}
+            },
+            {
+              "session": null,
+              "courseId": "c_201",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_102",
+              "body": {
+                "title": "Draft 333"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_201",
+              "body": {
+                "id": "c_334"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_201",
+              "body": {
+                "title": "Draft 335"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {
+                "title": "Draft 336"
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_404",
+              "body": {
+                "title": "Final 337",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_404",
+              "body": {
+                "price": -338
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_102",
+              "body": {
+                "price": 339000
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_404",
+              "body": null
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_404",
+              "body": {
+                "title": "Take 341",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {
+                "description": "Revision 342"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "description": "Revision 343"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_102",
+              "body": {
+                "title": "Draft 344"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "title": "   "
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_101",
+              "body": {
+                "title": "Draft 346"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "title": "Take 348",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {
+                "title": "Draft 350"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "price": -351
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "title": "Final 352",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {
+                "price": 353000
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_404",
+              "body": {
+                "description": "Revision 354"
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_201",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_404",
+              "body": null
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_102",
+              "body": {
+                "title": "Take 357",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_201",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "price": 359000
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_102",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {}
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_102",
+              "body": {
+                "title": "Take 362",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_102",
+              "body": {
+                "title": "Final 363",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_201",
+              "body": {
+                "title": "Draft 364"
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_102",
+              "body": {}
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_404",
+              "body": {
+                "title": "Final 366",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_101",
+              "body": {
+                "price": 367000
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_404",
+              "body": {
+                "title": "   "
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {
+                "price": -370
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_404",
+              "body": {
+                "price": 371000
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {
+                "id": "c_372"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": null
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_102",
+              "body": {
+                "title": "Final 374",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {
+                "title": "Draft 375"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_102",
+              "body": null
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_201",
+              "body": {
+                "title": "Draft 377"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_101",
+              "body": {
+                "title": "   "
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_201",
+              "body": {}
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_201",
+              "body": {}
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": null
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "price": -383
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_101",
+              "body": {
+                "id": "c_384"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {
+                "title": "   "
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_101",
+              "body": {
+                "description": "Revision 386"
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_201",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "price": -388
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_404",
+              "body": {
+                "title": "Final 389",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {
+                "price": 390000
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_404",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_101",
+              "body": {
+                "id": "c_392"
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_201",
+              "body": {
+                "price": -393
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_101",
+              "body": {}
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_201",
+              "body": {
+                "title": "Take 395",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "title": "Draft 396"
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_404",
+              "body": {
+                "description": "Revision 397"
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_201",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_102",
+              "body": {}
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_201",
+              "body": {
+                "title": "Draft 400"
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_404",
+              "body": {
+                "price": 401000
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_404",
+              "body": null
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_404",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_404",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {
+                "price": 407000
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_201",
+              "body": null
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_102",
+              "body": {
+                "title": "Final 411",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_404",
+              "body": {
+                "title": "Final 412",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_102",
+              "body": {
+                "description": "Revision 413"
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_404",
+              "body": {}
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {}
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_102",
+              "body": {
+                "title": "   "
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_102",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_404",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_404",
+              "body": {
+                "description": "Revision 419"
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_102",
+              "body": {
+                "price": 420000
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_404",
+              "body": null
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_101",
+              "body": {
+                "description": "Revision 422"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "title": "Take 423",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_201",
+              "body": {
+                "title": "Final 425",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_201",
+              "body": {}
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_404",
+              "body": {
+                "price": -427
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_404",
+              "body": {
+                "price": 428000
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {
+                "title": "Final 429",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_404",
+              "body": {
+                "description": "Revision 430"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {
+                "title": "Final 431",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "title": "   "
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_201",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_201",
+              "body": {}
+            },
+            {
+              "session": null,
+              "courseId": "c_102",
+              "body": {
+                "title": "Take 435",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_404",
+              "body": {
+                "title": "Draft 436"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_404",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_404",
+              "body": {
+                "title": "Final 438",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_404",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_102",
+              "body": {
+                "price": -440
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_404",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_404",
+              "body": {
+                "price": -442
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {
+                "description": "Revision 443"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_201",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_101",
+              "body": {
+                "title": "Take 445",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_102",
+              "body": {
+                "price": 446000
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_404",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_102",
+              "body": {
+                "price": 448000
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "title": "   "
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_102",
+              "body": {
+                "price": 450000
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_102",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_404",
+              "body": {
+                "description": "Revision 452"
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_201",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_102",
+              "body": {
+                "price": 454000
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_101",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_201",
+              "body": null
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "title": "Draft 457"
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_404",
+              "body": {
+                "id": "c_458"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_102",
+              "body": {
+                "title": "Final 459",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_201",
+              "body": {
+                "title": "   "
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_102",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_201",
+              "body": {
+                "description": "Revision 462"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_201",
+              "body": {
+                "price": -464
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_404",
+              "body": {
+                "title": "Draft 466"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "price": -467
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_201",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_101",
+              "body": null
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "price": -470
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {
+                "description": "Revision 471"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_201",
+              "body": {
+                "title": "   "
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_201",
+              "body": {
+                "title": "Take 473",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_201",
+              "body": null
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {
+                "id": "c_475"
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_201",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_101",
+              "body": {
+                "title": "   "
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_201",
+              "body": {
+                "id": "c_478"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": null
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_201",
+              "body": null
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_101",
+              "body": {}
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_404",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_102",
+              "body": {
+                "price": 484000
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_404",
+              "body": {
+                "title": "   "
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": null
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_101",
+              "body": {
+                "title": "Draft 487"
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_404",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {
+                "price": 489000
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "price": -490
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_201",
+              "body": {
+                "id": "c_491"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_101",
+              "body": null
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_101",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_101",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_201",
+              "body": {}
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "price": 497000
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_201",
+              "body": {
+                "description": "Revision 499"
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_102",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "title": "Take 501",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "id": "c_502"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_201",
+              "body": {
+                "id": "c_503"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_201",
+              "body": {
+                "title": "Draft 504"
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_101",
+              "body": {
+                "title": "Take 505",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_201",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_201",
+              "body": {
+                "title": "Take 507",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_102",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {
+                "title": "Take 509",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_201",
+              "body": {
+                "description": "Revision 510"
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_101",
+              "body": {
+                "title": "Take 511",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": null
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "title": "   "
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_201",
+              "body": {
+                "title": "   "
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_201",
+              "body": {
+                "title": "Draft 515"
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_101",
+              "body": {
+                "title": "Final 516",
+                "price": 50000
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_201",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {
+                "description": "Revision 518"
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_102",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "title": "Draft 520"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_404",
+              "body": {
+                "description": "Revision 521"
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_201",
+              "body": null
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_201",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_102",
+              "body": {}
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {
+                "title": "Take 525",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_101",
+              "body": {
+                "title": "Draft 526"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {
+                "title": "Take 527",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_201",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {}
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_404",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_201",
+              "body": {
+                "price": -531
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_101",
+              "body": {
+                "title": "   "
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_101",
+              "body": {
+                "price": -533
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {
+                "description": "Revision 534"
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_102",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_201",
+              "body": {
+                "title": "Final 536",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_101",
+              "body": {}
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {}
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {
+                "title": "Final 539",
+                "price": 50000
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_101",
+              "body": {
+                "title": "Draft 540"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_201",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_201",
+              "body": {
+                "price": 542000
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_102",
+              "body": null
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {
+                "description": "Revision 544"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_102",
+              "body": {
+                "price": 545000
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_101",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {}
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_201",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_404",
+              "body": {
+                "description": "Revision 549"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {
+                "title": "Draft 550"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_201",
+              "body": {
+                "description": "Revision 551"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {
+                "description": "Revision 552"
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_102",
+              "body": {
+                "title": "Draft 553"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": null
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {
+                "title": "Draft 557"
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_101",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_404",
+              "body": {
+                "description": "Revision 559"
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_102",
+              "body": {
+                "price": -560
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {}
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_404",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_404",
+              "body": null
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_404",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_201",
+              "body": {
+                "description": "Revision 566"
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_101",
+              "body": {}
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_404",
+              "body": {
+                "price": 568000
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "title": "Final 569",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_404",
+              "body": {
+                "title": "Draft 570"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "title": "Draft 571"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_201",
+              "body": {
+                "title": "   "
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_101",
+              "body": {
+                "title": "Draft 573"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_201",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_102",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_201",
+              "body": null
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {
+                "title": "Draft 578"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_102",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_101",
+              "body": {
+                "title": "   "
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_101",
+              "body": {
+                "description": "Revision 581"
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_404",
+              "body": {
+                "description": "Revision 582"
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_102",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_102",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_102",
+              "body": {
+                "title": "Take 585",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_201",
+              "body": {}
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {
+                "title": "Take 587",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_201",
+              "body": {
+                "title": "Draft 588"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "price": -589
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_201",
+              "body": {
+                "title": "Take 590",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_201",
+              "body": {
+                "price": -591
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_404",
+              "body": {
+                "description": "Revision 592"
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_404",
+              "body": {
+                "id": "c_593"
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_101",
+              "body": null
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": null
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "title": "Take 596",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {
+                "title": "Final 597",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {}
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_102",
+              "body": null
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_201",
+              "body": {
+                "title": "   "
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_201",
+              "body": {
+                "id": "c_601"
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_201",
+              "body": {
+                "title": "   "
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_201",
+              "body": {
+                "title": "Take 604",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_201",
+              "body": {
+                "title": "Take 605",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": null
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_201",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {
+                "title": "Final 608",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_101",
+              "body": {
+                "title": "Draft 609"
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_201",
+              "body": {
+                "title": "Final 610",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_201",
+              "body": {
+                "price": -611
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_201",
+              "body": {
+                "title": "Take 612",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": null
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_101",
+              "body": {
+                "price": -614
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "title": "Final 615",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {
+                "title": "Draft 616"
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_102",
+              "body": {
+                "description": "Revision 617"
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_404",
+              "body": {
+                "description": "Revision 618"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "id": "c_619"
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_101",
+              "body": null
+            },
+            {
+              "session": null,
+              "courseId": "c_101",
+              "body": {
+                "title": "Draft 621"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_201",
+              "body": {
+                "title": "Draft 622"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "title": "Take 623",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": null
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_201",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_404",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_201",
+              "body": {
+                "title": "   "
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "price": 628000
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_101",
+              "body": {}
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_102",
+              "body": {}
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_201",
+              "body": {
+                "id": "c_631"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_201",
+              "body": null
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_404",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_201",
+              "body": {
+                "title": "Draft 634"
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_201",
+              "body": {
+                "price": 635000
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_201",
+              "body": {
+                "description": "Revision 636"
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_101",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_102",
+              "body": {
+                "price": 638000
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_102",
+              "body": {
+                "price": 639000
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_404",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_404",
+              "body": {
+                "description": "Revision 641"
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_201",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {
+                "id": "c_643"
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_404",
+              "body": {}
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_201",
+              "body": {
+                "title": "   "
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_102",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_404",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_201",
+              "body": {}
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": null
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_201",
+              "body": {
+                "price": 651000
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_404",
+              "body": {
+                "id": "c_652"
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_102",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_201",
+              "body": {
+                "title": "Draft 654"
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_201",
+              "body": {
+                "price": -655
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_102",
+              "body": {}
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_404",
+              "body": {
+                "id": "c_657"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_101",
+              "body": {
+                "id": "c_659"
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_102",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_404",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_102",
+              "body": {
+                "title": "Take 662",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_201",
+              "body": {
+                "price": -663
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_201",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": null
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_404",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_404",
+              "body": {
+                "title": "Draft 667"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_404",
+              "body": {}
+            },
+            {
+              "session": null,
+              "courseId": "c_201",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_404",
+              "body": {
+                "title": "Final 670",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "title": "   "
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_201",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_404",
+              "body": {
+                "price": -674
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_102",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_404",
+              "body": {}
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_101",
+              "body": {
+                "title": "   "
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_201",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_201",
+              "body": {}
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_101",
+              "body": {
+                "price": 680000
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {
+                "description": "Revision 681"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_201",
+              "body": null
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_101",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_201",
+              "body": {
+                "title": "Take 684",
+                "ownerId": "u_admin"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_404",
+              "body": {
+                "title": "   "
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_102",
+              "body": {
+                "description": "Revision 686"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "price": 687000
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_404",
+              "body": {
+                "title": "Final 688",
+                "price": 50000
+              }
+            },
+            {
+              "session": "sess_expired",
+              "courseId": "c_101",
+              "body": {
+                "ownerId": "u_binh"
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_201",
+              "body": {
+                "id": "c_690"
+              }
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_201",
+              "body": {}
+            },
+            {
+              "session": "sess_lan",
+              "courseId": "c_102",
+              "body": {
+                "id": "c_692"
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_404",
+              "body": null
+            },
+            {
+              "session": "sess_binh",
+              "courseId": "c_201",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_102",
+              "body": {
+                "createdAt": "2020-01-01"
+              }
+            },
+            {
+              "session": "sess_ana",
+              "courseId": "c_101",
+              "body": {
+                "published": true
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_102",
+              "body": null
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_404",
+              "body": null
+            },
+            {
+              "session": "sess_admin",
+              "courseId": "c_101",
+              "body": {
+                "description": "Revision 699"
+              }
+            },
+            {
+              "session": null,
+              "courseId": "c_102",
+              "body": {
+                "title": "Take 700",
+                "ownerId": "u_admin"
+              }
+            }
+          ],
+          "expected": "#1 PATCH /api/courses/c_102 as u_ana: 400 field_not_editable (createdAt)\n#2 PATCH /api/courses/c_201 as u_admin: 200 ok\n#3 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#4 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#5 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#6 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#7 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#8 PATCH /api/courses/c_404 as u_lan: 403 forbidden\n#9 PATCH /api/courses/c_404 as u_binh: 404 not_found\n#10 PATCH /api/courses/c_101 as anonymous: 401 unauthenticated\n#11 PATCH /api/courses/c_404 as u_binh: 404 not_found\n#12 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\n#13 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\n#14 PATCH /api/courses/c_404 as u_binh: 404 not_found\n#15 PATCH /api/courses/c_102 as u_admin: 400 invalid_body\n#16 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#17 PATCH /api/courses/c_201 as u_lan: 403 forbidden\n#18 PATCH /api/courses/c_102 as anonymous: 401 unauthenticated\n#19 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\n#20 PATCH /api/courses/c_404 as u_binh: 404 not_found\n#21 PATCH /api/courses/c_201 as u_ana: 404 not_found\n#22 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\n#23 PATCH /api/courses/c_102 as u_lan: 403 forbidden\n#24 PATCH /api/courses/c_102 as u_admin: 200 ok\n#25 PATCH /api/courses/c_102 as u_ana: 400 invalid_field (price)\n#26 PATCH /api/courses/c_101 as anonymous: 401 unauthenticated\n#27 PATCH /api/courses/c_201 as u_admin: 400 field_not_editable (ownerId)\n#28 PATCH /api/courses/c_101 as u_lan: 403 forbidden\n#29 PATCH /api/courses/c_101 as u_lan: 403 forbidden\n#30 PATCH /api/courses/c_201 as u_ana: 404 not_found\n#31 PATCH /api/courses/c_101 as u_admin: 200 ok\n#32 PATCH /api/courses/c_102 as anonymous: 401 unauthenticated\n#33 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#34 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#35 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#36 PATCH /api/courses/c_101 as anonymous: 401 unauthenticated\n#37 PATCH /api/courses/c_201 as u_lan: 403 forbidden\n#38 PATCH /api/courses/c_404 as u_binh: 404 not_found\n#39 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#40 PATCH /api/courses/c_102 as u_lan: 403 forbidden\n#41 PATCH /api/courses/c_102 as u_lan: 403 forbidden\n#42 PATCH /api/courses/c_102 as anonymous: 401 unauthenticated\n#43 PATCH /api/courses/c_201 as u_binh: 200 ok\n#44 PATCH /api/courses/c_201 as u_admin: 400 invalid_field (price)\n#45 PATCH /api/courses/c_101 as u_admin: 400 invalid_field (title)\n#46 PATCH /api/courses/c_201 as u_ana: 404 not_found\n#47 PATCH /api/courses/c_102 as anonymous: 401 unauthenticated\n#48 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#49 PATCH /api/courses/c_101 as anonymous: 401 unauthenticated\n#50 PATCH /api/courses/c_102 as u_lan: 403 forbidden\n#51 PATCH /api/courses/c_102 as anonymous: 401 unauthenticated\n#52 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#53 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#54 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#55 PATCH /api/courses/c_404 as u_admin: 404 not_found\n#56 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#57 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#58 PATCH /api/courses/c_101 as anonymous: 401 unauthenticated\n#59 PATCH /api/courses/c_102 as anonymous: 401 unauthenticated\n#60 PATCH /api/courses/c_101 as u_lan: 403 forbidden\n#61 PATCH /api/courses/c_102 as u_ana: 200 ok\n#62 PATCH /api/courses/c_101 as anonymous: 401 unauthenticated\n#63 PATCH /api/courses/c_201 as u_binh: 200 ok\n#64 PATCH /api/courses/c_102 as u_ana: 200 ok\n#65 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#66 PATCH /api/courses/c_201 as u_admin: 200 ok\n#67 PATCH /api/courses/c_102 as u_admin: 400 invalid_field (price)\n#68 PATCH /api/courses/c_102 as u_lan: 403 forbidden\n#69 PATCH /api/courses/c_102 as u_lan: 403 forbidden\n#70 PATCH /api/courses/c_101 as u_ana: 400 field_not_editable (id)\n#71 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#72 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#73 PATCH /api/courses/c_404 as u_binh: 404 not_found\n#74 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#75 PATCH /api/courses/c_101 as u_lan: 403 forbidden\n#76 PATCH /api/courses/c_404 as u_binh: 404 not_found\n#77 PATCH /api/courses/c_404 as u_binh: 400 invalid_body\n#78 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#79 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#80 PATCH /api/courses/c_101 as u_ana: 400 field_not_editable (id)\n#81 PATCH /api/courses/c_101 as u_ana: 400 field_not_editable (id)\n#82 PATCH /api/courses/c_201 as u_lan: 403 forbidden\n#83 PATCH /api/courses/c_102 as anonymous: 401 unauthenticated\n#84 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#85 PATCH /api/courses/c_101 as u_ana: 200 ok\n#86 PATCH /api/courses/c_102 as u_ana: 400 field_not_editable (ownerId)\n#87 PATCH /api/courses/c_201 as u_lan: 403 forbidden\n#88 PATCH /api/courses/c_102 as u_lan: 403 forbidden\n#89 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\n#90 PATCH /api/courses/c_201 as u_lan: 403 forbidden\n#91 PATCH /api/courses/c_101 as anonymous: 401 unauthenticated\n#92 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#93 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#94 PATCH /api/courses/c_101 as u_ana: 400 invalid_field (title)\n#95 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#96 PATCH /api/courses/c_201 as u_admin: 200 ok\n#97 PATCH /api/courses/c_201 as u_binh: 400 field_not_editable (published)\n#98 PATCH /api/courses/c_201 as u_ana: 404 not_found\n#99 PATCH /api/courses/c_101 as u_ana: 400 field_not_editable (ownerId)\n#100 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#101 PATCH /api/courses/c_101 as u_ana: 200 ok\n#102 PATCH /api/courses/c_101 as u_ana: 400 invalid_field (price)\n#103 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#104 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#105 PATCH /api/courses/c_404 as u_lan: 403 forbidden\n#106 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#107 PATCH /api/courses/c_201 as u_lan: 403 forbidden\n#108 PATCH /api/courses/c_404 as u_binh: 404 not_found\n#109 PATCH /api/courses/c_102 as u_ana: 400 field_not_editable (ownerId)\n#110 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#111 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#112 PATCH /api/courses/c_102 as u_ana: 400 field_not_editable (id)\n#113 PATCH /api/courses/c_101 as u_lan: 403 forbidden\n#114 PATCH /api/courses/c_102 as u_ana: 400 invalid_field (title)\n#115 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#116 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#117 PATCH /api/courses/c_201 as u_admin: 200 ok\n#118 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#119 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#120 PATCH /api/courses/c_201 as u_binh: 400 invalid_field (price)\n#121 PATCH /api/courses/c_102 as u_admin: 400 field_not_editable (published)\n#122 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\n#123 PATCH /api/courses/c_102 as anonymous: 401 unauthenticated\n#124 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#125 PATCH /api/courses/c_102 as anonymous: 401 unauthenticated\n#126 PATCH /api/courses/c_101 as anonymous: 401 unauthenticated\n#127 PATCH /api/courses/c_101 as anonymous: 401 unauthenticated\n#128 PATCH /api/courses/c_101 as anonymous: 401 unauthenticated\n#129 PATCH /api/courses/c_102 as u_admin: 400 field_not_editable (ownerId)\n#130 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#131 PATCH /api/courses/c_101 as u_ana: 400 field_not_editable (createdAt)\n#132 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#133 PATCH /api/courses/c_102 as anonymous: 401 unauthenticated\n#134 PATCH /api/courses/c_102 as u_ana: 400 invalid_field (title)\n#135 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#136 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#137 PATCH /api/courses/c_101 as u_ana: 400 invalid_field (title)\n#138 PATCH /api/courses/c_201 as u_admin: 400 field_not_editable (published)\n#139 PATCH /api/courses/c_201 as u_ana: 404 not_found\n#140 PATCH /api/courses/c_101 as anonymous: 401 unauthenticated\n#141 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#142 PATCH /api/courses/c_201 as u_admin: 400 invalid_field (title)\n#143 PATCH /api/courses/c_101 as u_ana: 400 invalid_body\n#144 PATCH /api/courses/c_404 as u_lan: 403 forbidden\n#145 PATCH /api/courses/c_102 as anonymous: 401 unauthenticated\n#146 PATCH /api/courses/c_102 as u_ana: 200 ok\n#147 PATCH /api/courses/c_101 as anonymous: 401 unauthenticated\n#148 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#149 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#150 PATCH /api/courses/c_102 as u_admin: 400 field_not_editable (id)\n#151 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#152 PATCH /api/courses/c_201 as u_binh: 400 field_not_editable (published)\n#153 PATCH /api/courses/c_201 as u_binh: 400 invalid_body\n#154 PATCH /api/courses/c_101 as u_binh: 400 invalid_body\n#155 PATCH /api/courses/c_102 as u_ana: 200 ok\n#156 PATCH /api/courses/c_201 as u_binh: 200 ok\n#157 PATCH /api/courses/c_404 as u_lan: 403 forbidden\n#158 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\n#159 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#160 PATCH /api/courses/c_101 as u_lan: 403 forbidden\n#161 PATCH /api/courses/c_404 as u_binh: 404 not_found\n#162 PATCH /api/courses/c_404 as u_lan: 403 forbidden\n#163 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#164 PATCH /api/courses/c_404 as u_admin: 404 not_found\n#165 PATCH /api/courses/c_101 as u_ana: 200 ok\n#166 PATCH /api/courses/c_404 as u_lan: 403 forbidden\n#167 PATCH /api/courses/c_102 as u_ana: 200 ok\n#168 PATCH /api/courses/c_101 as u_ana: 400 field_not_editable (ownerId)\n#169 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#170 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#171 PATCH /api/courses/c_102 as anonymous: 401 unauthenticated\n#172 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#173 PATCH /api/courses/c_201 as u_binh: 400 field_not_editable (ownerId)\n#174 PATCH /api/courses/c_102 as u_ana: 400 field_not_editable (published)\n#175 PATCH /api/courses/c_201 as u_binh: 400 field_not_editable (published)\n#176 PATCH /api/courses/c_201 as u_lan: 403 forbidden\n#177 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#178 PATCH /api/courses/c_101 as u_ana: 200 ok\n#179 PATCH /api/courses/c_201 as u_ana: 404 not_found\n#180 PATCH /api/courses/c_404 as u_binh: 404 not_found\n#181 PATCH /api/courses/c_201 as u_lan: 403 forbidden\n#182 PATCH /api/courses/c_201 as u_binh: 400 field_not_editable (id)\n#183 PATCH /api/courses/c_101 as u_ana: 400 invalid_field (title)\n#184 PATCH /api/courses/c_404 as u_lan: 403 forbidden\n#185 PATCH /api/courses/c_101 as u_lan: 403 forbidden\n#186 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#187 PATCH /api/courses/c_101 as anonymous: 401 unauthenticated\n#188 PATCH /api/courses/c_101 as u_ana: 200 ok\n#189 PATCH /api/courses/c_201 as u_ana: 404 not_found\n#190 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\n#191 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\n#192 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\n#193 PATCH /api/courses/c_102 as anonymous: 401 unauthenticated\n#194 PATCH /api/courses/c_201 as u_ana: 404 not_found\n#195 PATCH /api/courses/c_102 as u_ana: 200 ok\n#196 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#197 PATCH /api/courses/c_101 as u_ana: 400 field_not_editable (id)\n#198 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#199 PATCH /api/courses/c_101 as anonymous: 401 unauthenticated\n#200 PATCH /api/courses/c_101 as u_admin: 200 ok\n#201 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#202 PATCH /api/courses/c_201 as u_lan: 403 forbidden\n#203 PATCH /api/courses/c_102 as u_ana: 200 ok\n#204 PATCH /api/courses/c_101 as u_ana: 400 field_not_editable (published)\n#205 PATCH /api/courses/c_404 as u_binh: 404 not_found\n#206 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#207 PATCH /api/courses/c_404 as u_binh: 404 not_found\n#208 PATCH /api/courses/c_101 as u_lan: 403 forbidden\n#209 PATCH /api/courses/c_201 as u_binh: 400 invalid_field (price)\n#210 PATCH /api/courses/c_101 as u_lan: 403 forbidden\n#211 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#212 PATCH /api/courses/c_101 as u_admin: 400 field_not_editable (published)\n#213 PATCH /api/courses/c_201 as u_binh: 400 field_not_editable (ownerId)\n#214 PATCH /api/courses/c_101 as u_lan: 403 forbidden\n#215 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#216 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#217 PATCH /api/courses/c_201 as u_ana: 404 not_found\n#218 PATCH /api/courses/c_101 as u_admin: 400 invalid_field (title)\n#219 PATCH /api/courses/c_101 as u_admin: 400 field_not_editable (createdAt)\n#220 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#221 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#222 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#223 PATCH /api/courses/c_201 as u_admin: 200 ok\n#224 PATCH /api/courses/c_101 as anonymous: 401 unauthenticated\n#225 PATCH /api/courses/c_201 as u_binh: 200 ok\n#226 PATCH /api/courses/c_101 as anonymous: 401 unauthenticated\n#227 PATCH /api/courses/c_102 as u_ana: 400 field_not_editable (published)\n#228 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\n#229 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\n#230 PATCH /api/courses/c_201 as u_binh: 400 invalid_body\n#231 PATCH /api/courses/c_201 as u_admin: 200 ok\n#232 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#233 PATCH /api/courses/c_404 as u_ana: 400 invalid_body\n#234 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#235 PATCH /api/courses/c_404 as u_binh: 400 invalid_body\n#236 PATCH /api/courses/c_201 as u_binh: 400 invalid_body\n#237 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#238 PATCH /api/courses/c_201 as u_ana: 404 not_found\n#239 PATCH /api/courses/c_201 as u_lan: 403 forbidden\n#240 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#241 PATCH /api/courses/c_101 as anonymous: 401 unauthenticated\n#242 PATCH /api/courses/c_102 as anonymous: 401 unauthenticated\n#243 PATCH /api/courses/c_102 as anonymous: 401 unauthenticated\n#244 PATCH /api/courses/c_201 as u_lan: 403 forbidden\n#245 PATCH /api/courses/c_201 as u_lan: 403 forbidden\n#246 PATCH /api/courses/c_101 as u_ana: 400 field_not_editable (published)\n#247 PATCH /api/courses/c_404 as u_lan: 403 forbidden\n#248 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#249 PATCH /api/courses/c_404 as u_binh: 404 not_found\n#250 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\n#251 PATCH /api/courses/c_102 as u_ana: 200 ok\n#252 PATCH /api/courses/c_102 as u_admin: 400 field_not_editable (ownerId)\n#253 PATCH /api/courses/c_404 as u_binh: 404 not_found\n#254 PATCH /api/courses/c_102 as u_admin: 200 ok\n#255 PATCH /api/courses/c_101 as u_admin: 200 ok\n#256 PATCH /api/courses/c_201 as u_lan: 403 forbidden\n#257 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#258 PATCH /api/courses/c_101 as u_ana: 200 ok\n#259 PATCH /api/courses/c_201 as u_ana: 404 not_found\n#260 PATCH /api/courses/c_101 as anonymous: 401 unauthenticated\n#261 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#262 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\n#263 PATCH /api/courses/c_404 as u_lan: 403 forbidden\n#264 PATCH /api/courses/c_201 as u_lan: 403 forbidden\n#265 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#266 PATCH /api/courses/c_201 as u_admin: 400 field_not_editable (ownerId)\n#267 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\n#268 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#269 PATCH /api/courses/c_101 as u_ana: 400 field_not_editable (published)\n#270 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#271 PATCH /api/courses/c_201 as u_binh: 200 ok\n#272 PATCH /api/courses/c_101 as u_ana: 400 field_not_editable (published)\n#273 PATCH /api/courses/c_101 as u_lan: 403 forbidden\n#274 PATCH /api/courses/c_102 as u_ana: 400 invalid_field (price)\n#275 PATCH /api/courses/c_201 as u_admin: 200 ok\n#276 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#277 PATCH /api/courses/c_404 as u_binh: 404 not_found\n#278 PATCH /api/courses/c_404 as u_admin: 404 not_found\n#279 PATCH /api/courses/c_101 as u_admin: 400 field_not_editable (createdAt)\n#280 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\n#281 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#282 PATCH /api/courses/c_101 as u_ana: 200 ok\n#283 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#284 PATCH /api/courses/c_201 as u_lan: 403 forbidden\n#285 PATCH /api/courses/c_102 as u_ana: 400 field_not_editable (ownerId)\n#286 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#287 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#288 PATCH /api/courses/c_404 as u_binh: 404 not_found\n#289 PATCH /api/courses/c_201 as u_admin: 200 ok\n#290 PATCH /api/courses/c_201 as u_binh: 400 field_not_editable (id)\n#291 PATCH /api/courses/c_102 as u_admin: 400 field_not_editable (ownerId)\n#292 PATCH /api/courses/c_102 as u_ana: 400 field_not_editable (published)\n#293 PATCH /api/courses/c_102 as anonymous: 401 unauthenticated\n#294 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\n#295 PATCH /api/courses/c_201 as u_binh: 400 invalid_field (price)\n#296 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\n#297 PATCH /api/courses/c_404 as u_binh: 404 not_found\n#298 PATCH /api/courses/c_404 as u_binh: 404 not_found\n#299 PATCH /api/courses/c_201 as u_lan: 403 forbidden\n#300 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#301 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#302 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#303 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#304 PATCH /api/courses/c_101 as u_admin: 400 invalid_field (title)\n#305 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\n#306 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#307 PATCH /api/courses/c_201 as u_admin: 200 ok\n#308 PATCH /api/courses/c_102 as u_ana: 400 field_not_editable (id)\n#309 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#310 PATCH /api/courses/c_102 as u_ana: 200 ok\n#311 PATCH /api/courses/c_101 as u_ana: 200 ok\n#312 PATCH /api/courses/c_101 as u_lan: 403 forbidden\n#313 PATCH /api/courses/c_201 as u_binh: 200 ok\n#314 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#315 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\n#316 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#317 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#318 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#319 PATCH /api/courses/c_102 as u_ana: 400 invalid_body\n#320 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#321 PATCH /api/courses/c_101 as u_ana: 400 invalid_body\n#322 PATCH /api/courses/c_201 as u_ana: 404 not_found\n#323 PATCH /api/courses/c_101 as u_ana: 200 ok\n#324 PATCH /api/courses/c_404 as u_binh: 404 not_found\n#325 PATCH /api/courses/c_101 as u_ana: 400 invalid_field (title)\n#326 PATCH /api/courses/c_404 as u_binh: 404 not_found\n#327 PATCH /api/courses/c_201 as u_admin: 400 field_not_editable (ownerId)\n#328 PATCH /api/courses/c_101 as anonymous: 401 unauthenticated\n#329 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#330 PATCH /api/courses/c_102 as anonymous: 401 unauthenticated\n#331 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#332 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#333 PATCH /api/courses/c_102 as anonymous: 401 unauthenticated\n#334 PATCH /api/courses/c_201 as u_ana: 404 not_found\n#335 PATCH /api/courses/c_201 as u_binh: 200 ok\n#336 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#337 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\n#338 PATCH /api/courses/c_404 as u_admin: 404 not_found\n#339 PATCH /api/courses/c_102 as u_admin: 200 ok\n#340 PATCH /api/courses/c_404 as u_binh: 400 invalid_body\n#341 PATCH /api/courses/c_404 as u_admin: 404 not_found\n#342 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#343 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#344 PATCH /api/courses/c_102 as u_ana: 200 ok\n#345 PATCH /api/courses/c_101 as u_ana: 400 invalid_field (title)\n#346 PATCH /api/courses/c_101 as anonymous: 401 unauthenticated\n#347 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#348 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#349 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#350 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#351 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#352 PATCH /api/courses/c_101 as u_ana: 200 ok\n#353 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#354 PATCH /api/courses/c_404 as u_binh: 404 not_found\n#355 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#356 PATCH /api/courses/c_404 as u_admin: 400 invalid_body\n#357 PATCH /api/courses/c_102 as anonymous: 401 unauthenticated\n#358 PATCH /api/courses/c_201 as u_binh: 400 field_not_editable (published)\n#359 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#360 PATCH /api/courses/c_102 as anonymous: 401 unauthenticated\n#361 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#362 PATCH /api/courses/c_102 as anonymous: 401 unauthenticated\n#363 PATCH /api/courses/c_102 as u_ana: 200 ok\n#364 PATCH /api/courses/c_201 as u_binh: 200 ok\n#365 PATCH /api/courses/c_102 as u_lan: 403 forbidden\n#366 PATCH /api/courses/c_404 as u_binh: 404 not_found\n#367 PATCH /api/courses/c_101 as u_lan: 403 forbidden\n#368 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#369 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\n#370 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#371 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\n#372 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#373 PATCH /api/courses/c_404 as u_ana: 400 invalid_body\n#374 PATCH /api/courses/c_102 as u_lan: 403 forbidden\n#375 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#376 PATCH /api/courses/c_102 as u_ana: 400 invalid_body\n#377 PATCH /api/courses/c_201 as u_admin: 200 ok\n#378 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#379 PATCH /api/courses/c_101 as anonymous: 401 unauthenticated\n#380 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#381 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#382 PATCH /api/courses/c_404 as u_ana: 400 invalid_body\n#383 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#384 PATCH /api/courses/c_101 as u_admin: 400 field_not_editable (id)\n#385 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#386 PATCH /api/courses/c_101 as anonymous: 401 unauthenticated\n#387 PATCH /api/courses/c_201 as u_admin: 400 field_not_editable (ownerId)\n#388 PATCH /api/courses/c_101 as u_ana: 400 invalid_field (price)\n#389 PATCH /api/courses/c_404 as u_admin: 404 not_found\n#390 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#391 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\n#392 PATCH /api/courses/c_101 as anonymous: 401 unauthenticated\n#393 PATCH /api/courses/c_201 as u_admin: 400 invalid_field (price)\n#394 PATCH /api/courses/c_101 as anonymous: 401 unauthenticated\n#395 PATCH /api/courses/c_201 as u_binh: 400 field_not_editable (ownerId)\n#396 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#397 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\n#398 PATCH /api/courses/c_201 as u_admin: 400 field_not_editable (ownerId)\n#399 PATCH /api/courses/c_102 as anonymous: 401 unauthenticated\n#400 PATCH /api/courses/c_201 as u_binh: 200 ok\n#401 PATCH /api/courses/c_404 as u_lan: 403 forbidden\n#402 PATCH /api/courses/c_404 as u_admin: 400 invalid_body\n#403 PATCH /api/courses/c_101 as u_ana: 400 field_not_editable (ownerId)\n#404 PATCH /api/courses/c_404 as u_binh: 404 not_found\n#405 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#406 PATCH /api/courses/c_404 as u_admin: 404 not_found\n#407 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#408 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#409 PATCH /api/courses/c_201 as u_lan: 403 forbidden\n#410 PATCH /api/courses/c_101 as u_ana: 400 field_not_editable (ownerId)\n#411 PATCH /api/courses/c_102 as u_ana: 200 ok\n#412 PATCH /api/courses/c_404 as u_admin: 404 not_found\n#413 PATCH /api/courses/c_102 as anonymous: 401 unauthenticated\n#414 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\n#415 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#416 PATCH /api/courses/c_102 as u_admin: 400 invalid_field (title)\n#417 PATCH /api/courses/c_102 as u_admin: 400 field_not_editable (ownerId)\n#418 PATCH /api/courses/c_404 as u_admin: 404 not_found\n#419 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\n#420 PATCH /api/courses/c_102 as u_admin: 200 ok\n#421 PATCH /api/courses/c_404 as u_lan: 403 forbidden\n#422 PATCH /api/courses/c_101 as anonymous: 401 unauthenticated\n#423 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#424 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#425 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#426 PATCH /api/courses/c_201 as u_lan: 403 forbidden\n#427 PATCH /api/courses/c_404 as u_lan: 403 forbidden\n#428 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\n#429 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#430 PATCH /api/courses/c_404 as u_binh: 404 not_found\n#431 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#432 PATCH /api/courses/c_101 as u_ana: 400 invalid_field (title)\n#433 PATCH /api/courses/c_201 as u_binh: 400 field_not_editable (createdAt)\n#434 PATCH /api/courses/c_201 as u_lan: 403 forbidden\n#435 PATCH /api/courses/c_102 as anonymous: 401 unauthenticated\n#436 PATCH /api/courses/c_404 as u_binh: 404 not_found\n#437 PATCH /api/courses/c_404 as u_binh: 404 not_found\n#438 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\n#439 PATCH /api/courses/c_404 as u_binh: 404 not_found\n#440 PATCH /api/courses/c_102 as u_ana: 400 invalid_field (price)\n#441 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\n#442 PATCH /api/courses/c_404 as u_binh: 404 not_found\n#443 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#444 PATCH /api/courses/c_201 as u_ana: 404 not_found\n#445 PATCH /api/courses/c_101 as u_lan: 403 forbidden\n#446 PATCH /api/courses/c_102 as anonymous: 401 unauthenticated\n#447 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\n#448 PATCH /api/courses/c_102 as u_admin: 200 ok\n#449 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#450 PATCH /api/courses/c_102 as anonymous: 401 unauthenticated\n#451 PATCH /api/courses/c_102 as u_ana: 400 field_not_editable (published)\n#452 PATCH /api/courses/c_404 as u_admin: 404 not_found\n#453 PATCH /api/courses/c_201 as u_lan: 403 forbidden\n#454 PATCH /api/courses/c_102 as u_ana: 200 ok\n#455 PATCH /api/courses/c_101 as u_lan: 403 forbidden\n#456 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#457 PATCH /api/courses/c_101 as u_ana: 200 ok\n#458 PATCH /api/courses/c_404 as u_admin: 404 not_found\n#459 PATCH /api/courses/c_102 as u_ana: 200 ok\n#460 PATCH /api/courses/c_201 as u_ana: 404 not_found\n#461 PATCH /api/courses/c_102 as anonymous: 401 unauthenticated\n#462 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#463 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#464 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#465 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#466 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\n#467 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#468 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#469 PATCH /api/courses/c_101 as u_lan: 403 forbidden\n#470 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#471 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#472 PATCH /api/courses/c_201 as u_ana: 404 not_found\n#473 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#474 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#475 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#476 PATCH /api/courses/c_201 as u_admin: 400 field_not_editable (ownerId)\n#477 PATCH /api/courses/c_101 as u_lan: 403 forbidden\n#478 PATCH /api/courses/c_201 as u_ana: 404 not_found\n#479 PATCH /api/courses/c_404 as u_ana: 400 invalid_body\n#480 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#481 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#482 PATCH /api/courses/c_101 as u_admin: 200 ok\n#483 PATCH /api/courses/c_404 as u_lan: 403 forbidden\n#484 PATCH /api/courses/c_102 as u_lan: 403 forbidden\n#485 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\n#486 PATCH /api/courses/c_101 as u_ana: 400 invalid_body\n#487 PATCH /api/courses/c_101 as u_admin: 200 ok\n#488 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\n#489 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#490 PATCH /api/courses/c_101 as u_ana: 400 invalid_field (price)\n#491 PATCH /api/courses/c_201 as u_binh: 400 field_not_editable (id)\n#492 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#493 PATCH /api/courses/c_101 as u_lan: 403 forbidden\n#494 PATCH /api/courses/c_101 as anonymous: 401 unauthenticated\n#495 PATCH /api/courses/c_101 as u_admin: 400 field_not_editable (ownerId)\n#496 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#497 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#498 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#499 PATCH /api/courses/c_201 as u_binh: 200 ok\n#500 PATCH /api/courses/c_102 as anonymous: 401 unauthenticated\n#501 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#502 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#503 PATCH /api/courses/c_201 as u_binh: 400 field_not_editable (id)\n#504 PATCH /api/courses/c_201 as u_ana: 404 not_found\n#505 PATCH /api/courses/c_101 as anonymous: 401 unauthenticated\n#506 PATCH /api/courses/c_201 as u_lan: 403 forbidden\n#507 PATCH /api/courses/c_201 as u_ana: 404 not_found\n#508 PATCH /api/courses/c_102 as anonymous: 401 unauthenticated\n#509 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#510 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#511 PATCH /api/courses/c_101 as anonymous: 401 unauthenticated\n#512 PATCH /api/courses/c_101 as u_ana: 400 invalid_body\n#513 PATCH /api/courses/c_101 as u_ana: 400 invalid_field (title)\n#514 PATCH /api/courses/c_201 as u_binh: 400 invalid_field (title)\n#515 PATCH /api/courses/c_201 as u_ana: 404 not_found\n#516 PATCH /api/courses/c_101 as u_lan: 403 forbidden\n#517 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#518 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#519 PATCH /api/courses/c_102 as u_lan: 403 forbidden\n#520 PATCH /api/courses/c_101 as u_ana: 200 ok\n#521 PATCH /api/courses/c_404 as u_binh: 404 not_found\n#522 PATCH /api/courses/c_201 as u_admin: 400 invalid_body\n#523 PATCH /api/courses/c_201 as u_admin: 400 field_not_editable (createdAt)\n#524 PATCH /api/courses/c_102 as anonymous: 401 unauthenticated\n#525 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#526 PATCH /api/courses/c_101 as u_lan: 403 forbidden\n#527 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#528 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#529 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#530 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\n#531 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#532 PATCH /api/courses/c_101 as anonymous: 401 unauthenticated\n#533 PATCH /api/courses/c_101 as anonymous: 401 unauthenticated\n#534 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#535 PATCH /api/courses/c_102 as anonymous: 401 unauthenticated\n#536 PATCH /api/courses/c_201 as u_ana: 404 not_found\n#537 PATCH /api/courses/c_101 as u_admin: 200 ok\n#538 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#539 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#540 PATCH /api/courses/c_101 as anonymous: 401 unauthenticated\n#541 PATCH /api/courses/c_201 as u_ana: 404 not_found\n#542 PATCH /api/courses/c_201 as u_binh: 200 ok\n#543 PATCH /api/courses/c_102 as u_lan: 403 forbidden\n#544 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#545 PATCH /api/courses/c_102 as u_ana: 200 ok\n#546 PATCH /api/courses/c_101 as anonymous: 401 unauthenticated\n#547 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#548 PATCH /api/courses/c_201 as u_binh: 400 field_not_editable (published)\n#549 PATCH /api/courses/c_404 as u_admin: 404 not_found\n#550 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#551 PATCH /api/courses/c_201 as u_ana: 404 not_found\n#552 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#553 PATCH /api/courses/c_102 as anonymous: 401 unauthenticated\n#554 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#555 PATCH /api/courses/c_101 as u_ana: 400 invalid_body\n#556 PATCH /api/courses/c_101 as u_ana: 400 field_not_editable (published)\n#557 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#558 PATCH /api/courses/c_101 as u_lan: 403 forbidden\n#559 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\n#560 PATCH /api/courses/c_102 as u_lan: 403 forbidden\n#561 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#562 PATCH /api/courses/c_101 as u_ana: 400 field_not_editable (published)\n#563 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\n#564 PATCH /api/courses/c_404 as u_binh: 400 invalid_body\n#565 PATCH /api/courses/c_404 as u_lan: 403 forbidden\n#566 PATCH /api/courses/c_201 as u_binh: 200 ok\n#567 PATCH /api/courses/c_101 as anonymous: 401 unauthenticated\n#568 PATCH /api/courses/c_404 as u_lan: 403 forbidden\n#569 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#570 PATCH /api/courses/c_404 as u_lan: 403 forbidden\n#571 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#572 PATCH /api/courses/c_201 as u_ana: 404 not_found\n#573 PATCH /api/courses/c_101 as u_lan: 403 forbidden\n#574 PATCH /api/courses/c_101 as u_ana: 400 field_not_editable (ownerId)\n#575 PATCH /api/courses/c_201 as u_ana: 404 not_found\n#576 PATCH /api/courses/c_102 as u_ana: 400 field_not_editable (published)\n#577 PATCH /api/courses/c_201 as u_binh: 400 invalid_body\n#578 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#579 PATCH /api/courses/c_102 as u_ana: 400 field_not_editable (ownerId)\n#580 PATCH /api/courses/c_101 as u_admin: 400 invalid_field (title)\n#581 PATCH /api/courses/c_101 as u_admin: 200 ok\n#582 PATCH /api/courses/c_404 as u_admin: 404 not_found\n#583 PATCH /api/courses/c_102 as anonymous: 401 unauthenticated\n#584 PATCH /api/courses/c_102 as u_ana: 400 field_not_editable (published)\n#585 PATCH /api/courses/c_102 as anonymous: 401 unauthenticated\n#586 PATCH /api/courses/c_201 as u_lan: 403 forbidden\n#587 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#588 PATCH /api/courses/c_201 as u_ana: 404 not_found\n#589 PATCH /api/courses/c_101 as u_ana: 400 invalid_field (price)\n#590 PATCH /api/courses/c_201 as u_ana: 404 not_found\n#591 PATCH /api/courses/c_201 as u_binh: 400 invalid_field (price)\n#592 PATCH /api/courses/c_404 as u_binh: 404 not_found\n#593 PATCH /api/courses/c_404 as u_admin: 404 not_found\n#594 PATCH /api/courses/c_101 as anonymous: 401 unauthenticated\n#595 PATCH /api/courses/c_101 as u_binh: 400 invalid_body\n#596 PATCH /api/courses/c_101 as u_ana: 400 field_not_editable (ownerId)\n#597 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#598 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#599 PATCH /api/courses/c_102 as u_ana: 400 invalid_body\n#600 PATCH /api/courses/c_201 as u_lan: 403 forbidden\n#601 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#602 PATCH /api/courses/c_201 as u_admin: 400 invalid_field (title)\n#603 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#604 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#605 PATCH /api/courses/c_201 as u_admin: 400 field_not_editable (ownerId)\n#606 PATCH /api/courses/c_102 as u_binh: 400 invalid_body\n#607 PATCH /api/courses/c_201 as u_binh: 400 field_not_editable (createdAt)\n#608 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#609 PATCH /api/courses/c_101 as u_admin: 200 ok\n#610 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#611 PATCH /api/courses/c_201 as u_binh: 400 invalid_field (price)\n#612 PATCH /api/courses/c_201 as u_admin: 400 field_not_editable (ownerId)\n#613 PATCH /api/courses/c_101 as u_binh: 400 invalid_body\n#614 PATCH /api/courses/c_101 as u_admin: 400 invalid_field (price)\n#615 PATCH /api/courses/c_101 as u_ana: 200 ok\n#616 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#617 PATCH /api/courses/c_102 as anonymous: 401 unauthenticated\n#618 PATCH /api/courses/c_404 as u_lan: 403 forbidden\n#619 PATCH /api/courses/c_101 as u_ana: 400 field_not_editable (id)\n#620 PATCH /api/courses/c_101 as anonymous: 401 unauthenticated\n#621 PATCH /api/courses/c_101 as anonymous: 401 unauthenticated\n#622 PATCH /api/courses/c_201 as u_ana: 404 not_found\n#623 PATCH /api/courses/c_101 as u_ana: 400 field_not_editable (ownerId)\n#624 PATCH /api/courses/c_102 as u_binh: 400 invalid_body\n#625 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#626 PATCH /api/courses/c_404 as u_binh: 404 not_found\n#627 PATCH /api/courses/c_201 as u_binh: 400 invalid_field (title)\n#628 PATCH /api/courses/c_101 as u_ana: 200 ok\n#629 PATCH /api/courses/c_101 as u_lan: 403 forbidden\n#630 PATCH /api/courses/c_102 as u_ana: 200 ok\n#631 PATCH /api/courses/c_201 as u_ana: 404 not_found\n#632 PATCH /api/courses/c_201 as u_ana: 400 invalid_body\n#633 PATCH /api/courses/c_404 as u_admin: 404 not_found\n#634 PATCH /api/courses/c_201 as u_binh: 200 ok\n#635 PATCH /api/courses/c_201 as u_lan: 403 forbidden\n#636 PATCH /api/courses/c_201 as u_ana: 404 not_found\n#637 PATCH /api/courses/c_101 as u_admin: 400 field_not_editable (createdAt)\n#638 PATCH /api/courses/c_102 as u_admin: 200 ok\n#639 PATCH /api/courses/c_102 as u_ana: 200 ok\n#640 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\n#641 PATCH /api/courses/c_404 as u_lan: 403 forbidden\n#642 PATCH /api/courses/c_201 as u_lan: 403 forbidden\n#643 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#644 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\n#645 PATCH /api/courses/c_201 as u_binh: 400 invalid_field (title)\n#646 PATCH /api/courses/c_102 as u_admin: 400 field_not_editable (createdAt)\n#647 PATCH /api/courses/c_404 as u_binh: 404 not_found\n#648 PATCH /api/courses/c_201 as u_lan: 403 forbidden\n#649 PATCH /api/courses/c_101 as u_ana: 400 invalid_body\n#650 PATCH /api/courses/c_101 as u_ana: 400 field_not_editable (ownerId)\n#651 PATCH /api/courses/c_201 as u_ana: 404 not_found\n#652 PATCH /api/courses/c_404 as u_admin: 404 not_found\n#653 PATCH /api/courses/c_102 as anonymous: 401 unauthenticated\n#654 PATCH /api/courses/c_201 as u_ana: 404 not_found\n#655 PATCH /api/courses/c_201 as u_admin: 400 invalid_field (price)\n#656 PATCH /api/courses/c_102 as u_binh: 404 not_found\n#657 PATCH /api/courses/c_404 as u_admin: 404 not_found\n#658 PATCH /api/courses/c_101 as u_ana: 400 field_not_editable (createdAt)\n#659 PATCH /api/courses/c_101 as u_admin: 400 field_not_editable (id)\n#660 PATCH /api/courses/c_102 as anonymous: 401 unauthenticated\n#661 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\n#662 PATCH /api/courses/c_102 as anonymous: 401 unauthenticated\n#663 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#664 PATCH /api/courses/c_201 as u_binh: 400 field_not_editable (ownerId)\n#665 PATCH /api/courses/c_404 as u_ana: 400 invalid_body\n#666 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\n#667 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\n#668 PATCH /api/courses/c_404 as u_binh: 404 not_found\n#669 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#670 PATCH /api/courses/c_404 as u_admin: 404 not_found\n#671 PATCH /api/courses/c_101 as u_ana: 400 field_not_editable (createdAt)\n#672 PATCH /api/courses/c_101 as u_ana: 400 invalid_field (title)\n#673 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#674 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\n#675 PATCH /api/courses/c_102 as anonymous: 401 unauthenticated\n#676 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\n#677 PATCH /api/courses/c_101 as anonymous: 401 unauthenticated\n#678 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#679 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#680 PATCH /api/courses/c_101 as u_lan: 403 forbidden\n#681 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#682 PATCH /api/courses/c_201 as u_binh: 400 invalid_body\n#683 PATCH /api/courses/c_101 as u_binh: 404 not_found\n#684 PATCH /api/courses/c_201 as u_binh: 400 field_not_editable (ownerId)\n#685 PATCH /api/courses/c_404 as u_ana: 404 not_found\n#686 PATCH /api/courses/c_102 as anonymous: 401 unauthenticated\n#687 PATCH /api/courses/c_101 as u_ana: 200 ok\n#688 PATCH /api/courses/c_404 as anonymous: 401 unauthenticated\n#689 PATCH /api/courses/c_101 as anonymous: 401 unauthenticated\n#690 PATCH /api/courses/c_201 as anonymous: 401 unauthenticated\n#691 PATCH /api/courses/c_201 as u_lan: 403 forbidden\n#692 PATCH /api/courses/c_102 as u_lan: 403 forbidden\n#693 PATCH /api/courses/c_404 as u_admin: 400 invalid_body\n#694 PATCH /api/courses/c_201 as u_binh: 400 field_not_editable (published)\n#695 PATCH /api/courses/c_102 as u_admin: 400 field_not_editable (createdAt)\n#696 PATCH /api/courses/c_101 as u_ana: 400 field_not_editable (published)\n#697 PATCH /api/courses/c_102 as anonymous: 401 unauthenticated\n#698 PATCH /api/courses/c_404 as u_admin: 400 invalid_body\n#699 PATCH /api/courses/c_101 as u_admin: 200 ok\n#700 PATCH /api/courses/c_102 as anonymous: 401 unauthenticated\nc_101: id=c_101 owner=u_ana title=\"Final 615\" description=\"Revision 699\" price=687000 createdAt=2026-09-01\nc_102: id=c_102 owner=u_ana title=\"Final 459\" description=\"Revision 203\" price=639000 createdAt=2026-09-15\nc_201: id=c_201 owner=u_binh title=\"Draft 634\" description=\"Revision 566\" price=542000 createdAt=2026-10-02",
+          "hidden": true,
+          "score": 2
+        }
+      ]
+    }
+  ]
+}

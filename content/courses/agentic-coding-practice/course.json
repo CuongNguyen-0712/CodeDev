@@ -1,0 +1,191 @@
+{
+  "publicId": "agentic-coding-practice",
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1793020058/codedev/courses/agentic-coding-practice/cover",
+  "title": "Agentic Coding in Practice: Specs, Skills & a Harness for Coding Agents",
+  "concept": "Get from vibe coding to production with coding agents: write specs and tasks small enough for an agent, give it instruction files and skills, close the loop with tests, lint and mutation testing, limit what it may run and touch, and stay the owner of the code it writes.",
+  "description": "An intermediate course for developers who already let a coding agent edit their repositories and now need it to be safe and repeatable. Every lesson starts from something that happened on the CodeDev learning platform - an agent that deleted a migration to make a test pass, an AGENTS.md nobody followed because it was 900 lines long, a test suite that stayed green when the agent broke the pricing rule, an agent that ran a command against the production database, a vibe-coded admin API that let any instructor edit any course and shipped the API key in the frontend - and builds the harness that would have stopped it: spec, plan and tasks, instruction files and Agent Skills, tests and lint as feedback, choosing which tests to run, mutation score, command policies and allowed paths, cognitive debt and agents in CI. 12 lessons with True/False quizzes on real specs, configs, diffs and logs, and TypeScript challenges graded by hidden tests - you may use an agent to solve them, the hidden tests decide.",
+  "level": "intermediate",
+  "durationMinutes": 420,
+  "instructor": "CodeDev Engineering Team",
+  "language": "TypeScript",
+  "category": "AI Engineering",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 100,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 300
+    },
+    {
+      "priceType": "money",
+      "amount": 149000,
+      "currency": "VND"
+    }
+  ],
+  "completionRules": {},
+  "recommendedLevel": {
+    "min": 6,
+    "max": 12
+  },
+  "domain": "ai",
+  "learningOutcomes": [
+    {
+      "code": "spec-tasks",
+      "text": "Write a spec and split work into tasks small enough for a coding agent to finish and verify"
+    },
+    {
+      "code": "instructions-skills",
+      "text": "Set up short, true instruction files and Agent Skills that agents can follow"
+    },
+    {
+      "code": "feedback-loops",
+      "text": "Use tests, lint, test selection and mutation score as the agent's automatic feedback loop"
+    },
+    {
+      "code": "least-privilege",
+      "text": "Limit which commands an agent may run and which paths it may change, in a sandbox with a budget"
+    },
+    {
+      "code": "ownership",
+      "text": "Review and own agent-written code: find missing authorization and leaked secrets, and keep cognitive debt down"
+    }
+  ],
+  "testedVersions": {
+    "TypeScript": "5.9.3 (tsc --strict in the code runner)",
+    "Coding agents": "Claude Code, Codex CLI, Copilot agent mode, Cursor (lesson examples, check current docs)"
+  },
+  "lastReviewedAt": "2026-10-26",
+  "sourceLinks": [
+    "https://agents.md/",
+    "https://docs.anthropic.com/en/docs/claude-code/overview",
+    "https://stryker-mutator.io/docs/"
+  ],
+  "owner": "CodeDev Engineering Team",
+  "knownIssues": [
+    "Challenges run fixed code and fixtures; running a real agent on a repository is self-practice"
+  ],
+  "scenario": {
+    "title": "Harden the Vibe-Coded App",
+    "quiz": "chal_quiz_acp_411",
+    "fixBug": "chal_coding_acp_412"
+  },
+  "careerRoles": [
+    "backend_developer",
+    "frontend_developer",
+    "fullstack_developer",
+    "devops_engineer"
+  ],
+  "skills": {
+    "typescript": 3,
+    "testing": 4,
+    "system_design": 2
+  },
+  "goals": [
+    "grow_in_role",
+    "build_projects"
+  ],
+  "prerequisites": [
+    "ai-assisted-development"
+  ],
+  "modules": [
+    {
+      "orderIndex": 1,
+      "title": "Specs & Tasks",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "01-how-agents-work",
+          "title": "How a coding agent works: plan, edit, run, check",
+          "sanityId": "lesson-acp-1-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "02-spec-plan-tasks",
+          "title": "Spec-driven development: spec, plan & tasks small enough for an agent",
+          "sanityId": "lesson-acp-1-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "03-instruction-files",
+          "title": "Instruction files agents actually follow: AGENTS.md & CLAUDE.md",
+          "sanityId": "lesson-acp-1-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Skills & Feedback",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "04-agent-skills",
+          "title": "Agent Skills: packaging know-how in SKILL.md",
+          "sanityId": "lesson-acp-2-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "05-tests-as-feedback",
+          "title": "Feedback loops: tests, lint & choosing which tests to run",
+          "sanityId": "lesson-acp-2-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "06-mutation-testing",
+          "title": "Mutation testing: would the tests catch the agent's mistake?",
+          "sanityId": "lesson-acp-2-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Guardrails",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "07-least-privilege",
+          "title": "Least privilege for agents: which commands may run",
+          "sanityId": "lesson-acp-3-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "08-change-scope",
+          "title": "Keep the agent in scope: allowed paths & reviewable diffs",
+          "sanityId": "lesson-acp-3-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "09-cognitive-debt",
+          "title": "Cognitive debt: owning code you didn't write",
+          "sanityId": "lesson-acp-3-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 4,
+      "title": "Harden the Vibe-Coded App",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "10-harden-vibe-coded-app",
+          "title": "Harden the vibe-coded app: an admin API without an owner check",
+          "sanityId": "lesson-acp-4-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "11-secret-in-client",
+          "title": "Move the API key out of the frontend",
+          "sanityId": "lesson-acp-4-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "12-agents-in-ci",
+          "title": "Agents in CI: sandbox, budget & a human who merges",
+          "sanityId": "lesson-acp-4-3"
+        }
+      ]
+    }
+  ]
+}

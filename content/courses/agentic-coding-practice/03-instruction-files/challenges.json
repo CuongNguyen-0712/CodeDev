@@ -1,0 +1,46 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_acp_131",
+      "name": "instruction-files-quiz",
+      "type": "quiz",
+      "title": "Does the instruction file do its job?",
+      "description": "Three pieces of evidence from the CodeDev repository: an agent session that used a command from AGENTS.md, a single test of a new never-rule, and a pull request that failed CI after following \"Done means\".",
+      "difficulty": "medium",
+      "outcomes": ["instructions-skills"],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "AGENTS.md, line 66:\n  - Run the unit tests: `yarn test:unit`\n\npackage.json:\n  \"scripts\": { \"test\": \"vitest run\", \"lint\": \"eslint .\", \"verify\": \"npm run typecheck && npm run lint && npm test\" }\n\nAgent session log:\n  read  AGENTS.md\n  run   yarn test:unit\n        -> yarn: error Command \"test:unit\" not found.\n  done  \"The unit test command is not available in this environment, so I\n         reviewed the change manually. The refactoring is complete.\"\n\nStatement: \"The tests were not run because the agent ignored the instruction file.\"",
+          "explanation": "False. The log shows the opposite: the agent read AGENTS.md and ran exactly the command on line 66. The file is wrong - the repository has no yarn setup and no test:unit script - so following it led to a failure, and with no working feedback the agent fell back on its own judgement and declared the task done. The fix is in the file (a command that exists, ideally the same npm run verify that CI runs, checked by a script), plus a \"done\" rule that does not let \"command not found\" end a task. The misconception is that bad agent behavior always means the agent disobeyed; an instruction file that lies is followed into failure.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A line added to AGENTS.md on Monday:\n  - Never edit a migration that exists on main; add a new one instead.\n\nTest done by the tech lead on Tuesday: one task that needs a new column, one session with one agent.\n\n$ git diff --name-status origin/main...agent/add-course-language\nA       db/migrations/20261027_001_course_language.sql\nM       lib/catalog/course.ts\nM       tests/catalog/course.test.ts\n\nStatement: \"This session shows that agents follow the new rule, so the rule does not also need a check in CI.\"",
+          "explanation": "False. One session of a non-deterministic agent, on one task, with one tool and one model, is a single sample: the same file can be followed twice and skipped the third time, especially on a task where editing the old migration looks like the shortest path. An instruction line is feedforward; a rule whose violation is costly also needs feedback that cannot be skipped, such as a check that fails on any modified or deleted file under db/migrations/ that exists on main. To know how well a rule is followed, run a small task set several times and score the runs with a script. The misconception is that one good run proves compliance.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "AGENTS.md:\n  ## Done means\n  - `npm test` and `npm run lint` pass; show their output.\n\n.github/workflows/ci.yml (steps):\n  - run: npm ci\n  - run: npm run typecheck\n  - run: npm run lint\n  - run: npm test\n  - run: npm run db:verify\n\nThe agent's PR: its log shows npm test and npm run lint passing. CI fails:\n  npm run typecheck\n  lib/catalog/course.ts(41,7): error TS2322: Type 'string | undefined' is not assignable to type 'string'.\n\nStatement: \"The agent followed the instruction file; the PR failed because the file's definition of done is out of sync with what CI checks.\"",
+          "explanation": "True. The agent did what \"Done means\" asked, and both commands passed. CI checks two more things, typecheck and db:verify, that the instruction file never mentions, so the agent had no reason to run them. The durable fix is one command for both: an npm run verify script that runs everything CI runs, named in AGENTS.md and run by CI, plus a small check that fails when the two drift apart. The misconception is that an instruction file and CI are maintained separately; when they disagree, agents keep finishing tasks that CI then rejects.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        }
+      ]
+    }
+  ]
+}

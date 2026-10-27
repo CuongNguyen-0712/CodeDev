@@ -1,0 +1,50 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_acp_431",
+      "name": "agents-in-ci-permissions",
+      "type": "quiz",
+      "title": "What can the agent in CI reach?",
+      "description": "Two GitHub Actions setups for the nightly agent that fixes flaky tests in the CodeDev repository. For each one, decide what the agent can actually reach and who decides what reaches main.",
+      "difficulty": "medium",
+      "outcomes": [
+        "least-privilege"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": ".github/workflows/nightly-agent.yml (first version):\non:\n  schedule:\n    - cron: \"0 1 * * *\"\njobs:\n  fix-flaky-tests:\n    runs-on: ubuntu-latest\n    permissions: write-all\n    env:\n      DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}\n      AI_API_KEY: ${{ secrets.AI_API_KEY }}\n    steps:\n      - uses: actions/checkout@v4\n      - run: npm ci\n      - run: ./scripts/agent-run.sh \"Find flaky tests and fix them\"\n\nStatement: \"This job is safe enough because it runs on a fresh GitHub-hosted virtual machine that is thrown away when the job ends.\"",
+          "explanation": "False. A fresh virtual machine protects the runner's disk from the next job; it does not limit what the job's credentials can do while it runs. Here the agent's shell sees the production DATABASE_URL, so any command it decides to run (a migration, a cleanup script, a test that truncates tables) reaches production, and permissions: write-all lets the job token push commits and change issues, pull requests and releases. There is also no timeout-minutes, so a stuck agent runs until GitHub's default job limit of 360 minutes and keeps spending AI tokens. The misconception is to confuse an isolated machine with least privilege: isolation is about where code runs, privilege is about what its credentials and network can reach.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": ".github/workflows/nightly-agent.yml (after the review):\njobs:\n  fix-flaky-tests:\n    runs-on: ubuntu-latest\n    timeout-minutes: 30\n    permissions:\n      contents: read\n    container: node:22-bookworm\n    services:\n      postgres: { image: \"postgres:17\", env: { POSTGRES_PASSWORD: test } }\n    env:\n      DATABASE_URL: postgres://postgres:test@postgres:5432/codedev_test\n    steps:\n      - uses: actions/checkout@v4\n      - run: ./scripts/agent-run.sh --max-cost-usd 3 \"Find flaky tests and fix them\"\n      - uses: actions/upload-artifact@v4\n        with: { name: agent-transcript, path: agent-log/ }\n      - run: ./scripts/open-agent-pr.sh   # pushes agent/* and opens a PR with the CodeDev Agent app's token\n\nRepository rules for main: changes only through a pull request, 1 approval from CODEOWNERS (@codedev/platform, people only), required check \"test\"; nobody may bypass.\n\nStatement: \"With this setup the agent can open a pull request, but its change reaches main only after a person from @codedev/platform approves it and the test check passes.\"",
+          "explanation": "True. The job token can only read the repository, the database is a throwaway Postgres container with test data, and the only write path is the script that pushes an agent/* branch and opens a pull request with the agent app's token. The rules on main require a pull request, one approval from a code owner (a team of people, so the app cannot approve its own change) and the test check, with no bypass. The budget (30 minutes, at most 3 USD) bounds a stuck run, and the transcript artifact shows what the agent did. A human merging is the last gate, not the only one; each of the other limits makes that review smaller and safer.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

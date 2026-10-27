@@ -1,0 +1,66 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_acp_331",
+      "name": "cognitive-debt-quiz",
+      "type": "quiz",
+      "title": "Is the team still the owner of this code?",
+      "description": "Three pieces of evidence from CodeDev modules built with a coding agent: a review thread in grading, a monthly report on the streak module and an explain-back on the leaderboard.",
+      "difficulty": "medium",
+      "outcomes": [
+        "ownership"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "src/grading/ - 64 tests, all passing, line coverage 95%. Review thread on PR #1182 (+612 / -88, written with the agent, approved 7 minutes after it was opened):\n\nReviewer: What happens when two submissions for the same challenge arrive in the same second?\nAuthor:   Not sure - the agent handled concurrency. I'll ask it.\n(no further comments; merged)\n\nOn-call notes, last 30 days, src/grading:\n- 03 Oct: duplicate pass recorded -> asked agent to fix -> merged\n- 17 Oct: duplicate pass recorded again -> asked agent to fix -> merged\n\nStatement: \"These are signs of cognitive debt in src/grading, even though every test passes and coverage is 95%.\"",
+          "explanation": "True. Cognitive debt is the gap between what the code does and what the people responsible for it can explain. The author could not answer a basic question about the change they merged, a 612-line PR was approved in 7 minutes without an answer, and the same bug came back twice because each fix was another prompt instead of a reading of the code. Passing tests and high coverage measure which lines ran, not whether anyone understands why they are right - and generated tests often encode what the code does rather than what it should do. The misconception is that green tests and coverage prove the team owns the code.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Monthly report for src/progress/streak, before the incident (September) and after it (October):\n\n                                          Sep     Oct\nline coverage                             92%     98%\nshare of lines written by the agent       88%     61%\nPRs with an explain-back question          0/11    0/9\nhumans who wrote or reviewed logic (90d)   1       1\nincidents fixed by reading the code        -       0 of 2\n\nStatement: \"This report shows that the module's cognitive debt went down after the incident.\"",
+          "explanation": "False. The two numbers that improved are about volume and execution: coverage rose (more generated tests) and the agent's share of lines fell (people typed more). Neither says whether anyone can explain the module. The numbers that track understanding did not move: no PR got an explain-back question, still only one person wrote or reviewed logic, and neither incident was fixed by reading the code. The misconception is that less agent-written code, or more coverage, means more understanding; measure whether people can explain and fix the code, not how much of it there is.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "PR #1204 adds weekly leaderboards. Leaderboard weeks start on Monday (ISO weeks). The agent wrote:\n\nexport function weekStart(ts: string): string {\n    const d = new Date(ts);\n    d.setUTCDate(d.getUTCDate() - d.getUTCDay());\n    return d.toISOString().slice(0, 10);\n}\n\nIts tests (all passing) check that two Wednesdays of the same week get the same key, and that Wednesdays one week apart get different keys.\n\nExplain-back in the review:\nReviewer: Which week does a submission at 2026-11-01T10:00:00Z (a Sunday) belong to?\nAuthor:   The week that started on Monday 2026-10-26.\nReviewer: Let's run it.\n> weekStart(\"2026-11-01T10:00:00Z\")\n'2026-11-01'\n\nStatement: \"The explain-back found a gap that the passing tests did not show: the author expected Monday-based weeks, but the code starts weeks on Sunday.\"",
+          "explanation": "True. getUTCDay() returns 0 for Sunday, so subtracting it moves every date back to the previous Sunday - or keeps a Sunday where it is. The tests only used Wednesdays, which land in the same group with Sunday-based and Monday-based weeks, so they passed. The author's prediction (Monday 2026-10-26) matched the requirement, the code's answer (2026-11-01) did not, and only the prediction made the difference visible. Before merging, the PR needs a test for a Sunday (and a Monday) and a fix the author can explain. The misconception is that explain-back is a formality once tests pass; asking for a prediction on a new input is how it finds what the tests never asked.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
