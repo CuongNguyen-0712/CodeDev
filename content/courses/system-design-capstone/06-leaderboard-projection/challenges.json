@@ -1,0 +1,4612 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_sdc_231",
+      "name": "leaderboard-projection-quiz",
+      "type": "quiz",
+      "title": "Gaps, sequence numbers and tie order",
+      "description": "Two pieces of evidence from the leaderboard projection: a learner's events arriving out of order, and the order Redis gives to two learners with the same score.",
+      "difficulty": "medium",
+      "outcomes": [
+        "consistency"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Consumer log of the leaderboard projection for one learner (the outbox stamps every event of a learner with learnerSeq 1, 2, 3, ...):\n\n14:20:01.310 recv e_5501 u_an learnerSeq=5 challenge.passed +30   lastApplied=4 -> apply, lastApplied=5\n14:20:01.402 recv e_5503 u_an learnerSeq=7 challenge.passed +20   lastApplied=5 -> wait (missing 6)\n14:20:01.977 recv e_5502 u_an learnerSeq=6 progress.updated +10   lastApplied=5 -> apply 6, then 7, lastApplied=7\n\nStatement: \"If the projection had applied e_5503 as soon as it arrived and set lastApplied=7, it would then have dropped e_5502 as already applied, and u_an's score would be 10 points short.\"",
+          "explanation": "True. With a single per-learner high-water mark, \"learnerSeq <= lastApplied\" is how the projection recognises events it has already applied. Jumping to 7 makes event 6 look old, so the lesson completion (+10) is skipped forever. The points are additive, so the score would be permanently wrong until a rebuild. Holding 7 until 6 arrives keeps the rule simple and correct: apply in sequence, and the high-water mark always means \"everything up to here is in\". The misconception is that \"apply only newer versions\" is enough; it is enough when each event carries the whole new state (last write wins), not when events carry deltas.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The projection writes scores to a Redis sorted set:\n\n09:00:12 ZINCRBY lb:all-time 40 u_c\n09:05:47 ZINCRBY lb:all-time 40 u_a\n\nredis> ZREVRANGE lb:all-time 0 -1 WITHSCORES\n1) \"u_c\"\n2) \"40\"\n3) \"u_a\"\n4) \"40\"\n\nThe product rule says: on equal points, the learner who got there first ranks higher.\n\nStatement: \"ZREVRANGE lists u_c before u_a because u_c reached 40 points first, so the sorted set already implements the product's tie rule.\"",
+          "explanation": "False. Members with equal scores are ordered by the member string, and ZREVRANGE uses descending lexicographic order: \"u_c\" > \"u_a\", so u_c comes first whatever the timing. Swap the two ZINCRBY calls and the output stays the same, which is the quick test that proves it. To implement \"first to reach the score wins\", encode the tie-breaker into the score (for example points * 10^10 + (10^10 - 1 - sequenceWhenReached)) or sort ties in the application. The misconception is reading a coincidence in one sample as the rule.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_sdc_232",
+      "name": "leaderboard-projection-from-events",
+      "type": "mini_coding",
+      "title": "A leaderboard projection from progress events",
+      "description": "Implement ProjectionLeaderboard, the CodeDev leaderboard projection. It consumes events from the event bus (at-least-once delivery, so redeliveries happen, and events of one learner can arrive out of order) and keeps an \"all-time\" board and one board per week. PostgreSQL stays the source of truth; this projection can always be rebuilt from events.\n\nEvents (untrusted JSON): { eventId, type, userId, learnerSeq, week, ... } where type is \"challenge.passed\" (with points) or \"progress.updated\" (with lessonPercent and coursePercent). learnerSeq is the learner's own sequence number (1, 2, 3, ... with no gaps, stamped by the outbox). An event is invalid when it is not an object, eventId, userId or week is not a non-empty string, learnerSeq is not an integer >= 1, the type is another string, points is not an integer from 1 to 500 (challenge.passed), or lessonPercent / coursePercent is not an integer from 0 to 100 (progress.updated).\n\napply(event) returns, checked in this order: \"invalid\" (ignored, and its eventId is not remembered); \"duplicate\" when the eventId was already accepted; \"stale\" when that learner's learnerSeq was already applied or is already waiting (a different event id with a used sequence number); otherwise \"accepted\". An accepted event is applied when its learnerSeq is the learner's next one (last applied + 1, starting at 1); otherwise it waits. After applying, keep applying that learner's waiting events while the next learnerSeq is there. waiting() returns the number of accepted events not applied yet.\n\nPoints when applied: challenge.passed adds points; progress.updated adds 10 when lessonPercent is 100, plus 50 when coursePercent is 100 (so 0, 10, 50 or 60). Points go to the \"all-time\" board and to the board named by the event's week. An event worth 0 points changes no board, and a learner appears on a board only with more than 0 points there.\n\ntop(board, n) and rank(board, userId) use one order per board: more points first; on equal points, the learner whose points on that board changed earlier (in the order events were applied) first. rank is the 1-based position in that order; rank returns null when the learner is not on the board. The runner prints, after each batch, the outcome counts, waiting(), the top N of \"all-time\" and of the batch's week, and the watched learners. Do not change the types or the test runner.",
+      "difficulty": "medium",
+      "outcomes": [
+        "consistency"
+      ],
+      "points": 30,
+      "hints": [
+        "What should happen to u_an's score when learnerSeq 3 arrives before learnerSeq 2? And when the same eventId arrives a second time an hour later?",
+        "Keep per learner: the last applied learnerSeq and a map of waiting events by learnerSeq; globally: the set of accepted eventIds and a counter that goes up each time an event is applied. Each board entry needs the points and the counter value of its last change, which is the tie-breaker.",
+        "A similar case with different data: last applied for u_x is 2, waiting is {4}. Event 3 arrives: accept it, apply 3, then 4, last applied becomes 4, waiting is empty. Another event with learnerSeq 4 and a new id is now stale; the same id as event 3 is a duplicate. If u_x and u_y both have 70 points and u_y's last change was applied first, u_y ranks above u_x."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "In-order events: points rules, top N and a watched learner",
+          "input": {
+            "top": 3,
+            "watch": [
+              "u_chi"
+            ],
+            "batches": [
+              {
+                "week": "2026-W44",
+                "events": [
+                  {
+                    "eventId": "e1",
+                    "type": "challenge.passed",
+                    "userId": "u_an",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e1",
+                    "points": 30
+                  },
+                  {
+                    "eventId": "e2",
+                    "type": "challenge.passed",
+                    "userId": "u_binh",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e2",
+                    "points": 50
+                  },
+                  {
+                    "eventId": "e3",
+                    "type": "progress.updated",
+                    "userId": "u_an",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 40
+                  },
+                  {
+                    "eventId": "e4",
+                    "type": "progress.updated",
+                    "userId": "u_chi",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 60,
+                    "coursePercent": 20
+                  },
+                  {
+                    "eventId": "e5",
+                    "type": "progress.updated",
+                    "userId": "u_binh",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 100
+                  },
+                  {
+                    "eventId": "e6",
+                    "type": "challenge.passed",
+                    "userId": "u_an",
+                    "learnerSeq": 3,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e6",
+                    "points": 20
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": "batch 1 week 2026-W44: accepted 6, duplicate 0, stale 0, invalid 0, waiting 0\n  all-time: 1. u_binh 110, 2. u_an 60\n  2026-W44: 1. u_binh 110, 2. u_an 60\n  u_chi: all-time -, 2026-W44 -",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Ties: the learner whose points changed first ranks higher",
+          "input": {
+            "top": 5,
+            "watch": [
+              "u_b"
+            ],
+            "batches": [
+              {
+                "week": "2026-W44",
+                "events": [
+                  {
+                    "eventId": "t1",
+                    "type": "challenge.passed",
+                    "userId": "u_c",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_t1",
+                    "points": 40
+                  },
+                  {
+                    "eventId": "t2",
+                    "type": "challenge.passed",
+                    "userId": "u_b",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_t2",
+                    "points": 30
+                  },
+                  {
+                    "eventId": "t3",
+                    "type": "challenge.passed",
+                    "userId": "u_a",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_t3",
+                    "points": 40
+                  },
+                  {
+                    "eventId": "t4",
+                    "type": "challenge.passed",
+                    "userId": "u_b",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "challengeId": "chal_t4",
+                    "points": 10
+                  },
+                  {
+                    "eventId": "t5",
+                    "type": "challenge.passed",
+                    "userId": "u_d",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_t5",
+                    "points": 25
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": "batch 1 week 2026-W44: accepted 5, duplicate 0, stale 0, invalid 0, waiting 0\n  all-time: 1. u_c 40, 2. u_a 40, 3. u_b 40, 4. u_d 25\n  2026-W44: 1. u_c 40, 2. u_a 40, 3. u_b 40, 4. u_d 25\n  u_b: all-time #3 40, 2026-W44 #3 40",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "A redelivered event counts once, in the same batch and in a later one",
+          "input": {
+            "top": 3,
+            "watch": [
+              "u_an"
+            ],
+            "batches": [
+              {
+                "week": "2026-W44",
+                "events": [
+                  {
+                    "eventId": "d1",
+                    "type": "challenge.passed",
+                    "userId": "u_an",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_d1",
+                    "points": 40
+                  },
+                  {
+                    "eventId": "d1",
+                    "type": "challenge.passed",
+                    "userId": "u_an",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_d1",
+                    "points": 40
+                  },
+                  {
+                    "eventId": "d2",
+                    "type": "challenge.passed",
+                    "userId": "u_binh",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_d2",
+                    "points": 30
+                  }
+                ]
+              },
+              {
+                "week": "2026-W44",
+                "events": [
+                  {
+                    "eventId": "d1",
+                    "type": "challenge.passed",
+                    "userId": "u_an",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_d1",
+                    "points": 40
+                  },
+                  {
+                    "eventId": "d3",
+                    "type": "challenge.passed",
+                    "userId": "u_binh",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "challengeId": "chal_d3",
+                    "points": 20
+                  },
+                  {
+                    "eventId": "d3",
+                    "type": "challenge.passed",
+                    "userId": "u_binh",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "challengeId": "chal_d3",
+                    "points": 20
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": "batch 1 week 2026-W44: accepted 2, duplicate 1, stale 0, invalid 0, waiting 0\n  all-time: 1. u_an 40, 2. u_binh 30\n  2026-W44: 1. u_an 40, 2. u_binh 30\n  u_an: all-time #1 40, 2026-W44 #1 40\nbatch 2 week 2026-W44: accepted 1, duplicate 2, stale 0, invalid 0, waiting 0\n  all-time: 1. u_binh 50, 2. u_an 40\n  2026-W44: 1. u_binh 50, 2. u_an 40\n  u_an: all-time #2 40, 2026-W44 #2 40",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Out of order: later learnerSeq values wait for the missing one",
+          "input": {
+            "top": 3,
+            "watch": [
+              "u_an"
+            ],
+            "batches": [
+              {
+                "week": "2026-W44",
+                "events": [
+                  {
+                    "eventId": "o2",
+                    "type": "progress.updated",
+                    "userId": "u_an",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 100
+                  },
+                  {
+                    "eventId": "o3",
+                    "type": "challenge.passed",
+                    "userId": "u_an",
+                    "learnerSeq": 3,
+                    "week": "2026-W44",
+                    "challengeId": "chal_o3",
+                    "points": 20
+                  },
+                  {
+                    "eventId": "b1",
+                    "type": "challenge.passed",
+                    "userId": "u_binh",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_b1",
+                    "points": 50
+                  },
+                  {
+                    "eventId": "o3",
+                    "type": "progress.updated",
+                    "userId": "u_an",
+                    "learnerSeq": 3,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 100
+                  }
+                ]
+              },
+              {
+                "week": "2026-W44",
+                "events": [
+                  {
+                    "eventId": "o1",
+                    "type": "challenge.passed",
+                    "userId": "u_an",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_o1",
+                    "points": 30
+                  },
+                  {
+                    "eventId": "ox",
+                    "type": "challenge.passed",
+                    "userId": "u_an",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "challengeId": "chal_ox",
+                    "points": 99
+                  },
+                  {
+                    "eventId": "b2",
+                    "type": "challenge.passed",
+                    "userId": "u_binh",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "challengeId": "chal_b2",
+                    "points": 60
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": "batch 1 week 2026-W44: accepted 3, duplicate 1, stale 0, invalid 0, waiting 2\n  all-time: 1. u_binh 50\n  2026-W44: 1. u_binh 50\n  u_an: all-time -, 2026-W44 -\nbatch 2 week 2026-W44: accepted 2, duplicate 0, stale 1, invalid 0, waiting 0\n  all-time: 1. u_an 110, 2. u_binh 110\n  2026-W44: 1. u_an 110, 2. u_binh 110\n  u_an: all-time #1 110, 2026-W44 #1 110",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Weekly boards follow the event's week; all-time keeps everything",
+          "input": {
+            "top": 3,
+            "watch": [
+              "u_an",
+              "u_chi"
+            ],
+            "batches": [
+              {
+                "week": "2026-W44",
+                "events": [
+                  {
+                    "eventId": "w1",
+                    "type": "challenge.passed",
+                    "userId": "u_an",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_w1",
+                    "points": 40
+                  },
+                  {
+                    "eventId": "w2",
+                    "type": "challenge.passed",
+                    "userId": "u_chi",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_w2",
+                    "points": 30
+                  }
+                ]
+              },
+              {
+                "week": "2026-W45",
+                "events": [
+                  {
+                    "eventId": "w3",
+                    "type": "challenge.passed",
+                    "userId": "u_chi",
+                    "learnerSeq": 2,
+                    "week": "2026-W45",
+                    "challengeId": "chal_w3",
+                    "points": 25
+                  },
+                  {
+                    "eventId": "w4",
+                    "type": "challenge.passed",
+                    "userId": "u_an",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "challengeId": "chal_w4",
+                    "points": 15
+                  },
+                  {
+                    "eventId": "w5",
+                    "type": "challenge.passed",
+                    "userId": "u_binh",
+                    "learnerSeq": 1,
+                    "week": "2026-W45",
+                    "challengeId": "chal_w5",
+                    "points": 5
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": "batch 1 week 2026-W44: accepted 2, duplicate 0, stale 0, invalid 0, waiting 0\n  all-time: 1. u_an 40, 2. u_chi 30\n  2026-W44: 1. u_an 40, 2. u_chi 30\n  u_an: all-time #1 40, 2026-W44 #1 40\n  u_chi: all-time #2 30, 2026-W44 #2 30\nbatch 2 week 2026-W45: accepted 3, duplicate 0, stale 0, invalid 0, waiting 0\n  all-time: 1. u_chi 55, 2. u_an 55, 3. u_binh 5\n  2026-W45: 1. u_chi 25, 2. u_binh 5\n  u_an: all-time #2 55, 2026-W45 -\n  u_chi: all-time #1 55, 2026-W45 #1 25",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Invalid events are ignored and do not block a valid event with the same id",
+          "input": {
+            "top": 3,
+            "watch": [
+              "u_an"
+            ],
+            "batches": [
+              {
+                "week": "2026-W44",
+                "events": [
+                  null,
+                  "challenge.passed",
+                  42,
+                  {
+                    "eventId": "",
+                    "type": "challenge.passed",
+                    "userId": "u_an",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_i1",
+                    "points": 30
+                  },
+                  {
+                    "eventId": "i2",
+                    "type": "challenge.passed",
+                    "userId": "u_an",
+                    "learnerSeq": 0,
+                    "week": "2026-W44",
+                    "challengeId": "chal_i2",
+                    "points": 30
+                  },
+                  {
+                    "eventId": "i3",
+                    "type": "challenge.passed",
+                    "userId": "u_an",
+                    "learnerSeq": 1.5,
+                    "week": "2026-W44",
+                    "challengeId": "chal_i3",
+                    "points": 30
+                  },
+                  {
+                    "eventId": "i4",
+                    "type": "challenge.passed",
+                    "userId": "u_an",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_i4",
+                    "points": 0
+                  },
+                  {
+                    "eventId": "i5",
+                    "type": "challenge.passed",
+                    "userId": "u_an",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_i5",
+                    "points": 501
+                  },
+                  {
+                    "eventId": "i6",
+                    "type": "challenge.passed",
+                    "userId": "u_an",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_i6",
+                    "points": "30"
+                  },
+                  {
+                    "eventId": "i7",
+                    "type": "lesson.viewed",
+                    "userId": "u_an",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_i7",
+                    "points": 30
+                  },
+                  {
+                    "eventId": "i8",
+                    "type": "progress.updated",
+                    "userId": "u_an",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 101,
+                    "coursePercent": 0
+                  },
+                  {
+                    "eventId": "i9",
+                    "type": "challenge.passed",
+                    "userId": "u_an",
+                    "learnerSeq": 1,
+                    "week": "",
+                    "challengeId": "chal_i9",
+                    "points": 30
+                  },
+                  {
+                    "eventId": "i10",
+                    "type": "challenge.passed",
+                    "userId": 7,
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_i10",
+                    "points": 30
+                  },
+                  {
+                    "eventId": "i4",
+                    "type": "challenge.passed",
+                    "userId": "u_an",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_i4",
+                    "points": 35
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": "batch 1 week 2026-W44: accepted 1, duplicate 0, stale 0, invalid 13, waiting 0\n  all-time: 1. u_an 35\n  2026-W44: 1. u_an 35\n  u_an: all-time #1 35, 2026-W44 #1 35",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Large: 420 events from 40 learners, out of order, with redeliveries, 2 weeks",
+          "input": {
+            "top": 5,
+            "watch": [
+              "u007",
+              "u023",
+              "u040"
+            ],
+            "batches": [
+              {
+                "week": "2026-W44",
+                "events": [
+                  {
+                    "eventId": "e2_1",
+                    "type": "challenge.passed",
+                    "userId": "u002",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e2_1",
+                    "points": 10
+                  },
+                  {
+                    "eventId": "e34_2",
+                    "type": "progress.updated",
+                    "userId": "u034",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 50,
+                    "coursePercent": 10
+                  },
+                  {
+                    "eventId": "e9_1",
+                    "type": "progress.updated",
+                    "userId": "u009",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 10,
+                    "coursePercent": 20
+                  },
+                  {
+                    "eventId": "e14_1",
+                    "type": "challenge.passed",
+                    "userId": "u014",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e14_1",
+                    "points": 25
+                  },
+                  {
+                    "eventId": "e15_2",
+                    "type": "challenge.passed",
+                    "userId": "u015",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e15_2",
+                    "points": 25
+                  },
+                  {
+                    "eventId": "e10_1",
+                    "type": "progress.updated",
+                    "userId": "u010",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 30,
+                    "coursePercent": 20
+                  },
+                  {
+                    "eventId": "e23_1",
+                    "type": "progress.updated",
+                    "userId": "u023",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 60
+                  },
+                  {
+                    "eventId": "e3_1",
+                    "type": "challenge.passed",
+                    "userId": "u003",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e3_1",
+                    "points": 20
+                  },
+                  {
+                    "eventId": "e36_1",
+                    "type": "challenge.passed",
+                    "userId": "u036",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e36_1",
+                    "points": 10
+                  },
+                  {
+                    "eventId": "e22_1",
+                    "type": "challenge.passed",
+                    "userId": "u022",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e22_1",
+                    "points": 5
+                  },
+                  {
+                    "eventId": "e30_1",
+                    "type": "challenge.passed",
+                    "userId": "u030",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e30_1",
+                    "points": 50
+                  },
+                  {
+                    "eventId": "e5_1",
+                    "type": "challenge.passed",
+                    "userId": "u005",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e5_1",
+                    "points": 55
+                  },
+                  {
+                    "eventId": "e11_2",
+                    "type": "challenge.passed",
+                    "userId": "u011",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e11_2",
+                    "points": 40
+                  },
+                  {
+                    "eventId": "e29_1",
+                    "type": "challenge.passed",
+                    "userId": "u029",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e29_1",
+                    "points": 40
+                  },
+                  {
+                    "eventId": "e40_1",
+                    "type": "progress.updated",
+                    "userId": "u040",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 30
+                  },
+                  {
+                    "eventId": "e21_1",
+                    "type": "challenge.passed",
+                    "userId": "u021",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e21_1",
+                    "points": 15
+                  },
+                  {
+                    "eventId": "e37_1",
+                    "type": "challenge.passed",
+                    "userId": "u037",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e37_1",
+                    "points": 40
+                  },
+                  {
+                    "eventId": "e13_1",
+                    "type": "progress.updated",
+                    "userId": "u013",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 50
+                  },
+                  {
+                    "eventId": "e26_1",
+                    "type": "progress.updated",
+                    "userId": "u026",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 30
+                  },
+                  {
+                    "eventId": "e6_1",
+                    "type": "challenge.passed",
+                    "userId": "u006",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e6_1",
+                    "points": 60
+                  },
+                  {
+                    "eventId": "e25_1",
+                    "type": "challenge.passed",
+                    "userId": "u025",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e25_1",
+                    "points": 25
+                  },
+                  {
+                    "eventId": "e1_1",
+                    "type": "challenge.passed",
+                    "userId": "u001",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e1_1",
+                    "points": 35
+                  },
+                  {
+                    "eventId": "e33_2",
+                    "type": "challenge.passed",
+                    "userId": "u033",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e33_2",
+                    "points": 45
+                  },
+                  {
+                    "eventId": "e8_2",
+                    "type": "challenge.passed",
+                    "userId": "u008",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e8_2",
+                    "points": 60
+                  },
+                  {
+                    "eventId": "e12_1",
+                    "type": "challenge.passed",
+                    "userId": "u012",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e12_1",
+                    "points": 35
+                  },
+                  {
+                    "eventId": "e20_1",
+                    "type": "progress.updated",
+                    "userId": "u020",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 80,
+                    "coursePercent": 40
+                  },
+                  {
+                    "eventId": "e19_2",
+                    "type": "progress.updated",
+                    "userId": "u019",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 10,
+                    "coursePercent": 20
+                  },
+                  {
+                    "eventId": "e28_1",
+                    "type": "challenge.passed",
+                    "userId": "u028",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e28_1",
+                    "points": 55
+                  },
+                  {
+                    "eventId": "e31_1",
+                    "type": "challenge.passed",
+                    "userId": "u031",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e31_1",
+                    "points": 50
+                  },
+                  {
+                    "eventId": "e17_1",
+                    "type": "progress.updated",
+                    "userId": "u017",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 80
+                  },
+                  {
+                    "eventId": "e24_1",
+                    "type": "challenge.passed",
+                    "userId": "u024",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e24_1",
+                    "points": 35
+                  },
+                  {
+                    "eventId": "e7_1",
+                    "type": "challenge.passed",
+                    "userId": "u007",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e7_1",
+                    "points": 55
+                  },
+                  {
+                    "eventId": "e32_1",
+                    "type": "progress.updated",
+                    "userId": "u032",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 90,
+                    "coursePercent": 10
+                  },
+                  {
+                    "eventId": "e16_2",
+                    "type": "progress.updated",
+                    "userId": "u016",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 30
+                  },
+                  {
+                    "eventId": "e18_1",
+                    "type": "challenge.passed",
+                    "userId": "u018",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e18_1",
+                    "points": 5
+                  },
+                  {
+                    "eventId": "e4_1",
+                    "type": "progress.updated",
+                    "userId": "u004",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 60,
+                    "coursePercent": 30
+                  },
+                  {
+                    "eventId": "e27_2",
+                    "type": "challenge.passed",
+                    "userId": "u027",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e27_2",
+                    "points": 55
+                  },
+                  {
+                    "eventId": "e38_1",
+                    "type": "challenge.passed",
+                    "userId": "u038",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e38_1",
+                    "points": 30
+                  },
+                  {
+                    "eventId": "e38_1",
+                    "type": "challenge.passed",
+                    "userId": "u038",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e38_1",
+                    "points": 30
+                  },
+                  {
+                    "eventId": "e35_1",
+                    "type": "challenge.passed",
+                    "userId": "u035",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e35_1",
+                    "points": 45
+                  },
+                  {
+                    "eventId": "e39_1",
+                    "type": "progress.updated",
+                    "userId": "u039",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 30,
+                    "coursePercent": 60
+                  },
+                  {
+                    "eventId": "e18_2",
+                    "type": "challenge.passed",
+                    "userId": "u018",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e18_2",
+                    "points": 25
+                  },
+                  {
+                    "eventId": "e33_3",
+                    "type": "challenge.passed",
+                    "userId": "u033",
+                    "learnerSeq": 3,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e33_3",
+                    "points": 60
+                  },
+                  {
+                    "eventId": "e39_2",
+                    "type": "progress.updated",
+                    "userId": "u039",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 20
+                  },
+                  {
+                    "eventId": "e9_2",
+                    "type": "challenge.passed",
+                    "userId": "u009",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e9_2",
+                    "points": 40
+                  },
+                  {
+                    "eventId": "e31_2",
+                    "type": "challenge.passed",
+                    "userId": "u031",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e31_2",
+                    "points": 25
+                  },
+                  {
+                    "eventId": "e7_2",
+                    "type": "challenge.passed",
+                    "userId": "u007",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e7_2",
+                    "points": 10
+                  },
+                  {
+                    "eventId": "e16_1",
+                    "type": "progress.updated",
+                    "userId": "u016",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 0
+                  },
+                  {
+                    "eventId": "e10_3",
+                    "type": "challenge.passed",
+                    "userId": "u010",
+                    "learnerSeq": 3,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e10_3",
+                    "points": 50
+                  },
+                  {
+                    "eventId": "e15_3",
+                    "type": "challenge.passed",
+                    "userId": "u015",
+                    "learnerSeq": 3,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e15_3",
+                    "points": 20
+                  },
+                  {
+                    "eventId": "e15_3",
+                    "type": "challenge.passed",
+                    "userId": "u015",
+                    "learnerSeq": 3,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e15_3",
+                    "points": 20
+                  },
+                  {
+                    "eventId": "e27_1",
+                    "type": "challenge.passed",
+                    "userId": "u027",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e27_1",
+                    "points": 55
+                  },
+                  {
+                    "eventId": "e35_2",
+                    "type": "challenge.passed",
+                    "userId": "u035",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e35_2",
+                    "points": 25
+                  },
+                  {
+                    "eventId": "e20_3",
+                    "type": "challenge.passed",
+                    "userId": "u020",
+                    "learnerSeq": 3,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e20_3",
+                    "points": 40
+                  },
+                  {
+                    "eventId": "e13_2",
+                    "type": "challenge.passed",
+                    "userId": "u013",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e13_2",
+                    "points": 15
+                  },
+                  {
+                    "eventId": "e5_2",
+                    "type": "challenge.passed",
+                    "userId": "u005",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e5_2",
+                    "points": 10
+                  },
+                  {
+                    "eventId": "e6_2",
+                    "type": "challenge.passed",
+                    "userId": "u006",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e6_2",
+                    "points": 55
+                  },
+                  {
+                    "eventId": "e36_2",
+                    "type": "challenge.passed",
+                    "userId": "u036",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e36_2",
+                    "points": 5
+                  },
+                  {
+                    "eventId": "e3_2",
+                    "type": "challenge.passed",
+                    "userId": "u003",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e3_2",
+                    "points": 10
+                  },
+                  {
+                    "eventId": "e19_1",
+                    "type": "challenge.passed",
+                    "userId": "u019",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e19_1",
+                    "points": 35
+                  },
+                  {
+                    "eventId": "e37_2",
+                    "type": "challenge.passed",
+                    "userId": "u037",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e37_2",
+                    "points": 45
+                  },
+                  {
+                    "eventId": "e24_2",
+                    "type": "challenge.passed",
+                    "userId": "u024",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e24_2",
+                    "points": 15
+                  },
+                  {
+                    "eventId": "e24_2",
+                    "type": "challenge.passed",
+                    "userId": "u024",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e24_2",
+                    "points": 15
+                  },
+                  {
+                    "eventId": "e40_3",
+                    "type": "challenge.passed",
+                    "userId": "u040",
+                    "learnerSeq": 3,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e40_3",
+                    "points": 40
+                  },
+                  {
+                    "eventId": "e21_2",
+                    "type": "challenge.passed",
+                    "userId": "u021",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e21_2",
+                    "points": 10
+                  },
+                  {
+                    "eventId": "e28_2",
+                    "type": "challenge.passed",
+                    "userId": "u028",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e28_2",
+                    "points": 45
+                  },
+                  {
+                    "eventId": "e29_2",
+                    "type": "challenge.passed",
+                    "userId": "u029",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e29_2",
+                    "points": 15
+                  },
+                  {
+                    "eventId": "e25_2",
+                    "type": "challenge.passed",
+                    "userId": "u025",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e25_2",
+                    "points": 40
+                  },
+                  {
+                    "eventId": "e22_2",
+                    "type": "progress.updated",
+                    "userId": "u022",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 0,
+                    "coursePercent": 90
+                  },
+                  {
+                    "eventId": "e32_2",
+                    "type": "progress.updated",
+                    "userId": "u032",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 50,
+                    "coursePercent": 60
+                  },
+                  {
+                    "eventId": "e14_2",
+                    "type": "challenge.passed",
+                    "userId": "u014",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e14_2",
+                    "points": 15
+                  },
+                  {
+                    "eventId": "e1_2",
+                    "type": "progress.updated",
+                    "userId": "u001",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 70,
+                    "coursePercent": 20
+                  },
+                  {
+                    "eventId": "e34_1",
+                    "type": "progress.updated",
+                    "userId": "u034",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 70
+                  },
+                  {
+                    "eventId": "e4_2",
+                    "type": "progress.updated",
+                    "userId": "u004",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 20,
+                    "coursePercent": 70
+                  },
+                  {
+                    "eventId": "e23_2",
+                    "type": "challenge.passed",
+                    "userId": "u023",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e23_2",
+                    "points": 45
+                  },
+                  {
+                    "eventId": "e8_1",
+                    "type": "challenge.passed",
+                    "userId": "u008",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e8_1",
+                    "points": 25
+                  },
+                  {
+                    "eventId": "e38_3",
+                    "type": "challenge.passed",
+                    "userId": "u038",
+                    "learnerSeq": 3,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e38_3",
+                    "points": 35
+                  },
+                  {
+                    "eventId": "e17_2",
+                    "type": "challenge.passed",
+                    "userId": "u017",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e17_2",
+                    "points": 20
+                  },
+                  {
+                    "eventId": "e26_2",
+                    "type": "challenge.passed",
+                    "userId": "u026",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e26_2",
+                    "points": 10
+                  },
+                  {
+                    "eventId": "e11_1",
+                    "type": "challenge.passed",
+                    "userId": "u011",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e11_1",
+                    "points": 55
+                  },
+                  {
+                    "eventId": "e30_2",
+                    "type": "progress.updated",
+                    "userId": "u030",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 40
+                  },
+                  {
+                    "eventId": "e2_3",
+                    "type": "progress.updated",
+                    "userId": "u002",
+                    "learnerSeq": 3,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 10
+                  },
+                  {
+                    "eventId": "e12_2",
+                    "type": "challenge.passed",
+                    "userId": "u012",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e12_2",
+                    "points": 45
+                  },
+                  {
+                    "eventId": "e18_3",
+                    "type": "progress.updated",
+                    "userId": "u018",
+                    "learnerSeq": 3,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 20
+                  },
+                  {
+                    "eventId": "e27_3",
+                    "type": "progress.updated",
+                    "userId": "u027",
+                    "learnerSeq": 3,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 50,
+                    "coursePercent": 40
+                  },
+                  {
+                    "eventId": "e38_2",
+                    "type": "challenge.passed",
+                    "userId": "u038",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e38_2",
+                    "points": 10
+                  },
+                  {
+                    "eventId": "e19_4",
+                    "type": "challenge.passed",
+                    "userId": "u019",
+                    "learnerSeq": 4,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e19_4",
+                    "points": 55
+                  },
+                  {
+                    "eventId": "e3_3",
+                    "type": "challenge.passed",
+                    "userId": "u003",
+                    "learnerSeq": 3,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e3_3",
+                    "points": 35
+                  },
+                  {
+                    "eventId": "e5_3",
+                    "type": "challenge.passed",
+                    "userId": "u005",
+                    "learnerSeq": 3,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e5_3",
+                    "points": 5
+                  },
+                  {
+                    "eventId": "e17_3",
+                    "type": "challenge.passed",
+                    "userId": "u017",
+                    "learnerSeq": 3,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e17_3",
+                    "points": 50
+                  },
+                  {
+                    "eventId": "e32_3",
+                    "type": "challenge.passed",
+                    "userId": "u032",
+                    "learnerSeq": 3,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e32_3",
+                    "points": 20
+                  },
+                  {
+                    "eventId": "e24_4",
+                    "type": "challenge.passed",
+                    "userId": "u024",
+                    "learnerSeq": 4,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e24_4",
+                    "points": 40
+                  },
+                  {
+                    "eventId": "e16_4",
+                    "type": "challenge.passed",
+                    "userId": "u016",
+                    "learnerSeq": 4,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e16_4",
+                    "points": 30
+                  },
+                  {
+                    "eventId": "e23_3",
+                    "type": "progress.updated",
+                    "userId": "u023",
+                    "learnerSeq": 3,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 50
+                  },
+                  {
+                    "eventId": "e15_1",
+                    "type": "progress.updated",
+                    "userId": "u015",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 30,
+                    "coursePercent": 0
+                  },
+                  {
+                    "eventId": "e36_3",
+                    "type": "challenge.passed",
+                    "userId": "u036",
+                    "learnerSeq": 3,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e36_3",
+                    "points": 15
+                  },
+                  {
+                    "eventId": "e36_3",
+                    "type": "challenge.passed",
+                    "userId": "u036",
+                    "learnerSeq": 3,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e36_3",
+                    "points": 15
+                  },
+                  {
+                    "eventId": "e8_3",
+                    "type": "challenge.passed",
+                    "userId": "u008",
+                    "learnerSeq": 3,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e8_3",
+                    "points": 30
+                  },
+                  {
+                    "eventId": "e1_4",
+                    "type": "challenge.passed",
+                    "userId": "u001",
+                    "learnerSeq": 4,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e1_4",
+                    "points": 15
+                  },
+                  {
+                    "eventId": "e26_4",
+                    "type": "challenge.passed",
+                    "userId": "u026",
+                    "learnerSeq": 4,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e26_4",
+                    "points": 45
+                  },
+                  {
+                    "eventId": "e12_3",
+                    "type": "challenge.passed",
+                    "userId": "u012",
+                    "learnerSeq": 3,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e12_3",
+                    "points": 15
+                  },
+                  {
+                    "eventId": "e2_2",
+                    "type": "challenge.passed",
+                    "userId": "u002",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e2_2",
+                    "points": 25
+                  },
+                  {
+                    "eventId": "e30_3",
+                    "type": "progress.updated",
+                    "userId": "u030",
+                    "learnerSeq": 3,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 30
+                  },
+                  {
+                    "eventId": "e14_4",
+                    "type": "challenge.passed",
+                    "userId": "u014",
+                    "learnerSeq": 4,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e14_4",
+                    "points": 60
+                  }
+                ]
+              },
+              {
+                "week": "2026-W44",
+                "events": [
+                  {
+                    "eventId": "e31_3",
+                    "type": "progress.updated",
+                    "userId": "u031",
+                    "learnerSeq": 3,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 80
+                  },
+                  {
+                    "eventId": "e37_3",
+                    "type": "challenge.passed",
+                    "userId": "u037",
+                    "learnerSeq": 3,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e37_3",
+                    "points": 30
+                  },
+                  {
+                    "eventId": "e9_3",
+                    "type": "challenge.passed",
+                    "userId": "u009",
+                    "learnerSeq": 3,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e9_3",
+                    "points": 20
+                  },
+                  {
+                    "eventId": "e39_3",
+                    "type": "challenge.passed",
+                    "userId": "u039",
+                    "learnerSeq": 3,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e39_3",
+                    "points": 55
+                  },
+                  {
+                    "eventId": "e4_3",
+                    "type": "challenge.passed",
+                    "userId": "u004",
+                    "learnerSeq": 3,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e4_3",
+                    "points": 50
+                  },
+                  {
+                    "eventId": "e28_4",
+                    "type": "challenge.passed",
+                    "userId": "u028",
+                    "learnerSeq": 4,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e28_4",
+                    "points": 25
+                  },
+                  {
+                    "eventId": "e7_3",
+                    "type": "challenge.passed",
+                    "userId": "u007",
+                    "learnerSeq": 3,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e7_3",
+                    "points": 30
+                  },
+                  {
+                    "eventId": "e6_3",
+                    "type": "challenge.passed",
+                    "userId": "u006",
+                    "learnerSeq": 3,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e6_3",
+                    "points": 40
+                  },
+                  {
+                    "eventId": "e21_3",
+                    "type": "challenge.passed",
+                    "userId": "u021",
+                    "learnerSeq": 3,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e21_3",
+                    "points": 40
+                  },
+                  {
+                    "eventId": "e35_3",
+                    "type": "challenge.passed",
+                    "userId": "u035",
+                    "learnerSeq": 3,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e35_3",
+                    "points": 45
+                  },
+                  {
+                    "eventId": "e11_3",
+                    "type": "challenge.passed",
+                    "userId": "u011",
+                    "learnerSeq": 3,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e11_3",
+                    "points": 55
+                  },
+                  {
+                    "eventId": "e33_1",
+                    "type": "challenge.passed",
+                    "userId": "u033",
+                    "learnerSeq": 1,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e33_1",
+                    "points": 20
+                  },
+                  {
+                    "eventId": "e10_2",
+                    "type": "progress.updated",
+                    "userId": "u010",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 90
+                  },
+                  {
+                    "eventId": "e25_3",
+                    "type": "challenge.passed",
+                    "userId": "u025",
+                    "learnerSeq": 3,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e25_3",
+                    "points": 20
+                  },
+                  {
+                    "eventId": "e22_3",
+                    "type": "challenge.passed",
+                    "userId": "u022",
+                    "learnerSeq": 3,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e22_3",
+                    "points": 25
+                  },
+                  {
+                    "eventId": "e13_3",
+                    "type": "challenge.passed",
+                    "userId": "u013",
+                    "learnerSeq": 3,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e13_3",
+                    "points": 40
+                  },
+                  {
+                    "eventId": "e34_3",
+                    "type": "progress.updated",
+                    "userId": "u034",
+                    "learnerSeq": 3,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 40
+                  },
+                  {
+                    "eventId": "e20_4",
+                    "type": "challenge.passed",
+                    "userId": "u020",
+                    "learnerSeq": 4,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e20_4",
+                    "points": 45
+                  },
+                  {
+                    "eventId": "e40_2",
+                    "type": "challenge.passed",
+                    "userId": "u040",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e40_2",
+                    "points": 35
+                  },
+                  {
+                    "eventId": "e29_4",
+                    "type": "challenge.passed",
+                    "userId": "u029",
+                    "learnerSeq": 4,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e29_4",
+                    "points": 20
+                  },
+                  {
+                    "eventId": "e9_4",
+                    "type": "challenge.passed",
+                    "userId": "u009",
+                    "learnerSeq": 4,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e9_4",
+                    "points": 55
+                  },
+                  {
+                    "eventId": "e34_5",
+                    "type": "progress.updated",
+                    "userId": "u034",
+                    "learnerSeq": 5,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 0
+                  },
+                  {
+                    "eventId": "e2_4",
+                    "type": "challenge.passed",
+                    "userId": "u002",
+                    "learnerSeq": 4,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e2_4",
+                    "points": 15
+                  },
+                  {
+                    "eventId": "e23_4",
+                    "type": "progress.updated",
+                    "userId": "u023",
+                    "learnerSeq": 4,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 90
+                  },
+                  {
+                    "eventId": "e26_3",
+                    "type": "challenge.passed",
+                    "userId": "u026",
+                    "learnerSeq": 3,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e26_3",
+                    "points": 40
+                  },
+                  {
+                    "eventId": "e38_4",
+                    "type": "challenge.passed",
+                    "userId": "u038",
+                    "learnerSeq": 4,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e38_4",
+                    "points": 30
+                  },
+                  {
+                    "eventId": "e31_4",
+                    "type": "progress.updated",
+                    "userId": "u031",
+                    "learnerSeq": 4,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 60,
+                    "coursePercent": 20
+                  },
+                  {
+                    "eventId": "e40_4",
+                    "type": "challenge.passed",
+                    "userId": "u040",
+                    "learnerSeq": 4,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e40_4",
+                    "points": 5
+                  },
+                  {
+                    "eventId": "e10_5",
+                    "type": "progress.updated",
+                    "userId": "u010",
+                    "learnerSeq": 5,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 50
+                  },
+                  {
+                    "eventId": "e11_5",
+                    "type": "challenge.passed",
+                    "userId": "u011",
+                    "learnerSeq": 5,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e11_5",
+                    "points": 10
+                  },
+                  {
+                    "eventId": "e39_4",
+                    "type": "challenge.passed",
+                    "userId": "u039",
+                    "learnerSeq": 4,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e39_4",
+                    "points": 40
+                  },
+                  {
+                    "eventId": "e35_4",
+                    "type": "progress.updated",
+                    "userId": "u035",
+                    "learnerSeq": 4,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 10
+                  },
+                  {
+                    "eventId": "e12_4",
+                    "type": "challenge.passed",
+                    "userId": "u012",
+                    "learnerSeq": 4,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e12_4",
+                    "points": 5
+                  },
+                  {
+                    "eventId": "e17_4",
+                    "type": "progress.updated",
+                    "userId": "u017",
+                    "learnerSeq": 4,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 20
+                  },
+                  {
+                    "eventId": "e22_4",
+                    "type": "challenge.passed",
+                    "userId": "u022",
+                    "learnerSeq": 4,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e22_4",
+                    "points": 15
+                  },
+                  {
+                    "eventId": "e27_4",
+                    "type": "progress.updated",
+                    "userId": "u027",
+                    "learnerSeq": 4,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 60,
+                    "coursePercent": 30
+                  },
+                  {
+                    "eventId": "e3_5",
+                    "type": "progress.updated",
+                    "userId": "u003",
+                    "learnerSeq": 5,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 40
+                  },
+                  {
+                    "eventId": "e8_4",
+                    "type": "challenge.passed",
+                    "userId": "u008",
+                    "learnerSeq": 4,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e8_4",
+                    "points": 25
+                  },
+                  {
+                    "eventId": "e15_4",
+                    "type": "challenge.passed",
+                    "userId": "u015",
+                    "learnerSeq": 4,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e15_4",
+                    "points": 55
+                  },
+                  {
+                    "eventId": "e15_4",
+                    "type": "challenge.passed",
+                    "userId": "u015",
+                    "learnerSeq": 4,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e15_4",
+                    "points": 55
+                  },
+                  {
+                    "eventId": "e5_4",
+                    "type": "challenge.passed",
+                    "userId": "u005",
+                    "learnerSeq": 4,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e5_4",
+                    "points": 55
+                  },
+                  {
+                    "eventId": "e37_4",
+                    "type": "challenge.passed",
+                    "userId": "u037",
+                    "learnerSeq": 4,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e37_4",
+                    "points": 25
+                  },
+                  {
+                    "eventId": "e25_5",
+                    "type": "challenge.passed",
+                    "userId": "u025",
+                    "learnerSeq": 5,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e25_5",
+                    "points": 50
+                  },
+                  {
+                    "eventId": "e6_5",
+                    "type": "progress.updated",
+                    "userId": "u006",
+                    "learnerSeq": 5,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 40,
+                    "coursePercent": 90
+                  },
+                  {
+                    "eventId": "e6_5",
+                    "type": "progress.updated",
+                    "userId": "u006",
+                    "learnerSeq": 5,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 40,
+                    "coursePercent": 90
+                  },
+                  {
+                    "eventId": "e19_3",
+                    "type": "challenge.passed",
+                    "userId": "u019",
+                    "learnerSeq": 3,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e19_3",
+                    "points": 15
+                  },
+                  {
+                    "eventId": "e13_5",
+                    "type": "challenge.passed",
+                    "userId": "u013",
+                    "learnerSeq": 5,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e13_5",
+                    "points": 20
+                  },
+                  {
+                    "eventId": "e28_3",
+                    "type": "progress.updated",
+                    "userId": "u028",
+                    "learnerSeq": 3,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 30
+                  },
+                  {
+                    "eventId": "e21_5",
+                    "type": "challenge.passed",
+                    "userId": "u021",
+                    "learnerSeq": 5,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e21_5",
+                    "points": 30
+                  },
+                  {
+                    "eventId": "e30_4",
+                    "type": "challenge.passed",
+                    "userId": "u030",
+                    "learnerSeq": 4,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e30_4",
+                    "points": 25
+                  },
+                  {
+                    "eventId": "e7_4",
+                    "type": "progress.updated",
+                    "userId": "u007",
+                    "learnerSeq": 4,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 70
+                  },
+                  {
+                    "eventId": "e32_4",
+                    "type": "challenge.passed",
+                    "userId": "u032",
+                    "learnerSeq": 4,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e32_4",
+                    "points": 5
+                  },
+                  {
+                    "eventId": "e18_5",
+                    "type": "challenge.passed",
+                    "userId": "u018",
+                    "learnerSeq": 5,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e18_5",
+                    "points": 15
+                  },
+                  {
+                    "eventId": "e1_3",
+                    "type": "challenge.passed",
+                    "userId": "u001",
+                    "learnerSeq": 3,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e1_3",
+                    "points": 50
+                  },
+                  {
+                    "eventId": "e16_3",
+                    "type": "challenge.passed",
+                    "userId": "u016",
+                    "learnerSeq": 3,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e16_3",
+                    "points": 30
+                  },
+                  {
+                    "eventId": "e29_5",
+                    "type": "challenge.passed",
+                    "userId": "u029",
+                    "learnerSeq": 5,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e29_5",
+                    "points": 45
+                  },
+                  {
+                    "eventId": "e14_5",
+                    "type": "progress.updated",
+                    "userId": "u014",
+                    "learnerSeq": 5,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 20
+                  },
+                  {
+                    "eventId": "e36_4",
+                    "type": "challenge.passed",
+                    "userId": "u036",
+                    "learnerSeq": 4,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e36_4",
+                    "points": 25
+                  },
+                  {
+                    "eventId": "e20_5",
+                    "type": "progress.updated",
+                    "userId": "u020",
+                    "learnerSeq": 5,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 0,
+                    "coursePercent": 60
+                  },
+                  {
+                    "eventId": "e33_5",
+                    "type": "challenge.passed",
+                    "userId": "u033",
+                    "learnerSeq": 5,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e33_5",
+                    "points": 10
+                  },
+                  {
+                    "eventId": "e24_3",
+                    "type": "challenge.passed",
+                    "userId": "u024",
+                    "learnerSeq": 3,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e24_3",
+                    "points": 55
+                  },
+                  {
+                    "eventId": "e4_4",
+                    "type": "progress.updated",
+                    "userId": "u004",
+                    "learnerSeq": 4,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 0
+                  },
+                  {
+                    "eventId": "e27_6",
+                    "type": "progress.updated",
+                    "userId": "u027",
+                    "learnerSeq": 6,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 70
+                  },
+                  {
+                    "eventId": "e11_4",
+                    "type": "challenge.passed",
+                    "userId": "u011",
+                    "learnerSeq": 4,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e11_4",
+                    "points": 35
+                  },
+                  {
+                    "eventId": "e34_6",
+                    "type": "challenge.passed",
+                    "userId": "u034",
+                    "learnerSeq": 6,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e34_6",
+                    "points": 40
+                  },
+                  {
+                    "eventId": "e40_5",
+                    "type": "progress.updated",
+                    "userId": "u040",
+                    "learnerSeq": 5,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 30
+                  },
+                  {
+                    "eventId": "e6_4",
+                    "type": "challenge.passed",
+                    "userId": "u006",
+                    "learnerSeq": 4,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e6_4",
+                    "points": 10
+                  },
+                  {
+                    "eventId": "e35_5",
+                    "type": "challenge.passed",
+                    "userId": "u035",
+                    "learnerSeq": 5,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e35_5",
+                    "points": 55
+                  },
+                  {
+                    "eventId": "e2_5",
+                    "type": "progress.updated",
+                    "userId": "u002",
+                    "learnerSeq": 5,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 30
+                  },
+                  {
+                    "eventId": "e1_5",
+                    "type": "progress.updated",
+                    "userId": "u001",
+                    "learnerSeq": 5,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 80
+                  },
+                  {
+                    "eventId": "e21_4",
+                    "type": "challenge.passed",
+                    "userId": "u021",
+                    "learnerSeq": 4,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e21_4",
+                    "points": 55
+                  },
+                  {
+                    "eventId": "e29_3",
+                    "type": "challenge.passed",
+                    "userId": "u029",
+                    "learnerSeq": 3,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e29_3",
+                    "points": 10
+                  },
+                  {
+                    "eventId": "e4_5",
+                    "type": "challenge.passed",
+                    "userId": "u004",
+                    "learnerSeq": 5,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e4_5",
+                    "points": 55
+                  },
+                  {
+                    "eventId": "e22_5",
+                    "type": "challenge.passed",
+                    "userId": "u022",
+                    "learnerSeq": 5,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e22_5",
+                    "points": 35
+                  },
+                  {
+                    "eventId": "e23_6",
+                    "type": "challenge.passed",
+                    "userId": "u023",
+                    "learnerSeq": 6,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e23_6",
+                    "points": 60
+                  },
+                  {
+                    "eventId": "e30_5",
+                    "type": "progress.updated",
+                    "userId": "u030",
+                    "learnerSeq": 5,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 80,
+                    "coursePercent": 0
+                  },
+                  {
+                    "eventId": "e13_4",
+                    "type": "progress.updated",
+                    "userId": "u013",
+                    "learnerSeq": 4,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 30,
+                    "coursePercent": 70
+                  },
+                  {
+                    "eventId": "e28_5",
+                    "type": "challenge.passed",
+                    "userId": "u028",
+                    "learnerSeq": 5,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e28_5",
+                    "points": 40
+                  },
+                  {
+                    "eventId": "e18_4",
+                    "type": "progress.updated",
+                    "userId": "u018",
+                    "learnerSeq": 4,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 10
+                  },
+                  {
+                    "eventId": "e10_4",
+                    "type": "challenge.passed",
+                    "userId": "u010",
+                    "learnerSeq": 4,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e10_4",
+                    "points": 15
+                  },
+                  {
+                    "eventId": "e19_5",
+                    "type": "challenge.passed",
+                    "userId": "u019",
+                    "learnerSeq": 5,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e19_5",
+                    "points": 20
+                  },
+                  {
+                    "eventId": "e37_5",
+                    "type": "challenge.passed",
+                    "userId": "u037",
+                    "learnerSeq": 5,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e37_5",
+                    "points": 5
+                  },
+                  {
+                    "eventId": "e3_4",
+                    "type": "challenge.passed",
+                    "userId": "u003",
+                    "learnerSeq": 4,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e3_4",
+                    "points": 20
+                  },
+                  {
+                    "eventId": "e17_6",
+                    "type": "challenge.passed",
+                    "userId": "u017",
+                    "learnerSeq": 6,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e17_6",
+                    "points": 10
+                  },
+                  {
+                    "eventId": "e32_5",
+                    "type": "challenge.passed",
+                    "userId": "u032",
+                    "learnerSeq": 5,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e32_5",
+                    "points": 20
+                  },
+                  {
+                    "eventId": "e25_4",
+                    "type": "progress.updated",
+                    "userId": "u025",
+                    "learnerSeq": 4,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 80,
+                    "coursePercent": 60
+                  },
+                  {
+                    "eventId": "e20_6",
+                    "type": "challenge.passed",
+                    "userId": "u020",
+                    "learnerSeq": 6,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e20_6",
+                    "points": 5
+                  },
+                  {
+                    "eventId": "e15_5",
+                    "type": "challenge.passed",
+                    "userId": "u015",
+                    "learnerSeq": 5,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e15_5",
+                    "points": 60
+                  },
+                  {
+                    "eventId": "e33_4",
+                    "type": "challenge.passed",
+                    "userId": "u033",
+                    "learnerSeq": 4,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e33_4",
+                    "points": 60
+                  },
+                  {
+                    "eventId": "e12_6",
+                    "type": "challenge.passed",
+                    "userId": "u012",
+                    "learnerSeq": 6,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e12_6",
+                    "points": 5
+                  },
+                  {
+                    "eventId": "e31_5",
+                    "type": "progress.updated",
+                    "userId": "u031",
+                    "learnerSeq": 5,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 70
+                  },
+                  {
+                    "eventId": "e31_5",
+                    "type": "progress.updated",
+                    "userId": "u031",
+                    "learnerSeq": 5,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 70
+                  },
+                  {
+                    "eventId": "e14_3",
+                    "type": "challenge.passed",
+                    "userId": "u014",
+                    "learnerSeq": 3,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e14_3",
+                    "points": 60
+                  },
+                  {
+                    "eventId": "e26_6",
+                    "type": "challenge.passed",
+                    "userId": "u026",
+                    "learnerSeq": 6,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e26_6",
+                    "points": 10
+                  },
+                  {
+                    "eventId": "e36_5",
+                    "type": "challenge.passed",
+                    "userId": "u036",
+                    "learnerSeq": 5,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e36_5",
+                    "points": 60
+                  },
+                  {
+                    "eventId": "e7_5",
+                    "type": "challenge.passed",
+                    "userId": "u007",
+                    "learnerSeq": 5,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e7_5",
+                    "points": 20
+                  },
+                  {
+                    "eventId": "e9_5",
+                    "type": "challenge.passed",
+                    "userId": "u009",
+                    "learnerSeq": 5,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e9_5",
+                    "points": 10
+                  },
+                  {
+                    "eventId": "e38_5",
+                    "type": "progress.updated",
+                    "userId": "u038",
+                    "learnerSeq": 5,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 50
+                  },
+                  {
+                    "eventId": "e16_5",
+                    "type": "challenge.passed",
+                    "userId": "u016",
+                    "learnerSeq": 5,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e16_5",
+                    "points": 45
+                  },
+                  {
+                    "eventId": "e5_6",
+                    "type": "challenge.passed",
+                    "userId": "u005",
+                    "learnerSeq": 6,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e5_6",
+                    "points": 30
+                  },
+                  {
+                    "eventId": "e8_5",
+                    "type": "progress.updated",
+                    "userId": "u008",
+                    "learnerSeq": 5,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 40,
+                    "coursePercent": 50
+                  },
+                  {
+                    "eventId": "e39_5",
+                    "type": "challenge.passed",
+                    "userId": "u039",
+                    "learnerSeq": 5,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e39_5",
+                    "points": 10
+                  },
+                  {
+                    "eventId": "e24_6",
+                    "type": "challenge.passed",
+                    "userId": "u024",
+                    "learnerSeq": 6,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e24_6",
+                    "points": 20
+                  },
+                  {
+                    "eventId": "e20_2",
+                    "type": "challenge.passed",
+                    "userId": "u020",
+                    "learnerSeq": 2,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e20_2",
+                    "points": 60
+                  }
+                ]
+              },
+              {
+                "week": "2026-W45",
+                "events": [
+                  {
+                    "eventId": "e38_6",
+                    "type": "challenge.passed",
+                    "userId": "u038",
+                    "learnerSeq": 6,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e38_6",
+                    "points": 15
+                  },
+                  {
+                    "eventId": "e17_5",
+                    "type": "challenge.passed",
+                    "userId": "u017",
+                    "learnerSeq": 5,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e17_5",
+                    "points": 50
+                  },
+                  {
+                    "eventId": "e15_6",
+                    "type": "progress.updated",
+                    "userId": "u015",
+                    "learnerSeq": 6,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 10
+                  },
+                  {
+                    "eventId": "e19_6",
+                    "type": "challenge.passed",
+                    "userId": "u019",
+                    "learnerSeq": 6,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e19_6",
+                    "points": 45
+                  },
+                  {
+                    "eventId": "e10_6",
+                    "type": "challenge.passed",
+                    "userId": "u010",
+                    "learnerSeq": 6,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e10_6",
+                    "points": 20
+                  },
+                  {
+                    "eventId": "e1_7",
+                    "type": "progress.updated",
+                    "userId": "u001",
+                    "learnerSeq": 7,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 50,
+                    "coursePercent": 70
+                  },
+                  {
+                    "eventId": "e4_6",
+                    "type": "challenge.passed",
+                    "userId": "u004",
+                    "learnerSeq": 6,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e4_6",
+                    "points": 40
+                  },
+                  {
+                    "eventId": "e35_6",
+                    "type": "challenge.passed",
+                    "userId": "u035",
+                    "learnerSeq": 6,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e35_6",
+                    "points": 60
+                  },
+                  {
+                    "eventId": "e21_6",
+                    "type": "progress.updated",
+                    "userId": "u021",
+                    "learnerSeq": 6,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 70
+                  },
+                  {
+                    "eventId": "e37_6",
+                    "type": "challenge.passed",
+                    "userId": "u037",
+                    "learnerSeq": 6,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e37_6",
+                    "points": 40
+                  },
+                  {
+                    "eventId": "e24_5",
+                    "type": "challenge.passed",
+                    "userId": "u024",
+                    "learnerSeq": 5,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e24_5",
+                    "points": 55
+                  },
+                  {
+                    "eventId": "e16_6",
+                    "type": "progress.updated",
+                    "userId": "u016",
+                    "learnerSeq": 6,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 20
+                  },
+                  {
+                    "eventId": "e23_5",
+                    "type": "challenge.passed",
+                    "userId": "u023",
+                    "learnerSeq": 5,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e23_5",
+                    "points": 45
+                  },
+                  {
+                    "eventId": "e36_7",
+                    "type": "challenge.passed",
+                    "userId": "u036",
+                    "learnerSeq": 7,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e36_7",
+                    "points": 15
+                  },
+                  {
+                    "eventId": "e36_7",
+                    "type": "challenge.passed",
+                    "userId": "u036",
+                    "learnerSeq": 7,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e36_7",
+                    "points": 15
+                  },
+                  {
+                    "eventId": "e18_6",
+                    "type": "progress.updated",
+                    "userId": "u018",
+                    "learnerSeq": 6,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 10
+                  },
+                  {
+                    "eventId": "e29_6",
+                    "type": "challenge.passed",
+                    "userId": "u029",
+                    "learnerSeq": 6,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e29_6",
+                    "points": 55
+                  },
+                  {
+                    "eventId": "e33_6",
+                    "type": "challenge.passed",
+                    "userId": "u033",
+                    "learnerSeq": 6,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e33_6",
+                    "points": 60
+                  },
+                  {
+                    "eventId": "e9_6",
+                    "type": "challenge.passed",
+                    "userId": "u009",
+                    "learnerSeq": 6,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e9_6",
+                    "points": 60
+                  },
+                  {
+                    "eventId": "e9_6",
+                    "type": "challenge.passed",
+                    "userId": "u009",
+                    "learnerSeq": 6,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e9_6",
+                    "points": 60
+                  },
+                  {
+                    "eventId": "e28_6",
+                    "type": "progress.updated",
+                    "userId": "u028",
+                    "learnerSeq": 6,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 80,
+                    "coursePercent": 40
+                  },
+                  {
+                    "eventId": "e6_6",
+                    "type": "challenge.passed",
+                    "userId": "u006",
+                    "learnerSeq": 6,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e6_6",
+                    "points": 20
+                  },
+                  {
+                    "eventId": "e13_6",
+                    "type": "challenge.passed",
+                    "userId": "u013",
+                    "learnerSeq": 6,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e13_6",
+                    "points": 20
+                  },
+                  {
+                    "eventId": "e27_5",
+                    "type": "progress.updated",
+                    "userId": "u027",
+                    "learnerSeq": 5,
+                    "week": "2026-W44",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 70,
+                    "coursePercent": 80
+                  },
+                  {
+                    "eventId": "e5_5",
+                    "type": "challenge.passed",
+                    "userId": "u005",
+                    "learnerSeq": 5,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e5_5",
+                    "points": 35
+                  },
+                  {
+                    "eventId": "e8_6",
+                    "type": "progress.updated",
+                    "userId": "u008",
+                    "learnerSeq": 6,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 50,
+                    "coursePercent": 0
+                  },
+                  {
+                    "eventId": "e14_7",
+                    "type": "challenge.passed",
+                    "userId": "u014",
+                    "learnerSeq": 7,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e14_7",
+                    "points": 60
+                  },
+                  {
+                    "eventId": "e3_7",
+                    "type": "progress.updated",
+                    "userId": "u003",
+                    "learnerSeq": 7,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 10
+                  },
+                  {
+                    "eventId": "e12_5",
+                    "type": "challenge.passed",
+                    "userId": "u012",
+                    "learnerSeq": 5,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e12_5",
+                    "points": 45
+                  },
+                  {
+                    "eventId": "e22_6",
+                    "type": "progress.updated",
+                    "userId": "u022",
+                    "learnerSeq": 6,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 20,
+                    "coursePercent": 90
+                  },
+                  {
+                    "eventId": "e32_6",
+                    "type": "progress.updated",
+                    "userId": "u032",
+                    "learnerSeq": 6,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 70
+                  },
+                  {
+                    "eventId": "e25_6",
+                    "type": "progress.updated",
+                    "userId": "u025",
+                    "learnerSeq": 6,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 60,
+                    "coursePercent": 50
+                  },
+                  {
+                    "eventId": "e39_6",
+                    "type": "progress.updated",
+                    "userId": "u039",
+                    "learnerSeq": 6,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 50
+                  },
+                  {
+                    "eventId": "e34_4",
+                    "type": "challenge.passed",
+                    "userId": "u034",
+                    "learnerSeq": 4,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e34_4",
+                    "points": 30
+                  },
+                  {
+                    "eventId": "e11_6",
+                    "type": "challenge.passed",
+                    "userId": "u011",
+                    "learnerSeq": 6,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e11_6",
+                    "points": 5
+                  },
+                  {
+                    "eventId": "e2_6",
+                    "type": "progress.updated",
+                    "userId": "u002",
+                    "learnerSeq": 6,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 70,
+                    "coursePercent": 20
+                  },
+                  {
+                    "eventId": "e40_7",
+                    "type": "challenge.passed",
+                    "userId": "u040",
+                    "learnerSeq": 7,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e40_7",
+                    "points": 10
+                  },
+                  {
+                    "eventId": "e31_6",
+                    "type": "progress.updated",
+                    "userId": "u031",
+                    "learnerSeq": 6,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 90
+                  },
+                  {
+                    "eventId": "e7_6",
+                    "type": "challenge.passed",
+                    "userId": "u007",
+                    "learnerSeq": 6,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e7_6",
+                    "points": 40
+                  },
+                  {
+                    "eventId": "e26_7",
+                    "type": "challenge.passed",
+                    "userId": "u026",
+                    "learnerSeq": 7,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e26_7",
+                    "points": 20
+                  },
+                  {
+                    "eventId": "e30_6",
+                    "type": "progress.updated",
+                    "userId": "u030",
+                    "learnerSeq": 6,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 30,
+                    "coursePercent": 70
+                  },
+                  {
+                    "eventId": "e24_7",
+                    "type": "challenge.passed",
+                    "userId": "u024",
+                    "learnerSeq": 7,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e24_7",
+                    "points": 15
+                  },
+                  {
+                    "eventId": "e12_7",
+                    "type": "challenge.passed",
+                    "userId": "u012",
+                    "learnerSeq": 7,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e12_7",
+                    "points": 55
+                  },
+                  {
+                    "eventId": "e40_8",
+                    "type": "challenge.passed",
+                    "userId": "u040",
+                    "learnerSeq": 8,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e40_8",
+                    "points": 30
+                  },
+                  {
+                    "eventId": "e6_8",
+                    "type": "challenge.passed",
+                    "userId": "u006",
+                    "learnerSeq": 8,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e6_8",
+                    "points": 40
+                  },
+                  {
+                    "eventId": "e5_8",
+                    "type": "progress.updated",
+                    "userId": "u005",
+                    "learnerSeq": 8,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 20
+                  },
+                  {
+                    "eventId": "e11_7",
+                    "type": "challenge.passed",
+                    "userId": "u011",
+                    "learnerSeq": 7,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e11_7",
+                    "points": 60
+                  },
+                  {
+                    "eventId": "e16_7",
+                    "type": "challenge.passed",
+                    "userId": "u016",
+                    "learnerSeq": 7,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e16_7",
+                    "points": 35
+                  },
+                  {
+                    "eventId": "e14_8",
+                    "type": "progress.updated",
+                    "userId": "u014",
+                    "learnerSeq": 8,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 10,
+                    "coursePercent": 80
+                  },
+                  {
+                    "eventId": "e26_5",
+                    "type": "challenge.passed",
+                    "userId": "u026",
+                    "learnerSeq": 5,
+                    "week": "2026-W44",
+                    "challengeId": "chal_e26_5",
+                    "points": 45
+                  },
+                  {
+                    "eventId": "e39_8",
+                    "type": "challenge.passed",
+                    "userId": "u039",
+                    "learnerSeq": 8,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e39_8",
+                    "points": 55
+                  },
+                  {
+                    "eventId": "e22_7",
+                    "type": "challenge.passed",
+                    "userId": "u022",
+                    "learnerSeq": 7,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e22_7",
+                    "points": 20
+                  },
+                  {
+                    "eventId": "e22_7",
+                    "type": "challenge.passed",
+                    "userId": "u022",
+                    "learnerSeq": 7,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e22_7",
+                    "points": 20
+                  },
+                  {
+                    "eventId": "e38_8",
+                    "type": "progress.updated",
+                    "userId": "u038",
+                    "learnerSeq": 8,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 0
+                  },
+                  {
+                    "eventId": "e7_8",
+                    "type": "progress.updated",
+                    "userId": "u007",
+                    "learnerSeq": 8,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 60,
+                    "coursePercent": 60
+                  },
+                  {
+                    "eventId": "e31_8",
+                    "type": "progress.updated",
+                    "userId": "u031",
+                    "learnerSeq": 8,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 20,
+                    "coursePercent": 70
+                  },
+                  {
+                    "eventId": "e36_8",
+                    "type": "challenge.passed",
+                    "userId": "u036",
+                    "learnerSeq": 8,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e36_8",
+                    "points": 15
+                  },
+                  {
+                    "eventId": "e17_7",
+                    "type": "progress.updated",
+                    "userId": "u017",
+                    "learnerSeq": 7,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 60
+                  },
+                  {
+                    "eventId": "e3_6",
+                    "type": "challenge.passed",
+                    "userId": "u003",
+                    "learnerSeq": 6,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e3_6",
+                    "points": 5
+                  },
+                  {
+                    "eventId": "e8_8",
+                    "type": "progress.updated",
+                    "userId": "u008",
+                    "learnerSeq": 8,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 70,
+                    "coursePercent": 60
+                  },
+                  {
+                    "eventId": "e28_8",
+                    "type": "challenge.passed",
+                    "userId": "u028",
+                    "learnerSeq": 8,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e28_8",
+                    "points": 30
+                  },
+                  {
+                    "eventId": "e33_7",
+                    "type": "progress.updated",
+                    "userId": "u033",
+                    "learnerSeq": 7,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 50,
+                    "coursePercent": 60
+                  },
+                  {
+                    "eventId": "e33_7",
+                    "type": "progress.updated",
+                    "userId": "u033",
+                    "learnerSeq": 7,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 50,
+                    "coursePercent": 60
+                  },
+                  {
+                    "eventId": "e34_7",
+                    "type": "challenge.passed",
+                    "userId": "u034",
+                    "learnerSeq": 7,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e34_7",
+                    "points": 45
+                  },
+                  {
+                    "eventId": "e10_7",
+                    "type": "challenge.passed",
+                    "userId": "u010",
+                    "learnerSeq": 7,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e10_7",
+                    "points": 40
+                  },
+                  {
+                    "eventId": "e37_7",
+                    "type": "challenge.passed",
+                    "userId": "u037",
+                    "learnerSeq": 7,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e37_7",
+                    "points": 50
+                  },
+                  {
+                    "eventId": "e35_7",
+                    "type": "challenge.passed",
+                    "userId": "u035",
+                    "learnerSeq": 7,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e35_7",
+                    "points": 15
+                  },
+                  {
+                    "eventId": "e20_7",
+                    "type": "challenge.passed",
+                    "userId": "u020",
+                    "learnerSeq": 7,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e20_7",
+                    "points": 60
+                  },
+                  {
+                    "eventId": "e21_7",
+                    "type": "challenge.passed",
+                    "userId": "u021",
+                    "learnerSeq": 7,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e21_7",
+                    "points": 60
+                  },
+                  {
+                    "eventId": "e4_7",
+                    "type": "challenge.passed",
+                    "userId": "u004",
+                    "learnerSeq": 7,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e4_7",
+                    "points": 50
+                  },
+                  {
+                    "eventId": "e23_7",
+                    "type": "challenge.passed",
+                    "userId": "u023",
+                    "learnerSeq": 7,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e23_7",
+                    "points": 15
+                  },
+                  {
+                    "eventId": "e29_7",
+                    "type": "challenge.passed",
+                    "userId": "u029",
+                    "learnerSeq": 7,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e29_7",
+                    "points": 5
+                  },
+                  {
+                    "eventId": "e25_7",
+                    "type": "progress.updated",
+                    "userId": "u025",
+                    "learnerSeq": 7,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 80
+                  },
+                  {
+                    "eventId": "e19_7",
+                    "type": "challenge.passed",
+                    "userId": "u019",
+                    "learnerSeq": 7,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e19_7",
+                    "points": 40
+                  },
+                  {
+                    "eventId": "e27_8",
+                    "type": "challenge.passed",
+                    "userId": "u027",
+                    "learnerSeq": 8,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e27_8",
+                    "points": 45
+                  },
+                  {
+                    "eventId": "e1_6",
+                    "type": "challenge.passed",
+                    "userId": "u001",
+                    "learnerSeq": 6,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e1_6",
+                    "points": 30
+                  },
+                  {
+                    "eventId": "e18_7",
+                    "type": "challenge.passed",
+                    "userId": "u018",
+                    "learnerSeq": 7,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e18_7",
+                    "points": 20
+                  },
+                  {
+                    "eventId": "e9_7",
+                    "type": "challenge.passed",
+                    "userId": "u009",
+                    "learnerSeq": 7,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e9_7",
+                    "points": 50
+                  },
+                  {
+                    "eventId": "e30_8",
+                    "type": "challenge.passed",
+                    "userId": "u030",
+                    "learnerSeq": 8,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e30_8",
+                    "points": 40
+                  },
+                  {
+                    "eventId": "e15_7",
+                    "type": "challenge.passed",
+                    "userId": "u015",
+                    "learnerSeq": 7,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e15_7",
+                    "points": 35
+                  },
+                  {
+                    "eventId": "e2_8",
+                    "type": "challenge.passed",
+                    "userId": "u002",
+                    "learnerSeq": 8,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e2_8",
+                    "points": 35
+                  },
+                  {
+                    "eventId": "e32_7",
+                    "type": "progress.updated",
+                    "userId": "u032",
+                    "learnerSeq": 7,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 0,
+                    "coursePercent": 0
+                  },
+                  {
+                    "eventId": "e32_7",
+                    "type": "progress.updated",
+                    "userId": "u032",
+                    "learnerSeq": 7,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 0,
+                    "coursePercent": 0
+                  },
+                  {
+                    "eventId": "e13_7",
+                    "type": "progress.updated",
+                    "userId": "u013",
+                    "learnerSeq": 7,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 10,
+                    "coursePercent": 30
+                  },
+                  {
+                    "eventId": "e31_9",
+                    "type": "challenge.passed",
+                    "userId": "u031",
+                    "learnerSeq": 9,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e31_9",
+                    "points": 5
+                  },
+                  {
+                    "eventId": "e10_9",
+                    "type": "challenge.passed",
+                    "userId": "u010",
+                    "learnerSeq": 9,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e10_9",
+                    "points": 20
+                  },
+                  {
+                    "eventId": "e10_9",
+                    "type": "challenge.passed",
+                    "userId": "u010",
+                    "learnerSeq": 9,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e10_9",
+                    "points": 20
+                  },
+                  {
+                    "eventId": "e27_9",
+                    "type": "challenge.passed",
+                    "userId": "u027",
+                    "learnerSeq": 9,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e27_9",
+                    "points": 20
+                  },
+                  {
+                    "eventId": "e19_9",
+                    "type": "challenge.passed",
+                    "userId": "u019",
+                    "learnerSeq": 9,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e19_9",
+                    "points": 20
+                  },
+                  {
+                    "eventId": "e23_8",
+                    "type": "challenge.passed",
+                    "userId": "u023",
+                    "learnerSeq": 8,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e23_8",
+                    "points": 50
+                  },
+                  {
+                    "eventId": "e11_8",
+                    "type": "challenge.passed",
+                    "userId": "u011",
+                    "learnerSeq": 8,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e11_8",
+                    "points": 15
+                  },
+                  {
+                    "eventId": "e34_9",
+                    "type": "progress.updated",
+                    "userId": "u034",
+                    "learnerSeq": 9,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 90
+                  },
+                  {
+                    "eventId": "e33_8",
+                    "type": "progress.updated",
+                    "userId": "u033",
+                    "learnerSeq": 8,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 60,
+                    "coursePercent": 30
+                  },
+                  {
+                    "eventId": "e12_8",
+                    "type": "progress.updated",
+                    "userId": "u012",
+                    "learnerSeq": 8,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 70
+                  },
+                  {
+                    "eventId": "e35_9",
+                    "type": "progress.updated",
+                    "userId": "u035",
+                    "learnerSeq": 9,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 10,
+                    "coursePercent": 70
+                  },
+                  {
+                    "eventId": "e39_7",
+                    "type": "challenge.passed",
+                    "userId": "u039",
+                    "learnerSeq": 7,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e39_7",
+                    "points": 35
+                  },
+                  {
+                    "eventId": "e25_8",
+                    "type": "progress.updated",
+                    "userId": "u025",
+                    "learnerSeq": 8,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 40
+                  },
+                  {
+                    "eventId": "e1_9",
+                    "type": "challenge.passed",
+                    "userId": "u001",
+                    "learnerSeq": 9,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e1_9",
+                    "points": 55
+                  },
+                  {
+                    "eventId": "e6_7",
+                    "type": "challenge.passed",
+                    "userId": "u006",
+                    "learnerSeq": 7,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e6_7",
+                    "points": 55
+                  },
+                  {
+                    "eventId": "e5_7",
+                    "type": "challenge.passed",
+                    "userId": "u005",
+                    "learnerSeq": 7,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e5_7",
+                    "points": 10
+                  },
+                  {
+                    "eventId": "e13_8",
+                    "type": "progress.updated",
+                    "userId": "u013",
+                    "learnerSeq": 8,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 50
+                  },
+                  {
+                    "eventId": "e24_8",
+                    "type": "challenge.passed",
+                    "userId": "u024",
+                    "learnerSeq": 8,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e24_8",
+                    "points": 25
+                  },
+                  {
+                    "eventId": "e8_7",
+                    "type": "challenge.passed",
+                    "userId": "u008",
+                    "learnerSeq": 7,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e8_7",
+                    "points": 30
+                  },
+                  {
+                    "eventId": "e18_9",
+                    "type": "challenge.passed",
+                    "userId": "u018",
+                    "learnerSeq": 9,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e18_9",
+                    "points": 10
+                  }
+                ]
+              },
+              {
+                "week": "2026-W45",
+                "events": [
+                  {
+                    "eventId": "e17_8",
+                    "type": "progress.updated",
+                    "userId": "u017",
+                    "learnerSeq": 8,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 70,
+                    "coursePercent": 90
+                  },
+                  {
+                    "eventId": "e28_7",
+                    "type": "challenge.passed",
+                    "userId": "u028",
+                    "learnerSeq": 7,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e28_7",
+                    "points": 35
+                  },
+                  {
+                    "eventId": "e3_9",
+                    "type": "challenge.passed",
+                    "userId": "u003",
+                    "learnerSeq": 9,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e3_9",
+                    "points": 50
+                  },
+                  {
+                    "eventId": "e4_8",
+                    "type": "progress.updated",
+                    "userId": "u004",
+                    "learnerSeq": 8,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 50
+                  },
+                  {
+                    "eventId": "e7_7",
+                    "type": "challenge.passed",
+                    "userId": "u007",
+                    "learnerSeq": 7,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e7_7",
+                    "points": 10
+                  },
+                  {
+                    "eventId": "e21_8",
+                    "type": "progress.updated",
+                    "userId": "u021",
+                    "learnerSeq": 8,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 0,
+                    "coursePercent": 90
+                  },
+                  {
+                    "eventId": "e40_6",
+                    "type": "challenge.passed",
+                    "userId": "u040",
+                    "learnerSeq": 6,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e40_6",
+                    "points": 45
+                  },
+                  {
+                    "eventId": "e22_8",
+                    "type": "challenge.passed",
+                    "userId": "u022",
+                    "learnerSeq": 8,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e22_8",
+                    "points": 55
+                  },
+                  {
+                    "eventId": "e20_9",
+                    "type": "progress.updated",
+                    "userId": "u020",
+                    "learnerSeq": 9,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 30,
+                    "coursePercent": 90
+                  },
+                  {
+                    "eventId": "e37_8",
+                    "type": "progress.updated",
+                    "userId": "u037",
+                    "learnerSeq": 8,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 60
+                  },
+                  {
+                    "eventId": "e32_9",
+                    "type": "challenge.passed",
+                    "userId": "u032",
+                    "learnerSeq": 9,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e32_9",
+                    "points": 25
+                  },
+                  {
+                    "eventId": "e9_8",
+                    "type": "challenge.passed",
+                    "userId": "u009",
+                    "learnerSeq": 8,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e9_8",
+                    "points": 35
+                  },
+                  {
+                    "eventId": "e29_8",
+                    "type": "progress.updated",
+                    "userId": "u029",
+                    "learnerSeq": 8,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 60,
+                    "coursePercent": 20
+                  },
+                  {
+                    "eventId": "e26_8",
+                    "type": "challenge.passed",
+                    "userId": "u026",
+                    "learnerSeq": 8,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e26_8",
+                    "points": 55
+                  },
+                  {
+                    "eventId": "e30_7",
+                    "type": "challenge.passed",
+                    "userId": "u030",
+                    "learnerSeq": 7,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e30_7",
+                    "points": 10
+                  },
+                  {
+                    "eventId": "e2_7",
+                    "type": "progress.updated",
+                    "userId": "u002",
+                    "learnerSeq": 7,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 80,
+                    "coursePercent": 10
+                  },
+                  {
+                    "eventId": "e14_6",
+                    "type": "challenge.passed",
+                    "userId": "u014",
+                    "learnerSeq": 6,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e14_6",
+                    "points": 5
+                  },
+                  {
+                    "eventId": "e38_9",
+                    "type": "challenge.passed",
+                    "userId": "u038",
+                    "learnerSeq": 9,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e38_9",
+                    "points": 15
+                  },
+                  {
+                    "eventId": "e36_9",
+                    "type": "progress.updated",
+                    "userId": "u036",
+                    "learnerSeq": 9,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 30
+                  },
+                  {
+                    "eventId": "e15_8",
+                    "type": "progress.updated",
+                    "userId": "u015",
+                    "learnerSeq": 8,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 50,
+                    "coursePercent": 30
+                  },
+                  {
+                    "eventId": "e16_8",
+                    "type": "challenge.passed",
+                    "userId": "u016",
+                    "learnerSeq": 8,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e16_8",
+                    "points": 20
+                  },
+                  {
+                    "eventId": "e5_9",
+                    "type": "challenge.passed",
+                    "userId": "u005",
+                    "learnerSeq": 9,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e5_9",
+                    "points": 55
+                  },
+                  {
+                    "eventId": "e34_10",
+                    "type": "progress.updated",
+                    "userId": "u034",
+                    "learnerSeq": 10,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 50
+                  },
+                  {
+                    "eventId": "e6_10",
+                    "type": "challenge.passed",
+                    "userId": "u006",
+                    "learnerSeq": 10,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e6_10",
+                    "points": 15
+                  },
+                  {
+                    "eventId": "e12_9",
+                    "type": "progress.updated",
+                    "userId": "u012",
+                    "learnerSeq": 9,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 50
+                  },
+                  {
+                    "eventId": "e40_10",
+                    "type": "challenge.passed",
+                    "userId": "u040",
+                    "learnerSeq": 10,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e40_10",
+                    "points": 45
+                  },
+                  {
+                    "eventId": "e28_9",
+                    "type": "progress.updated",
+                    "userId": "u028",
+                    "learnerSeq": 9,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 70,
+                    "coursePercent": 40
+                  },
+                  {
+                    "eventId": "e10_8",
+                    "type": "progress.updated",
+                    "userId": "u010",
+                    "learnerSeq": 8,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 50,
+                    "coursePercent": 40
+                  },
+                  {
+                    "eventId": "e7_9",
+                    "type": "progress.updated",
+                    "userId": "u007",
+                    "learnerSeq": 9,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 50
+                  },
+                  {
+                    "eventId": "e20_8",
+                    "type": "challenge.passed",
+                    "userId": "u020",
+                    "learnerSeq": 8,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e20_8",
+                    "points": 40
+                  },
+                  {
+                    "eventId": "e17_9",
+                    "type": "challenge.passed",
+                    "userId": "u017",
+                    "learnerSeq": 9,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e17_9",
+                    "points": 25
+                  },
+                  {
+                    "eventId": "e24_9",
+                    "type": "challenge.passed",
+                    "userId": "u024",
+                    "learnerSeq": 9,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e24_9",
+                    "points": 50
+                  },
+                  {
+                    "eventId": "e13_9",
+                    "type": "challenge.passed",
+                    "userId": "u013",
+                    "learnerSeq": 9,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e13_9",
+                    "points": 60
+                  },
+                  {
+                    "eventId": "e22_10",
+                    "type": "challenge.passed",
+                    "userId": "u022",
+                    "learnerSeq": 10,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e22_10",
+                    "points": 50
+                  },
+                  {
+                    "eventId": "e9_10",
+                    "type": "challenge.passed",
+                    "userId": "u009",
+                    "learnerSeq": 10,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e9_10",
+                    "points": 30
+                  },
+                  {
+                    "eventId": "e35_8",
+                    "type": "progress.updated",
+                    "userId": "u035",
+                    "learnerSeq": 8,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 70
+                  },
+                  {
+                    "eventId": "e38_10",
+                    "type": "challenge.passed",
+                    "userId": "u038",
+                    "learnerSeq": 10,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e38_10",
+                    "points": 45
+                  },
+                  {
+                    "eventId": "e14_9",
+                    "type": "challenge.passed",
+                    "userId": "u014",
+                    "learnerSeq": 9,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e14_9",
+                    "points": 60
+                  },
+                  {
+                    "eventId": "e29_9",
+                    "type": "progress.updated",
+                    "userId": "u029",
+                    "learnerSeq": 9,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 70
+                  },
+                  {
+                    "eventId": "e31_10",
+                    "type": "challenge.passed",
+                    "userId": "u031",
+                    "learnerSeq": 10,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e31_10",
+                    "points": 60
+                  },
+                  {
+                    "eventId": "e1_8",
+                    "type": "challenge.passed",
+                    "userId": "u001",
+                    "learnerSeq": 8,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e1_8",
+                    "points": 60
+                  },
+                  {
+                    "eventId": "e15_10",
+                    "type": "progress.updated",
+                    "userId": "u015",
+                    "learnerSeq": 10,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 10,
+                    "coursePercent": 40
+                  },
+                  {
+                    "eventId": "e26_9",
+                    "type": "challenge.passed",
+                    "userId": "u026",
+                    "learnerSeq": 9,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e26_9",
+                    "points": 5
+                  },
+                  {
+                    "eventId": "e32_8",
+                    "type": "progress.updated",
+                    "userId": "u032",
+                    "learnerSeq": 8,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 70
+                  },
+                  {
+                    "eventId": "e19_10",
+                    "type": "challenge.passed",
+                    "userId": "u019",
+                    "learnerSeq": 10,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e19_10",
+                    "points": 45
+                  },
+                  {
+                    "eventId": "e27_7",
+                    "type": "challenge.passed",
+                    "userId": "u027",
+                    "learnerSeq": 7,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e27_7",
+                    "points": 25
+                  },
+                  {
+                    "eventId": "e36_6",
+                    "type": "progress.updated",
+                    "userId": "u036",
+                    "learnerSeq": 6,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 50,
+                    "coursePercent": 60
+                  },
+                  {
+                    "eventId": "e2_10",
+                    "type": "challenge.passed",
+                    "userId": "u002",
+                    "learnerSeq": 10,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e2_10",
+                    "points": 5
+                  },
+                  {
+                    "eventId": "e16_9",
+                    "type": "challenge.passed",
+                    "userId": "u016",
+                    "learnerSeq": 9,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e16_9",
+                    "points": 40
+                  },
+                  {
+                    "eventId": "e21_9",
+                    "type": "challenge.passed",
+                    "userId": "u021",
+                    "learnerSeq": 9,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e21_9",
+                    "points": 60
+                  },
+                  {
+                    "eventId": "e39_9",
+                    "type": "challenge.passed",
+                    "userId": "u039",
+                    "learnerSeq": 9,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e39_9",
+                    "points": 30
+                  },
+                  {
+                    "eventId": "e18_8",
+                    "type": "challenge.passed",
+                    "userId": "u018",
+                    "learnerSeq": 8,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e18_8",
+                    "points": 45
+                  },
+                  {
+                    "eventId": "e4_9",
+                    "type": "challenge.passed",
+                    "userId": "u004",
+                    "learnerSeq": 9,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e4_9",
+                    "points": 40
+                  },
+                  {
+                    "eventId": "e11_9",
+                    "type": "progress.updated",
+                    "userId": "u011",
+                    "learnerSeq": 9,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 40
+                  },
+                  {
+                    "eventId": "e37_10",
+                    "type": "progress.updated",
+                    "userId": "u037",
+                    "learnerSeq": 10,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 100
+                  },
+                  {
+                    "eventId": "e30_9",
+                    "type": "challenge.passed",
+                    "userId": "u030",
+                    "learnerSeq": 9,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e30_9",
+                    "points": 5
+                  },
+                  {
+                    "eventId": "e25_9",
+                    "type": "challenge.passed",
+                    "userId": "u025",
+                    "learnerSeq": 9,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e25_9",
+                    "points": 40
+                  },
+                  {
+                    "eventId": "e3_8",
+                    "type": "challenge.passed",
+                    "userId": "u003",
+                    "learnerSeq": 8,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e3_8",
+                    "points": 10
+                  },
+                  {
+                    "eventId": "e8_9",
+                    "type": "challenge.passed",
+                    "userId": "u008",
+                    "learnerSeq": 9,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e8_9",
+                    "points": 5
+                  },
+                  {
+                    "eventId": "e23_10",
+                    "type": "challenge.passed",
+                    "userId": "u023",
+                    "learnerSeq": 10,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e23_10",
+                    "points": 50
+                  },
+                  {
+                    "eventId": "e33_9",
+                    "type": "challenge.passed",
+                    "userId": "u033",
+                    "learnerSeq": 9,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e33_9",
+                    "points": 30
+                  },
+                  {
+                    "eventId": "e26_10",
+                    "type": "challenge.passed",
+                    "userId": "u026",
+                    "learnerSeq": 10,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e26_10",
+                    "points": 5
+                  },
+                  {
+                    "eventId": "e8_10",
+                    "type": "challenge.passed",
+                    "userId": "u008",
+                    "learnerSeq": 10,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e8_10",
+                    "points": 60
+                  },
+                  {
+                    "eventId": "e35_10",
+                    "type": "challenge.passed",
+                    "userId": "u035",
+                    "learnerSeq": 10,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e35_10",
+                    "points": 25
+                  },
+                  {
+                    "eventId": "e5_10",
+                    "type": "challenge.passed",
+                    "userId": "u005",
+                    "learnerSeq": 10,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e5_10",
+                    "points": 10
+                  },
+                  {
+                    "eventId": "e37_9",
+                    "type": "challenge.passed",
+                    "userId": "u037",
+                    "learnerSeq": 9,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e37_9",
+                    "points": 35
+                  },
+                  {
+                    "eventId": "e18_10",
+                    "type": "challenge.passed",
+                    "userId": "u018",
+                    "learnerSeq": 10,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e18_10",
+                    "points": 55
+                  },
+                  {
+                    "eventId": "e30_10",
+                    "type": "progress.updated",
+                    "userId": "u030",
+                    "learnerSeq": 10,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 100
+                  },
+                  {
+                    "eventId": "e20_10",
+                    "type": "challenge.passed",
+                    "userId": "u020",
+                    "learnerSeq": 10,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e20_10",
+                    "points": 25
+                  },
+                  {
+                    "eventId": "e36_10",
+                    "type": "challenge.passed",
+                    "userId": "u036",
+                    "learnerSeq": 10,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e36_10",
+                    "points": 5
+                  },
+                  {
+                    "eventId": "e31_7",
+                    "type": "progress.updated",
+                    "userId": "u031",
+                    "learnerSeq": 7,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 90,
+                    "coursePercent": 70
+                  },
+                  {
+                    "eventId": "e38_7",
+                    "type": "progress.updated",
+                    "userId": "u038",
+                    "learnerSeq": 7,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 40,
+                    "coursePercent": 70
+                  },
+                  {
+                    "eventId": "e39_10",
+                    "type": "progress.updated",
+                    "userId": "u039",
+                    "learnerSeq": 10,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 80,
+                    "coursePercent": 100
+                  },
+                  {
+                    "eventId": "e17_10",
+                    "type": "challenge.passed",
+                    "userId": "u017",
+                    "learnerSeq": 10,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e17_10",
+                    "points": 55
+                  },
+                  {
+                    "eventId": "e16_10",
+                    "type": "challenge.passed",
+                    "userId": "u016",
+                    "learnerSeq": 10,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e16_10",
+                    "points": 15
+                  },
+                  {
+                    "eventId": "e33_10",
+                    "type": "progress.updated",
+                    "userId": "u033",
+                    "learnerSeq": 10,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 90
+                  },
+                  {
+                    "eventId": "e21_10",
+                    "type": "challenge.passed",
+                    "userId": "u021",
+                    "learnerSeq": 10,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e21_10",
+                    "points": 25
+                  },
+                  {
+                    "eventId": "e22_9",
+                    "type": "challenge.passed",
+                    "userId": "u022",
+                    "learnerSeq": 9,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e22_9",
+                    "points": 5
+                  },
+                  {
+                    "eventId": "e12_10",
+                    "type": "challenge.passed",
+                    "userId": "u012",
+                    "learnerSeq": 10,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e12_10",
+                    "points": 25
+                  },
+                  {
+                    "eventId": "e32_10",
+                    "type": "challenge.passed",
+                    "userId": "u032",
+                    "learnerSeq": 10,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e32_10",
+                    "points": 5
+                  },
+                  {
+                    "eventId": "e4_10",
+                    "type": "challenge.passed",
+                    "userId": "u004",
+                    "learnerSeq": 10,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e4_10",
+                    "points": 25
+                  },
+                  {
+                    "eventId": "e9_9",
+                    "type": "challenge.passed",
+                    "userId": "u009",
+                    "learnerSeq": 9,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e9_9",
+                    "points": 30
+                  },
+                  {
+                    "eventId": "e11_10",
+                    "type": "challenge.passed",
+                    "userId": "u011",
+                    "learnerSeq": 10,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e11_10",
+                    "points": 40
+                  },
+                  {
+                    "eventId": "e11_10",
+                    "type": "challenge.passed",
+                    "userId": "u011",
+                    "learnerSeq": 10,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e11_10",
+                    "points": 40
+                  },
+                  {
+                    "eventId": "e27_10",
+                    "type": "progress.updated",
+                    "userId": "u027",
+                    "learnerSeq": 10,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 80,
+                    "coursePercent": 100
+                  },
+                  {
+                    "eventId": "e1_10",
+                    "type": "challenge.passed",
+                    "userId": "u001",
+                    "learnerSeq": 10,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e1_10",
+                    "points": 45
+                  },
+                  {
+                    "eventId": "e23_9",
+                    "type": "progress.updated",
+                    "userId": "u023",
+                    "learnerSeq": 9,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 70,
+                    "coursePercent": 40
+                  },
+                  {
+                    "eventId": "e28_10",
+                    "type": "progress.updated",
+                    "userId": "u028",
+                    "learnerSeq": 10,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 20,
+                    "coursePercent": 60
+                  },
+                  {
+                    "eventId": "e34_8",
+                    "type": "challenge.passed",
+                    "userId": "u034",
+                    "learnerSeq": 8,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e34_8",
+                    "points": 20
+                  },
+                  {
+                    "eventId": "e2_9",
+                    "type": "progress.updated",
+                    "userId": "u002",
+                    "learnerSeq": 9,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 90,
+                    "coursePercent": 80
+                  },
+                  {
+                    "eventId": "e2_9",
+                    "type": "progress.updated",
+                    "userId": "u002",
+                    "learnerSeq": 9,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 90,
+                    "coursePercent": 80
+                  },
+                  {
+                    "eventId": "e40_9",
+                    "type": "challenge.passed",
+                    "userId": "u040",
+                    "learnerSeq": 9,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e40_9",
+                    "points": 60
+                  },
+                  {
+                    "eventId": "e29_10",
+                    "type": "progress.updated",
+                    "userId": "u029",
+                    "learnerSeq": 10,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 60
+                  },
+                  {
+                    "eventId": "e13_10",
+                    "type": "challenge.passed",
+                    "userId": "u013",
+                    "learnerSeq": 10,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e13_10",
+                    "points": 25
+                  },
+                  {
+                    "eventId": "e24_10",
+                    "type": "progress.updated",
+                    "userId": "u024",
+                    "learnerSeq": 10,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 70
+                  },
+                  {
+                    "eventId": "e3_10",
+                    "type": "challenge.passed",
+                    "userId": "u003",
+                    "learnerSeq": 10,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e3_10",
+                    "points": 15
+                  },
+                  {
+                    "eventId": "e6_9",
+                    "type": "challenge.passed",
+                    "userId": "u006",
+                    "learnerSeq": 9,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e6_9",
+                    "points": 30
+                  },
+                  {
+                    "eventId": "e25_10",
+                    "type": "challenge.passed",
+                    "userId": "u025",
+                    "learnerSeq": 10,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e25_10",
+                    "points": 15
+                  },
+                  {
+                    "eventId": "e10_10",
+                    "type": "challenge.passed",
+                    "userId": "u010",
+                    "learnerSeq": 10,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e10_10",
+                    "points": 45
+                  },
+                  {
+                    "eventId": "e14_10",
+                    "type": "progress.updated",
+                    "userId": "u014",
+                    "learnerSeq": 10,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 100,
+                    "coursePercent": 50
+                  },
+                  {
+                    "eventId": "e15_9",
+                    "type": "challenge.passed",
+                    "userId": "u015",
+                    "learnerSeq": 9,
+                    "week": "2026-W45",
+                    "challengeId": "chal_e15_9",
+                    "points": 5
+                  },
+                  {
+                    "eventId": "e7_10",
+                    "type": "progress.updated",
+                    "userId": "u007",
+                    "learnerSeq": 10,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 40,
+                    "coursePercent": 100
+                  },
+                  {
+                    "eventId": "e19_8",
+                    "type": "progress.updated",
+                    "userId": "u019",
+                    "learnerSeq": 8,
+                    "week": "2026-W45",
+                    "courseId": "ts-101",
+                    "lessonId": "ts-3",
+                    "lessonPercent": 80,
+                    "coursePercent": 30
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": "batch 1 week 2026-W44: accepted 100, duplicate 4, stale 0, invalid 0, waiting 11\n  all-time: 1. u006 115, 2. u008 115, 3. u027 110, 4. u028 100, 5. u011 95\n  2026-W44: 1. u006 115, 2. u008 115, 3. u027 110, 4. u028 100, 5. u011 95\n  u007: all-time #14 65, 2026-W44 #14 65\n  u023: all-time #17 65, 2026-W44 #17 65\n  u040: all-time #33 10, 2026-W44 #33 10\nbatch 2 week 2026-W44: accepted 101, duplicate 3, stale 0, invalid 0, waiting 9\n  all-time: 1. u011 195, 2. u033 195, 3. u035 180, 4. u028 175, 5. u014 170\n  2026-W44: 1. u011 195, 2. u033 195, 3. u035 180, 4. u028 175, 5. u014 170\n  u007: all-time #17 125, 2026-W44 #17 125\n  u023: all-time #36 75, 2026-W44 #36 75\n  u040: all-time #28 100, 2026-W44 #28 100\nbatch 3 week 2026-W45: accepted 98, duplicate 6, stale 0, invalid 0, waiting 21\n  all-time: 1. u006 280, 2. u011 275, 3. u024 260, 4. u033 255, 5. u035 255\n  2026-W45: 1. u023 125, 2. u006 115, 3. u009 110, 4. u039 100, 5. u037 90\n  u007: all-time #23 165, 2026-W45 #21 40\n  u023: all-time #6 245, 2026-W45 #1 125\n  u040: all-time #35 100, 2026-W45 -\nbatch 4 week 2026-W45: accepted 101, duplicate 2, stale 0, invalid 0, waiting 0\n  all-time: 1. u037 340, 2. u009 330, 3. u011 325, 4. u006 325, 5. u024 320\n  2026-W45: 1. u009 205, 2. u037 195, 3. u001 190, 4. u040 190, 5. u039 180\n  u007: all-time #25 235, 2026-W45 #25 110\n  u023: all-time #11 295, 2026-W45 #6 175\n  u040: all-time #13 290, 2026-W45 #4 190",
+          "hidden": true,
+          "score": 2
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_sdc_521",
+      "name": "cost-tradeoffs-quiz",
+      "type": "quiz",
+      "title": "Pricing grader capacity and a nine of availability",
+      "description": "Two proposals from the CodeDev cost review: grader capacity for exam windows, and a multi-region database bought to reach 99.99%.",
+      "difficulty": "medium",
+      "outcomes": ["tradeoffs"],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Exam-day plan for the graders (planning prices: $30 per slot-month, about $0.041 per slot-hour):\n\nbaseline                40 slots always on\nexam windows            600 slots, scaled on schedule 15 min before each exam\ngrading time            4.5 s per job on average, jobs graded in arrival order\nexam peak               340 submissions/s for the first 2 minutes, then about 20/s\nsubmit acceptance       bounded queue with room for 50,000 jobs (lesson 8)\n\nNew requirement in the design doc: \"On exam day, every submission is graded within 5 minutes of being accepted.\"\n\nStatement: \"With this plan, the last submission of the 2-minute peak waits roughly 3 minutes for its grade, so the requirement is met without paying for peak capacity all month.\"",
+          "explanation": "True. 600 slots grade about 600 / 4.5 = 133 jobs/s. In 2 minutes, 340 x 120 = 40,800 submissions arrive and about 133 x 120 = 16,000 are graded, so about 24,800 are waiting, which fits the 50,000-job queue. Graded in arrival order at 133/s, the last one waits about 24,800 / 133 = 186 s, a little over 3 minutes, inside the 5-minute requirement. Peak capacity with no backlog would need 340 x 4.5 = 1,530 slots all month (about $45,900); the extra 560 slots for the windows cost a few hundred dollars a month. The misconception is that a peak must be absorbed by capacity alone: a bounded queue plus capacity sized to a written delay target is usually far cheaper. Verify it with a load test at 340/s that records the backlog and the worst grading delay.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "GET /courses/:id/progress today, with the availability each dependency had over the last 12 months:\n\nAPI instances (3, across zones)    99.99 %\nRedis cache (single primary)       99.9 %    a cache error makes the request fail with 503\nPostgreSQL (managed HA)            99.95 %\n\nProposal: \"Move PostgreSQL to a multi-region setup with a published 99.99% availability, for about $1,500 more per month. Nothing else changes.\"\n\nStatement: \"After this upgrade, the progress read path can reach 99.99% availability, which cuts the downtime learners can see to about 4 minutes a month.\"",
+          "explanation": "False. The three dependencies are in series: the request fails if any of them fails. After the upgrade the path is at most 0.9999 x 0.999 x 0.9999, about 99.88%, roughly 52 minutes of possible downtime a month, not 4. The Redis cache, which turns its own errors into 503s, now limits the path, so the $1,500 a month buys very little. The cheaper nine is to take Redis off the critical path: a short timeout and a fallback to PostgreSQL on a cache error (lessons 9 and 12), after which the path is 0.9999 x 0.9995, about 99.94%, with no new region. The misconception is that the availability of one component is the availability of the journey; compute the journey from its dependencies before buying any of them a better number.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        }
+      ]
+    }
+  ]
+}

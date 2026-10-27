@@ -1,0 +1,2774 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_sdc_321",
+      "name": "backpressure-quiz",
+      "type": "quiz",
+      "title": "Is the queue absorbing the burst, or hiding it?",
+      "description": "Two pieces of evidence from the submission queue: the metrics of an unbounded queue during the mock exam, and the admission log of the bounded queue that replaced it.",
+      "difficulty": "medium",
+      "outcomes": [
+        "protection",
+        "tradeoffs"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Mock exam, unbounded submission queue, 400 grader slots, average grading time 4.5 s:\n\ntime      arrivals/s  graded/s  queue depth  POST /submissions p95\n10:00:00         340        89            0  120 ms\n10:01:00         340        89       15,060  170 ms\n10:02:00         340        89       30,120  180 ms\n10:03:00         120        89       31,980  150 ms\n\nThe requirement is p95 2 s for submit acceptance.\n\nStatement: \"Every submission was accepted well within 2 s, so the queue absorbed the burst and the submission path needs no limit on queue depth.\"",
+          "explanation": "False. Acceptance is fast because accepting only means writing to the queue; the work is not done. Arrivals exceed grading by 340 - 89 = 251 jobs per second, so the depth grows by about 15,000 a minute, and a job accepted at 10:02 waits behind 30,120 others: about 30,120 / 89 = 338 s, more than five minutes, before a grader even starts it. Learners see a spinner, press Run again, and add more jobs to the same backlog. A queue smooths short bursts; when arrivals stay above capacity it only turns overload into delay that nobody is told about. Bound the depth by the wait you are willing to promise (throughput x maximum wait), and answer 429 with Retry-After beyond it. The misconception is that the acceptance latency measures the health of an asynchronous path; measure queue depth and age as well.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The bounded queue that replaced it: limit 5,000 for exam submissions, practiceLimit 2,000 for practice runs, 400 workers. The average of the last 200 measured grading times is 4,500 ms. Admission log, two requests 3 ms apart:\n\n10:01:12.401 depth=4100 offer sub_88123 priority=practice -> 429 Retry-After: 24\n10:01:12.404 depth=4100 offer sub_88124 priority=exam     -> 202 depth=4101\n\nStatement: \"Both decisions follow the design: the practice run is shed first because depth is above its threshold, the exam submission is accepted without removing any job already in the queue, and 24 s is the time for the queue to drain below 2,000 at the measured grading rate.\"",
+          "explanation": "True. Practice runs have the lower threshold, so at depth 4,100 they are rejected while exam submissions are still accepted up to 5,000; nothing already accepted is dropped, which keeps the 202 a promise. The Retry-After is the estimated drain time to the practice threshold: excess = 4,100 - 2,000 + 1 = 2,101 jobs, at 4,500 ms each over 400 workers: 2,101 x 4,500 / 400,000 = 23.6 s, rounded up to 24. The misconception this tests is that priority means dropping low-priority jobs that were already accepted; shedding happens at the door, by giving each priority its own admission threshold, and the estimate uses measured grading times so it tracks reality during the burst.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_sdc_322",
+      "name": "bounded-submission-queue",
+      "type": "mini_coding",
+      "title": "A bounded submission queue that sheds practice runs first",
+      "description": "On the mock exam the unbounded submission queue accepted every job in 180 ms and grew to 30,000 jobs, so the last learners waited more than five minutes for a result. Implement class SubmissionQueue(config) on a fake clock (milliseconds). config = { limit, practiceLimit, workers, defaultGradeMs, window } with 1 <= practiceLimit <= limit. offer(job, now): a job { id, priority } is invalid unless id is a non-empty string and priority is \"exam\" or \"practice\": return { status: 400 } and count it nowhere. depth = accepted jobs still waiting. The threshold is limit for exam submissions and practiceLimit for practice runs. depth < threshold: accept, return { status: 202, depth } (depth after adding it). Otherwise return { status: 429, retryAfterSec } with retryAfterSec = Math.ceil(excess * sumMs / (count * workers * 1000)), where excess = depth - threshold + 1 and sumMs / count is the average grading time of the last `window` completed jobs (all priorities), or defaultGradeMs / 1 before any job has completed. Never drop or replace an accepted job. take(now): return the waiting exam job accepted first, else the practice job accepted first, else null; its wait is now minus its accept time. complete(jobId, now): the grading time of that job is now minus the time it was taken. depth() returns the waiting count. stats() returns, for exam and for practice: { accepted, rejected, started, maxWaitMs, avgWaitMs } where avgWaitMs is Math.round of the mean wait over started jobs (0 when none). Input: { config, jobs?: [{ id, priority, at, gradeMs }], burst?: { startMs, seconds, perSecond, examShare, seed } }. The runner simulates config.workers graders: at each instant finished workers call complete, idle workers call take, then each arrival is offered followed by take for idle workers; it runs until nothing is waiting or running and prints your stats plus invalid, maxDepth, depthAtEnd, lost (accepted but never taken), duplicateTakes, unknownTakes, lastFinishMs, a Retry-After histogram per priority and the first 20 rejections.",
+      "difficulty": "hard",
+      "outcomes": [
+        "protection",
+        "tradeoffs"
+      ],
+      "points": 40,
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "hints": [
+        "Admission and dispatch are two separate decisions. Which one does the priority change at the door (when may a job get in?) and which one does it change at the worker (which waiting job goes first?), and what must never happen to a job that already got a 202?",
+        "Look at what each method needs to remember: one waiting list per priority in accept order (with the accept time), the take time of each running job so complete() can measure it, a list of at most `window` recent grading times for the estimate, and running totals per priority for stats(). The 429 branch uses the threshold of the job's own priority twice: to decide, and to compute the excess.",
+        "A worked trace with different numbers: limit 3, practiceLimit 1, 1 worker, defaultGradeMs 2000. At t=0 exam A arrives and is taken at once (depth 0). Practice P arrives: depth 0 < 1, accepted (depth 1). Practice Q arrives: depth 1, excess 1, Retry-After = ceil(1 x 2000 / 1000) = 2. Exam B and exam C are accepted (depth 2, then 3); exam D gets excess 3 - 3 + 1 = 1 -> 2 s. When A finishes at t=5000, the worker takes B (exam first, although P waited longer), and the next estimate uses 5000 ms instead of the default."
+      ],
+      "tests": [
+        {
+          "name": "Two workers, limit 4: practice runs are shed at depth 2, exam submissions at depth 4",
+          "input": {
+            "config": {
+              "limit": 4,
+              "practiceLimit": 2,
+              "workers": 2,
+              "defaultGradeMs": 4000,
+              "window": 20
+            },
+            "jobs": [
+              {
+                "id": "e1",
+                "priority": "exam",
+                "at": 0,
+                "gradeMs": 4000
+              },
+              {
+                "id": "e2",
+                "priority": "exam",
+                "at": 0,
+                "gradeMs": 4000
+              },
+              {
+                "id": "p1",
+                "priority": "practice",
+                "at": 100,
+                "gradeMs": 3000
+              },
+              {
+                "id": "p2",
+                "priority": "practice",
+                "at": 200,
+                "gradeMs": 3000
+              },
+              {
+                "id": "p3",
+                "priority": "practice",
+                "at": 300,
+                "gradeMs": 3000
+              },
+              {
+                "id": "e3",
+                "priority": "exam",
+                "at": 400,
+                "gradeMs": 5000
+              },
+              {
+                "id": "e4",
+                "priority": "exam",
+                "at": 500,
+                "gradeMs": 5000
+              },
+              {
+                "id": "e5",
+                "priority": "exam",
+                "at": 600,
+                "gradeMs": 5000
+              },
+              {
+                "id": "p4",
+                "priority": "practice",
+                "at": 700,
+                "gradeMs": 3000
+              }
+            ]
+          },
+          "expected": {
+            "exam": {
+              "accepted": 4,
+              "rejected": 1,
+              "started": 4,
+              "maxWaitMs": 3600,
+              "avgWaitMs": 1775
+            },
+            "practice": {
+              "accepted": 2,
+              "rejected": 2,
+              "started": 2,
+              "maxWaitMs": 8900,
+              "avgWaitMs": 8850
+            },
+            "invalid": 0,
+            "maxDepth": 4,
+            "depthAtEnd": 0,
+            "lost": 0,
+            "duplicateTakes": 0,
+            "unknownTakes": 0,
+            "lastFinishMs": 12000,
+            "retryAfter": {
+              "exam": {
+                "2": 1
+              },
+              "practice": {
+                "2": 1,
+                "6": 1
+              }
+            },
+            "firstRejections": [
+              "t=300 p3 practice 429 retry-after=2",
+              "t=600 e5 exam 429 retry-after=2",
+              "t=700 p4 practice 429 retry-after=6"
+            ]
+          },
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Exam submissions are graded before older practice runs; waits are reported per priority",
+          "input": {
+            "config": {
+              "limit": 6,
+              "practiceLimit": 4,
+              "workers": 1,
+              "defaultGradeMs": 4000,
+              "window": 20
+            },
+            "jobs": [
+              {
+                "id": "p1",
+                "priority": "practice",
+                "at": 0,
+                "gradeMs": 2000
+              },
+              {
+                "id": "p2",
+                "priority": "practice",
+                "at": 10,
+                "gradeMs": 2000
+              },
+              {
+                "id": "p3",
+                "priority": "practice",
+                "at": 20,
+                "gradeMs": 2000
+              },
+              {
+                "id": "e1",
+                "priority": "exam",
+                "at": 1000,
+                "gradeMs": 1500
+              },
+              {
+                "id": "e2",
+                "priority": "exam",
+                "at": 1500,
+                "gradeMs": 1500
+              },
+              {
+                "id": "p4",
+                "priority": "practice",
+                "at": 2500,
+                "gradeMs": 2000
+              },
+              {
+                "id": "e3",
+                "priority": "exam",
+                "at": 6000,
+                "gradeMs": 1000
+              }
+            ]
+          },
+          "expected": {
+            "exam": {
+              "accepted": 3,
+              "rejected": 0,
+              "started": 3,
+              "maxWaitMs": 2000,
+              "avgWaitMs": 1333
+            },
+            "practice": {
+              "accepted": 4,
+              "rejected": 0,
+              "started": 4,
+              "maxWaitMs": 7980,
+              "avgWaitMs": 5118
+            },
+            "invalid": 0,
+            "maxDepth": 4,
+            "depthAtEnd": 0,
+            "lost": 0,
+            "duplicateTakes": 0,
+            "unknownTakes": 0,
+            "lastFinishMs": 12000,
+            "retryAfter": {
+              "exam": {},
+              "practice": {}
+            },
+            "firstRejections": []
+          },
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Retry-After uses the average of the last `window` measured grading times, not the default",
+          "input": {
+            "config": {
+              "limit": 2,
+              "practiceLimit": 1,
+              "workers": 1,
+              "defaultGradeMs": 1000,
+              "window": 2
+            },
+            "jobs": [
+              {
+                "id": "e1",
+                "priority": "exam",
+                "at": 0,
+                "gradeMs": 8000
+              },
+              {
+                "id": "e2",
+                "priority": "exam",
+                "at": 1,
+                "gradeMs": 8000
+              },
+              {
+                "id": "e3",
+                "priority": "exam",
+                "at": 2,
+                "gradeMs": 8000
+              },
+              {
+                "id": "e4",
+                "priority": "exam",
+                "at": 3,
+                "gradeMs": 8000
+              },
+              {
+                "id": "p1",
+                "priority": "practice",
+                "at": 4,
+                "gradeMs": 1000
+              },
+              {
+                "id": "e5",
+                "priority": "exam",
+                "at": 9000,
+                "gradeMs": 2000
+              },
+              {
+                "id": "e6",
+                "priority": "exam",
+                "at": 9001,
+                "gradeMs": 2000
+              },
+              {
+                "id": "p2",
+                "priority": "practice",
+                "at": 9002,
+                "gradeMs": 1000
+              },
+              {
+                "id": "e7",
+                "priority": "exam",
+                "at": 17000,
+                "gradeMs": 1000
+              },
+              {
+                "id": "e8",
+                "priority": "exam",
+                "at": 17001,
+                "gradeMs": 1000
+              },
+              {
+                "id": "p3",
+                "priority": "practice",
+                "at": 26000,
+                "gradeMs": 1000
+              },
+              {
+                "id": "e9",
+                "priority": "exam",
+                "at": 26001,
+                "gradeMs": 1000
+              },
+              {
+                "id": "e10",
+                "priority": "exam",
+                "at": 26002,
+                "gradeMs": 1000
+              },
+              {
+                "id": "e11",
+                "priority": "exam",
+                "at": 26003,
+                "gradeMs": 1000
+              },
+              {
+                "id": "e12",
+                "priority": "exam",
+                "at": 26004,
+                "gradeMs": 1000
+              }
+            ]
+          },
+          "expected": {
+            "exam": {
+              "accepted": 6,
+              "rejected": 6,
+              "started": 6,
+              "maxWaitMs": 15998,
+              "avgWaitMs": 8166
+            },
+            "practice": {
+              "accepted": 1,
+              "rejected": 2,
+              "started": 1,
+              "maxWaitMs": 2000,
+              "avgWaitMs": 2000
+            },
+            "invalid": 0,
+            "maxDepth": 2,
+            "depthAtEnd": 0,
+            "lost": 0,
+            "duplicateTakes": 0,
+            "unknownTakes": 0,
+            "lastFinishMs": 29000,
+            "retryAfter": {
+              "exam": {
+                "1": 1,
+                "5": 3,
+                "8": 2
+              },
+              "practice": {
+                "2": 1,
+                "16": 1
+              }
+            },
+            "firstRejections": [
+              "t=3 e4 exam 429 retry-after=1",
+              "t=4 p1 practice 429 retry-after=2",
+              "t=9001 e6 exam 429 retry-after=8",
+              "t=9002 p2 practice 429 retry-after=16",
+              "t=17001 e8 exam 429 retry-after=8",
+              "t=26002 e10 exam 429 retry-after=5",
+              "t=26003 e11 exam 429 retry-after=5",
+              "t=26004 e12 exam 429 retry-after=5"
+            ]
+          },
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "A full queue rejects the new exam submission instead of dropping an accepted practice run",
+          "input": {
+            "config": {
+              "limit": 3,
+              "practiceLimit": 2,
+              "workers": 1,
+              "defaultGradeMs": 3000,
+              "window": 10
+            },
+            "jobs": [
+              {
+                "id": "e0",
+                "priority": "exam",
+                "at": 0,
+                "gradeMs": 6000
+              },
+              {
+                "id": "p1",
+                "priority": "practice",
+                "at": 10,
+                "gradeMs": 1000
+              },
+              {
+                "id": "p2",
+                "priority": "practice",
+                "at": 20,
+                "gradeMs": 1000
+              },
+              {
+                "id": "e1",
+                "priority": "exam",
+                "at": 30,
+                "gradeMs": 1000
+              },
+              {
+                "id": "e2",
+                "priority": "exam",
+                "at": 40,
+                "gradeMs": 1000
+              },
+              {
+                "id": "e3",
+                "priority": "exam",
+                "at": 50,
+                "gradeMs": 1000
+              },
+              {
+                "id": "p3",
+                "priority": "practice",
+                "at": 60,
+                "gradeMs": 1000
+              }
+            ]
+          },
+          "expected": {
+            "exam": {
+              "accepted": 2,
+              "rejected": 2,
+              "started": 2,
+              "maxWaitMs": 5970,
+              "avgWaitMs": 2985
+            },
+            "practice": {
+              "accepted": 2,
+              "rejected": 1,
+              "started": 2,
+              "maxWaitMs": 7980,
+              "avgWaitMs": 7485
+            },
+            "invalid": 0,
+            "maxDepth": 3,
+            "depthAtEnd": 0,
+            "lost": 0,
+            "duplicateTakes": 0,
+            "unknownTakes": 0,
+            "lastFinishMs": 9000,
+            "retryAfter": {
+              "exam": {
+                "3": 2
+              },
+              "practice": {
+                "6": 1
+              }
+            },
+            "firstRejections": [
+              "t=40 e2 exam 429 retry-after=3",
+              "t=50 e3 exam 429 retry-after=3",
+              "t=60 p3 practice 429 retry-after=6"
+            ]
+          },
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Excess counts only the jobs above each threshold, so practice waits longer than exam",
+          "input": {
+            "config": {
+              "limit": 10,
+              "practiceLimit": 4,
+              "workers": 3,
+              "defaultGradeMs": 4500,
+              "window": 50
+            },
+            "jobs": [
+              {
+                "id": "run0",
+                "priority": "exam",
+                "at": 0,
+                "gradeMs": 9000
+              },
+              {
+                "id": "run1",
+                "priority": "exam",
+                "at": 0,
+                "gradeMs": 9000
+              },
+              {
+                "id": "run2",
+                "priority": "exam",
+                "at": 0,
+                "gradeMs": 9000
+              },
+              {
+                "id": "p0",
+                "priority": "practice",
+                "at": 10,
+                "gradeMs": 4000
+              },
+              {
+                "id": "p1",
+                "priority": "practice",
+                "at": 11,
+                "gradeMs": 4000
+              },
+              {
+                "id": "p2",
+                "priority": "practice",
+                "at": 12,
+                "gradeMs": 4000
+              },
+              {
+                "id": "p3",
+                "priority": "practice",
+                "at": 13,
+                "gradeMs": 4000
+              },
+              {
+                "id": "e0",
+                "priority": "exam",
+                "at": 20,
+                "gradeMs": 4000
+              },
+              {
+                "id": "e1",
+                "priority": "exam",
+                "at": 21,
+                "gradeMs": 4000
+              },
+              {
+                "id": "e2",
+                "priority": "exam",
+                "at": 22,
+                "gradeMs": 4000
+              },
+              {
+                "id": "e3",
+                "priority": "exam",
+                "at": 23,
+                "gradeMs": 4000
+              },
+              {
+                "id": "e4",
+                "priority": "exam",
+                "at": 24,
+                "gradeMs": 4000
+              },
+              {
+                "id": "e5",
+                "priority": "exam",
+                "at": 25,
+                "gradeMs": 4000
+              },
+              {
+                "id": "p-late",
+                "priority": "practice",
+                "at": 30,
+                "gradeMs": 4000
+              },
+              {
+                "id": "e-late",
+                "priority": "exam",
+                "at": 31,
+                "gradeMs": 4000
+              }
+            ]
+          },
+          "expected": {
+            "exam": {
+              "accepted": 9,
+              "rejected": 1,
+              "started": 9,
+              "maxWaitMs": 12977,
+              "avgWaitMs": 7318
+            },
+            "practice": {
+              "accepted": 4,
+              "rejected": 1,
+              "started": 4,
+              "maxWaitMs": 20987,
+              "avgWaitMs": 17989
+            },
+            "invalid": 0,
+            "maxDepth": 10,
+            "depthAtEnd": 0,
+            "lost": 0,
+            "duplicateTakes": 0,
+            "unknownTakes": 0,
+            "lastFinishMs": 25000,
+            "retryAfter": {
+              "exam": {
+                "2": 1
+              },
+              "practice": {
+                "11": 1
+              }
+            },
+            "firstRejections": [
+              "t=30 p-late practice 429 retry-after=11",
+              "t=31 e-late exam 429 retry-after=2"
+            ]
+          },
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Invalid jobs get 400 and are not counted; valid jobs around them are unaffected",
+          "input": {
+            "config": {
+              "limit": 4,
+              "practiceLimit": 2,
+              "workers": 2,
+              "defaultGradeMs": 4000,
+              "window": 20
+            },
+            "jobs": [
+              {
+                "id": "e1",
+                "priority": "exam",
+                "at": 0,
+                "gradeMs": 1000
+              },
+              {
+                "id": "",
+                "priority": "exam",
+                "at": 1,
+                "gradeMs": 1000
+              },
+              {
+                "id": 42,
+                "priority": "practice",
+                "at": 2,
+                "gradeMs": 1000
+              },
+              {
+                "id": "x1",
+                "priority": "urgent",
+                "at": 3,
+                "gradeMs": 1000
+              },
+              {
+                "id": "x2",
+                "at": 4,
+                "gradeMs": 1000
+              },
+              {
+                "id": "x3",
+                "priority": "EXAM",
+                "at": 5,
+                "gradeMs": 1000
+              },
+              {
+                "id": "p1",
+                "priority": "practice",
+                "at": 6,
+                "gradeMs": 1000
+              }
+            ]
+          },
+          "expected": {
+            "exam": {
+              "accepted": 1,
+              "rejected": 0,
+              "started": 1,
+              "maxWaitMs": 0,
+              "avgWaitMs": 0
+            },
+            "practice": {
+              "accepted": 1,
+              "rejected": 0,
+              "started": 1,
+              "maxWaitMs": 0,
+              "avgWaitMs": 0
+            },
+            "invalid": 5,
+            "maxDepth": 0,
+            "depthAtEnd": 0,
+            "lost": 0,
+            "duplicateTakes": 0,
+            "unknownTakes": 0,
+            "lastFinishMs": 1006,
+            "retryAfter": {
+              "exam": {},
+              "practice": {}
+            },
+            "firstRejections": []
+          },
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Large: exam-day burst of 340 submissions/s for 60 s against 400 grader slots",
+          "input": {
+            "config": {
+              "limit": 5000,
+              "practiceLimit": 2000,
+              "workers": 400,
+              "defaultGradeMs": 4500,
+              "window": 200
+            },
+            "burst": {
+              "startMs": 0,
+              "seconds": 60,
+              "perSecond": 340,
+              "examShare": 70,
+              "seed": 2026
+            }
+          },
+          "expected": {
+            "exam": {
+              "accepted": 9852,
+              "rejected": 4534,
+              "started": 9852,
+              "maxWaitMs": 46314,
+              "avgWaitMs": 29401
+            },
+            "practice": {
+              "accepted": 889,
+              "rejected": 5125,
+              "started": 889,
+              "maxWaitMs": 105572,
+              "avgWaitMs": 89198
+            },
+            "invalid": 0,
+            "maxDepth": 5000,
+            "depthAtEnd": 0,
+            "lost": 0,
+            "duplicateTakes": 0,
+            "unknownTakes": 0,
+            "lastFinishMs": 121902,
+            "retryAfter": {
+              "exam": {
+                "1": 4534
+              },
+              "practice": {
+                "1": 49,
+                "2": 73,
+                "3": 67,
+                "4": 62,
+                "5": 73,
+                "6": 46,
+                "7": 39,
+                "8": 64,
+                "9": 54,
+                "10": 72,
+                "11": 136,
+                "12": 75,
+                "13": 24,
+                "14": 77,
+                "15": 35,
+                "16": 30,
+                "17": 107,
+                "18": 34,
+                "19": 59,
+                "20": 96,
+                "21": 150,
+                "22": 34,
+                "23": 36,
+                "24": 76,
+                "25": 44,
+                "26": 47,
+                "27": 41,
+                "28": 14,
+                "29": 35,
+                "30": 30,
+                "31": 166,
+                "32": 840,
+                "33": 1666,
+                "34": 655,
+                "35": 19
+              }
+            },
+            "firstRejections": [
+              "t=8926 b8-315 practice 429 retry-after=1",
+              "t=8929 b8-316 practice 429 retry-after=1",
+              "t=8952 b8-324 practice 429 retry-after=1",
+              "t=8964 b8-328 practice 429 retry-after=1",
+              "t=8967 b8-329 practice 429 retry-after=1",
+              "t=9000 b9-0 practice 429 retry-after=1",
+              "t=9002 b9-1 practice 429 retry-after=1",
+              "t=9005 b9-2 practice 429 retry-after=1",
+              "t=9017 b9-6 practice 429 retry-after=1",
+              "t=9029 b9-10 practice 429 retry-after=1",
+              "t=9044 b9-15 practice 429 retry-after=1",
+              "t=9047 b9-16 practice 429 retry-after=1",
+              "t=9079 b9-27 practice 429 retry-after=1",
+              "t=9085 b9-29 practice 429 retry-after=1",
+              "t=9088 b9-30 practice 429 retry-after=1",
+              "t=9091 b9-31 practice 429 retry-after=1",
+              "t=9100 b9-34 practice 429 retry-after=1",
+              "t=9111 b9-38 practice 429 retry-after=1",
+              "t=9126 b9-43 practice 429 retry-after=1",
+              "t=9129 b9-44 practice 429 retry-after=1"
+            ]
+          },
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Large: unplanned burst of 60/s for 30 s on the 40 always-on slots, with steady practice traffic",
+          "input": {
+            "config": {
+              "limit": 600,
+              "practiceLimit": 200,
+              "workers": 40,
+              "defaultGradeMs": 4500,
+              "window": 100
+            },
+            "burst": {
+              "startMs": 5000,
+              "seconds": 30,
+              "perSecond": 60,
+              "examShare": 40,
+              "seed": 7
+            },
+            "jobs": [
+              {
+                "id": "steady-0",
+                "priority": "exam",
+                "at": 0,
+                "gradeMs": 1000
+              },
+              {
+                "id": "steady-1",
+                "priority": "practice",
+                "at": 300,
+                "gradeMs": 7611
+              },
+              {
+                "id": "steady-2",
+                "priority": "practice",
+                "at": 600,
+                "gradeMs": 7221
+              },
+              {
+                "id": "steady-3",
+                "priority": "practice",
+                "at": 900,
+                "gradeMs": 6831
+              },
+              {
+                "id": "steady-4",
+                "priority": "practice",
+                "at": 1200,
+                "gradeMs": 6441
+              },
+              {
+                "id": "steady-5",
+                "priority": "exam",
+                "at": 1500,
+                "gradeMs": 6051
+              },
+              {
+                "id": "steady-6",
+                "priority": "practice",
+                "at": 1800,
+                "gradeMs": 5661
+              },
+              {
+                "id": "steady-7",
+                "priority": "practice",
+                "at": 2100,
+                "gradeMs": 5271
+              },
+              {
+                "id": "steady-8",
+                "priority": "practice",
+                "at": 2400,
+                "gradeMs": 4881
+              },
+              {
+                "id": "steady-9",
+                "priority": "practice",
+                "at": 2700,
+                "gradeMs": 4491
+              },
+              {
+                "id": "steady-10",
+                "priority": "exam",
+                "at": 3000,
+                "gradeMs": 4101
+              },
+              {
+                "id": "steady-11",
+                "priority": "practice",
+                "at": 3300,
+                "gradeMs": 3711
+              },
+              {
+                "id": "steady-12",
+                "priority": "practice",
+                "at": 3600,
+                "gradeMs": 3321
+              },
+              {
+                "id": "steady-13",
+                "priority": "practice",
+                "at": 3900,
+                "gradeMs": 2931
+              },
+              {
+                "id": "steady-14",
+                "priority": "practice",
+                "at": 4200,
+                "gradeMs": 2541
+              },
+              {
+                "id": "steady-15",
+                "priority": "exam",
+                "at": 4500,
+                "gradeMs": 2151
+              },
+              {
+                "id": "steady-16",
+                "priority": "practice",
+                "at": 4800,
+                "gradeMs": 1761
+              },
+              {
+                "id": "steady-17",
+                "priority": "practice",
+                "at": 5100,
+                "gradeMs": 1371
+              },
+              {
+                "id": "steady-18",
+                "priority": "practice",
+                "at": 5400,
+                "gradeMs": 7982
+              },
+              {
+                "id": "steady-19",
+                "priority": "practice",
+                "at": 5700,
+                "gradeMs": 7592
+              },
+              {
+                "id": "steady-20",
+                "priority": "exam",
+                "at": 6000,
+                "gradeMs": 7202
+              },
+              {
+                "id": "steady-21",
+                "priority": "practice",
+                "at": 6300,
+                "gradeMs": 6812
+              },
+              {
+                "id": "steady-22",
+                "priority": "practice",
+                "at": 6600,
+                "gradeMs": 6422
+              },
+              {
+                "id": "steady-23",
+                "priority": "practice",
+                "at": 6900,
+                "gradeMs": 6032
+              },
+              {
+                "id": "steady-24",
+                "priority": "practice",
+                "at": 7200,
+                "gradeMs": 5642
+              },
+              {
+                "id": "steady-25",
+                "priority": "exam",
+                "at": 7500,
+                "gradeMs": 5252
+              },
+              {
+                "id": "steady-26",
+                "priority": "practice",
+                "at": 7800,
+                "gradeMs": 4862
+              },
+              {
+                "id": "steady-27",
+                "priority": "practice",
+                "at": 8100,
+                "gradeMs": 4472
+              },
+              {
+                "id": "steady-28",
+                "priority": "practice",
+                "at": 8400,
+                "gradeMs": 4082
+              },
+              {
+                "id": "steady-29",
+                "priority": "practice",
+                "at": 8700,
+                "gradeMs": 3692
+              },
+              {
+                "id": "steady-30",
+                "priority": "exam",
+                "at": 9000,
+                "gradeMs": 3302
+              },
+              {
+                "id": "steady-31",
+                "priority": "practice",
+                "at": 9300,
+                "gradeMs": 2912
+              },
+              {
+                "id": "steady-32",
+                "priority": "practice",
+                "at": 9600,
+                "gradeMs": 2522
+              },
+              {
+                "id": "steady-33",
+                "priority": "practice",
+                "at": 9900,
+                "gradeMs": 2132
+              },
+              {
+                "id": "steady-34",
+                "priority": "practice",
+                "at": 10200,
+                "gradeMs": 1742
+              },
+              {
+                "id": "steady-35",
+                "priority": "exam",
+                "at": 10500,
+                "gradeMs": 1352
+              },
+              {
+                "id": "steady-36",
+                "priority": "practice",
+                "at": 10800,
+                "gradeMs": 7963
+              },
+              {
+                "id": "steady-37",
+                "priority": "practice",
+                "at": 11100,
+                "gradeMs": 7573
+              },
+              {
+                "id": "steady-38",
+                "priority": "practice",
+                "at": 11400,
+                "gradeMs": 7183
+              },
+              {
+                "id": "steady-39",
+                "priority": "practice",
+                "at": 11700,
+                "gradeMs": 6793
+              },
+              {
+                "id": "steady-40",
+                "priority": "exam",
+                "at": 12000,
+                "gradeMs": 6403
+              },
+              {
+                "id": "steady-41",
+                "priority": "practice",
+                "at": 12300,
+                "gradeMs": 6013
+              },
+              {
+                "id": "steady-42",
+                "priority": "practice",
+                "at": 12600,
+                "gradeMs": 5623
+              },
+              {
+                "id": "steady-43",
+                "priority": "practice",
+                "at": 12900,
+                "gradeMs": 5233
+              },
+              {
+                "id": "steady-44",
+                "priority": "practice",
+                "at": 13200,
+                "gradeMs": 4843
+              },
+              {
+                "id": "steady-45",
+                "priority": "exam",
+                "at": 13500,
+                "gradeMs": 4453
+              },
+              {
+                "id": "steady-46",
+                "priority": "practice",
+                "at": 13800,
+                "gradeMs": 4063
+              },
+              {
+                "id": "steady-47",
+                "priority": "practice",
+                "at": 14100,
+                "gradeMs": 3673
+              },
+              {
+                "id": "steady-48",
+                "priority": "practice",
+                "at": 14400,
+                "gradeMs": 3283
+              },
+              {
+                "id": "steady-49",
+                "priority": "practice",
+                "at": 14700,
+                "gradeMs": 2893
+              },
+              {
+                "id": "steady-50",
+                "priority": "exam",
+                "at": 15000,
+                "gradeMs": 2503
+              },
+              {
+                "id": "steady-51",
+                "priority": "practice",
+                "at": 15300,
+                "gradeMs": 2113
+              },
+              {
+                "id": "steady-52",
+                "priority": "practice",
+                "at": 15600,
+                "gradeMs": 1723
+              },
+              {
+                "id": "steady-53",
+                "priority": "practice",
+                "at": 15900,
+                "gradeMs": 1333
+              },
+              {
+                "id": "steady-54",
+                "priority": "practice",
+                "at": 16200,
+                "gradeMs": 7944
+              },
+              {
+                "id": "steady-55",
+                "priority": "exam",
+                "at": 16500,
+                "gradeMs": 7554
+              },
+              {
+                "id": "steady-56",
+                "priority": "practice",
+                "at": 16800,
+                "gradeMs": 7164
+              },
+              {
+                "id": "steady-57",
+                "priority": "practice",
+                "at": 17100,
+                "gradeMs": 6774
+              },
+              {
+                "id": "steady-58",
+                "priority": "practice",
+                "at": 17400,
+                "gradeMs": 6384
+              },
+              {
+                "id": "steady-59",
+                "priority": "practice",
+                "at": 17700,
+                "gradeMs": 5994
+              },
+              {
+                "id": "steady-60",
+                "priority": "exam",
+                "at": 18000,
+                "gradeMs": 5604
+              },
+              {
+                "id": "steady-61",
+                "priority": "practice",
+                "at": 18300,
+                "gradeMs": 5214
+              },
+              {
+                "id": "steady-62",
+                "priority": "practice",
+                "at": 18600,
+                "gradeMs": 4824
+              },
+              {
+                "id": "steady-63",
+                "priority": "practice",
+                "at": 18900,
+                "gradeMs": 4434
+              },
+              {
+                "id": "steady-64",
+                "priority": "practice",
+                "at": 19200,
+                "gradeMs": 4044
+              },
+              {
+                "id": "steady-65",
+                "priority": "exam",
+                "at": 19500,
+                "gradeMs": 3654
+              },
+              {
+                "id": "steady-66",
+                "priority": "practice",
+                "at": 19800,
+                "gradeMs": 3264
+              },
+              {
+                "id": "steady-67",
+                "priority": "practice",
+                "at": 20100,
+                "gradeMs": 2874
+              },
+              {
+                "id": "steady-68",
+                "priority": "practice",
+                "at": 20400,
+                "gradeMs": 2484
+              },
+              {
+                "id": "steady-69",
+                "priority": "practice",
+                "at": 20700,
+                "gradeMs": 2094
+              },
+              {
+                "id": "steady-70",
+                "priority": "exam",
+                "at": 21000,
+                "gradeMs": 1704
+              },
+              {
+                "id": "steady-71",
+                "priority": "practice",
+                "at": 21300,
+                "gradeMs": 1314
+              },
+              {
+                "id": "steady-72",
+                "priority": "practice",
+                "at": 21600,
+                "gradeMs": 7925
+              },
+              {
+                "id": "steady-73",
+                "priority": "practice",
+                "at": 21900,
+                "gradeMs": 7535
+              },
+              {
+                "id": "steady-74",
+                "priority": "practice",
+                "at": 22200,
+                "gradeMs": 7145
+              },
+              {
+                "id": "steady-75",
+                "priority": "exam",
+                "at": 22500,
+                "gradeMs": 6755
+              },
+              {
+                "id": "steady-76",
+                "priority": "practice",
+                "at": 22800,
+                "gradeMs": 6365
+              },
+              {
+                "id": "steady-77",
+                "priority": "practice",
+                "at": 23100,
+                "gradeMs": 5975
+              },
+              {
+                "id": "steady-78",
+                "priority": "practice",
+                "at": 23400,
+                "gradeMs": 5585
+              },
+              {
+                "id": "steady-79",
+                "priority": "practice",
+                "at": 23700,
+                "gradeMs": 5195
+              },
+              {
+                "id": "steady-80",
+                "priority": "exam",
+                "at": 24000,
+                "gradeMs": 4805
+              },
+              {
+                "id": "steady-81",
+                "priority": "practice",
+                "at": 24300,
+                "gradeMs": 4415
+              },
+              {
+                "id": "steady-82",
+                "priority": "practice",
+                "at": 24600,
+                "gradeMs": 4025
+              },
+              {
+                "id": "steady-83",
+                "priority": "practice",
+                "at": 24900,
+                "gradeMs": 3635
+              },
+              {
+                "id": "steady-84",
+                "priority": "practice",
+                "at": 25200,
+                "gradeMs": 3245
+              },
+              {
+                "id": "steady-85",
+                "priority": "exam",
+                "at": 25500,
+                "gradeMs": 2855
+              },
+              {
+                "id": "steady-86",
+                "priority": "practice",
+                "at": 25800,
+                "gradeMs": 2465
+              },
+              {
+                "id": "steady-87",
+                "priority": "practice",
+                "at": 26100,
+                "gradeMs": 2075
+              },
+              {
+                "id": "steady-88",
+                "priority": "practice",
+                "at": 26400,
+                "gradeMs": 1685
+              },
+              {
+                "id": "steady-89",
+                "priority": "practice",
+                "at": 26700,
+                "gradeMs": 1295
+              },
+              {
+                "id": "steady-90",
+                "priority": "exam",
+                "at": 27000,
+                "gradeMs": 7906
+              },
+              {
+                "id": "steady-91",
+                "priority": "practice",
+                "at": 27300,
+                "gradeMs": 7516
+              },
+              {
+                "id": "steady-92",
+                "priority": "practice",
+                "at": 27600,
+                "gradeMs": 7126
+              },
+              {
+                "id": "steady-93",
+                "priority": "practice",
+                "at": 27900,
+                "gradeMs": 6736
+              },
+              {
+                "id": "steady-94",
+                "priority": "practice",
+                "at": 28200,
+                "gradeMs": 6346
+              },
+              {
+                "id": "steady-95",
+                "priority": "exam",
+                "at": 28500,
+                "gradeMs": 5956
+              },
+              {
+                "id": "steady-96",
+                "priority": "practice",
+                "at": 28800,
+                "gradeMs": 5566
+              },
+              {
+                "id": "steady-97",
+                "priority": "practice",
+                "at": 29100,
+                "gradeMs": 5176
+              },
+              {
+                "id": "steady-98",
+                "priority": "practice",
+                "at": 29400,
+                "gradeMs": 4786
+              },
+              {
+                "id": "steady-99",
+                "priority": "practice",
+                "at": 29700,
+                "gradeMs": 4396
+              },
+              {
+                "id": "steady-100",
+                "priority": "exam",
+                "at": 30000,
+                "gradeMs": 4006
+              },
+              {
+                "id": "steady-101",
+                "priority": "practice",
+                "at": 30300,
+                "gradeMs": 3616
+              },
+              {
+                "id": "steady-102",
+                "priority": "practice",
+                "at": 30600,
+                "gradeMs": 3226
+              },
+              {
+                "id": "steady-103",
+                "priority": "practice",
+                "at": 30900,
+                "gradeMs": 2836
+              },
+              {
+                "id": "steady-104",
+                "priority": "practice",
+                "at": 31200,
+                "gradeMs": 2446
+              },
+              {
+                "id": "steady-105",
+                "priority": "exam",
+                "at": 31500,
+                "gradeMs": 2056
+              },
+              {
+                "id": "steady-106",
+                "priority": "practice",
+                "at": 31800,
+                "gradeMs": 1666
+              },
+              {
+                "id": "steady-107",
+                "priority": "practice",
+                "at": 32100,
+                "gradeMs": 1276
+              },
+              {
+                "id": "steady-108",
+                "priority": "practice",
+                "at": 32400,
+                "gradeMs": 7887
+              },
+              {
+                "id": "steady-109",
+                "priority": "practice",
+                "at": 32700,
+                "gradeMs": 7497
+              },
+              {
+                "id": "steady-110",
+                "priority": "exam",
+                "at": 33000,
+                "gradeMs": 7107
+              },
+              {
+                "id": "steady-111",
+                "priority": "practice",
+                "at": 33300,
+                "gradeMs": 6717
+              },
+              {
+                "id": "steady-112",
+                "priority": "practice",
+                "at": 33600,
+                "gradeMs": 6327
+              },
+              {
+                "id": "steady-113",
+                "priority": "practice",
+                "at": 33900,
+                "gradeMs": 5937
+              },
+              {
+                "id": "steady-114",
+                "priority": "practice",
+                "at": 34200,
+                "gradeMs": 5547
+              },
+              {
+                "id": "steady-115",
+                "priority": "exam",
+                "at": 34500,
+                "gradeMs": 5157
+              },
+              {
+                "id": "steady-116",
+                "priority": "practice",
+                "at": 34800,
+                "gradeMs": 4767
+              },
+              {
+                "id": "steady-117",
+                "priority": "practice",
+                "at": 35100,
+                "gradeMs": 4377
+              },
+              {
+                "id": "steady-118",
+                "priority": "practice",
+                "at": 35400,
+                "gradeMs": 3987
+              },
+              {
+                "id": "steady-119",
+                "priority": "practice",
+                "at": 35700,
+                "gradeMs": 3597
+              },
+              {
+                "id": "steady-120",
+                "priority": "exam",
+                "at": 36000,
+                "gradeMs": 3207
+              },
+              {
+                "id": "steady-121",
+                "priority": "practice",
+                "at": 36300,
+                "gradeMs": 2817
+              },
+              {
+                "id": "steady-122",
+                "priority": "practice",
+                "at": 36600,
+                "gradeMs": 2427
+              },
+              {
+                "id": "steady-123",
+                "priority": "practice",
+                "at": 36900,
+                "gradeMs": 2037
+              },
+              {
+                "id": "steady-124",
+                "priority": "practice",
+                "at": 37200,
+                "gradeMs": 1647
+              },
+              {
+                "id": "steady-125",
+                "priority": "exam",
+                "at": 37500,
+                "gradeMs": 1257
+              },
+              {
+                "id": "steady-126",
+                "priority": "practice",
+                "at": 37800,
+                "gradeMs": 7868
+              },
+              {
+                "id": "steady-127",
+                "priority": "practice",
+                "at": 38100,
+                "gradeMs": 7478
+              },
+              {
+                "id": "steady-128",
+                "priority": "practice",
+                "at": 38400,
+                "gradeMs": 7088
+              },
+              {
+                "id": "steady-129",
+                "priority": "practice",
+                "at": 38700,
+                "gradeMs": 6698
+              },
+              {
+                "id": "steady-130",
+                "priority": "exam",
+                "at": 39000,
+                "gradeMs": 6308
+              },
+              {
+                "id": "steady-131",
+                "priority": "practice",
+                "at": 39300,
+                "gradeMs": 5918
+              },
+              {
+                "id": "steady-132",
+                "priority": "practice",
+                "at": 39600,
+                "gradeMs": 5528
+              },
+              {
+                "id": "steady-133",
+                "priority": "practice",
+                "at": 39900,
+                "gradeMs": 5138
+              },
+              {
+                "id": "steady-134",
+                "priority": "practice",
+                "at": 40200,
+                "gradeMs": 4748
+              },
+              {
+                "id": "steady-135",
+                "priority": "exam",
+                "at": 40500,
+                "gradeMs": 4358
+              },
+              {
+                "id": "steady-136",
+                "priority": "practice",
+                "at": 40800,
+                "gradeMs": 3968
+              },
+              {
+                "id": "steady-137",
+                "priority": "practice",
+                "at": 41100,
+                "gradeMs": 3578
+              },
+              {
+                "id": "steady-138",
+                "priority": "practice",
+                "at": 41400,
+                "gradeMs": 3188
+              },
+              {
+                "id": "steady-139",
+                "priority": "practice",
+                "at": 41700,
+                "gradeMs": 2798
+              },
+              {
+                "id": "steady-140",
+                "priority": "exam",
+                "at": 42000,
+                "gradeMs": 2408
+              },
+              {
+                "id": "steady-141",
+                "priority": "practice",
+                "at": 42300,
+                "gradeMs": 2018
+              },
+              {
+                "id": "steady-142",
+                "priority": "practice",
+                "at": 42600,
+                "gradeMs": 1628
+              },
+              {
+                "id": "steady-143",
+                "priority": "practice",
+                "at": 42900,
+                "gradeMs": 1238
+              },
+              {
+                "id": "steady-144",
+                "priority": "practice",
+                "at": 43200,
+                "gradeMs": 7849
+              },
+              {
+                "id": "steady-145",
+                "priority": "exam",
+                "at": 43500,
+                "gradeMs": 7459
+              },
+              {
+                "id": "steady-146",
+                "priority": "practice",
+                "at": 43800,
+                "gradeMs": 7069
+              },
+              {
+                "id": "steady-147",
+                "priority": "practice",
+                "at": 44100,
+                "gradeMs": 6679
+              },
+              {
+                "id": "steady-148",
+                "priority": "practice",
+                "at": 44400,
+                "gradeMs": 6289
+              },
+              {
+                "id": "steady-149",
+                "priority": "practice",
+                "at": 44700,
+                "gradeMs": 5899
+              },
+              {
+                "id": "steady-150",
+                "priority": "exam",
+                "at": 45000,
+                "gradeMs": 5509
+              },
+              {
+                "id": "steady-151",
+                "priority": "practice",
+                "at": 45300,
+                "gradeMs": 5119
+              },
+              {
+                "id": "steady-152",
+                "priority": "practice",
+                "at": 45600,
+                "gradeMs": 4729
+              },
+              {
+                "id": "steady-153",
+                "priority": "practice",
+                "at": 45900,
+                "gradeMs": 4339
+              },
+              {
+                "id": "steady-154",
+                "priority": "practice",
+                "at": 46200,
+                "gradeMs": 3949
+              },
+              {
+                "id": "steady-155",
+                "priority": "exam",
+                "at": 46500,
+                "gradeMs": 3559
+              },
+              {
+                "id": "steady-156",
+                "priority": "practice",
+                "at": 46800,
+                "gradeMs": 3169
+              },
+              {
+                "id": "steady-157",
+                "priority": "practice",
+                "at": 47100,
+                "gradeMs": 2779
+              },
+              {
+                "id": "steady-158",
+                "priority": "practice",
+                "at": 47400,
+                "gradeMs": 2389
+              },
+              {
+                "id": "steady-159",
+                "priority": "practice",
+                "at": 47700,
+                "gradeMs": 1999
+              },
+              {
+                "id": "steady-160",
+                "priority": "exam",
+                "at": 48000,
+                "gradeMs": 1609
+              },
+              {
+                "id": "steady-161",
+                "priority": "practice",
+                "at": 48300,
+                "gradeMs": 1219
+              },
+              {
+                "id": "steady-162",
+                "priority": "practice",
+                "at": 48600,
+                "gradeMs": 7830
+              },
+              {
+                "id": "steady-163",
+                "priority": "practice",
+                "at": 48900,
+                "gradeMs": 7440
+              },
+              {
+                "id": "steady-164",
+                "priority": "practice",
+                "at": 49200,
+                "gradeMs": 7050
+              },
+              {
+                "id": "steady-165",
+                "priority": "exam",
+                "at": 49500,
+                "gradeMs": 6660
+              },
+              {
+                "id": "steady-166",
+                "priority": "practice",
+                "at": 49800,
+                "gradeMs": 6270
+              },
+              {
+                "id": "steady-167",
+                "priority": "practice",
+                "at": 50100,
+                "gradeMs": 5880
+              },
+              {
+                "id": "steady-168",
+                "priority": "practice",
+                "at": 50400,
+                "gradeMs": 5490
+              },
+              {
+                "id": "steady-169",
+                "priority": "practice",
+                "at": 50700,
+                "gradeMs": 5100
+              },
+              {
+                "id": "steady-170",
+                "priority": "exam",
+                "at": 51000,
+                "gradeMs": 4710
+              },
+              {
+                "id": "steady-171",
+                "priority": "practice",
+                "at": 51300,
+                "gradeMs": 4320
+              },
+              {
+                "id": "steady-172",
+                "priority": "practice",
+                "at": 51600,
+                "gradeMs": 3930
+              },
+              {
+                "id": "steady-173",
+                "priority": "practice",
+                "at": 51900,
+                "gradeMs": 3540
+              },
+              {
+                "id": "steady-174",
+                "priority": "practice",
+                "at": 52200,
+                "gradeMs": 3150
+              },
+              {
+                "id": "steady-175",
+                "priority": "exam",
+                "at": 52500,
+                "gradeMs": 2760
+              },
+              {
+                "id": "steady-176",
+                "priority": "practice",
+                "at": 52800,
+                "gradeMs": 2370
+              },
+              {
+                "id": "steady-177",
+                "priority": "practice",
+                "at": 53100,
+                "gradeMs": 1980
+              },
+              {
+                "id": "steady-178",
+                "priority": "practice",
+                "at": 53400,
+                "gradeMs": 1590
+              },
+              {
+                "id": "steady-179",
+                "priority": "practice",
+                "at": 53700,
+                "gradeMs": 1200
+              },
+              {
+                "id": "steady-180",
+                "priority": "exam",
+                "at": 54000,
+                "gradeMs": 7811
+              },
+              {
+                "id": "steady-181",
+                "priority": "practice",
+                "at": 54300,
+                "gradeMs": 7421
+              },
+              {
+                "id": "steady-182",
+                "priority": "practice",
+                "at": 54600,
+                "gradeMs": 7031
+              },
+              {
+                "id": "steady-183",
+                "priority": "practice",
+                "at": 54900,
+                "gradeMs": 6641
+              },
+              {
+                "id": "steady-184",
+                "priority": "practice",
+                "at": 55200,
+                "gradeMs": 6251
+              },
+              {
+                "id": "steady-185",
+                "priority": "exam",
+                "at": 55500,
+                "gradeMs": 5861
+              },
+              {
+                "id": "steady-186",
+                "priority": "practice",
+                "at": 55800,
+                "gradeMs": 5471
+              },
+              {
+                "id": "steady-187",
+                "priority": "practice",
+                "at": 56100,
+                "gradeMs": 5081
+              },
+              {
+                "id": "steady-188",
+                "priority": "practice",
+                "at": 56400,
+                "gradeMs": 4691
+              },
+              {
+                "id": "steady-189",
+                "priority": "practice",
+                "at": 56700,
+                "gradeMs": 4301
+              },
+              {
+                "id": "steady-190",
+                "priority": "exam",
+                "at": 57000,
+                "gradeMs": 3911
+              },
+              {
+                "id": "steady-191",
+                "priority": "practice",
+                "at": 57300,
+                "gradeMs": 3521
+              },
+              {
+                "id": "steady-192",
+                "priority": "practice",
+                "at": 57600,
+                "gradeMs": 3131
+              },
+              {
+                "id": "steady-193",
+                "priority": "practice",
+                "at": 57900,
+                "gradeMs": 2741
+              },
+              {
+                "id": "steady-194",
+                "priority": "practice",
+                "at": 58200,
+                "gradeMs": 2351
+              },
+              {
+                "id": "steady-195",
+                "priority": "exam",
+                "at": 58500,
+                "gradeMs": 1961
+              },
+              {
+                "id": "steady-196",
+                "priority": "practice",
+                "at": 58800,
+                "gradeMs": 1571
+              },
+              {
+                "id": "steady-197",
+                "priority": "practice",
+                "at": 59100,
+                "gradeMs": 1181
+              },
+              {
+                "id": "steady-198",
+                "priority": "practice",
+                "at": 59400,
+                "gradeMs": 7792
+              },
+              {
+                "id": "steady-199",
+                "priority": "practice",
+                "at": 59700,
+                "gradeMs": 7402
+              },
+              {
+                "id": "steady-200",
+                "priority": "exam",
+                "at": 60000,
+                "gradeMs": 7012
+              },
+              {
+                "id": "steady-201",
+                "priority": "practice",
+                "at": 60300,
+                "gradeMs": 6622
+              },
+              {
+                "id": "steady-202",
+                "priority": "practice",
+                "at": 60600,
+                "gradeMs": 6232
+              },
+              {
+                "id": "steady-203",
+                "priority": "practice",
+                "at": 60900,
+                "gradeMs": 5842
+              },
+              {
+                "id": "steady-204",
+                "priority": "practice",
+                "at": 61200,
+                "gradeMs": 5452
+              },
+              {
+                "id": "steady-205",
+                "priority": "exam",
+                "at": 61500,
+                "gradeMs": 5062
+              },
+              {
+                "id": "steady-206",
+                "priority": "practice",
+                "at": 61800,
+                "gradeMs": 4672
+              },
+              {
+                "id": "steady-207",
+                "priority": "practice",
+                "at": 62100,
+                "gradeMs": 4282
+              },
+              {
+                "id": "steady-208",
+                "priority": "practice",
+                "at": 62400,
+                "gradeMs": 3892
+              },
+              {
+                "id": "steady-209",
+                "priority": "practice",
+                "at": 62700,
+                "gradeMs": 3502
+              },
+              {
+                "id": "steady-210",
+                "priority": "exam",
+                "at": 63000,
+                "gradeMs": 3112
+              },
+              {
+                "id": "steady-211",
+                "priority": "practice",
+                "at": 63300,
+                "gradeMs": 2722
+              },
+              {
+                "id": "steady-212",
+                "priority": "practice",
+                "at": 63600,
+                "gradeMs": 2332
+              },
+              {
+                "id": "steady-213",
+                "priority": "practice",
+                "at": 63900,
+                "gradeMs": 1942
+              },
+              {
+                "id": "steady-214",
+                "priority": "practice",
+                "at": 64200,
+                "gradeMs": 1552
+              },
+              {
+                "id": "steady-215",
+                "priority": "exam",
+                "at": 64500,
+                "gradeMs": 1162
+              },
+              {
+                "id": "steady-216",
+                "priority": "practice",
+                "at": 64800,
+                "gradeMs": 7773
+              },
+              {
+                "id": "steady-217",
+                "priority": "practice",
+                "at": 65100,
+                "gradeMs": 7383
+              },
+              {
+                "id": "steady-218",
+                "priority": "practice",
+                "at": 65400,
+                "gradeMs": 6993
+              },
+              {
+                "id": "steady-219",
+                "priority": "practice",
+                "at": 65700,
+                "gradeMs": 6603
+              },
+              {
+                "id": "steady-220",
+                "priority": "exam",
+                "at": 66000,
+                "gradeMs": 6213
+              },
+              {
+                "id": "steady-221",
+                "priority": "practice",
+                "at": 66300,
+                "gradeMs": 5823
+              },
+              {
+                "id": "steady-222",
+                "priority": "practice",
+                "at": 66600,
+                "gradeMs": 5433
+              },
+              {
+                "id": "steady-223",
+                "priority": "practice",
+                "at": 66900,
+                "gradeMs": 5043
+              },
+              {
+                "id": "steady-224",
+                "priority": "practice",
+                "at": 67200,
+                "gradeMs": 4653
+              },
+              {
+                "id": "steady-225",
+                "priority": "exam",
+                "at": 67500,
+                "gradeMs": 4263
+              },
+              {
+                "id": "steady-226",
+                "priority": "practice",
+                "at": 67800,
+                "gradeMs": 3873
+              },
+              {
+                "id": "steady-227",
+                "priority": "practice",
+                "at": 68100,
+                "gradeMs": 3483
+              },
+              {
+                "id": "steady-228",
+                "priority": "practice",
+                "at": 68400,
+                "gradeMs": 3093
+              },
+              {
+                "id": "steady-229",
+                "priority": "practice",
+                "at": 68700,
+                "gradeMs": 2703
+              },
+              {
+                "id": "steady-230",
+                "priority": "exam",
+                "at": 69000,
+                "gradeMs": 2313
+              },
+              {
+                "id": "steady-231",
+                "priority": "practice",
+                "at": 69300,
+                "gradeMs": 1923
+              },
+              {
+                "id": "steady-232",
+                "priority": "practice",
+                "at": 69600,
+                "gradeMs": 1533
+              },
+              {
+                "id": "steady-233",
+                "priority": "practice",
+                "at": 69900,
+                "gradeMs": 1143
+              },
+              {
+                "id": "steady-234",
+                "priority": "practice",
+                "at": 70200,
+                "gradeMs": 7754
+              },
+              {
+                "id": "steady-235",
+                "priority": "exam",
+                "at": 70500,
+                "gradeMs": 7364
+              },
+              {
+                "id": "steady-236",
+                "priority": "practice",
+                "at": 70800,
+                "gradeMs": 6974
+              },
+              {
+                "id": "steady-237",
+                "priority": "practice",
+                "at": 71100,
+                "gradeMs": 6584
+              },
+              {
+                "id": "steady-238",
+                "priority": "practice",
+                "at": 71400,
+                "gradeMs": 6194
+              },
+              {
+                "id": "steady-239",
+                "priority": "practice",
+                "at": 71700,
+                "gradeMs": 5804
+              },
+              {
+                "id": "steady-240",
+                "priority": "exam",
+                "at": 72000,
+                "gradeMs": 5414
+              },
+              {
+                "id": "steady-241",
+                "priority": "practice",
+                "at": 72300,
+                "gradeMs": 5024
+              },
+              {
+                "id": "steady-242",
+                "priority": "practice",
+                "at": 72600,
+                "gradeMs": 4634
+              },
+              {
+                "id": "steady-243",
+                "priority": "practice",
+                "at": 72900,
+                "gradeMs": 4244
+              },
+              {
+                "id": "steady-244",
+                "priority": "practice",
+                "at": 73200,
+                "gradeMs": 3854
+              },
+              {
+                "id": "steady-245",
+                "priority": "exam",
+                "at": 73500,
+                "gradeMs": 3464
+              },
+              {
+                "id": "steady-246",
+                "priority": "practice",
+                "at": 73800,
+                "gradeMs": 3074
+              },
+              {
+                "id": "steady-247",
+                "priority": "practice",
+                "at": 74100,
+                "gradeMs": 2684
+              },
+              {
+                "id": "steady-248",
+                "priority": "practice",
+                "at": 74400,
+                "gradeMs": 2294
+              },
+              {
+                "id": "steady-249",
+                "priority": "practice",
+                "at": 74700,
+                "gradeMs": 1904
+              },
+              {
+                "id": "steady-250",
+                "priority": "exam",
+                "at": 75000,
+                "gradeMs": 1514
+              },
+              {
+                "id": "steady-251",
+                "priority": "practice",
+                "at": 75300,
+                "gradeMs": 1124
+              },
+              {
+                "id": "steady-252",
+                "priority": "practice",
+                "at": 75600,
+                "gradeMs": 7735
+              },
+              {
+                "id": "steady-253",
+                "priority": "practice",
+                "at": 75900,
+                "gradeMs": 7345
+              },
+              {
+                "id": "steady-254",
+                "priority": "practice",
+                "at": 76200,
+                "gradeMs": 6955
+              },
+              {
+                "id": "steady-255",
+                "priority": "exam",
+                "at": 76500,
+                "gradeMs": 6565
+              },
+              {
+                "id": "steady-256",
+                "priority": "practice",
+                "at": 76800,
+                "gradeMs": 6175
+              },
+              {
+                "id": "steady-257",
+                "priority": "practice",
+                "at": 77100,
+                "gradeMs": 5785
+              },
+              {
+                "id": "steady-258",
+                "priority": "practice",
+                "at": 77400,
+                "gradeMs": 5395
+              },
+              {
+                "id": "steady-259",
+                "priority": "practice",
+                "at": 77700,
+                "gradeMs": 5005
+              },
+              {
+                "id": "steady-260",
+                "priority": "exam",
+                "at": 78000,
+                "gradeMs": 4615
+              },
+              {
+                "id": "steady-261",
+                "priority": "practice",
+                "at": 78300,
+                "gradeMs": 4225
+              },
+              {
+                "id": "steady-262",
+                "priority": "practice",
+                "at": 78600,
+                "gradeMs": 3835
+              },
+              {
+                "id": "steady-263",
+                "priority": "practice",
+                "at": 78900,
+                "gradeMs": 3445
+              },
+              {
+                "id": "steady-264",
+                "priority": "practice",
+                "at": 79200,
+                "gradeMs": 3055
+              },
+              {
+                "id": "steady-265",
+                "priority": "exam",
+                "at": 79500,
+                "gradeMs": 2665
+              },
+              {
+                "id": "steady-266",
+                "priority": "practice",
+                "at": 79800,
+                "gradeMs": 2275
+              },
+              {
+                "id": "steady-267",
+                "priority": "practice",
+                "at": 80100,
+                "gradeMs": 1885
+              },
+              {
+                "id": "steady-268",
+                "priority": "practice",
+                "at": 80400,
+                "gradeMs": 1495
+              },
+              {
+                "id": "steady-269",
+                "priority": "practice",
+                "at": 80700,
+                "gradeMs": 1105
+              },
+              {
+                "id": "steady-270",
+                "priority": "exam",
+                "at": 81000,
+                "gradeMs": 7716
+              },
+              {
+                "id": "steady-271",
+                "priority": "practice",
+                "at": 81300,
+                "gradeMs": 7326
+              },
+              {
+                "id": "steady-272",
+                "priority": "practice",
+                "at": 81600,
+                "gradeMs": 6936
+              },
+              {
+                "id": "steady-273",
+                "priority": "practice",
+                "at": 81900,
+                "gradeMs": 6546
+              },
+              {
+                "id": "steady-274",
+                "priority": "practice",
+                "at": 82200,
+                "gradeMs": 6156
+              },
+              {
+                "id": "steady-275",
+                "priority": "exam",
+                "at": 82500,
+                "gradeMs": 5766
+              },
+              {
+                "id": "steady-276",
+                "priority": "practice",
+                "at": 82800,
+                "gradeMs": 5376
+              },
+              {
+                "id": "steady-277",
+                "priority": "practice",
+                "at": 83100,
+                "gradeMs": 4986
+              },
+              {
+                "id": "steady-278",
+                "priority": "practice",
+                "at": 83400,
+                "gradeMs": 4596
+              },
+              {
+                "id": "steady-279",
+                "priority": "practice",
+                "at": 83700,
+                "gradeMs": 4206
+              },
+              {
+                "id": "steady-280",
+                "priority": "exam",
+                "at": 84000,
+                "gradeMs": 3816
+              },
+              {
+                "id": "steady-281",
+                "priority": "practice",
+                "at": 84300,
+                "gradeMs": 3426
+              },
+              {
+                "id": "steady-282",
+                "priority": "practice",
+                "at": 84600,
+                "gradeMs": 3036
+              },
+              {
+                "id": "steady-283",
+                "priority": "practice",
+                "at": 84900,
+                "gradeMs": 2646
+              },
+              {
+                "id": "steady-284",
+                "priority": "practice",
+                "at": 85200,
+                "gradeMs": 2256
+              },
+              {
+                "id": "steady-285",
+                "priority": "exam",
+                "at": 85500,
+                "gradeMs": 1866
+              },
+              {
+                "id": "steady-286",
+                "priority": "practice",
+                "at": 85800,
+                "gradeMs": 1476
+              },
+              {
+                "id": "steady-287",
+                "priority": "practice",
+                "at": 86100,
+                "gradeMs": 1086
+              },
+              {
+                "id": "steady-288",
+                "priority": "practice",
+                "at": 86400,
+                "gradeMs": 7697
+              },
+              {
+                "id": "steady-289",
+                "priority": "practice",
+                "at": 86700,
+                "gradeMs": 7307
+              },
+              {
+                "id": "steady-290",
+                "priority": "exam",
+                "at": 87000,
+                "gradeMs": 6917
+              },
+              {
+                "id": "steady-291",
+                "priority": "practice",
+                "at": 87300,
+                "gradeMs": 6527
+              },
+              {
+                "id": "steady-292",
+                "priority": "practice",
+                "at": 87600,
+                "gradeMs": 6137
+              },
+              {
+                "id": "steady-293",
+                "priority": "practice",
+                "at": 87900,
+                "gradeMs": 5747
+              },
+              {
+                "id": "steady-294",
+                "priority": "practice",
+                "at": 88200,
+                "gradeMs": 5357
+              },
+              {
+                "id": "steady-295",
+                "priority": "exam",
+                "at": 88500,
+                "gradeMs": 4967
+              },
+              {
+                "id": "steady-296",
+                "priority": "practice",
+                "at": 88800,
+                "gradeMs": 4577
+              },
+              {
+                "id": "steady-297",
+                "priority": "practice",
+                "at": 89100,
+                "gradeMs": 4187
+              },
+              {
+                "id": "steady-298",
+                "priority": "practice",
+                "at": 89400,
+                "gradeMs": 3797
+              },
+              {
+                "id": "steady-299",
+                "priority": "practice",
+                "at": 89700,
+                "gradeMs": 3407
+              }
+            ]
+          },
+          "expected": {
+            "exam": {
+              "accepted": 772,
+              "rejected": 11,
+              "started": 772,
+              "maxWaitMs": 50448,
+              "avgWaitMs": 24915
+            },
+            "practice": {
+              "accepted": 197,
+              "rejected": 1120,
+              "started": 197,
+              "maxWaitMs": 96282,
+              "avgWaitMs": 67854
+            },
+            "invalid": 0,
+            "maxDepth": 600,
+            "depthAtEnd": 0,
+            "lost": 0,
+            "duplicateTakes": 0,
+            "unknownTakes": 0,
+            "lastFinishMs": 114558,
+            "retryAfter": {
+              "exam": {
+                "1": 11
+              },
+              "practice": {
+                "1": 50,
+                "2": 52,
+                "3": 18,
+                "4": 33,
+                "5": 37,
+                "6": 24,
+                "7": 14,
+                "8": 30,
+                "9": 25,
+                "10": 29,
+                "11": 16,
+                "12": 22,
+                "13": 43,
+                "14": 27,
+                "15": 14,
+                "16": 53,
+                "17": 7,
+                "18": 20,
+                "19": 23,
+                "20": 17,
+                "21": 13,
+                "22": 11,
+                "23": 10,
+                "24": 53,
+                "25": 33,
+                "26": 27,
+                "27": 30,
+                "28": 15,
+                "29": 19,
+                "30": 8,
+                "31": 27,
+                "32": 13,
+                "33": 30,
+                "34": 17,
+                "35": 17,
+                "36": 34,
+                "37": 17,
+                "38": 27,
+                "39": 16,
+                "40": 5,
+                "41": 12,
+                "42": 12,
+                "43": 23,
+                "44": 27,
+                "45": 31,
+                "46": 16,
+                "47": 21,
+                "48": 2
+              }
+            },
+            "firstRejections": [
+              "t=9000 b4-0 practice 429 retry-after=1",
+              "t=9016 b4-1 practice 429 retry-after=1",
+              "t=9033 b4-2 practice 429 retry-after=1",
+              "t=9050 b4-3 practice 429 retry-after=1",
+              "t=9066 b4-4 practice 429 retry-after=1",
+              "t=9083 b4-5 practice 429 retry-after=1",
+              "t=9100 b4-6 practice 429 retry-after=1",
+              "t=9116 b4-7 practice 429 retry-after=1",
+              "t=9133 b4-8 practice 429 retry-after=1",
+              "t=9166 b4-10 practice 429 retry-after=1",
+              "t=9183 b4-11 practice 429 retry-after=1",
+              "t=9233 b4-14 practice 429 retry-after=1",
+              "t=9250 b4-15 practice 429 retry-after=1",
+              "t=9300 steady-31 practice 429 retry-after=1",
+              "t=9300 b4-18 practice 429 retry-after=1",
+              "t=9316 b4-19 practice 429 retry-after=1",
+              "t=9333 b4-20 practice 429 retry-after=1",
+              "t=9350 b4-21 practice 429 retry-after=1",
+              "t=9366 b4-22 practice 429 retry-after=1",
+              "t=9400 b4-24 practice 429 retry-after=1"
+            ]
+          },
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

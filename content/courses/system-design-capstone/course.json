@@ -1,0 +1,213 @@
+{
+  "publicId": "system-design-capstone",
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1793062616/codedev/courses/system-design-capstone/cover",
+  "title": "System Design Capstone: Designing & Building the CodeDev Learning Platform",
+  "concept": "Design the CodeDev learning platform end to end and prove it works: requirements and estimates, architecture and data flow, a progress service without lost updates, a leaderboard projection, rate limits and backpressure, graceful degradation, recovery, a vertical slice that is idempotent end to end, and an architecture review.",
+  "description": "An expert capstone that pulls the whole track together around one system: the CodeDev learning platform. Every lesson starts from a design question or an incident - two progress updates that overwrote each other, a cache outage that took the whole API down, a submission queue that grew until the graders fell over, a leaderboard lost with its cache, an architecture review board that asked for evidence - and answers it with code and numbers: requirements, capacity estimates, architecture and data flow, the progress service, an AI-written lost update, the leaderboard projection, per-user rate limits, backpressure, graceful degradation, a vertical slice from API to leaderboard, recovery, the Architecture Review Board scenario, failure modes, cost trade-offs and the design doc. 15 lessons with True/False quizzes on real designs and evidence, and TypeScript challenges graded by hidden tests on in-memory components.",
+  "level": "expert",
+  "durationMinutes": 480,
+  "instructor": "CodeDev Engineering Team",
+  "language": "TypeScript",
+  "category": "System Design",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 200,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 1000
+    },
+    {
+      "priceType": "money",
+      "amount": 349000,
+      "currency": "VND"
+    }
+  ],
+  "completionRules": {},
+  "domain": "system-design",
+  "learningOutcomes": [
+    {
+      "code": "requirements-design",
+      "text": "Turn requirements and estimates into an architecture and data flow, and build a vertical slice of it"
+    },
+    {
+      "code": "consistency",
+      "text": "Update progress and projections without lost updates or double counting"
+    },
+    {
+      "code": "protection",
+      "text": "Protect the platform with per-user rate limits and backpressure"
+    },
+    {
+      "code": "resilience",
+      "text": "Degrade gracefully, remove single points of failure and recover lost state"
+    },
+    {
+      "code": "tradeoffs",
+      "text": "Defend design decisions with evidence, failure modes and costs in a review"
+    }
+  ],
+  "testedVersions": {
+    "TypeScript": "5.9.3 (tsc --strict in the code runner)"
+  },
+  "lastReviewedAt": "2026-10-26",
+  "sourceLinks": [
+    "https://sre.google/sre-book/addressing-cascading-failures/",
+    "https://aws.amazon.com/builders-library/using-load-shedding-to-avoid-overload/",
+    "https://martinfowler.com/articles/patterns-of-distributed-systems/"
+  ],
+  "owner": "CodeDev Engineering Team",
+  "knownIssues": [
+    "Challenges run in-memory components with fake clocks; deploying the design is self-practice"
+  ],
+  "scenario": {
+    "title": "Architecture Review Board",
+    "quiz": "chal_quiz_sdc_431",
+    "fixBug": "chal_coding_sdc_432"
+  },
+  "careerRoles": [
+    "backend_developer",
+    "fullstack_developer",
+    "devops_engineer"
+  ],
+  "skills": {
+    "system_design": 5,
+    "typescript": 3,
+    "performance": 3,
+    "sql": 2
+  },
+  "goals": [
+    "grow_in_role",
+    "interview_prep",
+    "build_projects"
+  ],
+  "prerequisites": [
+    "typescript-react-frontend",
+    "nestjs-modular-monolith",
+    "sql-data-modeling"
+  ],
+  "modules": [
+    {
+      "orderIndex": 1,
+      "title": "Requirements",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "01-requirements",
+          "title": "Functional & non-functional requirements for CodeDev",
+          "sanityId": "lesson-sdc-1-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "02-capacity-estimates",
+          "title": "Back-of-the-envelope capacity estimates",
+          "sanityId": "lesson-sdc-1-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "03-architecture-data-flow",
+          "title": "Choosing the architecture & data flow",
+          "sanityId": "lesson-sdc-1-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Core Services",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "04-progress-service",
+          "title": "The progress service: validation & monotonic updates",
+          "sanityId": "lesson-sdc-2-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "05-lost-update",
+          "title": "Spot the AI mistake: two progress updates that overwrite each other",
+          "sanityId": "lesson-sdc-2-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "06-leaderboard-projection",
+          "title": "A leaderboard projection from progress events",
+          "sanityId": "lesson-sdc-2-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Protection",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "07-rate-limit-submissions",
+          "title": "Per-user rate limits on submissions",
+          "sanityId": "lesson-sdc-3-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "08-backpressure",
+          "title": "Backpressure: a bounded submission queue",
+          "sanityId": "lesson-sdc-3-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "09-graceful-degradation",
+          "title": "Graceful degradation: progress works when the leaderboard doesn't",
+          "sanityId": "lesson-sdc-3-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 4,
+      "title": "End to End",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "10-vertical-slice",
+          "title": "A vertical slice: API to leaderboard, idempotent end to end",
+          "sanityId": "lesson-sdc-4-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "11-recovery",
+          "title": "Recovery: rebuild the leaderboard after losing the cache",
+          "sanityId": "lesson-sdc-4-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "12-architecture-review-board",
+          "title": "Architecture review board: a cache outage that took down the API",
+          "sanityId": "lesson-sdc-4-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 5,
+      "title": "Production Readiness",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "13-failure-modes",
+          "title": "Failure modes & single points of failure",
+          "sanityId": "lesson-sdc-5-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "14-cost-tradeoffs",
+          "title": "Cost trade-offs: what each component costs",
+          "sanityId": "lesson-sdc-5-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "15-design-doc",
+          "title": "Writing the design doc",
+          "sanityId": "lesson-sdc-5-3"
+        }
+      ]
+    }
+  ]
+}

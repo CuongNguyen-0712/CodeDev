@@ -1,0 +1,50 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_sdc_131",
+      "name": "architecture-data-flow-quiz",
+      "type": "quiz",
+      "title": "Source of truth and the sync/async boundary",
+      "description": "Two pieces of the CodeDev architecture proposal: a leaderboard that keeps points only in Redis, and a trace of the new submission flow that answers 202 before grading.",
+      "difficulty": "medium",
+      "outcomes": [
+        "requirements-design"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "From the architecture proposal, leaderboard section:\n\n  On challenge pass the grader worker runs   ZINCRBY lb:all-time <points> <userId>\n  No other table stores points.\n  redis.conf:  appendonly yes\n               appendfsync everysec\n               maxmemory-policy noeviction\n  One replica, asynchronous replication, automatic failover.\n\nStatement: \"With AOF fsync every second, the sorted set can safely be the source of truth for points, because at most about one second of increments can be lost.\"",
+          "explanation": "False. \"At most one second\" is already acknowledged data that disappears, and nobody can tell which increments were lost, so they cannot be replayed. A failover to the asynchronous replica can lose more than a second. And ZINCRBY is not idempotent: a retried worker job adds the points again, with no record to compare against. Points are facts derived from passed challenges and completed lessons, which live in PostgreSQL; the sorted set should be a projection of them that can be rebuilt (lesson 11) and checked by reconciliation. Redis Patterns covers this mistake in detail. The misconception is that persistence settings turn a cache into a system of record; durability is only one of the properties, the others are an audit trail, idempotent writes and the ability to rebuild.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Trace of POST /submissions in the new design (load test, 340 submissions/s):\n\n  POST /submissions                         38 ms   202 {\"submissionId\":\"sub_81f2\",\"status\":\"queued\"}\n    validate + rate limit (Redis)             3 ms\n    BEGIN                                     \n      INSERT INTO submission (... 'queued')   4 ms\n      INSERT INTO outbox (submission.created) 2 ms\n    COMMIT                                    9 ms\n  (separate trace, linked)  grade sub_81f2   5.2 s   worker grader-7\n\nStatement: \"If grader-7 crashes after the API answered 202, the submission is not lost, because the submission row and its outbox row were committed before the API answered.\"",
+          "explanation": "True. The API answers 202 only after COMMIT, so the submission and the event that triggers grading are both durable in PostgreSQL, the source of truth. If the worker dies mid-job, the queue redelivers the job after its visibility timeout (or a sweeper re-enqueues submissions still queued after N minutes), and grading runs again; the worker must therefore be idempotent (it writes the result with ON CONFLICT or a status check). This is the point of putting the sync/async boundary right after a durable write: the learner's promise (R6a, accepted before the deadline) is kept even when everything after the boundary fails. The misconception is that asynchronous processing means a crash loses work; it only loses work when the hand-off is not durable.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

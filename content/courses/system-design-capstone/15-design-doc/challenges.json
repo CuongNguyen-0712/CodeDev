@@ -1,0 +1,46 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_sdc_531",
+      "name": "design-doc-review-quiz",
+      "type": "quiz",
+      "title": "Reviewing the CodeDev design doc",
+      "description": "Three excerpts from the CodeDev platform design doc under review: a rewritten requirement with its load test, a rollout plan and two rows of the verification plan.",
+      "difficulty": "medium",
+      "outcomes": ["requirements-design", "tradeoffs"],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Design doc v0.3, requirement NF-2:\n  \"Submissions are accepted quickly, even on exam day.\"\n\nRewritten in v0.4 after review comment #4:\n  NF-2  Submit acceptance latency, measured at the API from request received to 202 sent:\n        p95 <= 2 s at 340 submissions/s sustained for 3 minutes, graders at exam-day size.\n\nLoad test L2 (staging, exam profile, 340/s for 3 min, 61,200 requests):\n  202 Accepted   61,200\n  latency        p50 180 ms   p95 1.4 s   p99 3.9 s   max 6.2 s\n\nStatement: \"Load test L2 meets NF-2 as written in v0.4, even though some submissions took longer than 2 s to be accepted.\"",
+          "explanation": "True. NF-2 v0.4 fixes the percentile (p95), the load (340/s), its duration (3 minutes), the conditions (exam-day graders) and where latency is measured (at the API). L2 ran that profile, every request was accepted, and p95 was 1.4 s, under 2 s. The p99 of 3.9 s does not break NF-2, because NF-2 does not mention p99: about 1% of learners waited between roughly 4 and 6 s. If that tail matters (an exam timer, for example), the doc must say so with a p99 target; the reviewer can then ask for it. The v0.3 wording could not be passed or failed by any test, which is exactly what comment #4 pointed out. The misconception is that a requirement is about the average or about every request; it means what its numbers say, so write the numbers you mean.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Design doc, section 10 (Rollout), for the change that renames the submission score:\n\nRelease 2.4 (one rolling deploy, Saturday 02:00)\n  migration 0042, run before the new pods start:\n    ALTER TABLE submissions RENAME COLUMN score TO points;\n  code: every query reads and writes submissions.points\nRollback: redeploy release 2.3.\n\nRelease 2.3 code: SELECT ..., score FROM submissions ...;  UPDATE submissions SET score = $1 ...\n\nStatement: \"Redeploying release 2.3 is a complete rollback plan for release 2.4.\"",
+          "explanation": "False. Redeploying 2.3 brings back code that reads and writes submissions.score, but the migration has already renamed the column, so every 2.3 query fails with \"column score does not exist\". The same failure happens during the forward rollout: the migration runs first, and the 2.3 pods that are still serving traffic break until the deploy finishes. A code rollback does not undo a schema change. A safe plan uses expand and contract: add points, write both columns, backfill, switch reads to points, and drop score in a later release, so that at every step both the old and the new code can run and each step has its own rollback. The misconception is that \"revert the deploy\" undoes a release; it undoes only the code, never the data or the schema.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Design doc, section 11 (Verification), two rows:\n\nNF-5  Learning path works with Redis down\n      evidence: game day G1, 2026-10-20, staging: Redis stopped for 10 min;\n                POST /lessons/:id/progress p95 180 ms, 0 errors; leaderboard stale, then\n                rebuilt in 3 min 10 s after Redis restarted (dashboard link, G1 notes link)\n\nNF-6  No submission is counted twice in a learner's score\n      evidence: \"graders write results idempotently (see section 5)\"\n      test: to be written\n\nStatement: \"A reviewer should treat NF-6 as an open risk until a test or a drill shows it holds, while NF-5 is backed by evidence the reviewer can check.\"",
+          "explanation": "True. NF-5 has a dated drill, the measurements it produced and links a reviewer can open: that is evidence. NF-6 points to a design statement and a test that does not exist yet: that is intent. The design may well be right, but until something like killing a grader mid-job (or replaying a duplicate delivery) shows one result row and one score change, the doc cannot claim the requirement is met. Listing it as an open risk with an owner and a date is the honest state and is what lets the board approve the doc with a condition. The misconception is that a described mechanism is the same as a verified one; the verification plan exists to keep the two apart.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        }
+      ]
+    }
+  ]
+}

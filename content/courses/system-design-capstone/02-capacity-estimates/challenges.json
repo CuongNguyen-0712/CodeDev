@@ -1,0 +1,50 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_sdc_121",
+      "name": "capacity-estimates-quiz",
+      "type": "quiz",
+      "title": "Little's Law and the exam-day peak",
+      "description": "Two estimates from the CodeDev capacity plan, checked against the grader metrics of the last exam: how long a backlog takes to drain, and whether daily averages can size the grader fleet.",
+      "difficulty": "medium",
+      "outcomes": [
+        "requirements-design"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Grader dashboard, exam day, deadline 10:00:00:\n\n  grader_slots_busy            40 / 40   (09:59 - 10:37)\n  grader_jobs_completed_rate   8.9 jobs/s\n  grader_job_duration_seconds  mean 4.5 s\n  submission_queue_depth       19,870 at 10:00:00, then falling\n  POST /submissions rate       near 0 after 10:01 (exam closed)\n\nStatement: \"At this throughput the 19,870 queued jobs need about 37 more minutes to drain, which matches results for 10:00 submissions arriving around 10:38.\"",
+          "explanation": "True. 40 busy slots with a mean job time of 4.5 s give a throughput of 40 / 4.5 = 8.9 jobs/s (Little's Law: jobs in progress = throughput x time per job, here 40 = 8.9 x 4.5). With no new arrivals the backlog shrinks at the full service rate: 19,870 / 8.9 = 2,233 s, about 37 minutes, so the last of them finishes around 10:38, what the dashboard shows; that comparison is how an estimate is checked against metrics. The misconception is that a queue drains as fast as it filled; it drains at the service rate minus the arrival rate, which during the exam is negative (the queue grows).",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Capacity plan, draft:\n\n  daily active learners          20,000\n  submissions per active learner  5 / day\n  submissions per day            100,000  ->  100,000 / 86,400 s = 1.2 submissions/s\n  grader capacity (40 slots, 4.5 s mean)  8.9 jobs/s\n  conclusion: \"7x headroom, no scaling needed for exam day\"\n\nLast exam: 20,400 submissions in the minute before the deadline.\n\nStatement: \"Since the daily average is 1.2 submissions/s and the fleet handles 8.9/s, the 40-slot fleet keeps the queue short on exam day.\"",
+          "explanation": "False. The daily average spreads 100,000 submissions evenly over 24 hours, but load arrives in bursts: the last exam put 20,400 submissions into one minute, 340/s, about 280 times the average. At 8.9 jobs/s the fleet finishes about 530 of them in that minute and the rest, about 19,900, wait in the queue. Little's Law sizes the fleet for the peak: 340/s x 4.5 s = about 1,530 jobs in progress to keep up, or a smaller fleet plus an agreed drain time (R2c: results within 5 minutes). The misconception is sizing for the average; capacity planning needs the peak rate and how long the peak lasts.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

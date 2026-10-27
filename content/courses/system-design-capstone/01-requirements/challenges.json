@@ -1,0 +1,50 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_sdc_111",
+      "name": "requirements-quiz",
+      "type": "quiz",
+      "title": "Is this requirement met, and can a test prove it?",
+      "description": "Two requirements from the CodeDev design doc after exam day: an availability target measured by an uptime monitor, and a durability requirement for progress rewritten so that it can be tested.",
+      "difficulty": "medium",
+      "outcomes": [
+        "requirements-design"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Requirement in the old design doc:\n  R3. The submission API shall be highly available (99.9%).\n\nExam day, 09:00-12:00:\n  Uptime monitor  GET https://api.codedev.test/health  every 30 s   360/360 checks 200 OK  (100.0%)\n  API metrics     POST /submissions   total 412,870   5xx 16,930   (4.1%)\n                  p95 time to 202     31.4 s\n\nStatement: \"Because the uptime monitor recorded 100% for the exam window, exam day met R3.\"",
+          "explanation": "False. The health endpoint answers from a process that is alive; it says nothing about whether learners could submit. Measured on the operation that matters, 4.1% of submissions failed, so the success ratio was 95.9%, far below 99.9%, and many of the successful ones took over 30 s. The deeper problem is that R3 never said what is counted (which requests, which status codes, how slow is \"unavailable\", over which window), so two people could both claim to be right. A measurable version: \"99.9% of POST /submissions in each 30-day window return a non-5xx response within 2 s, measured at the API.\" The misconception is that availability is a property of the server process instead of a ratio of good user requests.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The team rewrote a vague requirement.\n\nBefore:\n  R5. Progress must be saved reliably.\n\nAfter:\n  R5. Once PATCH /progress returns 200, the new lesson percent is committed in PostgreSQL and is returned by\n      GET /progress after any API restart or Redis flush. A lesson's stored percent never decreases.\n\nStatement: \"The new R5 can be checked by an automated test: send a PATCH, wait for the 200, restart the API process and flush Redis, then read the progress back and compare.\"",
+          "explanation": "True. The rewrite names the event that starts the guarantee (the 200 response), where the data must be (committed in PostgreSQL, the source of truth, not only in Redis or memory), which failures it must survive (process restart, cache loss) and an invariant (never decreases). Each part maps to a step in a test, which is the point of a measurable requirement. A test for the second sentence sends a higher then a lower percent and checks the stored value. The misconception is that durability requirements can only be judged by reading the code; if you cannot write the test, the requirement is not finished.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

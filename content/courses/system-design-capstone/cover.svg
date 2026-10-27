@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Course cover: system design capstone (the CodeDev platform: API, services, queue, cache, database and a degraded path). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0E1424"/>
+      <stop offset="0.55" stop-color="#110F16"/>
+      <stop offset="1" stop-color="#0D0B13"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#5B8DEF" stop-opacity="0.26"/>
+      <stop offset="1" stop-color="#5B8DEF" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#FFFFFF" fill-opacity="0.07"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8C8399"/></marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#dots)"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- Copy -->
+  <g id="copy" font-family="Segoe UI, Inter, Arial, sans-serif">
+    <rect x="112" y="152" width="92" height="92" rx="20" fill="#5B8DEF"/>
+    <text x="158" y="214" text-anchor="middle" font-size="34" font-weight="800" fill="#FFFFFF">SD</text>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#AFC7F7">SYSTEM DESIGN · CAPSTONE</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">System Design</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">Capstone</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Requirements · Data flow · Failure modes</text>
+    <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#DCE6FB">
+      <rect x="110" y="660" width="246" height="52" rx="26" fill="#121C30" stroke="#5B8DEF"/>
+      <text x="233.2" y="695" text-anchor="middle">vertical slice</text>
+      <rect x="372.4" y="660" width="75" height="52" rx="26" fill="#121C30" stroke="#5B8DEF"/>
+      <text x="409.8" y="695" text-anchor="middle">429</text>
+      <rect x="463.2" y="660" width="137" height="52" rx="26" fill="#121C30" stroke="#5B8DEF"/>
+      <text x="531.8" y="695" text-anchor="middle">rebuild</text>
+    </g>
+  </g>
+
+  <g id="art" font-family="Consolas, Menlo, monospace">
+    <rect x="1050" y="220" width="220" height="56" rx="14" fill="#15131D" stroke="#5B8DEF" stroke-width="2"/>
+    <text x="1160" y="256" font-size="21" fill="#DCE6FB" text-anchor="middle">API</text>
+    <path d="M1100 276 L990 330" stroke="#8C8399" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+    <path d="M1160 276 V330" stroke="#8C8399" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+    <path d="M1220 276 L1330 330" stroke="#8C8399" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+    <rect x="880" y="334" width="200" height="56" rx="14" fill="#15131D" stroke="#5B8DEF" stroke-width="2"/>
+    <text x="980" y="370" font-size="19" fill="#DCE6FB" text-anchor="middle">progress</text>
+    <rect x="1090" y="334" width="140" height="56" rx="14" fill="#1F1A0E" stroke="#F2C14E" stroke-width="2"/>
+    <text x="1160" y="370" font-size="19" fill="#F6D98E" text-anchor="middle">queue</text>
+    <rect x="1240" y="334" width="200" height="56" rx="14" fill="#15131D" stroke="#5B8DEF" stroke-width="2"/>
+    <text x="1340" y="370" font-size="19" fill="#DCE6FB" text-anchor="middle">leaderboard</text>
+    <path d="M980 390 V450" stroke="#8C8399" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+    <rect x="880" y="454" width="200" height="56" rx="14" fill="#13201A" stroke="#3DBE7B" stroke-width="2"/>
+    <text x="980" y="490" font-size="19" fill="#9BE7BD" text-anchor="middle">PostgreSQL</text>
+    <path d="M1340 390 V450" stroke="#8C8399" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+    <rect x="1240" y="454" width="200" height="56" rx="14" fill="#24151A" stroke="#F2555A" stroke-width="2"/>
+    <text x="1340" y="490" font-size="19" fill="#F2B8BA" text-anchor="middle">cache down</text>
+    <text x="880" y="560" font-size="18" fill="#3DBE7B" text-anchor="start">progress still saved · leaderboard degraded</text>
+    <text x="880" y="596" font-size="18" fill="#B8B2C8" text-anchor="start">p95 180 ms · 340 req/s · 429 when full</text>
+  </g>
+</svg>

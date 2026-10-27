@@ -1,0 +1,46 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_sdc_511",
+      "name": "failure-modes-quiz",
+      "type": "quiz",
+      "title": "Timeouts, blast radius and replicas in the CodeDev failure-mode table",
+      "description": "Three rows from the CodeDev failure-mode review: a timeout patch for the certificate client, a payment provider outage and a Redis failover on the leaderboard.",
+      "difficulty": "medium",
+      "outcomes": ["resilience"],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Before the certificate call was moved to a background job, the first patch proposed for the incident was:\n\n// api/certificates/client.ts\nexport const certClient = createHttpClient({\n  baseUrl: \"http://cert-svc.internal\",\n  timeoutMs: 2_000,                         // per attempt\n  retry: { retries: 3, backoffMs: 200, factor: 2 },   // waits 200, 400, 800 ms\n});\n\n// POST /lessons/:id/complete still awaits certClient.post(\"/certificates\", ...) inline\n\nThe certificate service hangs again: it accepts connections and never answers.\n\nStatement: \"With this patch, a hung certificate service can hold a POST /lessons/:id/complete request for at most about 2 seconds.\"",
+          "explanation": "False. The 2 s limit applies to each attempt, and the client makes up to 4 attempts (1 + 3 retries) with 200 + 400 + 800 ms of backoff in between: 4 x 2,000 + 1,400 = 9,400 ms. Every completion request still holds an API request slot for over 9 s, so with enough course completions the slots can still run out, just more slowly than with no timeout. Worse, all those retries go to a service that is already hung. The misconception is that a per-attempt timeout bounds the request; only a deadline per request does that, with each call's timeout taken from what the request has left and retries stopped when it is spent. The real fix was to take the certificate off the request path: publish CourseCompleted and let a job issue it with its own timeout and retries.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Payment provider status page: 19:10-19:52 \"Elevated error rates on payment creation\".\n\nCode search for the provider client (payments/providerClient.ts):\n  api/payments/checkout.ts          POST /checkout           (4 s timeout, 1 retry with idempotency key)\n  api/payments/webhook.ts           POST /webhooks/payments  (inbound, writes course_access)\n  jobs/reconcilePayments.ts         every 10 min\n\nEntitlement check used by course, lesson, progress and submission routes:\n  SELECT 1 FROM course_access WHERE user_id = $1 AND course_id = $2\n\nAPI dashboard, 19:10-19:52:\n  POST /checkout              5xx 96 %\n  GET  /courses/:id           p95 125 ms   5xx 0.1 %\n  POST /lessons/:id/progress  p95 98 ms    5xx 0.1 %\n  POST /submissions           p95 410 ms   5xx 0.2 %\n\nStatement: \"The blast radius of this outage was limited to buying courses: learners who already had access kept learning, because no route on the learning path waits for the provider.\"",
+          "explanation": "True. Only checkout, the inbound webhook and the reconciliation job use the provider client; every learning route checks access with a PostgreSQL query on course_access, which was written when each earlier payment was confirmed. The dashboard agrees: checkout failed while course pages, progress and submissions kept their normal latency and error rate. This is the containment you want for a dependency you cannot fix yourself. Note what the evidence does not cover: a learner charged just before the outage whose webhook was lost would wait until the 10-minute reconciliation job grants access, which is why that job exists. The misconception is that an external SPOF must be removed; often it is enough to keep it on one journey and make its unknown outcomes recoverable.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Leaderboard Redis: primary redis-lb-1, replica redis-lb-2, Sentinel with automatic failover (default asynchronous replication).\n\n14:02:09.104  api       ZINCRBY leaderboard:global 30 u_5512 -> OK   (acknowledged by redis-lb-1)\n14:02:09.300  redis-lb-1 master_repl_offset 88,412,930\n14:02:09.300  redis-lb-2 slave_repl_offset  88,411,018   (1,912 bytes behind)\n14:02:09.310  redis-lb-1 host lost (zone a)\n14:02:14.870  sentinel  +switch-master redis-lb  redis-lb-1 -> redis-lb-2\n\nThe design doc says: \"Leaderboard: Redis with a replica and automatic failover, so no single point of failure.\"\n\nStatement: \"Because the leaderboard has a replica with automatic failover, this failover cannot lose acknowledged score updates, so the leaderboard does not need a rebuild path from PostgreSQL.\"",
+          "explanation": "False. Redis replicates asynchronously by default: the primary acknowledges a write before the replica has it. At 14:02:09.300 the replica was 1,912 bytes behind, and the ZINCRBY acknowledged at 14:02:09.104 may well be in those bytes; when the replica was promoted, any such write was lost although the API had been told OK. The replica removes the availability SPOF (the leaderboard is back in about 5 s), but it does not make the data durable. That is why CodeDev keeps PostgreSQL as the source of truth, treats the sorted set as a projection, and can rebuild it or reconcile counts after a failover (lesson 11). The misconception is that redundancy for availability is the same as protection against data loss; they are separate questions in a failure-mode table.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        }
+      ]
+    }
+  ]
+}

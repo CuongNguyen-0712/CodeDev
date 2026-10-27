@@ -1,0 +1,681 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_sdc_221",
+      "name": "lost-update-quiz",
+      "type": "quiz",
+      "title": "Read the interleaving: who overwrote whom?",
+      "description": "Two pieces of evidence from the progress service after the laptop-and-phone incident: a database log of two interleaved requests and the result of a compare-and-set UPDATE.",
+      "difficulty": "medium",
+      "outcomes": [
+        "consistency"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Statement log of PostgreSQL (log_statement = 'all') for one learner, laptop request A and phone request B:\n\n10:02:11.004 [A] SELECT version, lessons FROM course_progress WHERE user_id='u_an' AND course_id='ts-101';  -> 6, {\"ts-1\":40}\n10:02:11.006 [B] SELECT version, lessons FROM course_progress WHERE user_id='u_an' AND course_id='ts-101';  -> 6, {\"ts-1\":40}\n10:02:11.019 [A] UPDATE course_progress SET version=7, lessons='{\"ts-1\":40,\"ts-2\":100}' WHERE user_id='u_an' AND course_id='ts-101';\n10:02:11.021 [B] UPDATE course_progress SET version=7, lessons='{\"ts-1\":60}' WHERE user_id='u_an' AND course_id='ts-101';\n\nStatement: \"Wrapping each request's SELECT and UPDATE in BEGIN ... COMMIT at PostgreSQL's default isolation level (READ COMMITTED) is enough to stop B from erasing A's ts-2.\"",
+          "explanation": "False. At READ COMMITTED a plain SELECT takes no row lock, so both transactions still read version 6. B's UPDATE waits until A commits and then updates the row anyway, because its WHERE clause only names the key and the row still matches it; B writes the document it built from the old read, and ts-2 is gone. A transaction makes your own statements atomic; it does not make another transaction's read-modify-write wait for yours. What does work: a version check in the WHERE clause (compare-and-set, then reload and retry), SELECT ... FOR UPDATE to lock the row before reading, an atomic per-field update such as jsonb_set with GREATEST, or REPEATABLE READ / SERIALIZABLE, where B fails with a serialization error that you must retry. The misconception is that BEGIN/COMMIT alone serializes concurrent read-modify-write cycles.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "After the fix, every write is a compare-and-set on the version column:\n\nUPDATE course_progress\n   SET lessons = $3, course_percent = $4, version = version + 1\n WHERE user_id = $1 AND course_id = $2 AND version = $5;\n\nRequest B (phone, lesson ts-1 = 60) read version 6 and runs the statement with $5 = 6. psql prints:\n\nUPDATE 0\n\nStatement: \"UPDATE 0 tells B that another write happened after its read; B should read the row again and decide again, and it can end as unchanged without writing anything if the lesson is already at 60 or above.\"",
+          "explanation": "True. The row exists (the key matched before), so zero updated rows means the version is no longer 6: someone committed a write after B's read. B's decision was based on an old document, so it must reload and apply its rule again on the fresh data. If the fresh document already has ts-1 at 60 or more, the monotonic rule says there is nothing to do: B returns unchanged and publishes no event. Bound the retries (CodeDev uses 3 attempts, then 409 CONFLICT) so a hot row cannot keep a request looping. The misconception is to treat UPDATE 0 as success, or to retry the same UPDATE with the new version without re-reading, which brings the lost update back.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_sdc_222",
+      "name": "spot-the-ai-mistake-lost-progress-update",
+      "type": "fix_bug",
+      "title": "Spot the AI Mistake: two progress updates that overwrite each other",
+      "description": "The request to an AI coding assistant was: \"Write recordProgress for the CodeDev progress service. Validate the update, keep each lesson's percent monotonic (never lower it), recompute the course percent, save the learner's progress document and publish progress.updated once per real change. Use the ProgressDb interface below. Learners often have a course open on a laptop and a phone at the same time.\" Its function passed the tests it came with (one request at a time) and was merged.\n\nSince then, support gets tickets like \"I finished lesson 2 on my phone while lesson 1 was saving on my laptop, and lesson 1 is back to 0%\". The event log shows two progress.updated events with the same version for one learner, and the stored document sometimes holds only one of the two lessons, or a lower percent than one the learner was told was saved.\n\nFix recordProgress. The test runner starts all requests of a test together and decides, at every await on the database, which request's call PostgreSQL executes next (the schedule); a call sees the rows as they are when it runs. The public tests run the requests one after the other and pass on the AI's code; the hidden tests interleave them.\n\nRules: keep the validation as it is (UNKNOWN_LESSON, INVALID_PERCENT before any database call). No applied update may be lost and a lesson percent never goes down. Write with saveIfVersion(userId, courseId, expectedVersion, doc) using the version you loaded; when it returns false, load again and decide again (the lesson may now be at or above your percent: return unchanged with the stored percent). One attempt is exactly one load followed by at most one saveIfVersion; at most 3 attempts, then return { status: \"rejected\", error: \"CONFLICT\" }. The written document has version = loaded version + 1 and the recomputed coursePercent. Publish exactly one progress.updated event per successful write, after it, with that version and coursePercent; unchanged and rejected requests publish nothing. Do not change the types, the database, the scheduler or the test runner.",
+      "difficulty": "hard",
+      "outcomes": [
+        "consistency"
+      ],
+      "points": 40,
+      "hints": [
+        "Run the hidden scenario in your head: A loads version 6, B loads version 6, A writes, B writes. Which of A's changes is still in the row after B's write, and what in the AI's save call could have noticed that the row had changed?",
+        "Look at the three ProgressDb methods. save writes whatever document it gets; saveIfVersion only writes when the stored version is still the one you read. Then look at where the AI compares the new percent with the stored one: that comparison has to be made again on every fresh load, not once.",
+        "The same pattern on different data, a seat counter: loop at most 3 times { row = load(); if (row.free === 0) return \"full\"; if (await updateIfVersion(row.version, { free: row.free - 1, version: row.version + 1 })) return \"booked\"; } return \"conflict\". The check runs inside the loop, and the side effect (an email) is sent only after the write that succeeded."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "One request: the lesson is saved and one event is published",
+          "input": {
+            "lessons": [
+              "ts-1",
+              "ts-2",
+              "ts-3"
+            ],
+            "requests": [
+              {
+                "name": "A",
+                "userId": "u_an",
+                "courseId": "ts-101",
+                "lessonId": "ts-1",
+                "percent": 40
+              }
+            ]
+          },
+          "expected": "A u_an ts-101/ts-1 40: applied v1 course 13\nevents: 1\nprogress.updated u_an ts-101 ts-1 lesson=40 course=13 v=1\nstore:\nu_an ts-101 v1 course=13 {\"ts-1\":40}",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Two requests one after the other, on different lessons",
+          "input": {
+            "lessons": [
+              "ts-1",
+              "ts-2",
+              "ts-3"
+            ],
+            "requests": [
+              {
+                "name": "A",
+                "userId": "u_an",
+                "courseId": "ts-101",
+                "lessonId": "ts-1",
+                "percent": 40
+              },
+              {
+                "name": "B",
+                "userId": "u_an",
+                "courseId": "ts-101",
+                "lessonId": "ts-2",
+                "percent": 60
+              }
+            ]
+          },
+          "expected": "A u_an ts-101/ts-1 40: applied v1 course 13\nB u_an ts-101/ts-2 60: applied v2 course 33\nevents: 2\nprogress.updated u_an ts-101 ts-1 lesson=40 course=13 v=1\nprogress.updated u_an ts-101 ts-2 lesson=60 course=33 v=2\nstore:\nu_an ts-101 v2 course=33 {\"ts-1\":40,\"ts-2\":60}",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Sequential: a lower percent is unchanged, invalid input is rejected",
+          "input": {
+            "lessons": [
+              "ts-1",
+              "ts-2",
+              "ts-3"
+            ],
+            "requests": [
+              {
+                "name": "A",
+                "userId": "u_an",
+                "courseId": "ts-101",
+                "lessonId": "ts-1",
+                "percent": 70
+              },
+              {
+                "name": "B",
+                "userId": "u_an",
+                "courseId": "ts-101",
+                "lessonId": "ts-1",
+                "percent": 50
+              },
+              {
+                "name": "C",
+                "userId": "u_an",
+                "courseId": "ts-101",
+                "lessonId": "ts-9",
+                "percent": 10
+              },
+              {
+                "name": "D",
+                "userId": "u_an",
+                "courseId": "ts-101",
+                "lessonId": "ts-2",
+                "percent": "80"
+              }
+            ]
+          },
+          "expected": "A u_an ts-101/ts-1 70: applied v1 course 23\nB u_an ts-101/ts-1 50: unchanged lesson 70\nC u_an ts-101/ts-9 10: rejected UNKNOWN_LESSON\nD u_an ts-101/ts-2 \"80\": rejected INVALID_PERCENT\nevents: 1\nprogress.updated u_an ts-101 ts-1 lesson=70 course=23 v=1\nstore:\nu_an ts-101 v1 course=23 {\"ts-1\":70}",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Interleaved: laptop and phone update different lessons at the same time",
+          "input": {
+            "lessons": [
+              "ts-1",
+              "ts-2",
+              "ts-3"
+            ],
+            "requests": [
+              {
+                "name": "A",
+                "userId": "u_an",
+                "courseId": "ts-101",
+                "lessonId": "ts-1",
+                "percent": 40
+              },
+              {
+                "name": "B",
+                "userId": "u_an",
+                "courseId": "ts-101",
+                "lessonId": "ts-2",
+                "percent": 60
+              }
+            ],
+            "schedule": [
+              "A",
+              "B",
+              "A",
+              "B"
+            ]
+          },
+          "expected": "A u_an ts-101/ts-1 40: applied v1 course 13\nB u_an ts-101/ts-2 60: applied v2 course 33\nevents: 2\nprogress.updated u_an ts-101 ts-1 lesson=40 course=13 v=1\nprogress.updated u_an ts-101 ts-2 lesson=60 course=33 v=2\nstore:\nu_an ts-101 v2 course=33 {\"ts-1\":40,\"ts-2\":60}",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Interleaved on one lesson: the late lower write must not win",
+          "input": {
+            "lessons": [
+              "ts-1",
+              "ts-2",
+              "ts-3"
+            ],
+            "requests": [
+              {
+                "name": "A",
+                "userId": "u_an",
+                "courseId": "ts-101",
+                "lessonId": "ts-1",
+                "percent": 40
+              },
+              {
+                "name": "B",
+                "userId": "u_an",
+                "courseId": "ts-101",
+                "lessonId": "ts-1",
+                "percent": 70
+              }
+            ],
+            "schedule": [
+              "A",
+              "B",
+              "B",
+              "A"
+            ]
+          },
+          "expected": "A u_an ts-101/ts-1 40: unchanged lesson 70\nB u_an ts-101/ts-1 70: applied v1 course 23\nevents: 1\nprogress.updated u_an ts-101 ts-1 lesson=70 course=23 v=1\nstore:\nu_an ts-101 v1 course=23 {\"ts-1\":70}",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Four concurrent writers: the unlucky one gives up after 3 attempts",
+          "input": {
+            "lessons": [
+              "ts-1",
+              "ts-2",
+              "ts-3"
+            ],
+            "requests": [
+              {
+                "name": "A",
+                "userId": "u_an",
+                "courseId": "ts-101",
+                "lessonId": "ts-1",
+                "percent": 30
+              },
+              {
+                "name": "B",
+                "userId": "u_an",
+                "courseId": "ts-101",
+                "lessonId": "ts-2",
+                "percent": 50
+              },
+              {
+                "name": "C",
+                "userId": "u_an",
+                "courseId": "ts-101",
+                "lessonId": "ts-3",
+                "percent": 20
+              },
+              {
+                "name": "D",
+                "userId": "u_an",
+                "courseId": "ts-101",
+                "lessonId": "ts-1",
+                "percent": 90
+              }
+            ],
+            "schedule": [
+              "B",
+              "A",
+              "A",
+              "B",
+              "B",
+              "C",
+              "C",
+              "B",
+              "B",
+              "D",
+              "D",
+              "B"
+            ]
+          },
+          "expected": "A u_an ts-101/ts-1 30: applied v1 course 10\nB u_an ts-101/ts-2 50: rejected CONFLICT\nC u_an ts-101/ts-3 20: applied v2 course 16\nD u_an ts-101/ts-1 90: applied v3 course 36\nevents: 3\nprogress.updated u_an ts-101 ts-1 lesson=30 course=10 v=1\nprogress.updated u_an ts-101 ts-3 lesson=20 course=16 v=2\nprogress.updated u_an ts-101 ts-1 lesson=90 course=36 v=3\nstore:\nu_an ts-101 v3 course=36 {\"ts-1\":90,\"ts-3\":20}",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Large: 36 requests from 12 learners, interleaved round robin",
+          "input": {
+            "lessons": [
+              "ts-1",
+              "ts-2",
+              "ts-3",
+              "ts-4",
+              "ts-5",
+              "ts-6",
+              "ts-7",
+              "ts-8"
+            ],
+            "requests": [
+              {
+                "name": "R1",
+                "userId": "u01",
+                "courseId": "ts-101",
+                "lessonId": "ts-8",
+                "percent": 90
+              },
+              {
+                "name": "R2",
+                "userId": "u02",
+                "courseId": "ts-101",
+                "lessonId": "ts-7",
+                "percent": 10
+              },
+              {
+                "name": "R3",
+                "userId": "u03",
+                "courseId": "ts-101",
+                "lessonId": "ts-2",
+                "percent": 100
+              },
+              {
+                "name": "R4",
+                "userId": "u04",
+                "courseId": "ts-101",
+                "lessonId": "ts-3",
+                "percent": 30
+              },
+              {
+                "name": "R5",
+                "userId": "u05",
+                "courseId": "ts-101",
+                "lessonId": "ts-6",
+                "percent": 100
+              },
+              {
+                "name": "R6",
+                "userId": "u06",
+                "courseId": "ts-101",
+                "lessonId": "ts-1",
+                "percent": 20
+              },
+              {
+                "name": "R7",
+                "userId": "u07",
+                "courseId": "ts-101",
+                "lessonId": "ts-5",
+                "percent": 90
+              },
+              {
+                "name": "R8",
+                "userId": "u08",
+                "courseId": "ts-101",
+                "lessonId": "ts-4",
+                "percent": 80
+              },
+              {
+                "name": "R9",
+                "userId": "u09",
+                "courseId": "ts-101",
+                "lessonId": "ts-3",
+                "percent": 10
+              },
+              {
+                "name": "R10",
+                "userId": "u10",
+                "courseId": "ts-101",
+                "lessonId": "ts-6",
+                "percent": 70
+              },
+              {
+                "name": "R11",
+                "userId": "u11",
+                "courseId": "ts-101",
+                "lessonId": "ts-3",
+                "percent": 50
+              },
+              {
+                "name": "R12",
+                "userId": "u12",
+                "courseId": "ts-101",
+                "lessonId": "ts-3",
+                "percent": 100.5
+              },
+              {
+                "name": "R13",
+                "userId": "u01",
+                "courseId": "ts-101",
+                "lessonId": "ts-3",
+                "percent": 20
+              },
+              {
+                "name": "R14",
+                "userId": "u02",
+                "courseId": "ts-101",
+                "lessonId": "ts-7",
+                "percent": 100.5
+              },
+              {
+                "name": "R15",
+                "userId": "u03",
+                "courseId": "ts-101",
+                "lessonId": "ts-1",
+                "percent": 10
+              },
+              {
+                "name": "R16",
+                "userId": "u04",
+                "courseId": "ts-101",
+                "lessonId": "ts-2",
+                "percent": 60
+              },
+              {
+                "name": "R17",
+                "userId": "u05",
+                "courseId": "ts-101",
+                "lessonId": "ts-7",
+                "percent": 50
+              },
+              {
+                "name": "R18",
+                "userId": "u06",
+                "courseId": "ts-101",
+                "lessonId": "ts-7",
+                "percent": 100.5
+              },
+              {
+                "name": "R19",
+                "userId": "u07",
+                "courseId": "ts-101",
+                "lessonId": "ts-5",
+                "percent": 50
+              },
+              {
+                "name": "R20",
+                "userId": "u08",
+                "courseId": "ts-101",
+                "lessonId": "ts-3",
+                "percent": 60
+              },
+              {
+                "name": "R21",
+                "userId": "u09",
+                "courseId": "ts-101",
+                "lessonId": "ts-6",
+                "percent": 20
+              },
+              {
+                "name": "R22",
+                "userId": "u10",
+                "courseId": "ts-101",
+                "lessonId": "ts-4",
+                "percent": 30
+              },
+              {
+                "name": "R23",
+                "userId": "u11",
+                "courseId": "ts-101",
+                "lessonId": "ts-4",
+                "percent": 90
+              },
+              {
+                "name": "R24",
+                "userId": "u12",
+                "courseId": "ts-101",
+                "lessonId": "ts-3",
+                "percent": 80
+              },
+              {
+                "name": "R25",
+                "userId": "u01",
+                "courseId": "ts-101",
+                "lessonId": "ts-6",
+                "percent": 60
+              },
+              {
+                "name": "R26",
+                "userId": "u02",
+                "courseId": "ts-101",
+                "lessonId": "ts-8",
+                "percent": 40
+              },
+              {
+                "name": "R27",
+                "userId": "u03",
+                "courseId": "ts-101",
+                "lessonId": "ts-1",
+                "percent": 90
+              },
+              {
+                "name": "R28",
+                "userId": "u04",
+                "courseId": "ts-101",
+                "lessonId": "ts-1",
+                "percent": 100
+              },
+              {
+                "name": "R29",
+                "userId": "u05",
+                "courseId": "ts-101",
+                "lessonId": "ts-4",
+                "percent": 70
+              },
+              {
+                "name": "R30",
+                "userId": "u06",
+                "courseId": "ts-101",
+                "lessonId": "ts-4",
+                "percent": 90
+              },
+              {
+                "name": "R31",
+                "userId": "u07",
+                "courseId": "ts-101",
+                "lessonId": "ts-6",
+                "percent": 100
+              },
+              {
+                "name": "R32",
+                "userId": "u08",
+                "courseId": "ts-101",
+                "lessonId": "ts-7",
+                "percent": 20
+              },
+              {
+                "name": "R33",
+                "userId": "u09",
+                "courseId": "ts-101",
+                "lessonId": "ts-7",
+                "percent": 100
+              },
+              {
+                "name": "R34",
+                "userId": "u10",
+                "courseId": "ts-101",
+                "lessonId": "ts-7",
+                "percent": 60
+              },
+              {
+                "name": "R35",
+                "userId": "u11",
+                "courseId": "ts-101",
+                "lessonId": "ts-7",
+                "percent": 50
+              },
+              {
+                "name": "R36",
+                "userId": "u12",
+                "courseId": "ts-101",
+                "lessonId": "ts-8",
+                "percent": 10
+              }
+            ],
+            "schedule": [
+              "R1",
+              "R2",
+              "R3",
+              "R4",
+              "R5",
+              "R6",
+              "R7",
+              "R8",
+              "R9",
+              "R10",
+              "R11",
+              "R12",
+              "R13",
+              "R14",
+              "R15",
+              "R16",
+              "R17",
+              "R18",
+              "R19",
+              "R20",
+              "R21",
+              "R22",
+              "R23",
+              "R24",
+              "R25",
+              "R26",
+              "R27",
+              "R28",
+              "R29",
+              "R30",
+              "R31",
+              "R32",
+              "R33",
+              "R34",
+              "R35",
+              "R36",
+              "R36",
+              "R35",
+              "R34",
+              "R33",
+              "R32",
+              "R31",
+              "R30",
+              "R29",
+              "R28",
+              "R27",
+              "R26",
+              "R25",
+              "R24",
+              "R23",
+              "R22",
+              "R21",
+              "R20",
+              "R19",
+              "R18",
+              "R17",
+              "R16",
+              "R15",
+              "R14",
+              "R13",
+              "R12",
+              "R11",
+              "R10",
+              "R9",
+              "R8",
+              "R7",
+              "R6",
+              "R5",
+              "R4",
+              "R3",
+              "R2",
+              "R1",
+              "R1",
+              "R2",
+              "R3",
+              "R4",
+              "R5",
+              "R6",
+              "R7",
+              "R8",
+              "R9",
+              "R10",
+              "R11",
+              "R12",
+              "R13",
+              "R14",
+              "R15",
+              "R16",
+              "R17",
+              "R18",
+              "R19",
+              "R20",
+              "R21",
+              "R22",
+              "R23",
+              "R24",
+              "R25",
+              "R26",
+              "R27",
+              "R28",
+              "R29",
+              "R30",
+              "R31",
+              "R32",
+              "R33",
+              "R34",
+              "R35",
+              "R36"
+            ]
+          },
+          "expected": "R1 u01 ts-101/ts-8 90: applied v2 course 18\nR2 u02 ts-101/ts-7 10: applied v2 course 6\nR3 u03 ts-101/ts-2 100: applied v2 course 23\nR4 u04 ts-101/ts-3 30: applied v2 course 16\nR5 u05 ts-101/ts-6 100: applied v2 course 21\nR6 u06 ts-101/ts-1 20: applied v2 course 13\nR7 u07 ts-101/ts-5 90: applied v2 course 23\nR8 u08 ts-101/ts-4 80: applied v2 course 12\nR9 u09 ts-101/ts-3 10: applied v2 course 13\nR10 u10 ts-101/ts-6 70: applied v2 course 16\nR11 u11 ts-101/ts-3 50: applied v2 course 12\nR12 u12 ts-101/ts-3 100.5: rejected INVALID_PERCENT\nR13 u01 ts-101/ts-3 20: applied v3 course 21\nR14 u02 ts-101/ts-7 100.5: rejected INVALID_PERCENT\nR15 u03 ts-101/ts-1 10: unchanged lesson 90\nR16 u04 ts-101/ts-2 60: applied v3 course 23\nR17 u05 ts-101/ts-7 50: applied v3 course 27\nR18 u06 ts-101/ts-7 100.5: rejected INVALID_PERCENT\nR19 u07 ts-101/ts-5 50: unchanged lesson 90\nR20 u08 ts-101/ts-3 60: applied v3 course 20\nR21 u09 ts-101/ts-6 20: applied v3 course 16\nR22 u10 ts-101/ts-4 30: applied v3 course 20\nR23 u11 ts-101/ts-4 90: applied v3 course 23\nR24 u12 ts-101/ts-3 80: applied v2 course 11\nR25 u01 ts-101/ts-6 60: applied v1 course 7\nR26 u02 ts-101/ts-8 40: applied v1 course 5\nR27 u03 ts-101/ts-1 90: applied v1 course 11\nR28 u04 ts-101/ts-1 100: applied v1 course 12\nR29 u05 ts-101/ts-4 70: applied v1 course 8\nR30 u06 ts-101/ts-4 90: applied v1 course 11\nR31 u07 ts-101/ts-6 100: applied v1 course 12\nR32 u08 ts-101/ts-7 20: applied v1 course 2\nR33 u09 ts-101/ts-7 100: applied v1 course 12\nR34 u10 ts-101/ts-7 60: applied v1 course 7\nR35 u11 ts-101/ts-7 50: applied v1 course 6\nR36 u12 ts-101/ts-8 10: applied v1 course 1\nevents: 31\nprogress.updated u12 ts-101 ts-8 lesson=10 course=1 v=1\nprogress.updated u11 ts-101 ts-7 lesson=50 course=6 v=1\nprogress.updated u10 ts-101 ts-7 lesson=60 course=7 v=1\nprogress.updated u09 ts-101 ts-7 lesson=100 course=12 v=1\nprogress.updated u08 ts-101 ts-7 lesson=20 course=2 v=1\nprogress.updated u07 ts-101 ts-6 lesson=100 course=12 v=1\nprogress.updated u06 ts-101 ts-4 lesson=90 course=11 v=1\nprogress.updated u05 ts-101 ts-4 lesson=70 course=8 v=1\nprogress.updated u04 ts-101 ts-1 lesson=100 course=12 v=1\nprogress.updated u03 ts-101 ts-1 lesson=90 course=11 v=1\nprogress.updated u02 ts-101 ts-8 lesson=40 course=5 v=1\nprogress.updated u01 ts-101 ts-6 lesson=60 course=7 v=1\nprogress.updated u01 ts-101 ts-8 lesson=90 course=18 v=2\nprogress.updated u02 ts-101 ts-7 lesson=10 course=6 v=2\nprogress.updated u03 ts-101 ts-2 lesson=100 course=23 v=2\nprogress.updated u04 ts-101 ts-3 lesson=30 course=16 v=2\nprogress.updated u05 ts-101 ts-6 lesson=100 course=21 v=2\nprogress.updated u06 ts-101 ts-1 lesson=20 course=13 v=2\nprogress.updated u07 ts-101 ts-5 lesson=90 course=23 v=2\nprogress.updated u08 ts-101 ts-4 lesson=80 course=12 v=2\nprogress.updated u09 ts-101 ts-3 lesson=10 course=13 v=2\nprogress.updated u10 ts-101 ts-6 lesson=70 course=16 v=2\nprogress.updated u11 ts-101 ts-3 lesson=50 course=12 v=2\nprogress.updated u01 ts-101 ts-3 lesson=20 course=21 v=3\nprogress.updated u04 ts-101 ts-2 lesson=60 course=23 v=3\nprogress.updated u05 ts-101 ts-7 lesson=50 course=27 v=3\nprogress.updated u08 ts-101 ts-3 lesson=60 course=20 v=3\nprogress.updated u09 ts-101 ts-6 lesson=20 course=16 v=3\nprogress.updated u10 ts-101 ts-4 lesson=30 course=20 v=3\nprogress.updated u11 ts-101 ts-4 lesson=90 course=23 v=3\nprogress.updated u12 ts-101 ts-3 lesson=80 course=11 v=2\nstore:\nu01 ts-101 v3 course=21 {\"ts-3\":20,\"ts-6\":60,\"ts-8\":90}\nu02 ts-101 v2 course=6 {\"ts-7\":10,\"ts-8\":40}\nu03 ts-101 v2 course=23 {\"ts-1\":90,\"ts-2\":100}\nu04 ts-101 v3 course=23 {\"ts-1\":100,\"ts-2\":60,\"ts-3\":30}\nu05 ts-101 v3 course=27 {\"ts-4\":70,\"ts-6\":100,\"ts-7\":50}\nu06 ts-101 v2 course=13 {\"ts-1\":20,\"ts-4\":90}\nu07 ts-101 v2 course=23 {\"ts-5\":90,\"ts-6\":100}\nu08 ts-101 v3 course=20 {\"ts-3\":60,\"ts-4\":80,\"ts-7\":20}\nu09 ts-101 v3 course=16 {\"ts-3\":10,\"ts-6\":20,\"ts-7\":100}\nu10 ts-101 v3 course=20 {\"ts-4\":30,\"ts-6\":70,\"ts-7\":60}\nu11 ts-101 v3 course=23 {\"ts-3\":50,\"ts-4\":90,\"ts-7\":50}\nu12 ts-101 v2 course=11 {\"ts-3\":80,\"ts-8\":10}",
+          "hidden": true,
+          "score": 2
+        }
+      ]
+    }
+  ]
+}
