@@ -70,7 +70,10 @@ export function checkCourse(course, lessons) {
     for (const c of coding) byBucket[`${c.type}.${c.difficulty}`] = (byBucket[`${c.type}.${c.difficulty}`] || 0) + 1;
 
     if (lessons.length < need.lessons) errors.push(`tier ${tier} needs ${need.lessons} lessons (has ${lessons.length})`);
-    if (trueFalse.length < need.trueFalse) errors.push(`tier ${tier} needs ${need.trueFalse} True/False statements (has ${trueFalse.length})`);
+    // A question bank (displayCount) only counts the statements a learner is shown.
+    const shown = challenges.filter((c) => c.type === "quiz")
+        .reduce((sum, c) => sum + Math.min(c.displayCount ?? Infinity, c.questions.filter(isTrueFalse).length), 0);
+    if (shown < need.trueFalse) errors.push(`tier ${tier} needs ${need.trueFalse} True/False statements shown to a learner (has ${shown})`);
     for (const [type, levels] of Object.entries(need.coding)) {
         for (const [difficulty, min] of Object.entries(levels)) {
             const has = byBucket[`${type}.${difficulty}`] || 0;
@@ -95,6 +98,7 @@ export function checkCourse(course, lessons) {
         const quiz = byId.get(scenario.quiz);
         if (quiz?.type !== "quiz") errors.push(`scenario.quiz "${scenario.quiz}" is not a quiz challenge of this course`);
         else if (quiz.questions.filter(isTrueFalse).length < 5) errors.push(`scenario quiz ${quiz.publicId} needs at least 5 True/False statements`);
+        else if (quiz.displayCount != null) errors.push(`scenario quiz ${quiz.publicId} must not use "displayCount": its statements follow the evidence in order`);
         if (byId.get(scenario.fixBug)?.type !== "fix_bug") errors.push(`scenario.fixBug "${scenario.fixBug}" is not a fix_bug challenge of this course`);
     }
     if (!coding.some((c) => c.type === "fix_bug" && /^Spot the AI Mistake/i.test(c.title ?? ""))) {

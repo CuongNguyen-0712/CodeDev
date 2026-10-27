@@ -11,6 +11,7 @@ import { ApiError } from "@/lib/error/apiError";
 import { outputsMatch, parseJsonSafe, stdoutMatches, stdoutValue, toJsonValue } from "@/lib/challenges/compare";
 import { executeTests, serverExecutionEnabled } from "@/lib/challenges/codeRunner";
 import { detectEntryName } from "@/lib/challenges/entry";
+import { pickQuestions } from "@/lib/challenges/questionBank";
 
 export const QUIZ_PASS_RATIO = 0.7;
 export const MAX_SOURCE_BYTES = 64 * 1024;
@@ -227,7 +228,7 @@ async function loadQuizKey(ctx) {
         throw new ApiError("This quiz has no questions yet", 409);
     }
 
-    return questions;
+    return pickQuestions(questions, { userDbId: ctx.user_db_id, count: ctx.quiz_display_count });
 }
 
 /**
@@ -538,7 +539,7 @@ export const challengeService = {
             }
 
             const keyResponse = await challengeDb.getQuizAnswerKey({ challengeId: ch.id });
-            const questions = keyResponse?.rows || [];
+            const questions = pickQuestions(keyResponse?.rows || [], { userDbId: ch.user_db_id, count: ch.quiz_display_count });
             // A quiz without questions cannot be passed, so it cannot block the lesson either.
             if (questions.length === 0) return withState(ch, true, false);
 

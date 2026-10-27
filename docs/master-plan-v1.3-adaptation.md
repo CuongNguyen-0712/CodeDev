@@ -129,8 +129,11 @@ và số coding của tier bằng cách phân bổ qua 8–15 lesson.
   40–60% câu Sai, ≥5 câu scenario, mỗi outcome có ≥1 quiz và ≥1 coding, mỗi coding có 3 hint + test công khai
   + test ẩn, ≥1 bài "Spot the AI Mistake". Metadata chỉ nằm trong file nội dung (chưa có màn hình nào đọc); cột DB
   thêm ở P7 khi dashboard cần.
-- **P6. Ngân hàng câu hỏi lớn hơn số câu hiển thị + xáo thứ tự (V1.3 §5.6).** Migration, chọn câu theo seed của
-  user, chấm theo đúng bộ câu đã hiển thị.
+- **P6. Ngân hàng câu hỏi lớn hơn số câu hiển thị + xáo thứ tự (V1.3 §5.6) — xong 26/10 (migration `20261026_002`).**
+  `challenge.challenges.quiz_display_count` (null = mọi câu, thứ tự gốc như cũ); `challenges.json` `displayCount`.
+  Mỗi học viên thấy một tập câu cố định theo thứ tự `md5(user:question)` (cùng một cách xếp ở
+  `learning_progress_content` và `lib/challenges/questionBank.js`), mọi lượt làm chấm trên đúng tập đó. Không áp
+  cho quiz scenario (câu theo thứ tự evidence). Chưa xáo thứ tự option (Đúng/Sai luôn True trước).
 - **P7. KPI nội dung trong admin (V1.3 §11.3, §11.6).** Pass rate theo challenge; số lần submit trước khi pass
   (tách solve và fix bug); câu Đ/S có tỷ lệ sai >70%; tỷ lệ hoàn thành theo tier; số hint mở mỗi challenge;
   tỷ lệ course có `testedVersions`/`lastReviewedAt`.

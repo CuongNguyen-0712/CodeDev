@@ -105,6 +105,9 @@ then apply `db/seeds/<course>.sql` (test it on a Neon branch first).
   3 a similar worked example), never the solution. They go to `challenge.challenge_hints` (server-only) and
   open one level at a time; opening level 3 before the first pass halves the challenge EXP. A challenge
   with `hints` ignores the hint argument of `challenge(id, hint)` in `lesson.source.mjs`.
+- Question bank: `"displayCount": N` on a quiz shows each learner N of its questions (a fixed subset in a fixed
+  shuffled order per learner, graded on that subset; migration `20261026_002`). Leave it out on scenario quizzes,
+  whose statements follow the evidence in order. verify-course counts only the statements shown.
 - New courses: 1-2 challenges per lesson. Premium courses set `accessModel`, `offers` and usually
   `publishStatus: "draft"` in `course.json` (docs/course-catalog-plan.md).
 - javascript challenges run in a Web Worker: no DOM, no Node-only APIs, no imports. The entry is the

@@ -208,6 +208,12 @@ VALUES ${hints.map((h, i) => `(${challengeId}, ${i + 1}, ${lit(h.trim())})`).joi
             }
 
             if (ch.type === "quiz") {
+                // Question bank: show each learner `displayCount` of the questions (null = all, in order).
+                const display = ch.displayCount ?? null;
+                if (display !== null && !(Number.isInteger(display) && display >= 1 && display < ch.questions.length)) {
+                    throw new Error(`${ch.publicId}: "displayCount" must be an integer from 1 to ${ch.questions.length - 1}`);
+                }
+                out.push(`UPDATE challenge.challenges SET quiz_display_count = ${lit(display)} WHERE id = ${challengeId};`);
                 ch.questions.forEach((q, index) => {
                     const options = q.options.map((o) => `(${lit(o.text)}, ${lit(Boolean(o.correct))})`).join(",\n        ");
                     out.push(`WITH q AS (

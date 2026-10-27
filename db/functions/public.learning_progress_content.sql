@@ -89,6 +89,8 @@ BEGIN
                                           ON hv.challenge_id = hn.challenge_id AND hv.level = hn.level AND hv.user_id = v_user_id
                                         WHERE hn.challenge_id = ch.id
                                     ), '[]'::jsonb),
+                                    -- quiz_display_count set: a per-learner subset in a per-learner order,
+                                    -- the same md5 ranking as lib/challenges/questionBank.js (grading).
                                     'questions', CASE WHEN ch.type = 'quiz' THEN COALESCE((
                                         SELECT jsonb_agg(
                                             jsonb_build_object(
@@ -105,10 +107,18 @@ BEGIN
                                                     WHERE o.question_id = q.id
                                                 ), '[]'::jsonb)
                                             )
-                                            ORDER BY q.order_index NULLS LAST, q.id
+                                            ORDER BY q.rank
                                         )
-                                        FROM challenge.questions q
-                                        WHERE q.challenge_id = ch.id
+                                        FROM (
+                                            SELECT q0.*,
+                                                   ROW_NUMBER() OVER (ORDER BY
+                                                       CASE WHEN ch.quiz_display_count IS NOT NULL
+                                                            THEN md5(v_user_id::text || ':' || q0.id::text) COLLATE "C" END,
+                                                       q0.order_index NULLS LAST, q0.id) AS rank
+                                            FROM challenge.questions q0
+                                            WHERE q0.challenge_id = ch.id
+                                        ) q
+                                        WHERE ch.quiz_display_count IS NULL OR q.rank <= ch.quiz_display_count
                                     ), '[]'::jsonb) END,
                                     'coding', CASE WHEN ch.type IN ('fix_bug', 'mini_coding') THEN jsonb_build_object(
                                         'language', COALESCE(cf.language, 'javascript'),

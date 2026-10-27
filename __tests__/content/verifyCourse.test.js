@@ -64,6 +64,17 @@ describe("checkCourse", () => {
         ]));
     });
 
+    it("counts only the statements a question bank shows, and keeps the scenario quiz in order", () => {
+        const { course, lessons } = validCourse();
+        lessons[9].challenges[0].displayCount = 2;
+        lessons[0].challenges[0].displayCount = 4;
+        const { errors } = checkCourse(course, lessons);
+        expect(errors).toEqual(expect.arrayContaining([
+            "tier 1 needs 20 True/False statements shown to a learner (has 14)",
+            'scenario quiz q0 must not use "displayCount": its statements follow the evidence in order',
+        ]));
+    });
+
     it("needs a Spot the AI Mistake fix-bug and the right difficulty mix for the tier", () => {
         const { course, lessons } = validCourse();
         course.level = "intermediate";

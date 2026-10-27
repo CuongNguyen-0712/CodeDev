@@ -378,6 +378,7 @@ Table challenge.challenges {
   public_id varchar(50) [not null]
   lesson_id bigint [not null]
   points int [default: 0]
+  quiz_display_count smallint [note: 'Question bank: questions shown per learner (fixed per-learner subset and order); NULL = all, authored order']
 
   indexes {
     (course_id, module_id) [name: 'idx_challenge_course_module']

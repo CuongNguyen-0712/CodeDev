@@ -87,6 +87,7 @@ export const challengeDb = {
                 ch.title,
                 ch.status,
                 COALESCE(ch.points, 0) AS points,
+                ch.quiz_display_count,
                 ch.lesson_id::text AS lesson_id,
                 u.id::text AS user_db_id,
                 h.status AS lesson_status,
@@ -218,6 +219,7 @@ export const challengeDb = {
                 ch.id::text AS id,
                 ch.type,
                 ch.title,
+                ch.quiz_display_count,
                 u.id::text AS user_db_id,
                 CASE WHEN ch.type IN ('fix_bug', 'mini_coding') THEN EXISTS (
                     SELECT 1 FROM challenge.code_submissions s
