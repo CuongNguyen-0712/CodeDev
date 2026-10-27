@@ -1,0 +1,13 @@
+{
+  "bucket": "public",
+  "files": [
+    {
+      "role": "starter",
+      "challengePublicId": "chal_fix_devf_342",
+      "key": "challenges/python/chal_fix_devf_342/starter.py",
+      "contentType": "text/x-python; charset=utf-8",
+      "originalName": "readiness.py",
+      "size": 3406
+    }
+  ]
+}
