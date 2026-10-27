@@ -4,6 +4,7 @@ import { LuBookOpen, LuFlag, LuLoaderCircle, LuPuzzle, LuSlidersHorizontal, LuTr
 
 import { userQueries } from "@/queries/user.query";
 import { formatDate } from "@/components/commerce/format";
+import HintUsageCard from "@/components/profile/hintUsageCard";
 import { Button } from "@/components/shadcn/button";
 import { Progress } from "@/components/shadcn/progress";
 import { Skeleton } from "@/components/shadcn/skeleton";
@@ -75,6 +76,7 @@ export default function ExperienceSection({ status, currentLevel = 1 }) {
     return (
         <section aria-labelledby="experience-heading" className="grid items-start gap-6 lg:grid-cols-3">
             <AchievementsCard achievements={pages[0]?.achievements} />
+            <HintUsageCard usage={pages[0]?.hintUsage} />
             <div className="flex min-w-0 flex-col rounded-xl border bg-card lg:col-span-2">
                 <div className="flex items-center justify-between border-b px-4 py-3">
                     <h2 id="experience-heading" className="text-sm font-semibold text-foreground">EXP history</h2>

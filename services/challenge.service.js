@@ -12,6 +12,7 @@ import { outputsMatch, parseJsonSafe, stdoutMatches, stdoutValue, toJsonValue } 
 import { executeTests, serverExecutionEnabled } from "@/lib/challenges/codeRunner";
 import { detectEntryName } from "@/lib/challenges/entry";
 import { pickQuestions } from "@/lib/challenges/questionBank";
+import { normalizedCodeHash } from "@/lib/challenges/codeHash";
 
 export const QUIZ_PASS_RATIO = 0.7;
 export const MAX_SOURCE_BYTES = 64 * 1024;
@@ -717,6 +718,7 @@ export const challengeService = {
                         s3_bucket: bucketForKey(objectKey),
                         snapshot_size: size,
                         code_sha256: codeSha256,
+                        code_norm_sha256: normalizedCodeHash(code),
                     },
                 },
                 workspace: {

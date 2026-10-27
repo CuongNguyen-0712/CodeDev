@@ -107,4 +107,19 @@ export const adminQueries = {
         ...QUERY_TIMES.live,
         retry: retryTransient,
     }),
+    contentKpis: (courseId) => ({
+        queryKey: adminKeys.contentKpis(courseId),
+        queryFn: () => adminClient.getContentKpis(courseId),
+        enabled: Boolean(courseId),
+        ...QUERY_TIMES.live,
+        retry: retryTransient,
+    }),
+    // The audit scans the whole EXP ledger: runs only once the admin asks for it.
+    expAudit: (enabled) => ({
+        queryKey: adminKeys.expAudit(),
+        queryFn: () => adminClient.getExpAudit(),
+        enabled,
+        ...QUERY_TIMES.live,
+        retry: false,
+    }),
 };

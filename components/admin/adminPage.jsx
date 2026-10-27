@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/shadcn/ta
 import CourseAdmin from "@/components/admin/courseAdmin";
 import AccessAdmin from "@/components/admin/accessAdmin";
 import OrdersAdmin, { AuditLog } from "@/components/admin/ordersAdmin";
+import ContentKpiAdmin from "@/components/admin/contentKpiAdmin";
 
 /**
  * Admin area. `permissions` only decides which controls are shown; every API re-checks the
@@ -28,6 +29,7 @@ export default function AdminPage({ permissions = [] }) {
                     <TabsTrigger value="courses">Courses</TabsTrigger>
                     {showAccess && <TabsTrigger value="access">Points &amp; access</TabsTrigger>}
                     {can("order.list") && <TabsTrigger value="orders">Orders</TabsTrigger>}
+                    <TabsTrigger value="kpis">Content KPIs</TabsTrigger>
                     <TabsTrigger value="audit">Audit log</TabsTrigger>
                 </TabsList>
 
@@ -44,6 +46,9 @@ export default function AdminPage({ permissions = [] }) {
                         <OrdersAdmin can={can} />
                     </TabsContent>
                 )}
+                <TabsContent value="kpis">
+                    <ContentKpiAdmin />
+                </TabsContent>
                 <TabsContent value="audit">
                     <AuditLog />
                 </TabsContent>

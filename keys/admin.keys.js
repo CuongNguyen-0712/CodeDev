@@ -5,4 +5,6 @@ export const adminKeys = {
     audit: () => [...adminKeys.all, 'audit'],
     users: (query) => [...adminKeys.all, 'users', query],
     entitlements: (userId) => [...adminKeys.all, 'entitlements', userId],
+    contentKpis: (courseId) => [...adminKeys.all, 'contentKpis', courseId],
+    expAudit: () => [...adminKeys.all, 'expAudit'],
 }

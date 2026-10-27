@@ -44,6 +44,8 @@ export const adminClient = {
     getOrders: async () => (await apiClient.get('/admin/orders')).data,
     refundOrder: async ({ orderId, reason }) => (await apiClient.post(`/admin/orders/${encodeURIComponent(orderId)}/refund`, { reason })).data,
     getAudit: async () => (await apiClient.get('/admin/audit')).data,
+    getContentKpis: async (courseId) => (await apiClient.get('/admin/content-kpis', { params: { course: courseId } })).data,
+    getExpAudit: async () => (await apiClient.get('/admin/exp-audit')).data,
 };
 
 /** Machine-readable error code of a failed API call (`INSUFFICIENT_POINTS`, `ALREADY_OWNED`, ...). */

@@ -134,14 +134,35 @@ và số coding của tier bằng cách phân bổ qua 8–15 lesson.
   Mỗi học viên thấy một tập câu cố định theo thứ tự `md5(user:question)` (cùng một cách xếp ở
   `learning_progress_content` và `lib/challenges/questionBank.js`), mọi lượt làm chấm trên đúng tập đó. Không áp
   cho quiz scenario (câu theo thứ tự evidence). Chưa xáo thứ tự option (Đúng/Sai luôn True trước).
-- **P7. KPI nội dung trong admin (V1.3 §11.3, §11.6).** Pass rate theo challenge; số lần submit trước khi pass
+- **P7. KPI nội dung trong admin (V1.3 §11.3, §11.6) — xong 26/10 (không migration).** Pass rate theo challenge; số lần submit trước khi pass
   (tách solve và fix bug); câu Đ/S có tỷ lệ sai >70%; tỷ lệ hoàn thành theo tier; số hint mở mỗi challenge;
   tỷ lệ course có `testedVersions`/`lastReviewedAt`.
-- **P8. Đối soát EXP + giám sát bất thường (V1.3 §7.3, §7.10).** Cron route theo mẫu `internal/account-maintenance`:
+  Tab admin "Content KPIs" (`admin.read`) chọn course, gọi `GET /api/admin/content-kpis?course=<publicId>`
+  (`db/contentKpi.db.js` → `services/contentKpi.service.js`, chỉ đọc, chạy khi mở). Mỗi challenge theo thứ tự lesson:
+  loại (quiz / solve / fix bug), độ khó, số người đã thử, pass rate, số lần làm trung bình tới lần pass đầu (tính cả lần
+  pass; quiz = số lượt nộp quiz, coding = số bài nộp tới `status = 'passed'` đầu tiên), số người mở hint (mọi cấp và cấp 3).
+  Quiz không lưu cờ pass nên "đã pass" lấy từ giao dịch thưởng `profile.exp_transaction` của challenge. Câu Đ/S (option đúng
+  là True/False) có >70% người trả lời sai ở lần trả lời đầu, chỉ câu có ≥5 người, kèm nội dung câu và đáp án đúng. Hoàn
+  thành: số đăng ký / hoàn thành của course và bảng tổng theo tier 1–4 (expert + master = tier 4) trên mọi course.
+  Chưa làm tỷ lệ course có `testedVersions`/`lastReviewedAt` vì metadata P5 chưa có cột DB. Chưa thêm index
+  `question_submissions(question_id)`: truy vấn câu Đ/S quét bảng này, cần thêm khi bảng lớn.
+- **P8. Đối soát EXP + giám sát bất thường (V1.3 §7.3, §7.10) — xong 26/10 (không migration).** Cron route theo mẫu `internal/account-maintenance`:
   so ledger với `profile.info.exp`; báo cáo EXP/ngày vượt p99, quiz đúng bất thường kèm thời gian trả lời quá ngắn.
   Chỉ báo cáo, không chặn tự động.
-- **P9. Bảng tự đánh giá mức dùng hint cho học viên (V1.3 §8, "Làm ngay").** Đọc `challenge.hint_views`, hiện ở
-  trang profile.
+  `services/expAudit.service.js` (`db/expAudit.db.js`, chỉ SELECT) chạy hằng ngày qua `GET|POST /api/internal/exp-audit`
+  (cùng cách kiểm `CRON_SECRET` / `AUTH_CRON_SECRET`, `vercel.json` 03:30 UTC), ghi log một dòng tóm tắt (kèm JSON khi có
+  phát hiện) và trả báo cáo; admin xem bằng nút "Run audit" cuối tab Content KPIs (`GET /api/admin/exp-audit`). Đối soát:
+  user có `profile.info.exp` khác `GREATEST(0, SUM(amount))` của ledger hoặc `exp_level` khác `level_for_exp` của tổng đó.
+  Bất thường 24 giờ qua: EXP kiếm được (không tính adjustment) vượt p99 EXP/ngày/user của 30 ngày trước; cùng một code
+  pass từ ≥2 tài khoản cho cùng challenge, so bằng `code_norm_sha256` (sha256 sau khi bỏ mọi khoảng trắng, nay được lưu vào
+  snapshot bài nộp; bài nộp cũ dùng `code_sha256` nguyên văn). Quiz trả lời quá nhanh: **chưa đo được** vì
+  `question_submissions` chỉ có thời điểm nộp, không có lúc mở quiz; báo cáo ghi rõ điều này, cần lưu thời điểm mở trước.
+- **P9. Bảng tự đánh giá mức dùng hint cho học viên (V1.3 §8, "Làm ngay") — xong 26/10 (không migration).**
+  Card "Hint usage" ở trang profile của chính học viên (không có ở profile công khai), đi cùng trang đầu của
+  `/api/user/experience` như Achievements. `experienceDb.getHintUsage`: mỗi bài coding đã pass một dòng, chỉ tính
+  hint mở trước lần pass đầu (`code_submissions.submitted_at`); `lib/hintUsage.js` chia nhóm không hint / hint 1–2 /
+  hint 3 (assisted, nửa EXP), số hint trung bình mỗi bài, 5 bài pass gần nhất sau khi mở hint 3 (link tới lesson
+  `#challenge-<id>`). Không cache Redis (endpoint experience vốn không cache) nên không cần invalidate.
 - **P10. (Tùy chọn) Điểm gợi ý course theo V1.3 §7.5** (+30/+25/+15/+5/+10, top 5 kèm lý do).
 
 Bỏ qua có chủ đích: event endpoint `/internal/experience/events` (chấm và cộng EXP đã cùng transaction), điều chỉnh

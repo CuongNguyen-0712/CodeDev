@@ -23,6 +23,38 @@ export const experienceDb = {
         );
     },
 
+    /**
+     * One row per coding challenge the user has passed: the first pass time and the hints opened
+     * before it (`submitted_at` is `timestamp`, read in the same session time zone it was written in).
+     */
+    getHintUsage: async ({ userId }) => {
+        return sql(
+            `WITH me AS (SELECT id FROM identity.users WHERE public_id = $1),
+             first_pass AS (
+                 SELECT s.challenge_id, MIN(s.submitted_at) AS passed_at
+                 FROM challenge.code_submissions s
+                 JOIN me ON me.id = s.user_id
+                 WHERE s.status = 'passed'
+                 GROUP BY s.challenge_id
+             )
+             SELECT ch.id::text AS challenge_id, ch.title, ch.type, ch.lesson_id::text AS lesson_id,
+                    l.title AS lesson_title, c.public_id AS course_id, fp.passed_at,
+                    COUNT(hv.level)::int AS hints_opened,
+                    COALESCE(MAX(hv.level), 0)::int AS max_hint_level
+             FROM first_pass fp
+             JOIN challenge.challenges ch ON ch.id = fp.challenge_id AND ch.is_deleted = false
+             JOIN catalog.course c ON c.id = ch.course_id
+             LEFT JOIN course.lesson l ON l.id = ch.lesson_id
+             LEFT JOIN challenge.hint_views hv
+                    ON hv.user_id = (SELECT id FROM me)
+                   AND hv.challenge_id = fp.challenge_id
+                   AND hv.opened_at < fp.passed_at
+             GROUP BY ch.id, l.title, c.public_id, fp.passed_at
+             ORDER BY fp.passed_at DESC`,
+            [userId]
+        );
+    },
+
     /** EXP ledger page, newest first (keyset on created_at, id), with the title of what earned it. */
     getTransactions: async ({ userId, before = null, limit = 20 }) => {
         const params = [userId, limit + 1];

@@ -1,13 +1,15 @@
 import { experienceDb } from "@/db/experience.db";
+import { summarizeHintUsage } from "@/lib/hintUsage";
 
 export const experienceService = {
     /** Level table + one page of the caller's EXP history (`next` is the cursor of the following page). */
     getExperience: async ({ userId, before = null, limit = 20 }) => {
-        const [levels, ledger, achievements] = await Promise.all([
+        const [levels, ledger, achievements, hintUsage] = await Promise.all([
             experienceDb.getLevels(),
             experienceDb.getTransactions({ userId, before, limit }),
             // First page only: later pages are just more history.
             before ? null : experienceDb.getAchievements({ userId }),
+            before ? null : experienceDb.getHintUsage({ userId }),
         ]);
         const hasMore = ledger.rowCount > limit;
         const transactions = ledger.rows.slice(0, limit).map((row) => ({
@@ -36,6 +38,7 @@ export const experienceService = {
                     earnedAt: row.earned_at,
                 })),
             }),
+            ...(hintUsage && { hintUsage: summarizeHintUsage(hintUsage.rows) }),
             next: hasMore && last ? { createdAt: last.createdAt, id: last.id } : null,
         };
     },
