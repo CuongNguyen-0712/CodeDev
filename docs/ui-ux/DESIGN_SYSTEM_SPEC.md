@@ -113,7 +113,7 @@ Scale in use (Tailwind defaults): `text-sm` 267 uses, `text-xs` 187, `text-base`
 
 ## 6. Iconography
 
-`react-icons/lu` (Lucide) only. Decorative icons get `aria-hidden="true"`; icon-only buttons get an accessible name. No emoji in the UI (the email templates still contain one; audit UX-210).
+`react-icons/lu` (Lucide) only. Decorative icons get `aria-hidden="true"`; icon-only buttons get an accessible name. No emoji in the UI (email templates updated with project logo badge and clean copy; audit UX-210).
 
 ## 7. Forms
 
