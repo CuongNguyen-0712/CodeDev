@@ -1,0 +1,36 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_saf_111",
+      "name": "modules-layers-services-quiz",
+      "type": "quiz",
+      "title": "Module, layer or service?",
+      "description": "Two pieces of evidence from the CodeDev orders flow: a proposal to split the 900-line OrderService into three deployed services, and the folder tree, import and deploy log of the API as it runs today.",
+      "difficulty": "medium",
+      "outcomes": ["structure"],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The ticket that opened the incident, and the trace of one checkout today:\n\nTICKET ORD-412: OrderService.ts is 900 lines. It validates the cart, charges the card, writes the order, sends the receipt and updates progress. Every change to it conflicts with someone else's. Proposal: split it into orders-service, payments-service and notifications-service, each with its own repository and deploy pipeline.\n\nTrace POST /orders (one process, codedev-api):\n  OrderService.placeOrder        142 ms\n    PaymentGateway.charge         98 ms  (Stripe test API)\n    db.transaction                 21 ms  (INSERT orders, INSERT enrollments)\n    EmailSender.sendReceipt       11 ms\n\nStatement: \"Deploying orders, payments and notifications as three separate services is the smallest change that fixes the problem described in the ticket.\"",
+          "explanation": "False. The ticket describes a code problem: one class does five jobs, so every change touches the same file. That is solved by modules with clear boundaries inside the same deployable (an orders module that calls a payments module through a small public function), which is a refactor of one repository and changes nothing at run time. Three services would also need a network call where the trace shows an in-process call, a way to handle payments-service being down, three pipelines, and a replacement for the single db.transaction that writes the order and the enrollment together. The misconception is that a separate service is the only way to get a boundary: a module is a boundary in the code, a service is a boundary in deployment, and the ticket only needs the first.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The API after the refactor:\n\n$ ls src\ncatalog/  notifications/  orders/  payments/  progress/  main.ts\n\n// src/orders/placeOrder.ts (excerpt)\nimport { charge } from \"../payments\";          // src/payments/index.ts, the module's public API\n...\nconst payment = await charge({ userId: order.userId, amount: order.total });\n\n$ cat deploy.log\n2026-10-24 14:02  build codedev-api@a91f3c2 -> 1 image  api:a91f3c2\n2026-10-24 14:06  rollout api:a91f3c2 to 3 instances  OK\n\nStatement: \"orders and payments are separate modules here but not separate services: a fix in payments reaches production only by deploying the whole API, and the call from orders to charge() is an ordinary function call inside one process, not a network request.\"",
+          "explanation": "True. There is one build and one image, so every module ships in the same deploy, and the import resolves to a function in the same Node.js process: no HTTP, no serialisation, no timeout between orders and payments (charge() may still call Stripe over the network, but that is a different boundary). This is a modular monolith: boundaries in the code, one deployable. The misconception is that folders per feature already make services; what makes a service is a separate deploy and a network call between the parts, with the costs that come with them.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        }
+      ]
+    }
+  ]
+}

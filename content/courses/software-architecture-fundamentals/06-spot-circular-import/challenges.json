@@ -1,0 +1,3221 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_saf_231",
+      "name": "circular-import-quiz",
+      "type": "quiz",
+      "title": "Is the import cycle gone?",
+      "description": "Two pieces of evidence from the refund refactor: what tsc and madge say about the orders/payments cycle, and the assistant's second attempt that loads orders inside refund().",
+      "difficulty": "medium",
+      "outcomes": [
+        "dependency-direction"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "// orders/index.ts\nimport { charge, refundDeadline } from \"../payments\";\nexport const orderRepository = new OrderRepository(db);\n\n// payments/index.ts (after the AI refactor)\nimport { orderRepository } from \"../orders\";\nconst refunds = new RefundService(orderRepository); // runs while payments loads\nexport function refund(orderId: string, today: string) { return refunds.refund(orderId, today); }\n\n$ npx tsc --noEmit && echo \"tsc ok\"\ntsc ok\n$ npx madge --circular --extensions ts src/\n✖ Found 1 circular dependency!\n1) orders/index.ts > payments/index.ts\n\nProduction log: TypeError: Cannot read properties of undefined (reading 'getOrder') at RefundService.refund\n\nStatement: \"tsc passes although RefundService received undefined at runtime: an import cycle has to be found by a separate check, such as madge --circular or the import/no-cycle lint rule.\"",
+          "explanation": "True. TypeScript checks types, not load order: the type of orderRepository is OrderRepository, so new RefundService(orderRepository) type-checks. At runtime the server loads orders first; orders starts loading payments before its own orderRepository line has run, payments asks for orders, gets a module that is not finished yet, and RefundService keeps undefined. tsc has no rule for that, which is why teams add madge --circular, the import/no-cycle rule of eslint-plugin-import or a dependency-cruiser no-circular rule to CI. The misconception is that a clean tsc run means every import holds a value; types describe what a value should be, not whether the module that exports it has finished loading.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The assistant's second attempt, after the TypeError was reported:\n\n// payments/index.ts\nexport function refund(orderId: string, today: string): RefundResult {\n  const { orderRepository } = require(\"../orders\"); // load orders when refund runs, not at startup\n  return new RefundService(orderRepository).refund(orderId, today);\n}\n\n// orders/index.ts is unchanged and still imports charge and refundDeadline from ../payments\n\nAll refund tests pass now.\n\nStatement: \"This change removes the import cycle between orders and payments.\"",
+          "explanation": "False. payments still needs orders and orders still needs payments; the require only moved from load time to call time. By the time refund runs, orders has finished loading, so the crash goes away - until someone uses orders at the top of payments again, or a test or a script loads payments first. The dependency still points the wrong way (payments, the lower-level module, knows about orders), and the two modules still cannot be built, tested or extracted separately. The fixes remove the edge: move what both need (the order records) into a third module, or give payments a small port it receives from outside, or keep refund orchestration in orders. The misconception is that a cycle is a load-time problem only; the crash was the symptom, the two-way dependency is the cause.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_saf_232",
+      "name": "spot-the-ai-mistake-circular-import",
+      "type": "fix_bug",
+      "title": "Spot the AI Mistake: a refactor with a circular import",
+      "description": "An AI assistant was asked: \"Move the refund logic out of the orders module into payments, where the rest of the money code lives. The order page must keep showing 'refundable until <date>'.\" It moved refund() into payments, and to find the order and mark it refunded, payments now loads orders - while orders already loads payments to charge and to show the deadline. Placing and showing orders still work, so the review passed. Since the release every refund fails with a TypeError, and support refunds learners by hand. The modules are objects registered with define() on a tiny module loader in the starter that behaves like CommonJS require(): a module that loads another module still in the middle of loading gets undefined, and every load() a module makes is recorded in an import graph. Fix the modules so that refunds work and the import graph has no cycle: payments.refund(orderId, today) keeps its signature and its rules (unknown_order, already_refunded, window_closed after paid-on date + 14 days, otherwise the order becomes refunded and the result carries a new refund id re_<n> and the amount), and orders keeps placeOrder, getOrder, markRefunded and describe. You may add modules with define() and the Modules interface. The test runner reads a list of actions (place, show, refund, graph) from stdin, loads orders and then payments like the app entry, and prints one line per action (only a summary line for more than 40 actions); the graph action prints \"no import cycle\" or the graph with the cycle it found. Do not change the loader, the shared types or the test runner. The public tests pass on the assistant's code; the hidden tests refund orders and check the import graph.",
+      "difficulty": "easy",
+      "outcomes": [
+        "dependency-direction"
+      ],
+      "points": 20,
+      "hints": [
+        "Run your code with the input [{\"do\":\"graph\"}]. Which module loads which, and when payments runs `load(\"orders\")`, has orders finished loading yet?",
+        "Look at what payments actually needs from orders: only getOrder and markRefunded, which work on the list of orders. Where could that list live so that both orders and payments can use it without either one loading the other?",
+        "A similar cycle elsewhere: progress loads catalog to read lesson counts, and catalog loads progress to show \"3 of 12 lessons done\". Moving the lesson counts into a third module, lessons, that imports nothing, turns progress -> catalog -> progress into progress -> lessons and catalog -> lessons, catalog -> progress. Loading the other module inside a function instead of at the top would only hide the cycle."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Place two orders and show them with their refund deadline",
+          "hidden": false,
+          "score": 3,
+          "input": [
+            {
+              "do": "place",
+              "learnerId": "u_an",
+              "courseId": "nodejs-api-security",
+              "today": "2026-10-01"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_binh",
+              "courseId": "redis-patterns",
+              "today": "2026-10-20"
+            },
+            {
+              "do": "show",
+              "orderId": "ord_1"
+            },
+            {
+              "do": "show",
+              "orderId": "ord_2"
+            },
+            {
+              "do": "show",
+              "orderId": "ord_7"
+            }
+          ],
+          "expected": "place u_an nodejs-api-security -> ord_1 (ch_1)\nplace u_binh redis-patterns -> ord_2 (ch_2)\nord_1: u_an nodejs-api-security 249000 paid on 2026-10-01, refundable until 2026-10-15\nord_2: u_binh redis-patterns 179000 paid on 2026-10-20, refundable until 2026-11-03\nord_7: not found"
+        },
+        {
+          "name": "The same course twice, an unknown course, and another learner",
+          "hidden": false,
+          "score": 3,
+          "input": [
+            {
+              "do": "place",
+              "learnerId": "u_an",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-10-02"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_an",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-10-03"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_an",
+              "courseId": "kotlin-for-pets",
+              "today": "2026-10-03"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_chi",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-10-03"
+            },
+            {
+              "do": "show",
+              "orderId": "ord_2"
+            }
+          ],
+          "expected": "place u_an nodejs-ai-engineering -> ord_1 (ch_1)\nplace u_an nodejs-ai-engineering -> already_owned\nplace u_an kotlin-for-pets -> unknown_course\nplace u_chi nodejs-ai-engineering -> ord_2 (ch_2)\nord_2: u_chi nodejs-ai-engineering 149000 paid on 2026-10-03, refundable until 2026-10-17"
+        },
+        {
+          "name": "Refund inside the window, then the order shows refunded and a second refund is refused",
+          "hidden": true,
+          "score": 3,
+          "input": [
+            {
+              "do": "place",
+              "learnerId": "u_an",
+              "courseId": "nodejs-api-security",
+              "today": "2026-10-01"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_1",
+              "today": "2026-10-05"
+            },
+            {
+              "do": "show",
+              "orderId": "ord_1"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_1",
+              "today": "2026-10-06"
+            }
+          ],
+          "expected": "place u_an nodejs-api-security -> ord_1 (ch_1)\nrefund ord_1 on 2026-10-05 -> refunded 249000 (re_1)\nord_1: u_an nodejs-api-security 249000 paid on 2026-10-01, refunded\nrefund ord_1 on 2026-10-06 -> already_refunded"
+        },
+        {
+          "name": "Refund window: the last day is allowed, the next day is closed, across months and Feb 29",
+          "hidden": true,
+          "score": 3,
+          "input": [
+            {
+              "do": "place",
+              "learnerId": "u_an",
+              "courseId": "nodejs-api-security",
+              "today": "2026-10-01"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_binh",
+              "courseId": "nodejs-api-security",
+              "today": "2026-10-01"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_chi",
+              "courseId": "redis-patterns",
+              "today": "2026-10-25"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_dung",
+              "courseId": "redis-patterns",
+              "today": "2028-02-20"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_1",
+              "today": "2026-10-15"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_2",
+              "today": "2026-10-16"
+            },
+            {
+              "do": "show",
+              "orderId": "ord_3"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_3",
+              "today": "2026-11-08"
+            },
+            {
+              "do": "show",
+              "orderId": "ord_4"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_4",
+              "today": "2028-03-06"
+            }
+          ],
+          "expected": "place u_an nodejs-api-security -> ord_1 (ch_1)\nplace u_binh nodejs-api-security -> ord_2 (ch_2)\nplace u_chi redis-patterns -> ord_3 (ch_3)\nplace u_dung redis-patterns -> ord_4 (ch_4)\nrefund ord_1 on 2026-10-15 -> refunded 249000 (re_1)\nrefund ord_2 on 2026-10-16 -> window_closed\nord_3: u_chi redis-patterns 179000 paid on 2026-10-25, refundable until 2026-11-08\nrefund ord_3 on 2026-11-08 -> refunded 179000 (re_2)\nord_4: u_dung redis-patterns 179000 paid on 2028-02-20, refundable until 2028-03-05\nrefund ord_4 on 2028-03-06 -> window_closed"
+        },
+        {
+          "name": "Unknown order ids, and buying a course again after a refund",
+          "hidden": true,
+          "score": 3,
+          "input": [
+            {
+              "do": "refund",
+              "orderId": "ord_1",
+              "today": "2026-10-01"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_an",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-10-01"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_9",
+              "today": "2026-10-02"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_1",
+              "today": "2026-10-02"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_an",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-10-03"
+            },
+            {
+              "do": "show",
+              "orderId": "ord_1"
+            },
+            {
+              "do": "show",
+              "orderId": "ord_2"
+            },
+            {
+              "do": "refund",
+              "orderId": "",
+              "today": "2026-10-03"
+            }
+          ],
+          "expected": "refund ord_1 on 2026-10-01 -> unknown_order\nplace u_an typescript-react-frontend -> ord_1 (ch_1)\nrefund ord_9 on 2026-10-02 -> unknown_order\nrefund ord_1 on 2026-10-02 -> refunded 199000 (re_1)\nplace u_an typescript-react-frontend -> ord_2 (ch_2)\nord_1: u_an typescript-react-frontend 199000 paid on 2026-10-01, refunded\nord_2: u_an typescript-react-frontend 199000 paid on 2026-10-03, refundable until 2026-10-17\nrefund  on 2026-10-03 -> unknown_order"
+        },
+        {
+          "name": "After placing and refunding, the import graph has no cycle",
+          "hidden": true,
+          "score": 3,
+          "input": [
+            {
+              "do": "place",
+              "learnerId": "u_an",
+              "courseId": "nodejs-api-security",
+              "today": "2026-10-01"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_1",
+              "today": "2026-10-02"
+            },
+            {
+              "do": "show",
+              "orderId": "ord_1"
+            },
+            {
+              "do": "graph"
+            }
+          ],
+          "expected": "place u_an nodejs-api-security -> ord_1 (ch_1)\nrefund ord_1 on 2026-10-02 -> refunded 249000 (re_1)\nord_1: u_an nodejs-api-security 249000 paid on 2026-10-01, refunded\nno import cycle"
+        },
+        {
+          "name": "300 orders and 221 refunds: summary only",
+          "hidden": true,
+          "score": 2,
+          "input": [
+            {
+              "do": "place",
+              "learnerId": "u_000",
+              "courseId": "nodejs-api-security",
+              "today": "2026-01-01"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_001",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-02-02"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_002",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-03-03"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_003",
+              "courseId": "redis-patterns",
+              "today": "2026-04-04"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_004",
+              "courseId": "nodejs-api-security",
+              "today": "2026-05-05"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_005",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-06-06"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_006",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-07-07"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_007",
+              "courseId": "redis-patterns",
+              "today": "2026-08-08"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_008",
+              "courseId": "nodejs-api-security",
+              "today": "2026-09-09"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_009",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-01-10"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_010",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-02-11"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_011",
+              "courseId": "redis-patterns",
+              "today": "2026-03-12"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_012",
+              "courseId": "nodejs-api-security",
+              "today": "2026-04-13"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_013",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-05-14"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_014",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-06-15"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_015",
+              "courseId": "redis-patterns",
+              "today": "2026-07-16"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_016",
+              "courseId": "nodejs-api-security",
+              "today": "2026-08-17"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_017",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-09-18"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_018",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-01-19"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_019",
+              "courseId": "redis-patterns",
+              "today": "2026-02-20"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_020",
+              "courseId": "nodejs-api-security",
+              "today": "2026-03-21"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_021",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-04-22"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_022",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-05-23"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_023",
+              "courseId": "redis-patterns",
+              "today": "2026-06-24"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_024",
+              "courseId": "nodejs-api-security",
+              "today": "2026-07-25"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_025",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-08-26"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_026",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-09-27"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_027",
+              "courseId": "redis-patterns",
+              "today": "2026-01-28"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_028",
+              "courseId": "nodejs-api-security",
+              "today": "2026-02-01"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_029",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-03-02"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_030",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-04-03"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_031",
+              "courseId": "redis-patterns",
+              "today": "2026-05-04"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_032",
+              "courseId": "nodejs-api-security",
+              "today": "2026-06-05"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_033",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-07-06"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_034",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-08-07"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_035",
+              "courseId": "redis-patterns",
+              "today": "2026-09-08"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_036",
+              "courseId": "nodejs-api-security",
+              "today": "2026-01-09"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_037",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-02-10"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_038",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-03-11"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_039",
+              "courseId": "redis-patterns",
+              "today": "2026-04-12"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_040",
+              "courseId": "nodejs-api-security",
+              "today": "2026-05-13"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_041",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-06-14"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_042",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-07-15"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_043",
+              "courseId": "redis-patterns",
+              "today": "2026-08-16"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_044",
+              "courseId": "nodejs-api-security",
+              "today": "2026-09-17"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_045",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-01-18"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_046",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-02-19"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_047",
+              "courseId": "redis-patterns",
+              "today": "2026-03-20"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_048",
+              "courseId": "nodejs-api-security",
+              "today": "2026-04-21"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_049",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-05-22"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_050",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-06-23"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_051",
+              "courseId": "redis-patterns",
+              "today": "2026-07-24"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_052",
+              "courseId": "nodejs-api-security",
+              "today": "2026-08-25"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_053",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-09-26"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_054",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-01-27"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_055",
+              "courseId": "redis-patterns",
+              "today": "2026-02-28"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_056",
+              "courseId": "nodejs-api-security",
+              "today": "2026-03-01"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_057",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-04-02"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_058",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-05-03"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_059",
+              "courseId": "redis-patterns",
+              "today": "2026-06-04"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_060",
+              "courseId": "nodejs-api-security",
+              "today": "2026-07-05"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_061",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-08-06"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_062",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-09-07"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_063",
+              "courseId": "redis-patterns",
+              "today": "2026-01-08"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_064",
+              "courseId": "nodejs-api-security",
+              "today": "2026-02-09"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_065",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-03-10"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_066",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-04-11"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_067",
+              "courseId": "redis-patterns",
+              "today": "2026-05-12"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_068",
+              "courseId": "nodejs-api-security",
+              "today": "2026-06-13"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_069",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-07-14"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_070",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-08-15"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_071",
+              "courseId": "redis-patterns",
+              "today": "2026-09-16"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_072",
+              "courseId": "nodejs-api-security",
+              "today": "2026-01-17"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_073",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-02-18"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_074",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-03-19"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_075",
+              "courseId": "redis-patterns",
+              "today": "2026-04-20"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_076",
+              "courseId": "nodejs-api-security",
+              "today": "2026-05-21"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_077",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-06-22"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_078",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-07-23"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_079",
+              "courseId": "redis-patterns",
+              "today": "2026-08-24"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_080",
+              "courseId": "nodejs-api-security",
+              "today": "2026-09-25"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_081",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-01-26"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_082",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-02-27"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_083",
+              "courseId": "redis-patterns",
+              "today": "2026-03-28"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_084",
+              "courseId": "nodejs-api-security",
+              "today": "2026-04-01"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_085",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-05-02"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_086",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-06-03"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_087",
+              "courseId": "redis-patterns",
+              "today": "2026-07-04"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_088",
+              "courseId": "nodejs-api-security",
+              "today": "2026-08-05"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_089",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-09-06"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_000",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-01-07"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_001",
+              "courseId": "redis-patterns",
+              "today": "2026-02-08"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_002",
+              "courseId": "nodejs-api-security",
+              "today": "2026-03-09"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_003",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-04-10"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_004",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-05-11"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_005",
+              "courseId": "redis-patterns",
+              "today": "2026-06-12"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_006",
+              "courseId": "nodejs-api-security",
+              "today": "2026-07-13"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_007",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-08-14"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_008",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-09-15"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_009",
+              "courseId": "redis-patterns",
+              "today": "2026-01-16"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_010",
+              "courseId": "nodejs-api-security",
+              "today": "2026-02-17"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_011",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-03-18"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_012",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-04-19"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_013",
+              "courseId": "redis-patterns",
+              "today": "2026-05-20"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_014",
+              "courseId": "nodejs-api-security",
+              "today": "2026-06-21"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_015",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-07-22"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_016",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-08-23"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_017",
+              "courseId": "redis-patterns",
+              "today": "2026-09-24"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_018",
+              "courseId": "nodejs-api-security",
+              "today": "2026-01-25"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_019",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-02-26"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_020",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-03-27"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_021",
+              "courseId": "redis-patterns",
+              "today": "2026-04-28"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_022",
+              "courseId": "nodejs-api-security",
+              "today": "2026-05-01"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_023",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-06-02"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_024",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-07-03"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_025",
+              "courseId": "redis-patterns",
+              "today": "2026-08-04"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_026",
+              "courseId": "nodejs-api-security",
+              "today": "2026-09-05"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_027",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-01-06"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_028",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-02-07"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_029",
+              "courseId": "redis-patterns",
+              "today": "2026-03-08"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_030",
+              "courseId": "nodejs-api-security",
+              "today": "2026-04-09"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_031",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-05-10"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_032",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-06-11"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_033",
+              "courseId": "redis-patterns",
+              "today": "2026-07-12"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_034",
+              "courseId": "nodejs-api-security",
+              "today": "2026-08-13"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_035",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-09-14"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_036",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-01-15"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_037",
+              "courseId": "redis-patterns",
+              "today": "2026-02-16"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_038",
+              "courseId": "nodejs-api-security",
+              "today": "2026-03-17"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_039",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-04-18"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_040",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-05-19"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_041",
+              "courseId": "redis-patterns",
+              "today": "2026-06-20"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_042",
+              "courseId": "nodejs-api-security",
+              "today": "2026-07-21"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_043",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-08-22"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_044",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-09-23"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_045",
+              "courseId": "redis-patterns",
+              "today": "2026-01-24"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_046",
+              "courseId": "nodejs-api-security",
+              "today": "2026-02-25"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_047",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-03-26"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_048",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-04-27"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_049",
+              "courseId": "redis-patterns",
+              "today": "2026-05-28"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_050",
+              "courseId": "nodejs-api-security",
+              "today": "2026-06-01"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_051",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-07-02"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_052",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-08-03"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_053",
+              "courseId": "redis-patterns",
+              "today": "2026-09-04"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_054",
+              "courseId": "nodejs-api-security",
+              "today": "2026-01-05"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_055",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-02-06"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_056",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-03-07"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_057",
+              "courseId": "redis-patterns",
+              "today": "2026-04-08"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_058",
+              "courseId": "nodejs-api-security",
+              "today": "2026-05-09"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_059",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-06-10"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_060",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-07-11"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_061",
+              "courseId": "redis-patterns",
+              "today": "2026-08-12"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_062",
+              "courseId": "nodejs-api-security",
+              "today": "2026-09-13"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_063",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-01-14"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_064",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-02-15"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_065",
+              "courseId": "redis-patterns",
+              "today": "2026-03-16"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_066",
+              "courseId": "nodejs-api-security",
+              "today": "2026-04-17"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_067",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-05-18"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_068",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-06-19"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_069",
+              "courseId": "redis-patterns",
+              "today": "2026-07-20"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_070",
+              "courseId": "nodejs-api-security",
+              "today": "2026-08-21"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_071",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-09-22"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_072",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-01-23"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_073",
+              "courseId": "redis-patterns",
+              "today": "2026-02-24"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_074",
+              "courseId": "nodejs-api-security",
+              "today": "2026-03-25"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_075",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-04-26"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_076",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-05-27"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_077",
+              "courseId": "redis-patterns",
+              "today": "2026-06-28"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_078",
+              "courseId": "nodejs-api-security",
+              "today": "2026-07-01"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_079",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-08-02"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_080",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-09-03"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_081",
+              "courseId": "redis-patterns",
+              "today": "2026-01-04"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_082",
+              "courseId": "nodejs-api-security",
+              "today": "2026-02-05"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_083",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-03-06"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_084",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-04-07"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_085",
+              "courseId": "redis-patterns",
+              "today": "2026-05-08"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_086",
+              "courseId": "nodejs-api-security",
+              "today": "2026-06-09"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_087",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-07-10"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_088",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-08-11"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_089",
+              "courseId": "redis-patterns",
+              "today": "2026-09-12"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_000",
+              "courseId": "nodejs-api-security",
+              "today": "2026-01-13"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_001",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-02-14"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_002",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-03-15"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_003",
+              "courseId": "redis-patterns",
+              "today": "2026-04-16"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_004",
+              "courseId": "nodejs-api-security",
+              "today": "2026-05-17"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_005",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-06-18"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_006",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-07-19"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_007",
+              "courseId": "redis-patterns",
+              "today": "2026-08-20"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_008",
+              "courseId": "nodejs-api-security",
+              "today": "2026-09-21"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_009",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-01-22"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_010",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-02-23"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_011",
+              "courseId": "redis-patterns",
+              "today": "2026-03-24"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_012",
+              "courseId": "nodejs-api-security",
+              "today": "2026-04-25"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_013",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-05-26"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_014",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-06-27"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_015",
+              "courseId": "redis-patterns",
+              "today": "2026-07-28"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_016",
+              "courseId": "nodejs-api-security",
+              "today": "2026-08-01"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_017",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-09-02"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_018",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-01-03"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_019",
+              "courseId": "redis-patterns",
+              "today": "2026-02-04"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_020",
+              "courseId": "nodejs-api-security",
+              "today": "2026-03-05"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_021",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-04-06"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_022",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-05-07"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_023",
+              "courseId": "redis-patterns",
+              "today": "2026-06-08"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_024",
+              "courseId": "nodejs-api-security",
+              "today": "2026-07-09"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_025",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-08-10"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_026",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-09-11"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_027",
+              "courseId": "redis-patterns",
+              "today": "2026-01-12"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_028",
+              "courseId": "nodejs-api-security",
+              "today": "2026-02-13"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_029",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-03-14"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_030",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-04-15"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_031",
+              "courseId": "redis-patterns",
+              "today": "2026-05-16"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_032",
+              "courseId": "nodejs-api-security",
+              "today": "2026-06-17"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_033",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-07-18"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_034",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-08-19"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_035",
+              "courseId": "redis-patterns",
+              "today": "2026-09-20"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_036",
+              "courseId": "nodejs-api-security",
+              "today": "2026-01-21"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_037",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-02-22"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_038",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-03-23"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_039",
+              "courseId": "redis-patterns",
+              "today": "2026-04-24"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_040",
+              "courseId": "nodejs-api-security",
+              "today": "2026-05-25"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_041",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-06-26"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_042",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-07-27"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_043",
+              "courseId": "redis-patterns",
+              "today": "2026-08-28"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_044",
+              "courseId": "nodejs-api-security",
+              "today": "2026-09-01"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_045",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-01-02"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_046",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-02-03"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_047",
+              "courseId": "redis-patterns",
+              "today": "2026-03-04"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_048",
+              "courseId": "nodejs-api-security",
+              "today": "2026-04-05"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_049",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-05-06"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_050",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-06-07"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_051",
+              "courseId": "redis-patterns",
+              "today": "2026-07-08"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_052",
+              "courseId": "nodejs-api-security",
+              "today": "2026-08-09"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_053",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-09-10"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_054",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-01-11"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_055",
+              "courseId": "redis-patterns",
+              "today": "2026-02-12"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_056",
+              "courseId": "nodejs-api-security",
+              "today": "2026-03-13"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_057",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-04-14"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_058",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-05-15"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_059",
+              "courseId": "redis-patterns",
+              "today": "2026-06-16"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_060",
+              "courseId": "nodejs-api-security",
+              "today": "2026-07-17"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_061",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-08-18"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_062",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-09-19"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_063",
+              "courseId": "redis-patterns",
+              "today": "2026-01-20"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_064",
+              "courseId": "nodejs-api-security",
+              "today": "2026-02-21"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_065",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-03-22"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_066",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-04-23"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_067",
+              "courseId": "redis-patterns",
+              "today": "2026-05-24"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_068",
+              "courseId": "nodejs-api-security",
+              "today": "2026-06-25"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_069",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-07-26"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_070",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-08-27"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_071",
+              "courseId": "redis-patterns",
+              "today": "2026-09-28"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_072",
+              "courseId": "nodejs-api-security",
+              "today": "2026-01-01"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_073",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-02-02"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_074",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-03-03"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_075",
+              "courseId": "redis-patterns",
+              "today": "2026-04-04"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_076",
+              "courseId": "nodejs-api-security",
+              "today": "2026-05-05"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_077",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-06-06"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_078",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-07-07"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_079",
+              "courseId": "redis-patterns",
+              "today": "2026-08-08"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_080",
+              "courseId": "nodejs-api-security",
+              "today": "2026-09-09"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_081",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-01-10"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_082",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-02-11"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_083",
+              "courseId": "redis-patterns",
+              "today": "2026-03-12"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_084",
+              "courseId": "nodejs-api-security",
+              "today": "2026-04-13"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_085",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-05-14"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_086",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-06-15"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_087",
+              "courseId": "redis-patterns",
+              "today": "2026-07-16"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_088",
+              "courseId": "nodejs-api-security",
+              "today": "2026-08-17"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_089",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-09-18"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_000",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-01-19"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_001",
+              "courseId": "redis-patterns",
+              "today": "2026-02-20"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_002",
+              "courseId": "nodejs-api-security",
+              "today": "2026-03-21"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_003",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-04-22"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_004",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-05-23"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_005",
+              "courseId": "redis-patterns",
+              "today": "2026-06-24"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_006",
+              "courseId": "nodejs-api-security",
+              "today": "2026-07-25"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_007",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-08-26"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_008",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-09-27"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_009",
+              "courseId": "redis-patterns",
+              "today": "2026-01-28"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_010",
+              "courseId": "nodejs-api-security",
+              "today": "2026-02-01"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_011",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-03-02"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_012",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-04-03"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_013",
+              "courseId": "redis-patterns",
+              "today": "2026-05-04"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_014",
+              "courseId": "nodejs-api-security",
+              "today": "2026-06-05"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_015",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-07-06"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_016",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-08-07"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_017",
+              "courseId": "redis-patterns",
+              "today": "2026-09-08"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_018",
+              "courseId": "nodejs-api-security",
+              "today": "2026-01-09"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_019",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-02-10"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_020",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-03-11"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_021",
+              "courseId": "redis-patterns",
+              "today": "2026-04-12"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_022",
+              "courseId": "nodejs-api-security",
+              "today": "2026-05-13"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_023",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-06-14"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_024",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-07-15"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_025",
+              "courseId": "redis-patterns",
+              "today": "2026-08-16"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_026",
+              "courseId": "nodejs-api-security",
+              "today": "2026-09-17"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_027",
+              "courseId": "nodejs-ai-engineering",
+              "today": "2026-01-18"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_028",
+              "courseId": "typescript-react-frontend",
+              "today": "2026-02-19"
+            },
+            {
+              "do": "place",
+              "learnerId": "u_029",
+              "courseId": "redis-patterns",
+              "today": "2026-03-20"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_1",
+              "today": "2026-01-05"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_8",
+              "today": "2026-02-06"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_15",
+              "today": "2026-03-07"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_22",
+              "today": "2026-04-08"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_29",
+              "today": "2026-05-09"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_36",
+              "today": "2026-06-10"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_43",
+              "today": "2026-07-11"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_50",
+              "today": "2026-08-12"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_57",
+              "today": "2026-09-13"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_64",
+              "today": "2026-01-14"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_71",
+              "today": "2026-02-15"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_78",
+              "today": "2026-03-16"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_85",
+              "today": "2026-04-17"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_92",
+              "today": "2026-05-18"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_99",
+              "today": "2026-06-19"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_106",
+              "today": "2026-07-20"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_113",
+              "today": "2026-08-21"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_120",
+              "today": "2026-09-22"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_127",
+              "today": "2026-01-23"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_134",
+              "today": "2026-02-24"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_141",
+              "today": "2026-03-05"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_148",
+              "today": "2026-04-06"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_155",
+              "today": "2026-05-07"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_162",
+              "today": "2026-06-08"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_169",
+              "today": "2026-07-09"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_176",
+              "today": "2026-08-10"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_183",
+              "today": "2026-09-11"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_190",
+              "today": "2026-01-12"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_197",
+              "today": "2026-02-13"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_204",
+              "today": "2026-03-14"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_211",
+              "today": "2026-04-15"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_218",
+              "today": "2026-05-16"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_225",
+              "today": "2026-06-17"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_232",
+              "today": "2026-07-18"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_239",
+              "today": "2026-08-19"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_246",
+              "today": "2026-09-20"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_253",
+              "today": "2026-01-21"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_260",
+              "today": "2026-02-22"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_7",
+              "today": "2026-03-23"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_14",
+              "today": "2026-04-24"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_21",
+              "today": "2026-05-05"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_28",
+              "today": "2026-06-06"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_35",
+              "today": "2026-07-07"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_42",
+              "today": "2026-08-08"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_49",
+              "today": "2026-09-09"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_56",
+              "today": "2026-01-10"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_63",
+              "today": "2026-02-11"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_70",
+              "today": "2026-03-12"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_77",
+              "today": "2026-04-13"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_84",
+              "today": "2026-05-14"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_91",
+              "today": "2026-06-15"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_98",
+              "today": "2026-07-16"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_105",
+              "today": "2026-08-17"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_112",
+              "today": "2026-09-18"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_119",
+              "today": "2026-01-19"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_126",
+              "today": "2026-02-20"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_133",
+              "today": "2026-03-21"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_140",
+              "today": "2026-04-22"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_147",
+              "today": "2026-05-23"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_154",
+              "today": "2026-06-24"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_161",
+              "today": "2026-07-05"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_168",
+              "today": "2026-08-06"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_175",
+              "today": "2026-09-07"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_182",
+              "today": "2026-01-08"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_189",
+              "today": "2026-02-09"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_196",
+              "today": "2026-03-10"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_203",
+              "today": "2026-04-11"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_210",
+              "today": "2026-05-12"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_217",
+              "today": "2026-06-13"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_224",
+              "today": "2026-07-14"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_231",
+              "today": "2026-08-15"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_238",
+              "today": "2026-09-16"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_245",
+              "today": "2026-01-17"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_252",
+              "today": "2026-02-18"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_259",
+              "today": "2026-03-19"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_6",
+              "today": "2026-04-20"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_13",
+              "today": "2026-05-21"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_20",
+              "today": "2026-06-22"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_27",
+              "today": "2026-07-23"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_34",
+              "today": "2026-08-24"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_41",
+              "today": "2026-09-05"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_48",
+              "today": "2026-01-06"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_55",
+              "today": "2026-02-07"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_62",
+              "today": "2026-03-08"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_69",
+              "today": "2026-04-09"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_76",
+              "today": "2026-05-10"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_83",
+              "today": "2026-06-11"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_90",
+              "today": "2026-07-12"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_97",
+              "today": "2026-08-13"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_104",
+              "today": "2026-09-14"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_111",
+              "today": "2026-01-15"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_118",
+              "today": "2026-02-16"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_125",
+              "today": "2026-03-17"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_132",
+              "today": "2026-04-18"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_139",
+              "today": "2026-05-19"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_146",
+              "today": "2026-06-20"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_153",
+              "today": "2026-07-21"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_160",
+              "today": "2026-08-22"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_167",
+              "today": "2026-09-23"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_174",
+              "today": "2026-01-24"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_181",
+              "today": "2026-02-05"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_188",
+              "today": "2026-03-06"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_195",
+              "today": "2026-04-07"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_202",
+              "today": "2026-05-08"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_209",
+              "today": "2026-06-09"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_216",
+              "today": "2026-07-10"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_223",
+              "today": "2026-08-11"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_230",
+              "today": "2026-09-12"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_237",
+              "today": "2026-01-13"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_244",
+              "today": "2026-02-14"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_251",
+              "today": "2026-03-15"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_258",
+              "today": "2026-04-16"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_5",
+              "today": "2026-05-17"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_12",
+              "today": "2026-06-18"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_19",
+              "today": "2026-07-19"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_26",
+              "today": "2026-08-20"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_33",
+              "today": "2026-09-21"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_40",
+              "today": "2026-01-22"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_47",
+              "today": "2026-02-23"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_54",
+              "today": "2026-03-24"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_61",
+              "today": "2026-04-05"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_68",
+              "today": "2026-05-06"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_75",
+              "today": "2026-06-07"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_82",
+              "today": "2026-07-08"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_89",
+              "today": "2026-08-09"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_96",
+              "today": "2026-09-10"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_103",
+              "today": "2026-01-11"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_110",
+              "today": "2026-02-12"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_117",
+              "today": "2026-03-13"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_124",
+              "today": "2026-04-14"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_131",
+              "today": "2026-05-15"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_138",
+              "today": "2026-06-16"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_145",
+              "today": "2026-07-17"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_152",
+              "today": "2026-08-18"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_159",
+              "today": "2026-09-19"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_166",
+              "today": "2026-01-20"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_173",
+              "today": "2026-02-21"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_180",
+              "today": "2026-03-22"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_187",
+              "today": "2026-04-23"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_194",
+              "today": "2026-05-24"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_201",
+              "today": "2026-06-05"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_208",
+              "today": "2026-07-06"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_215",
+              "today": "2026-08-07"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_222",
+              "today": "2026-09-08"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_229",
+              "today": "2026-01-09"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_236",
+              "today": "2026-02-10"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_243",
+              "today": "2026-03-11"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_250",
+              "today": "2026-04-12"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_257",
+              "today": "2026-05-13"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_4",
+              "today": "2026-06-14"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_11",
+              "today": "2026-07-15"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_18",
+              "today": "2026-08-16"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_25",
+              "today": "2026-09-17"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_32",
+              "today": "2026-01-18"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_39",
+              "today": "2026-02-19"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_46",
+              "today": "2026-03-20"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_53",
+              "today": "2026-04-21"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_60",
+              "today": "2026-05-22"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_67",
+              "today": "2026-06-23"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_74",
+              "today": "2026-07-24"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_81",
+              "today": "2026-08-05"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_88",
+              "today": "2026-09-06"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_95",
+              "today": "2026-01-07"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_102",
+              "today": "2026-02-08"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_109",
+              "today": "2026-03-09"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_116",
+              "today": "2026-04-10"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_123",
+              "today": "2026-05-11"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_130",
+              "today": "2026-06-12"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_137",
+              "today": "2026-07-13"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_144",
+              "today": "2026-08-14"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_151",
+              "today": "2026-09-15"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_158",
+              "today": "2026-01-16"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_165",
+              "today": "2026-02-17"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_172",
+              "today": "2026-03-18"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_179",
+              "today": "2026-04-19"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_186",
+              "today": "2026-05-20"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_193",
+              "today": "2026-06-21"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_200",
+              "today": "2026-07-22"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_207",
+              "today": "2026-08-23"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_214",
+              "today": "2026-09-24"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_221",
+              "today": "2026-01-05"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_228",
+              "today": "2026-02-06"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_235",
+              "today": "2026-03-07"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_242",
+              "today": "2026-04-08"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_249",
+              "today": "2026-05-09"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_256",
+              "today": "2026-06-10"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_3",
+              "today": "2026-07-11"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_10",
+              "today": "2026-08-12"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_17",
+              "today": "2026-09-13"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_24",
+              "today": "2026-01-14"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_31",
+              "today": "2026-02-15"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_38",
+              "today": "2026-03-16"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_45",
+              "today": "2026-04-17"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_52",
+              "today": "2026-05-18"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_59",
+              "today": "2026-06-19"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_66",
+              "today": "2026-07-20"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_73",
+              "today": "2026-08-21"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_80",
+              "today": "2026-09-22"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_87",
+              "today": "2026-01-23"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_94",
+              "today": "2026-02-24"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_101",
+              "today": "2026-03-05"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_108",
+              "today": "2026-04-06"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_115",
+              "today": "2026-05-07"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_122",
+              "today": "2026-06-08"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_129",
+              "today": "2026-07-09"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_136",
+              "today": "2026-08-10"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_143",
+              "today": "2026-09-11"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_150",
+              "today": "2026-01-12"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_157",
+              "today": "2026-02-13"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_164",
+              "today": "2026-03-14"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_171",
+              "today": "2026-04-15"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_178",
+              "today": "2026-05-16"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_185",
+              "today": "2026-06-17"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_192",
+              "today": "2026-07-18"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_199",
+              "today": "2026-08-19"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_206",
+              "today": "2026-09-20"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_213",
+              "today": "2026-01-21"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_220",
+              "today": "2026-02-22"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_227",
+              "today": "2026-03-23"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_234",
+              "today": "2026-04-24"
+            },
+            {
+              "do": "refund",
+              "orderId": "ord_999",
+              "today": "2026-10-01"
+            }
+          ],
+          "expected": "summary: already_owned 120, placed 180, refunded 84, unknown_order 67, window_closed 70"
+        }
+      ]
+    }
+  ]
+}

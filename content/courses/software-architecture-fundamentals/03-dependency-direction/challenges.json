@@ -1,0 +1,3883 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_saf_131",
+      "name": "dependency-direction-quiz",
+      "type": "quiz",
+      "title": "Which way does this import point?",
+      "description": "Two pieces of evidence from the orders module: how OrderService gets its repository, and a layer check that found a domain file importing a service.",
+      "difficulty": "medium",
+      "outcomes": [
+        "dependency-direction"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "// src/orders/services/orderService.ts\nimport { PostgresOrderRepository } from \"../repositories/postgresOrderRepository\";\nimport { db } from \"../../shared/db\";\n\nexport class OrderService {\n  private orders = new PostgresOrderRepository(db);\n\n  async placeOrder(userId: string, courseId: string) {\n    // ... validate, charge, then:\n    return this.orders.save({ userId, courseId, status: \"paid\" });\n  }\n}\n\n$ npm test -- orderService\nError: connect ECONNREFUSED 127.0.0.1:5432\n\nStatement: \"orderService.ts calls a class method instead of writing SQL itself, so it does not depend on the database.\"",
+          "explanation": "False. The service imports the concrete PostgresOrderRepository and the shared db connection, and creates the repository itself, so it depends on Postgres through that import: the unit test fails with ECONNREFUSED because placeOrder cannot run without a real database. Hiding the SQL in another class moves the code, not the dependency. The fix is to depend on an interface the service owns in the domain layer (an OrderRepository port with save()), receive an implementation in the constructor, and let only the composition root (main.ts) create PostgresOrderRepository. The misconception is that a dependency means \"contains the SQL\": a dependency is anything you import and cannot run without.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The layer check in CI, and the two files it points at:\n\n$ npm run check:layers\nsrc/orders/domain/order.ts -> src/orders/services/pricingService.ts  domain -> service  domain-must-be-pure\n1 violation\n\n// src/orders/domain/order.ts\nimport { applyDiscount } from \"../services/pricingService\";\nexport function orderTotal(order: Order): number {\n  return applyDiscount(order.price, order.coupon);\n}\n\n// src/orders/services/pricingService.ts\nimport { orderTotal, type Order } from \"../domain/order\";\nexport function applyDiscount(price: number, coupon: string | null): number { /* pure arithmetic */ }\nexport function quote(order: Order) { return { total: orderTotal(order) }; }\n\nStatement: \"Moving applyDiscount into the domain (it is pure arithmetic and imports nothing) removes the violation and also the import cycle between order.ts and pricingService.ts.\"",
+          "explanation": "True. Today order.ts imports pricingService.ts and pricingService.ts imports order.ts: a cycle, and the domain -> service arrow is the half that points the wrong way. applyDiscount uses nothing from the service layer, so it belongs next to orderTotal in the domain. After the move, the only arrow left is pricingService -> domain, which is allowed, and the check prints 0 violations. Verify it by rerunning the check and with a cycle finder such as madge --circular. The misconception is that a cycle must be broken with an interface or a third shared module; often one function is simply in the wrong layer.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_saf_132",
+      "name": "check-dependency-direction",
+      "type": "mini_coding",
+      "title": "Check the dependency direction",
+      "description": "Reviewers of the CodeDev API keep missing imports that point the wrong way between layers. Write the check that CI will run. layerOf(path): split the path on \"/\", drop the last part (the file name) and take the FIRST remaining folder named \"controllers\" (layer \"controller\"), \"services\" (\"service\"), \"domain\" (\"domain\") or \"repositories\" (\"repository\"), compared exactly (case-sensitive). A path with none of them has no layer (null) and is never checked, as importer or as import: shared code, packages such as \"zod\" or \"node:crypto\", tests. Allowed imports (importing layer -> imported layer): every layer may import its own layer and the domain; controller -> service is allowed. Forbidden, with the rule to report: controller -> repository is \"controller-skips-service\"; service -> repository is \"service-needs-port\" (a service reaches the database only through a port, an interface in the domain layer that a repository implements); service -> controller, repository -> controller and repository -> service are \"points-backward\"; domain -> controller, service or repository is \"domain-must-be-pure\". findViolations(files) gets [{ path, imports }] with imports already resolved to paths from the repository root, and returns one { file, import, from, to, rule } per forbidden import (from and to are the two layers). The same import listed twice in one file is reported once. Sort by file, then by import, both A to Z compared with < and >. No violations: an empty array. The test runner reads { files } as JSON from stdin and prints the result as JSON.",
+      "difficulty": "easy",
+      "outcomes": [
+        "dependency-direction"
+      ],
+      "points": 20,
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "hints": [
+        "Two separate questions decide each import: which layer is each path in, and is that pair of layers allowed? Can you answer the second one with a lookup instead of a chain of if statements?",
+        "Look at layerOf first: the file name must not count (src/orders/services.ts has no layer), and the first matching folder wins (src/orders/domain/services/pricing.ts is domain). Then write the 4 x 4 table from the description as a nested object where an allowed cell is null and a forbidden cell holds the rule name, and remove repeated imports of one file before you check them.",
+        "A similar check on another tree: the layers are \"pages\" -> \"page\" and \"api\" -> \"api\", and only api -> page is forbidden (rule \"api-imports-ui\"). For app/blog/pages/post.tsx, layerOf gives \"page\"; for app/blog/api/pages/list.ts it gives \"api\" (the first matching folder), and for app/blog/pages.ts it gives null. The file app/blog/api/pages/list.ts importing app/blog/pages/post.tsx twice gives one entry: { file: \"app/blog/api/pages/list.ts\", import: \"app/blog/pages/post.tsx\", from: \"api\", to: \"page\", rule: \"api-imports-ui\" }."
+      ],
+      "tests": [
+        {
+          "name": "The orders module: a controller reads the repository, a service skips the port",
+          "input": {
+            "files": [
+              {
+                "path": "src/orders/controllers/orderController.ts",
+                "imports": [
+                  "src/orders/services/orderService.ts",
+                  "src/orders/repositories/orderRepository.ts",
+                  "src/orders/domain/order.ts",
+                  "zod"
+                ]
+              },
+              {
+                "path": "src/orders/services/orderService.ts",
+                "imports": [
+                  "src/orders/domain/order.ts",
+                  "src/orders/repositories/orderRepository.ts",
+                  "src/orders/domain/ports/paymentGateway.ts"
+                ]
+              },
+              {
+                "path": "src/orders/repositories/orderRepository.ts",
+                "imports": [
+                  "src/orders/domain/order.ts",
+                  "src/orders/domain/ports/orderRepository.ts",
+                  "src/shared/db.ts"
+                ]
+              },
+              {
+                "path": "src/orders/domain/order.ts",
+                "imports": [
+                  "src/shared/money.ts"
+                ]
+              }
+            ]
+          },
+          "expected": [
+            {
+              "file": "src/orders/controllers/orderController.ts",
+              "import": "src/orders/repositories/orderRepository.ts",
+              "from": "controller",
+              "to": "repository",
+              "rule": "controller-skips-service"
+            },
+            {
+              "file": "src/orders/services/orderService.ts",
+              "import": "src/orders/repositories/orderRepository.ts",
+              "from": "service",
+              "to": "repository",
+              "rule": "service-needs-port"
+            }
+          ],
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Backward imports: domain to service and controller, repository and service to the layer above",
+          "input": {
+            "files": [
+              {
+                "path": "src/orders/services/orderService.ts",
+                "imports": [
+                  "src/orders/controllers/orderDto.ts",
+                  "src/orders/domain/order.ts"
+                ]
+              },
+              {
+                "path": "src/orders/repositories/orderRepository.ts",
+                "imports": [
+                  "src/orders/services/orderService.ts",
+                  "src/orders/domain/order.ts"
+                ]
+              },
+              {
+                "path": "src/orders/domain/ports/emailSender.ts",
+                "imports": [
+                  "src/orders/controllers/orderController.ts"
+                ]
+              },
+              {
+                "path": "src/orders/domain/order.ts",
+                "imports": [
+                  "src/orders/services/pricingService.ts",
+                  "src/orders/domain/orderStatus.ts"
+                ]
+              }
+            ]
+          },
+          "expected": [
+            {
+              "file": "src/orders/domain/order.ts",
+              "import": "src/orders/services/pricingService.ts",
+              "from": "domain",
+              "to": "service",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/orders/domain/ports/emailSender.ts",
+              "import": "src/orders/controllers/orderController.ts",
+              "from": "domain",
+              "to": "controller",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/orders/repositories/orderRepository.ts",
+              "import": "src/orders/services/orderService.ts",
+              "from": "repository",
+              "to": "service",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/orders/services/orderService.ts",
+              "import": "src/orders/controllers/orderDto.ts",
+              "from": "service",
+              "to": "controller",
+              "rule": "points-backward"
+            }
+          ],
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "The first matching folder decides; a file named services.ts or a Services folder has no layer",
+          "input": {
+            "files": [
+              {
+                "path": "src/orders/domain/services/pricing.ts",
+                "imports": [
+                  "src/orders/repositories/orderRepository.ts"
+                ]
+              },
+              {
+                "path": "src/orders/services.ts",
+                "imports": [
+                  "src/orders/repositories/orderRepository.ts"
+                ]
+              },
+              {
+                "path": "src/orders/services/checkout/placeOrder.ts",
+                "imports": [
+                  "src/orders/controllers/http/orderRoutes.ts",
+                  "src/orders/domain/ports/paymentGateway.ts"
+                ]
+              },
+              {
+                "path": "src/orders/Services/legacy.ts",
+                "imports": [
+                  "src/orders/controllers/orderController.ts"
+                ]
+              },
+              {
+                "path": "src/orders/controllers/orderController.ts",
+                "imports": [
+                  "src/orders/domain/ports/emailSender.ts"
+                ]
+              }
+            ]
+          },
+          "expected": [
+            {
+              "file": "src/orders/domain/services/pricing.ts",
+              "import": "src/orders/repositories/orderRepository.ts",
+              "from": "domain",
+              "to": "repository",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/orders/services/checkout/placeOrder.ts",
+              "import": "src/orders/controllers/http/orderRoutes.ts",
+              "from": "service",
+              "to": "controller",
+              "rule": "points-backward"
+            }
+          ],
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Every allowed direction passes: same layer, inward imports and ports",
+          "input": {
+            "files": [
+              {
+                "path": "src/orders/controllers/orderController.ts",
+                "imports": [
+                  "src/orders/controllers/validation.ts",
+                  "src/orders/services/orderService.ts",
+                  "src/orders/domain/order.ts"
+                ]
+              },
+              {
+                "path": "src/orders/services/orderService.ts",
+                "imports": [
+                  "src/payments/services/paymentService.ts",
+                  "src/orders/domain/ports/orderRepository.ts",
+                  "src/orders/domain/ports/paymentGateway.ts"
+                ]
+              },
+              {
+                "path": "src/orders/repositories/orderRepository.ts",
+                "imports": [
+                  "src/orders/domain/ports/orderRepository.ts",
+                  "src/orders/repositories/sql.ts",
+                  "src/orders/domain/order.ts"
+                ]
+              },
+              {
+                "path": "src/orders/domain/order.ts",
+                "imports": [
+                  "src/orders/domain/orderStatus.ts",
+                  "src/catalog/domain/course.ts"
+                ]
+              }
+            ]
+          },
+          "expected": [],
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "A repeated import is reported once; sorted by file, then by import",
+          "input": {
+            "files": [
+              {
+                "path": "src/progress/services/progressService.ts",
+                "imports": [
+                  "src/progress/repositories/progressRepository.ts",
+                  "src/catalog/repositories/courseRepository.ts",
+                  "src/progress/repositories/progressRepository.ts",
+                  "src/catalog/controllers/courseController.ts"
+                ]
+              },
+              {
+                "path": "src/notifications/controllers/emailController.ts",
+                "imports": [
+                  "src/notifications/repositories/templateRepository.ts",
+                  "src/notifications/repositories/templateRepository.ts"
+                ]
+              },
+              {
+                "path": "src/catalog/domain/course.ts",
+                "imports": [
+                  "src/catalog/repositories/courseRepository.ts"
+                ]
+              }
+            ]
+          },
+          "expected": [
+            {
+              "file": "src/catalog/domain/course.ts",
+              "import": "src/catalog/repositories/courseRepository.ts",
+              "from": "domain",
+              "to": "repository",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/notifications/controllers/emailController.ts",
+              "import": "src/notifications/repositories/templateRepository.ts",
+              "from": "controller",
+              "to": "repository",
+              "rule": "controller-skips-service"
+            },
+            {
+              "file": "src/progress/services/progressService.ts",
+              "import": "src/catalog/controllers/courseController.ts",
+              "from": "service",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/progress/services/progressService.ts",
+              "import": "src/catalog/repositories/courseRepository.ts",
+              "from": "service",
+              "to": "repository",
+              "rule": "service-needs-port"
+            },
+            {
+              "file": "src/progress/services/progressService.ts",
+              "import": "src/progress/repositories/progressRepository.ts",
+              "from": "service",
+              "to": "repository",
+              "rule": "service-needs-port"
+            }
+          ],
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Paths outside any layer are not checked: packages, shared code, tests, a folder import",
+          "input": {
+            "files": [
+              {
+                "path": "src/orders/__tests__/orderService.test.ts",
+                "imports": [
+                  "src/orders/repositories/orderRepository.ts",
+                  "src/orders/controllers/orderController.ts"
+                ]
+              },
+              {
+                "path": "src/shared/logger.ts",
+                "imports": [
+                  "src/orders/services/orderService.ts"
+                ]
+              },
+              {
+                "path": "src/payments/controllers/webhookController.ts",
+                "imports": [
+                  "node:crypto",
+                  "zod",
+                  "",
+                  "src/shared/logger.ts",
+                  "src/payments/repositories",
+                  "src/payments/repositories/paymentRepository.ts"
+                ]
+              },
+              {
+                "path": "main.ts",
+                "imports": [
+                  "src/orders/controllers/orderController.ts"
+                ]
+              }
+            ]
+          },
+          "expected": [
+            {
+              "file": "src/payments/controllers/webhookController.ts",
+              "import": "src/payments/repositories/paymentRepository.ts",
+              "from": "controller",
+              "to": "repository",
+              "rule": "controller-skips-service"
+            }
+          ],
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Large codebase: about 200 files across five modules and four layers",
+          "input": {
+            "files": [
+              {
+                "path": "src/notifications/domain/doma14.ts",
+                "imports": [
+                  "src/progress/domain/doma1.ts",
+                  "zod",
+                  "src/notifications/controllers/cont1.ts"
+                ]
+              },
+              {
+                "path": "src/catalog/controllers/cont21.ts",
+                "imports": [
+                  "src/catalog/domain/doma1.ts",
+                  "src/payments/services/serv34.ts"
+                ]
+              },
+              {
+                "path": "src/catalog/repositories/repo15.ts",
+                "imports": [
+                  "zod",
+                  "src/notifications/domain/doma14.ts",
+                  "src/payments/services/serv15.ts",
+                  "zod"
+                ]
+              },
+              {
+                "path": "src/catalog/services/serv4.ts",
+                "imports": [
+                  "src/notifications/services/serv20.ts",
+                  "src/progress/services/serv7.ts",
+                  "src/catalog/repositories/repo7.ts",
+                  "src/orders/services/serv30.ts",
+                  "src/notifications/repositories/repo15.ts"
+                ]
+              },
+              {
+                "path": "src/payments/domain/doma26.ts",
+                "imports": [
+                  "src/shared/util2.ts",
+                  "src/payments/repositories/repo8.ts"
+                ]
+              },
+              {
+                "path": "src/catalog/domain/ports/port3.ts",
+                "imports": [
+                  "zod",
+                  "src/catalog/controllers/cont24.ts",
+                  "src/catalog/repositories/repo7.ts",
+                  "zod"
+                ]
+              },
+              {
+                "path": "src/orders/domain/ports/port39.ts",
+                "imports": [
+                  "zod",
+                  "src/payments/controllers/cont1.ts",
+                  "src/progress/services/serv9.ts",
+                  "src/orders/repositories/repo38.ts",
+                  "src/progress/repositories/repo8.ts"
+                ]
+              },
+              {
+                "path": "src/payments/services/serv28.ts",
+                "imports": [
+                  "src/notifications/services/serv38.ts",
+                  "src/notifications/domain/ports/port6.ts",
+                  "src/payments/services/serv0.ts",
+                  "src/orders/domain/doma20.ts"
+                ]
+              },
+              {
+                "path": "src/orders/repositories/repo20.ts",
+                "imports": [
+                  "src/orders/services/serv29.ts",
+                  "src/catalog/repositories/repo8.ts",
+                  "src/payments/controllers/cont29.ts",
+                  "src/catalog/repositories/repo35.ts"
+                ]
+              },
+              {
+                "path": "src/payments/domain/doma28.ts",
+                "imports": [
+                  "src/notifications/services/serv11.ts",
+                  "src/catalog/repositories/repo22.ts",
+                  "src/catalog/services/serv12.ts",
+                  "src/shared/util2.ts",
+                  "src/orders/domain/doma14.ts"
+                ]
+              },
+              {
+                "path": "src/notifications/services/serv1.ts",
+                "imports": [
+                  "src/payments/repositories/repo11.ts",
+                  "src/payments/services/serv36.ts",
+                  "src/notifications/repositories/repo26.ts"
+                ]
+              },
+              {
+                "path": "src/notifications/repositories/repo11.ts",
+                "imports": [
+                  "src/payments/domain/ports/port15.ts",
+                  "src/catalog/controllers/cont19.ts",
+                  "src/shared/util1.ts",
+                  "src/orders/services/serv19.ts",
+                  "src/payments/services/serv8.ts"
+                ]
+              },
+              {
+                "path": "src/notifications/domain/ports/port39.ts",
+                "imports": [
+                  "src/orders/domain/ports/port33.ts",
+                  "src/progress/repositories/repo7.ts",
+                  "src/notifications/services/serv7.ts",
+                  "src/catalog/repositories/repo28.ts",
+                  "src/notifications/repositories/repo28.ts",
+                  "src/orders/domain/ports/port33.ts"
+                ]
+              },
+              {
+                "path": "src/catalog/controllers/cont13.ts",
+                "imports": [
+                  "src/catalog/repositories/repo24.ts",
+                  "zod"
+                ]
+              },
+              {
+                "path": "src/orders/domain/doma10.ts",
+                "imports": [
+                  "src/catalog/repositories/repo39.ts",
+                  "zod",
+                  "src/catalog/controllers/cont33.ts",
+                  "zod"
+                ]
+              },
+              {
+                "path": "src/progress/controllers/cont38.ts",
+                "imports": [
+                  "src/progress/repositories/repo27.ts",
+                  "zod",
+                  "src/progress/services/serv13.ts",
+                  "src/payments/repositories/repo19.ts",
+                  "src/progress/domain/doma29.ts",
+                  "src/progress/repositories/repo27.ts"
+                ]
+              },
+              {
+                "path": "src/notifications/domain/doma35.ts",
+                "imports": [
+                  "src/shared/util3.ts",
+                  "src/shared/util0.ts",
+                  "src/notifications/repositories/repo23.ts",
+                  "src/shared/util3.ts"
+                ]
+              },
+              {
+                "path": "src/notifications/repositories/repo35.ts",
+                "imports": [
+                  "zod",
+                  "src/payments/domain/doma19.ts"
+                ]
+              },
+              {
+                "path": "src/payments/repositories/repo0.ts",
+                "imports": [
+                  "src/notifications/domain/doma28.ts",
+                  "zod"
+                ]
+              },
+              {
+                "path": "src/progress/domain/doma29.ts",
+                "imports": [
+                  "zod",
+                  "src/payments/repositories/repo23.ts",
+                  "src/shared/util1.ts",
+                  "src/payments/controllers/cont7.ts"
+                ]
+              },
+              {
+                "path": "src/notifications/domain/doma19.ts",
+                "imports": [
+                  "src/progress/controllers/cont2.ts",
+                  "src/catalog/controllers/cont32.ts",
+                  "src/shared/util3.ts"
+                ]
+              },
+              {
+                "path": "src/orders/repositories/repo4.ts",
+                "imports": [
+                  "src/shared/util0.ts",
+                  "src/catalog/repositories/repo17.ts"
+                ]
+              },
+              {
+                "path": "src/orders/domain/doma5.ts",
+                "imports": [
+                  "src/payments/controllers/cont13.ts",
+                  "src/catalog/domain/ports/port24.ts",
+                  "src/notifications/controllers/cont31.ts",
+                  "src/catalog/services/serv22.ts",
+                  "src/payments/controllers/cont13.ts"
+                ]
+              },
+              {
+                "path": "src/orders/domain/doma38.ts",
+                "imports": [
+                  "src/catalog/controllers/cont28.ts",
+                  "src/progress/domain/ports/port30.ts"
+                ]
+              },
+              {
+                "path": "src/notifications/services/serv9.ts",
+                "imports": [
+                  "src/catalog/repositories/repo10.ts",
+                  "src/catalog/repositories/repo24.ts",
+                  "src/orders/repositories/repo20.ts",
+                  "src/catalog/repositories/repo10.ts"
+                ]
+              },
+              {
+                "path": "src/progress/services/serv27.ts",
+                "imports": [
+                  "src/notifications/domain/doma37.ts",
+                  "src/notifications/domain/ports/port30.ts",
+                  "src/orders/repositories/repo3.ts",
+                  "src/orders/domain/ports/port24.ts",
+                  "src/orders/repositories/repo28.ts"
+                ]
+              },
+              {
+                "path": "src/catalog/repositories/repo32.ts",
+                "imports": [
+                  "src/notifications/services/serv23.ts",
+                  "zod",
+                  "src/notifications/repositories/repo27.ts",
+                  "src/shared/util0.ts",
+                  "src/notifications/services/serv23.ts"
+                ]
+              },
+              {
+                "path": "src/progress/controllers/cont16.ts",
+                "imports": [
+                  "src/orders/domain/doma29.ts",
+                  "src/payments/repositories/repo13.ts",
+                  "src/payments/services/serv33.ts",
+                  "zod",
+                  "src/catalog/domain/doma31.ts"
+                ]
+              },
+              {
+                "path": "src/orders/controllers/cont5.ts",
+                "imports": [
+                  "src/notifications/services/serv33.ts",
+                  "src/orders/services/serv5.ts",
+                  "src/progress/domain/doma31.ts",
+                  "src/payments/domain/ports/port18.ts",
+                  "src/catalog/services/serv30.ts"
+                ]
+              },
+              {
+                "path": "src/progress/domain/ports/port18.ts",
+                "imports": [
+                  "src/orders/services/serv2.ts",
+                  "src/notifications/services/serv17.ts",
+                  "src/notifications/controllers/cont9.ts",
+                  "src/catalog/controllers/cont1.ts"
+                ]
+              },
+              {
+                "path": "src/notifications/domain/ports/port27.ts",
+                "imports": [
+                  "src/orders/domain/ports/port24.ts",
+                  "src/orders/repositories/repo22.ts",
+                  "zod",
+                  "src/payments/domain/doma7.ts"
+                ]
+              },
+              {
+                "path": "src/payments/domain/ports/port39.ts",
+                "imports": [
+                  "src/progress/services/serv0.ts",
+                  "src/shared/util3.ts"
+                ]
+              },
+              {
+                "path": "src/payments/repositories/repo38.ts",
+                "imports": [
+                  "src/payments/services/serv36.ts",
+                  "src/notifications/domain/ports/port39.ts"
+                ]
+              },
+              {
+                "path": "src/payments/repositories/repo32.ts",
+                "imports": [
+                  "src/payments/repositories/repo31.ts",
+                  "src/catalog/domain/ports/port27.ts"
+                ]
+              },
+              {
+                "path": "src/payments/controllers/cont19.ts",
+                "imports": [
+                  "src/notifications/controllers/cont30.ts",
+                  "src/orders/controllers/cont24.ts",
+                  "src/payments/domain/doma1.ts",
+                  "src/progress/repositories/repo39.ts",
+                  "src/progress/domain/ports/port0.ts"
+                ]
+              },
+              {
+                "path": "src/notifications/services/serv29.ts",
+                "imports": [
+                  "src/shared/util3.ts",
+                  "src/shared/util0.ts"
+                ]
+              },
+              {
+                "path": "src/notifications/services/serv8.ts",
+                "imports": [
+                  "src/notifications/services/serv0.ts",
+                  "src/orders/controllers/cont14.ts"
+                ]
+              },
+              {
+                "path": "src/progress/services/serv15.ts",
+                "imports": [
+                  "src/notifications/services/serv31.ts",
+                  "src/notifications/repositories/repo20.ts"
+                ]
+              },
+              {
+                "path": "src/payments/controllers/cont15.ts",
+                "imports": [
+                  "src/payments/repositories/repo35.ts",
+                  "src/shared/util0.ts",
+                  "src/shared/util2.ts",
+                  "src/payments/controllers/cont13.ts"
+                ]
+              },
+              {
+                "path": "src/payments/controllers/cont12.ts",
+                "imports": [
+                  "src/progress/services/serv36.ts",
+                  "src/catalog/repositories/repo21.ts",
+                  "zod"
+                ]
+              },
+              {
+                "path": "src/catalog/services/serv12.ts",
+                "imports": [
+                  "src/orders/services/serv23.ts",
+                  "zod",
+                  "src/catalog/services/serv31.ts",
+                  "src/orders/services/serv23.ts"
+                ]
+              },
+              {
+                "path": "src/progress/domain/ports/port27.ts",
+                "imports": [
+                  "zod",
+                  "src/notifications/controllers/cont15.ts",
+                  "src/notifications/services/serv1.ts"
+                ]
+              },
+              {
+                "path": "src/orders/services/serv1.ts",
+                "imports": [
+                  "zod",
+                  "src/payments/services/serv8.ts"
+                ]
+              },
+              {
+                "path": "src/progress/controllers/cont7.ts",
+                "imports": [
+                  "src/payments/domain/ports/port3.ts",
+                  "src/shared/util2.ts"
+                ]
+              },
+              {
+                "path": "src/orders/domain/doma26.ts",
+                "imports": [
+                  "zod",
+                  "src/notifications/domain/doma35.ts",
+                  "zod"
+                ]
+              },
+              {
+                "path": "src/payments/repositories/repo5.ts",
+                "imports": [
+                  "src/progress/repositories/repo2.ts",
+                  "src/progress/repositories/repo34.ts",
+                  "src/progress/repositories/repo2.ts"
+                ]
+              },
+              {
+                "path": "src/catalog/controllers/cont5.ts",
+                "imports": [
+                  "src/notifications/repositories/repo14.ts",
+                  "src/orders/services/serv33.ts"
+                ]
+              },
+              {
+                "path": "src/catalog/domain/ports/port9.ts",
+                "imports": [
+                  "src/payments/repositories/repo33.ts",
+                  "src/orders/repositories/repo17.ts",
+                  "src/payments/domain/doma7.ts",
+                  "src/progress/domain/doma31.ts",
+                  "src/notifications/controllers/cont37.ts"
+                ]
+              },
+              {
+                "path": "src/notifications/services/serv31.ts",
+                "imports": [
+                  "src/progress/domain/doma17.ts",
+                  "src/payments/domain/doma2.ts",
+                  "src/orders/services/serv26.ts",
+                  "src/notifications/domain/ports/port33.ts",
+                  "src/payments/domain/doma25.ts"
+                ]
+              },
+              {
+                "path": "src/notifications/repositories/repo24.ts",
+                "imports": [
+                  "src/notifications/services/serv29.ts",
+                  "src/catalog/repositories/repo12.ts",
+                  "src/shared/util2.ts",
+                  "src/payments/domain/ports/port27.ts",
+                  "zod"
+                ]
+              },
+              {
+                "path": "src/payments/controllers/cont31.ts",
+                "imports": [
+                  "src/progress/repositories/repo14.ts",
+                  "src/orders/domain/ports/port12.ts",
+                  "src/catalog/repositories/repo31.ts",
+                  "src/orders/controllers/cont26.ts"
+                ]
+              },
+              {
+                "path": "src/orders/repositories/repo30.ts",
+                "imports": [
+                  "zod",
+                  "src/shared/util4.ts",
+                  "src/orders/controllers/cont31.ts",
+                  "zod"
+                ]
+              },
+              {
+                "path": "src/catalog/domain/doma28.ts",
+                "imports": [
+                  "src/orders/controllers/cont13.ts",
+                  "src/shared/util3.ts",
+                  "src/payments/services/serv23.ts",
+                  "src/shared/util4.ts",
+                  "src/orders/controllers/cont14.ts"
+                ]
+              },
+              {
+                "path": "src/catalog/controllers/cont17.ts",
+                "imports": [
+                  "src/payments/services/serv22.ts",
+                  "src/catalog/domain/doma20.ts",
+                  "src/catalog/services/serv30.ts",
+                  "src/payments/services/serv22.ts"
+                ]
+              },
+              {
+                "path": "src/catalog/controllers/cont36.ts",
+                "imports": [
+                  "src/orders/services/serv38.ts",
+                  "src/orders/domain/ports/port33.ts"
+                ]
+              },
+              {
+                "path": "src/orders/controllers/cont22.ts",
+                "imports": [
+                  "zod",
+                  "src/orders/controllers/cont24.ts",
+                  "src/notifications/domain/doma31.ts"
+                ]
+              },
+              {
+                "path": "src/catalog/controllers/cont20.ts",
+                "imports": [
+                  "src/orders/controllers/cont39.ts",
+                  "src/payments/services/serv35.ts",
+                  "src/payments/repositories/repo25.ts",
+                  "src/payments/repositories/repo39.ts",
+                  "src/orders/controllers/cont39.ts"
+                ]
+              },
+              {
+                "path": "src/orders/domain/doma13.ts",
+                "imports": [
+                  "src/catalog/repositories/repo28.ts",
+                  "src/payments/services/serv23.ts"
+                ]
+              },
+              {
+                "path": "src/catalog/services/serv37.ts",
+                "imports": [
+                  "src/catalog/controllers/cont33.ts",
+                  "src/payments/repositories/repo34.ts",
+                  "src/catalog/services/serv16.ts"
+                ]
+              },
+              {
+                "path": "src/progress/repositories/repo35.ts",
+                "imports": [
+                  "zod",
+                  "src/catalog/repositories/repo26.ts",
+                  "src/orders/controllers/cont17.ts",
+                  "zod",
+                  "src/shared/util2.ts"
+                ]
+              },
+              {
+                "path": "src/orders/controllers/cont17.ts",
+                "imports": [
+                  "src/notifications/controllers/cont4.ts",
+                  "src/notifications/controllers/cont5.ts",
+                  "zod"
+                ]
+              },
+              {
+                "path": "src/payments/domain/doma17.ts",
+                "imports": [
+                  "src/payments/domain/ports/port3.ts",
+                  "src/catalog/services/serv2.ts"
+                ]
+              },
+              {
+                "path": "src/orders/domain/ports/port18.ts",
+                "imports": [
+                  "src/notifications/domain/doma4.ts",
+                  "src/payments/repositories/repo25.ts",
+                  "src/catalog/domain/doma37.ts",
+                  "src/notifications/domain/doma4.ts"
+                ]
+              },
+              {
+                "path": "src/payments/controllers/cont0.ts",
+                "imports": [
+                  "src/progress/controllers/cont37.ts",
+                  "src/payments/services/serv35.ts",
+                  "src/orders/services/serv0.ts",
+                  "zod"
+                ]
+              },
+              {
+                "path": "src/orders/services/serv26.ts",
+                "imports": [
+                  "src/notifications/repositories/repo16.ts",
+                  "src/payments/services/serv13.ts",
+                  "src/progress/domain/ports/port33.ts",
+                  "src/progress/repositories/repo4.ts"
+                ]
+              },
+              {
+                "path": "src/payments/repositories/repo27.ts",
+                "imports": [
+                  "src/shared/util0.ts",
+                  "src/notifications/repositories/repo2.ts"
+                ]
+              },
+              {
+                "path": "src/notifications/controllers/cont15.ts",
+                "imports": [
+                  "src/payments/repositories/repo17.ts",
+                  "src/progress/repositories/repo34.ts",
+                  "zod",
+                  "src/progress/domain/doma28.ts"
+                ]
+              },
+              {
+                "path": "src/catalog/services/serv11.ts",
+                "imports": [
+                  "src/orders/services/serv20.ts",
+                  "src/catalog/controllers/cont13.ts",
+                  "src/orders/repositories/repo3.ts"
+                ]
+              },
+              {
+                "path": "src/orders/controllers/cont23.ts",
+                "imports": [
+                  "zod",
+                  "src/payments/controllers/cont26.ts",
+                  "src/orders/domain/doma34.ts",
+                  "src/orders/controllers/cont3.ts"
+                ]
+              },
+              {
+                "path": "src/orders/services/serv20.ts",
+                "imports": [
+                  "src/catalog/services/serv23.ts",
+                  "src/payments/controllers/cont21.ts",
+                  "src/catalog/repositories/repo25.ts"
+                ]
+              },
+              {
+                "path": "src/orders/repositories/repo36.ts",
+                "imports": [
+                  "src/progress/repositories/repo7.ts",
+                  "zod",
+                  "src/progress/domain/doma34.ts"
+                ]
+              },
+              {
+                "path": "src/progress/repositories/repo28.ts",
+                "imports": [
+                  "src/catalog/domain/doma25.ts",
+                  "src/catalog/repositories/repo38.ts",
+                  "src/progress/repositories/repo22.ts",
+                  "zod",
+                  "src/payments/controllers/cont18.ts"
+                ]
+              },
+              {
+                "path": "src/notifications/repositories/repo25.ts",
+                "imports": [
+                  "src/orders/services/serv38.ts",
+                  "src/payments/controllers/cont14.ts",
+                  "src/payments/services/serv11.ts"
+                ]
+              },
+              {
+                "path": "src/notifications/repositories/repo38.ts",
+                "imports": [
+                  "src/payments/services/serv12.ts",
+                  "src/progress/repositories/repo7.ts",
+                  "src/shared/util3.ts",
+                  "src/payments/services/serv12.ts"
+                ]
+              },
+              {
+                "path": "src/payments/controllers/cont10.ts",
+                "imports": [
+                  "src/payments/repositories/repo39.ts",
+                  "src/payments/repositories/repo17.ts"
+                ]
+              },
+              {
+                "path": "src/orders/domain/doma2.ts",
+                "imports": [
+                  "src/payments/controllers/cont25.ts",
+                  "zod",
+                  "src/payments/services/serv6.ts"
+                ]
+              },
+              {
+                "path": "src/catalog/domain/ports/port0.ts",
+                "imports": [
+                  "src/catalog/repositories/repo22.ts",
+                  "src/notifications/repositories/repo22.ts"
+                ]
+              },
+              {
+                "path": "src/progress/domain/ports/port0.ts",
+                "imports": [
+                  "zod",
+                  "src/catalog/controllers/cont22.ts",
+                  "src/progress/services/serv14.ts",
+                  "src/notifications/controllers/cont25.ts",
+                  "src/orders/services/serv5.ts",
+                  "zod"
+                ]
+              },
+              {
+                "path": "src/notifications/controllers/cont17.ts",
+                "imports": [
+                  "src/shared/util3.ts",
+                  "src/payments/repositories/repo36.ts"
+                ]
+              },
+              {
+                "path": "src/catalog/domain/doma2.ts",
+                "imports": [
+                  "src/notifications/domain/doma10.ts",
+                  "src/notifications/repositories/repo39.ts"
+                ]
+              },
+              {
+                "path": "src/notifications/services/serv12.ts",
+                "imports": [
+                  "src/notifications/domain/ports/port24.ts",
+                  "src/shared/util1.ts",
+                  "src/progress/repositories/repo29.ts",
+                  "src/shared/util2.ts",
+                  "src/notifications/repositories/repo35.ts"
+                ]
+              },
+              {
+                "path": "src/orders/domain/ports/port36.ts",
+                "imports": [
+                  "zod",
+                  "src/catalog/controllers/cont14.ts"
+                ]
+              },
+              {
+                "path": "src/progress/services/serv34.ts",
+                "imports": [
+                  "src/notifications/repositories/repo4.ts",
+                  "src/notifications/repositories/repo34.ts",
+                  "src/notifications/repositories/repo4.ts"
+                ]
+              },
+              {
+                "path": "src/catalog/controllers/cont7.ts",
+                "imports": [
+                  "src/shared/util0.ts",
+                  "src/orders/domain/doma13.ts",
+                  "src/orders/domain/ports/port27.ts",
+                  "src/progress/services/serv24.ts"
+                ]
+              },
+              {
+                "path": "src/orders/repositories/repo5.ts",
+                "imports": [
+                  "src/orders/repositories/repo18.ts",
+                  "zod",
+                  "src/shared/util0.ts"
+                ]
+              },
+              {
+                "path": "src/catalog/controllers/cont39.ts",
+                "imports": [
+                  "src/orders/services/serv24.ts",
+                  "src/progress/domain/doma32.ts",
+                  "src/payments/repositories/repo16.ts",
+                  "src/progress/domain/doma38.ts"
+                ]
+              },
+              {
+                "path": "src/notifications/repositories/repo8.ts",
+                "imports": [
+                  "zod",
+                  "src/orders/domain/doma2.ts",
+                  "zod"
+                ]
+              },
+              {
+                "path": "src/payments/repositories/repo15.ts",
+                "imports": [
+                  "src/shared/util0.ts",
+                  "src/progress/repositories/repo0.ts",
+                  "src/catalog/domain/doma37.ts",
+                  "src/progress/controllers/cont8.ts"
+                ]
+              },
+              {
+                "path": "src/payments/controllers/cont38.ts",
+                "imports": [
+                  "src/catalog/controllers/cont4.ts",
+                  "src/catalog/controllers/cont26.ts",
+                  "src/orders/controllers/cont10.ts",
+                  "src/orders/controllers/cont10.ts",
+                  "src/shared/util3.ts"
+                ]
+              },
+              {
+                "path": "src/catalog/domain/doma7.ts",
+                "imports": [
+                  "src/shared/util1.ts",
+                  "src/catalog/controllers/cont29.ts",
+                  "src/catalog/domain/doma7.ts",
+                  "src/progress/services/serv39.ts"
+                ]
+              },
+              {
+                "path": "src/progress/repositories/repo8.ts",
+                "imports": [
+                  "src/shared/util4.ts",
+                  "zod"
+                ]
+              },
+              {
+                "path": "src/payments/services/serv38.ts",
+                "imports": [
+                  "src/orders/controllers/cont19.ts",
+                  "src/progress/controllers/cont34.ts",
+                  "src/shared/util3.ts",
+                  "src/orders/controllers/cont19.ts"
+                ]
+              },
+              {
+                "path": "src/payments/services/serv34.ts",
+                "imports": [
+                  "src/progress/services/serv7.ts",
+                  "zod",
+                  "src/shared/util4.ts"
+                ]
+              },
+              {
+                "path": "src/catalog/domain/doma32.ts",
+                "imports": [
+                  "src/progress/domain/ports/port12.ts",
+                  "src/progress/services/serv12.ts",
+                  "src/payments/repositories/repo28.ts",
+                  "src/orders/domain/doma13.ts",
+                  "src/orders/repositories/repo39.ts"
+                ]
+              },
+              {
+                "path": "src/orders/repositories/repo11.ts",
+                "imports": [
+                  "src/orders/domain/doma11.ts",
+                  "src/orders/controllers/cont1.ts",
+                  "src/catalog/domain/doma10.ts"
+                ]
+              },
+              {
+                "path": "src/progress/services/serv19.ts",
+                "imports": [
+                  "src/progress/services/serv3.ts",
+                  "src/progress/services/serv24.ts",
+                  "src/shared/util1.ts",
+                  "src/payments/services/serv30.ts"
+                ]
+              },
+              {
+                "path": "src/progress/controllers/cont29.ts",
+                "imports": [
+                  "src/payments/controllers/cont37.ts",
+                  "src/progress/repositories/repo17.ts",
+                  "src/shared/util3.ts",
+                  "src/notifications/services/serv36.ts"
+                ]
+              },
+              {
+                "path": "src/catalog/domain/doma11.ts",
+                "imports": [
+                  "src/orders/repositories/repo35.ts",
+                  "zod",
+                  "src/orders/services/serv26.ts"
+                ]
+              },
+              {
+                "path": "src/catalog/services/serv26.ts",
+                "imports": [
+                  "src/payments/controllers/cont3.ts",
+                  "src/progress/controllers/cont28.ts",
+                  "src/progress/services/serv29.ts",
+                  "src/payments/repositories/repo5.ts",
+                  "src/progress/services/serv17.ts"
+                ]
+              },
+              {
+                "path": "src/progress/domain/doma7.ts",
+                "imports": [
+                  "src/notifications/domain/ports/port30.ts",
+                  "src/progress/controllers/cont9.ts",
+                  "src/notifications/repositories/repo22.ts",
+                  "src/shared/util4.ts",
+                  "src/notifications/services/serv17.ts"
+                ]
+              },
+              {
+                "path": "src/catalog/domain/doma22.ts",
+                "imports": [
+                  "src/progress/services/serv11.ts",
+                  "src/catalog/services/serv29.ts",
+                  "src/notifications/repositories/repo33.ts",
+                  "src/catalog/repositories/repo15.ts"
+                ]
+              },
+              {
+                "path": "src/progress/repositories/repo32.ts",
+                "imports": [
+                  "src/payments/services/serv6.ts",
+                  "src/payments/domain/doma34.ts",
+                  "src/orders/repositories/repo39.ts",
+                  "src/shared/util4.ts",
+                  "src/catalog/repositories/repo32.ts"
+                ]
+              },
+              {
+                "path": "src/orders/controllers/cont3.ts",
+                "imports": [
+                  "src/shared/util3.ts",
+                  "src/progress/domain/doma31.ts",
+                  "src/orders/repositories/repo17.ts"
+                ]
+              },
+              {
+                "path": "src/notifications/controllers/cont30.ts",
+                "imports": [
+                  "zod",
+                  "src/notifications/repositories/repo15.ts",
+                  "src/progress/controllers/cont25.ts",
+                  "src/notifications/domain/ports/port18.ts",
+                  "src/payments/controllers/cont11.ts"
+                ]
+              },
+              {
+                "path": "src/progress/repositories/repo14.ts",
+                "imports": [
+                  "src/payments/services/serv37.ts",
+                  "src/notifications/repositories/repo3.ts",
+                  "src/progress/domain/ports/port36.ts",
+                  "src/catalog/services/serv7.ts",
+                  "src/payments/services/serv37.ts"
+                ]
+              },
+              {
+                "path": "src/orders/domain/ports/port12.ts",
+                "imports": [
+                  "src/notifications/services/serv36.ts",
+                  "src/orders/domain/doma1.ts",
+                  "src/progress/domain/doma38.ts"
+                ]
+              },
+              {
+                "path": "src/notifications/domain/ports/port9.ts",
+                "imports": [
+                  "src/notifications/controllers/cont10.ts",
+                  "zod",
+                  "src/catalog/domain/ports/port3.ts",
+                  "src/orders/controllers/cont0.ts",
+                  "src/payments/controllers/cont19.ts"
+                ]
+              },
+              {
+                "path": "src/notifications/repositories/repo0.ts",
+                "imports": [
+                  "src/shared/util1.ts",
+                  "src/progress/repositories/repo4.ts",
+                  "src/shared/util1.ts"
+                ]
+              },
+              {
+                "path": "src/payments/repositories/repo13.ts",
+                "imports": [
+                  "src/orders/controllers/cont2.ts",
+                  "src/payments/repositories/repo22.ts",
+                  "src/catalog/repositories/repo2.ts",
+                  "src/shared/util2.ts",
+                  "src/payments/controllers/cont36.ts"
+                ]
+              },
+              {
+                "path": "src/progress/services/serv29.ts",
+                "imports": [
+                  "src/orders/services/serv18.ts",
+                  "src/orders/controllers/cont0.ts",
+                  "src/notifications/repositories/repo33.ts"
+                ]
+              },
+              {
+                "path": "src/progress/domain/ports/port12.ts",
+                "imports": [
+                  "src/catalog/services/serv6.ts",
+                  "zod"
+                ]
+              },
+              {
+                "path": "src/orders/controllers/cont11.ts",
+                "imports": [
+                  "src/orders/services/serv12.ts",
+                  "src/progress/services/serv12.ts",
+                  "src/shared/util4.ts",
+                  "src/orders/controllers/cont5.ts"
+                ]
+              },
+              {
+                "path": "src/catalog/controllers/cont25.ts",
+                "imports": [
+                  "src/shared/util3.ts",
+                  "src/notifications/repositories/repo15.ts",
+                  "src/orders/services/serv39.ts",
+                  "src/payments/controllers/cont5.ts",
+                  "src/notifications/domain/doma32.ts"
+                ]
+              },
+              {
+                "path": "src/notifications/domain/doma29.ts",
+                "imports": [
+                  "src/progress/controllers/cont26.ts",
+                  "src/orders/domain/doma29.ts",
+                  "src/notifications/services/serv6.ts"
+                ]
+              },
+              {
+                "path": "src/progress/controllers/cont33.ts",
+                "imports": [
+                  "src/payments/services/serv3.ts",
+                  "zod"
+                ]
+              },
+              {
+                "path": "src/progress/services/serv3.ts",
+                "imports": [
+                  "src/orders/repositories/repo28.ts",
+                  "src/progress/controllers/cont22.ts",
+                  "src/notifications/repositories/repo2.ts",
+                  "src/notifications/services/serv23.ts",
+                  "zod",
+                  "src/orders/repositories/repo28.ts"
+                ]
+              },
+              {
+                "path": "src/orders/domain/doma28.ts",
+                "imports": [
+                  "src/orders/controllers/cont25.ts",
+                  "src/payments/controllers/cont13.ts",
+                  "src/payments/controllers/cont24.ts"
+                ]
+              },
+              {
+                "path": "src/payments/repositories/repo10.ts",
+                "imports": [
+                  "src/orders/repositories/repo13.ts",
+                  "src/shared/util4.ts"
+                ]
+              },
+              {
+                "path": "src/payments/services/serv8.ts",
+                "imports": [
+                  "src/catalog/domain/doma37.ts",
+                  "src/payments/repositories/repo19.ts",
+                  "src/catalog/domain/doma37.ts"
+                ]
+              },
+              {
+                "path": "src/payments/domain/doma38.ts",
+                "imports": [
+                  "zod",
+                  "src/catalog/controllers/cont25.ts",
+                  "src/payments/domain/doma34.ts",
+                  "src/orders/services/serv18.ts"
+                ]
+              },
+              {
+                "path": "src/notifications/controllers/cont1.ts",
+                "imports": [
+                  "src/payments/domain/doma19.ts",
+                  "src/catalog/repositories/repo34.ts",
+                  "src/payments/domain/doma19.ts"
+                ]
+              },
+              {
+                "path": "src/payments/repositories/repo4.ts",
+                "imports": [
+                  "src/orders/domain/ports/port27.ts",
+                  "src/notifications/controllers/cont8.ts",
+                  "src/orders/services/serv16.ts",
+                  "zod",
+                  "src/payments/repositories/repo36.ts"
+                ]
+              },
+              {
+                "path": "src/notifications/domain/doma11.ts",
+                "imports": [
+                  "src/shared/util2.ts",
+                  "src/progress/repositories/repo0.ts",
+                  "src/orders/controllers/cont36.ts",
+                  "src/shared/util2.ts"
+                ]
+              },
+              {
+                "path": "src/orders/repositories/repo35.ts",
+                "imports": [
+                  "src/catalog/services/serv35.ts",
+                  "src/catalog/repositories/repo16.ts"
+                ]
+              },
+              {
+                "path": "src/orders/services/serv25.ts",
+                "imports": [
+                  "zod",
+                  "src/catalog/controllers/cont5.ts",
+                  "src/payments/domain/doma10.ts",
+                  "src/payments/repositories/repo10.ts",
+                  "zod",
+                  "zod"
+                ]
+              },
+              {
+                "path": "src/progress/repositories/repo38.ts",
+                "imports": [
+                  "zod",
+                  "src/catalog/services/serv3.ts",
+                  "zod",
+                  "src/payments/domain/ports/port18.ts",
+                  "src/payments/domain/ports/port36.ts",
+                  "zod"
+                ]
+              },
+              {
+                "path": "src/orders/services/serv0.ts",
+                "imports": [
+                  "src/orders/domain/ports/port33.ts",
+                  "src/catalog/services/serv16.ts",
+                  "src/progress/controllers/cont19.ts",
+                  "src/catalog/domain/doma14.ts",
+                  "src/orders/domain/ports/port33.ts"
+                ]
+              },
+              {
+                "path": "src/catalog/repositories/repo9.ts",
+                "imports": [
+                  "src/notifications/domain/ports/port33.ts",
+                  "src/notifications/domain/doma7.ts"
+                ]
+              },
+              {
+                "path": "src/orders/services/serv17.ts",
+                "imports": [
+                  "src/catalog/domain/doma5.ts",
+                  "src/payments/domain/doma11.ts",
+                  "src/notifications/domain/ports/port9.ts",
+                  "zod",
+                  "src/catalog/domain/doma5.ts"
+                ]
+              },
+              {
+                "path": "src/catalog/repositories/repo33.ts",
+                "imports": [
+                  "src/orders/domain/doma29.ts",
+                  "src/payments/domain/ports/port0.ts",
+                  "src/notifications/repositories/repo25.ts",
+                  "src/orders/domain/doma29.ts"
+                ]
+              },
+              {
+                "path": "src/payments/repositories/repo17.ts",
+                "imports": [
+                  "zod",
+                  "src/shared/util0.ts"
+                ]
+              },
+              {
+                "path": "src/orders/services/serv29.ts",
+                "imports": [
+                  "src/progress/domain/doma34.ts",
+                  "src/payments/services/serv11.ts",
+                  "src/catalog/domain/ports/port18.ts",
+                  "src/catalog/controllers/cont2.ts",
+                  "src/progress/domain/doma11.ts"
+                ]
+              },
+              {
+                "path": "src/payments/services/serv10.ts",
+                "imports": [
+                  "zod",
+                  "src/shared/util1.ts",
+                  "src/orders/domain/doma34.ts",
+                  "src/notifications/domain/doma38.ts"
+                ]
+              },
+              {
+                "path": "src/orders/repositories/repo7.ts",
+                "imports": [
+                  "src/progress/controllers/cont6.ts",
+                  "zod",
+                  "zod"
+                ]
+              },
+              {
+                "path": "src/catalog/repositories/repo25.ts",
+                "imports": [
+                  "src/payments/services/serv29.ts",
+                  "src/orders/repositories/repo3.ts",
+                  "src/orders/services/serv6.ts"
+                ]
+              },
+              {
+                "path": "src/notifications/repositories/repo19.ts",
+                "imports": [
+                  "src/notifications/services/serv1.ts",
+                  "zod",
+                  "src/notifications/services/serv1.ts"
+                ]
+              },
+              {
+                "path": "src/progress/controllers/cont26.ts",
+                "imports": [
+                  "src/notifications/controllers/cont18.ts",
+                  "src/notifications/domain/ports/port0.ts",
+                  "src/catalog/domain/ports/port27.ts",
+                  "src/notifications/domain/doma31.ts",
+                  "src/payments/repositories/repo12.ts"
+                ]
+              },
+              {
+                "path": "src/notifications/repositories/repo4.ts",
+                "imports": [
+                  "src/orders/domain/doma2.ts",
+                  "src/orders/domain/doma7.ts",
+                  "src/shared/util4.ts",
+                  "src/shared/util3.ts",
+                  "src/orders/repositories/repo32.ts"
+                ]
+              },
+              {
+                "path": "src/catalog/services/serv10.ts",
+                "imports": [
+                  "src/progress/repositories/repo10.ts",
+                  "src/catalog/repositories/repo18.ts",
+                  "src/shared/util1.ts",
+                  "src/catalog/services/serv3.ts"
+                ]
+              },
+              {
+                "path": "src/progress/controllers/cont27.ts",
+                "imports": [
+                  "src/payments/domain/ports/port3.ts",
+                  "src/notifications/controllers/cont23.ts"
+                ]
+              },
+              {
+                "path": "src/catalog/services/serv16.ts",
+                "imports": [
+                  "src/progress/domain/ports/port9.ts",
+                  "src/shared/util2.ts",
+                  "zod",
+                  "src/catalog/controllers/cont21.ts"
+                ]
+              },
+              {
+                "path": "src/orders/controllers/cont27.ts",
+                "imports": [
+                  "src/payments/domain/ports/port36.ts",
+                  "src/payments/repositories/repo3.ts",
+                  "src/progress/services/serv3.ts",
+                  "src/payments/controllers/cont10.ts",
+                  "src/payments/domain/ports/port36.ts"
+                ]
+              },
+              {
+                "path": "src/catalog/repositories/repo28.ts",
+                "imports": [
+                  "src/catalog/services/serv39.ts",
+                  "src/catalog/controllers/cont15.ts",
+                  "src/shared/util3.ts",
+                  "src/notifications/services/serv11.ts",
+                  "src/progress/controllers/cont2.ts"
+                ]
+              },
+              {
+                "path": "src/notifications/controllers/cont0.ts",
+                "imports": [
+                  "src/catalog/services/serv4.ts",
+                  "src/notifications/services/serv0.ts"
+                ]
+              },
+              {
+                "path": "src/progress/controllers/cont1.ts",
+                "imports": [
+                  "src/notifications/domain/doma26.ts",
+                  "src/payments/domain/ports/port18.ts",
+                  "src/payments/controllers/cont12.ts",
+                  "src/catalog/repositories/repo7.ts",
+                  "zod",
+                  "src/notifications/domain/doma26.ts"
+                ]
+              },
+              {
+                "path": "src/notifications/repositories/repo17.ts",
+                "imports": [
+                  "src/catalog/services/serv7.ts",
+                  "zod"
+                ]
+              },
+              {
+                "path": "src/catalog/domain/ports/port36.ts",
+                "imports": [
+                  "src/payments/services/serv35.ts",
+                  "zod"
+                ]
+              },
+              {
+                "path": "src/progress/services/serv12.ts",
+                "imports": [
+                  "src/catalog/repositories/repo18.ts",
+                  "src/progress/repositories/repo37.ts",
+                  "src/progress/controllers/cont26.ts",
+                  "src/notifications/services/serv14.ts",
+                  "src/notifications/domain/doma17.ts"
+                ]
+              },
+              {
+                "path": "src/progress/services/serv1.ts",
+                "imports": [
+                  "src/payments/domain/ports/port6.ts",
+                  "src/orders/domain/ports/port18.ts",
+                  "src/payments/services/serv10.ts",
+                  "src/shared/util3.ts",
+                  "src/progress/services/serv29.ts"
+                ]
+              },
+              {
+                "path": "src/orders/domain/doma32.ts",
+                "imports": [
+                  "src/orders/repositories/repo16.ts",
+                  "src/notifications/domain/doma1.ts",
+                  "src/payments/services/serv27.ts"
+                ]
+              },
+              {
+                "path": "src/orders/domain/doma14.ts",
+                "imports": [
+                  "src/payments/domain/doma8.ts",
+                  "src/catalog/domain/ports/port12.ts",
+                  "src/shared/util2.ts",
+                  "src/catalog/domain/doma35.ts"
+                ]
+              },
+              {
+                "path": "src/payments/controllers/cont32.ts",
+                "imports": [
+                  "zod",
+                  "src/shared/util1.ts",
+                  "src/shared/util2.ts",
+                  "src/payments/services/serv22.ts"
+                ]
+              },
+              {
+                "path": "src/notifications/repositories/repo31.ts",
+                "imports": [
+                  "src/payments/controllers/cont4.ts",
+                  "src/orders/domain/doma32.ts",
+                  "src/catalog/services/serv13.ts",
+                  "src/payments/services/serv17.ts"
+                ]
+              },
+              {
+                "path": "src/notifications/controllers/cont22.ts",
+                "imports": [
+                  "src/notifications/repositories/repo7.ts",
+                  "src/orders/domain/doma37.ts",
+                  "src/catalog/controllers/cont2.ts"
+                ]
+              },
+              {
+                "path": "src/catalog/controllers/cont12.ts",
+                "imports": [
+                  "zod",
+                  "src/progress/services/serv21.ts",
+                  "src/shared/util4.ts",
+                  "src/orders/controllers/cont17.ts",
+                  "src/shared/util1.ts",
+                  "zod"
+                ]
+              },
+              {
+                "path": "src/catalog/repositories/repo27.ts",
+                "imports": [
+                  "src/payments/controllers/cont22.ts",
+                  "src/progress/domain/ports/port36.ts",
+                  "src/payments/repositories/repo27.ts",
+                  "zod",
+                  "src/catalog/services/serv9.ts"
+                ]
+              },
+              {
+                "path": "src/catalog/repositories/repo36.ts",
+                "imports": [
+                  "src/notifications/domain/doma7.ts",
+                  "src/progress/domain/ports/port6.ts"
+                ]
+              },
+              {
+                "path": "src/progress/services/serv9.ts",
+                "imports": [
+                  "src/orders/repositories/repo0.ts",
+                  "src/notifications/repositories/repo21.ts",
+                  "src/shared/util3.ts",
+                  "src/notifications/repositories/repo16.ts",
+                  "src/payments/controllers/cont25.ts"
+                ]
+              },
+              {
+                "path": "src/progress/controllers/cont17.ts",
+                "imports": [
+                  "zod",
+                  "src/shared/util3.ts"
+                ]
+              },
+              {
+                "path": "src/progress/repositories/repo31.ts",
+                "imports": [
+                  "src/shared/util2.ts",
+                  "src/shared/util3.ts",
+                  "src/catalog/repositories/repo30.ts",
+                  "src/catalog/controllers/cont18.ts",
+                  "src/progress/services/serv35.ts"
+                ]
+              },
+              {
+                "path": "src/orders/services/serv27.ts",
+                "imports": [
+                  "src/shared/util3.ts",
+                  "src/payments/domain/ports/port12.ts",
+                  "src/notifications/repositories/repo21.ts"
+                ]
+              },
+              {
+                "path": "src/catalog/services/serv29.ts",
+                "imports": [
+                  "src/catalog/domain/doma35.ts",
+                  "src/catalog/repositories/repo34.ts",
+                  "src/orders/domain/doma38.ts",
+                  "src/orders/domain/doma5.ts",
+                  "src/payments/services/serv21.ts"
+                ]
+              },
+              {
+                "path": "src/orders/repositories/repo12.ts",
+                "imports": [
+                  "src/progress/services/serv11.ts",
+                  "src/catalog/controllers/cont5.ts",
+                  "src/shared/util4.ts",
+                  "src/notifications/repositories/repo7.ts"
+                ]
+              },
+              {
+                "path": "src/orders/services/serv39.ts",
+                "imports": [
+                  "src/notifications/controllers/cont3.ts",
+                  "src/catalog/domain/doma23.ts",
+                  "src/shared/util1.ts",
+                  "src/payments/services/serv19.ts",
+                  "src/orders/domain/ports/port33.ts"
+                ]
+              },
+              {
+                "path": "src/orders/repositories/repo10.ts",
+                "imports": [
+                  "src/progress/domain/doma13.ts",
+                  "src/payments/controllers/cont30.ts",
+                  "src/catalog/repositories/repo2.ts",
+                  "src/catalog/repositories/repo27.ts",
+                  "src/catalog/repositories/repo30.ts"
+                ]
+              },
+              {
+                "path": "src/progress/repositories/repo0.ts",
+                "imports": [
+                  "src/catalog/services/serv11.ts",
+                  "src/progress/domain/doma20.ts",
+                  "src/notifications/repositories/repo26.ts",
+                  "src/shared/util3.ts"
+                ]
+              },
+              {
+                "path": "src/payments/controllers/cont39.ts",
+                "imports": [
+                  "zod",
+                  "zod",
+                  "src/payments/domain/ports/port36.ts",
+                  "src/progress/domain/doma5.ts",
+                  "zod"
+                ]
+              },
+              {
+                "path": "src/orders/domain/ports/port15.ts",
+                "imports": [
+                  "src/notifications/repositories/repo31.ts",
+                  "src/payments/controllers/cont8.ts",
+                  "src/payments/repositories/repo36.ts",
+                  "src/payments/services/serv6.ts"
+                ]
+              },
+              {
+                "path": "src/payments/services/serv26.ts",
+                "imports": [
+                  "src/orders/repositories/repo16.ts",
+                  "src/notifications/services/serv28.ts",
+                  "src/progress/controllers/cont22.ts",
+                  "src/progress/domain/doma7.ts",
+                  "src/shared/util1.ts"
+                ]
+              },
+              {
+                "path": "src/progress/domain/doma1.ts",
+                "imports": [
+                  "src/progress/controllers/cont18.ts",
+                  "src/shared/util4.ts",
+                  "src/progress/services/serv3.ts",
+                  "src/catalog/domain/doma32.ts",
+                  "src/progress/controllers/cont18.ts"
+                ]
+              },
+              {
+                "path": "src/payments/repositories/repo1.ts",
+                "imports": [
+                  "src/payments/domain/doma16.ts",
+                  "zod",
+                  "src/progress/controllers/cont9.ts",
+                  "src/shared/util4.ts"
+                ]
+              },
+              {
+                "path": "src/orders/controllers/cont28.ts",
+                "imports": [
+                  "src/payments/controllers/cont32.ts",
+                  "src/orders/domain/doma20.ts",
+                  "src/notifications/services/serv32.ts"
+                ]
+              },
+              {
+                "path": "src/orders/controllers/cont6.ts",
+                "imports": [
+                  "src/payments/controllers/cont31.ts",
+                  "src/orders/controllers/cont26.ts",
+                  "src/orders/controllers/cont31.ts",
+                  "src/notifications/controllers/cont1.ts"
+                ]
+              },
+              {
+                "path": "src/progress/controllers/cont39.ts",
+                "imports": [
+                  "src/progress/services/serv2.ts",
+                  "src/progress/domain/doma13.ts"
+                ]
+              },
+              {
+                "path": "src/catalog/repositories/repo4.ts",
+                "imports": [
+                  "src/shared/util0.ts",
+                  "src/notifications/controllers/cont30.ts"
+                ]
+              },
+              {
+                "path": "src/notifications/controllers/cont11.ts",
+                "imports": [
+                  "src/catalog/repositories/repo7.ts",
+                  "src/notifications/controllers/cont26.ts",
+                  "src/catalog/repositories/repo7.ts"
+                ]
+              },
+              {
+                "path": "src/progress/repositories/repo22.ts",
+                "imports": [
+                  "src/notifications/repositories/repo20.ts",
+                  "src/notifications/repositories/repo33.ts"
+                ]
+              },
+              {
+                "path": "src/catalog/services/serv19.ts",
+                "imports": [
+                  "zod",
+                  "zod",
+                  "src/orders/domain/doma37.ts",
+                  "zod"
+                ]
+              },
+              {
+                "path": "src/payments/domain/ports/port27.ts",
+                "imports": [
+                  "src/orders/services/serv29.ts",
+                  "src/notifications/services/serv37.ts",
+                  "src/shared/util0.ts"
+                ]
+              },
+              {
+                "path": "src/orders/controllers/cont7.ts",
+                "imports": [
+                  "src/orders/repositories/repo36.ts",
+                  "src/orders/domain/ports/port12.ts",
+                  "src/shared/util3.ts"
+                ]
+              },
+              {
+                "path": "src/notifications/services/serv10.ts",
+                "imports": [
+                  "src/catalog/repositories/repo20.ts",
+                  "src/shared/util1.ts"
+                ]
+              },
+              {
+                "path": "src/catalog/domain/ports/port6.ts",
+                "imports": [
+                  "src/progress/services/serv17.ts",
+                  "src/shared/util1.ts",
+                  "src/shared/util2.ts",
+                  "src/notifications/domain/doma4.ts",
+                  "zod"
+                ]
+              },
+              {
+                "path": "src/notifications/repositories/repo26.ts",
+                "imports": [
+                  "src/progress/services/serv36.ts",
+                  "zod",
+                  "src/payments/controllers/cont9.ts",
+                  "src/orders/services/serv9.ts",
+                  "src/notifications/controllers/cont15.ts"
+                ]
+              },
+              {
+                "path": "src/payments/controllers/cont18.ts",
+                "imports": [
+                  "src/shared/util1.ts",
+                  "zod",
+                  "src/shared/util3.ts",
+                  "zod"
+                ]
+              },
+              {
+                "path": "src/catalog/controllers/cont10.ts",
+                "imports": [
+                  "src/notifications/domain/doma34.ts",
+                  "src/orders/repositories/repo5.ts",
+                  "src/progress/repositories/repo4.ts",
+                  "src/catalog/controllers/cont30.ts",
+                  "src/notifications/domain/doma34.ts"
+                ]
+              },
+              {
+                "path": "src/orders/services/serv18.ts",
+                "imports": [
+                  "src/orders/services/serv13.ts",
+                  "src/payments/services/serv0.ts",
+                  "src/orders/services/serv30.ts"
+                ]
+              },
+              {
+                "path": "src/notifications/repositories/repo10.ts",
+                "imports": [
+                  "src/notifications/domain/doma10.ts",
+                  "src/progress/domain/ports/port24.ts",
+                  "src/payments/repositories/repo29.ts",
+                  "src/notifications/repositories/repo1.ts",
+                  "zod"
+                ]
+              },
+              {
+                "path": "src/orders/repositories/repo29.ts",
+                "imports": [
+                  "src/notifications/controllers/cont17.ts",
+                  "src/orders/repositories/repo0.ts",
+                  "src/payments/domain/doma29.ts",
+                  "zod",
+                  "src/notifications/controllers/cont17.ts"
+                ]
+              },
+              {
+                "path": "src/payments/domain/doma37.ts",
+                "imports": [
+                  "zod",
+                  "src/progress/domain/doma1.ts"
+                ]
+              },
+              {
+                "path": "src/progress/domain/doma5.ts",
+                "imports": [
+                  "src/payments/repositories/repo7.ts",
+                  "src/progress/domain/ports/port9.ts",
+                  "src/progress/services/serv5.ts",
+                  "src/notifications/domain/doma4.ts"
+                ]
+              },
+              {
+                "path": "src/progress/repositories/repo30.ts",
+                "imports": [
+                  "src/catalog/domain/ports/port15.ts",
+                  "src/payments/services/serv39.ts",
+                  "src/progress/services/serv30.ts",
+                  "src/progress/repositories/repo9.ts"
+                ]
+              },
+              {
+                "path": "src/payments/services/serv0.ts",
+                "imports": [
+                  "src/catalog/domain/doma32.ts",
+                  "src/notifications/controllers/cont11.ts",
+                  "src/payments/domain/ports/port30.ts",
+                  "src/orders/domain/doma25.ts"
+                ]
+              },
+              {
+                "path": "src/payments/repositories/repo20.ts",
+                "imports": [
+                  "src/progress/controllers/cont37.ts",
+                  "src/orders/domain/doma37.ts"
+                ]
+              },
+              {
+                "path": "src/catalog/repositories/repo22.ts",
+                "imports": [
+                  "src/orders/services/serv25.ts",
+                  "src/orders/controllers/cont16.ts",
+                  "src/shared/util1.ts",
+                  "src/shared/util0.ts",
+                  "src/orders/services/serv25.ts"
+                ]
+              },
+              {
+                "path": "src/progress/repositories/repo6.ts",
+                "imports": [
+                  "src/orders/controllers/cont25.ts",
+                  "src/orders/repositories/repo17.ts",
+                  "src/notifications/controllers/cont1.ts",
+                  "src/notifications/controllers/cont36.ts"
+                ]
+              },
+              {
+                "path": "src/progress/services/serv38.ts",
+                "imports": [
+                  "src/shared/util2.ts",
+                  "src/catalog/services/serv39.ts",
+                  "src/notifications/domain/doma8.ts",
+                  "src/shared/util2.ts"
+                ]
+              },
+              {
+                "path": "src/notifications/services/serv11.ts",
+                "imports": [
+                  "src/notifications/repositories/repo22.ts",
+                  "src/catalog/domain/ports/port18.ts",
+                  "src/orders/services/serv37.ts"
+                ]
+              },
+              {
+                "path": "src/catalog/services/serv35.ts",
+                "imports": [
+                  "zod",
+                  "src/orders/repositories/repo1.ts",
+                  "zod"
+                ]
+              },
+              {
+                "path": "src/payments/services/serv13.ts",
+                "imports": [
+                  "src/notifications/repositories/repo4.ts",
+                  "src/shared/util2.ts",
+                  "src/shared/util3.ts",
+                  "src/payments/services/serv12.ts"
+                ]
+              }
+            ]
+          },
+          "expected": [
+            {
+              "file": "src/catalog/controllers/cont10.ts",
+              "import": "src/orders/repositories/repo5.ts",
+              "from": "controller",
+              "to": "repository",
+              "rule": "controller-skips-service"
+            },
+            {
+              "file": "src/catalog/controllers/cont10.ts",
+              "import": "src/progress/repositories/repo4.ts",
+              "from": "controller",
+              "to": "repository",
+              "rule": "controller-skips-service"
+            },
+            {
+              "file": "src/catalog/controllers/cont13.ts",
+              "import": "src/catalog/repositories/repo24.ts",
+              "from": "controller",
+              "to": "repository",
+              "rule": "controller-skips-service"
+            },
+            {
+              "file": "src/catalog/controllers/cont20.ts",
+              "import": "src/payments/repositories/repo25.ts",
+              "from": "controller",
+              "to": "repository",
+              "rule": "controller-skips-service"
+            },
+            {
+              "file": "src/catalog/controllers/cont20.ts",
+              "import": "src/payments/repositories/repo39.ts",
+              "from": "controller",
+              "to": "repository",
+              "rule": "controller-skips-service"
+            },
+            {
+              "file": "src/catalog/controllers/cont25.ts",
+              "import": "src/notifications/repositories/repo15.ts",
+              "from": "controller",
+              "to": "repository",
+              "rule": "controller-skips-service"
+            },
+            {
+              "file": "src/catalog/controllers/cont39.ts",
+              "import": "src/payments/repositories/repo16.ts",
+              "from": "controller",
+              "to": "repository",
+              "rule": "controller-skips-service"
+            },
+            {
+              "file": "src/catalog/controllers/cont5.ts",
+              "import": "src/notifications/repositories/repo14.ts",
+              "from": "controller",
+              "to": "repository",
+              "rule": "controller-skips-service"
+            },
+            {
+              "file": "src/catalog/domain/doma11.ts",
+              "import": "src/orders/repositories/repo35.ts",
+              "from": "domain",
+              "to": "repository",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/catalog/domain/doma11.ts",
+              "import": "src/orders/services/serv26.ts",
+              "from": "domain",
+              "to": "service",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/catalog/domain/doma2.ts",
+              "import": "src/notifications/repositories/repo39.ts",
+              "from": "domain",
+              "to": "repository",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/catalog/domain/doma22.ts",
+              "import": "src/catalog/repositories/repo15.ts",
+              "from": "domain",
+              "to": "repository",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/catalog/domain/doma22.ts",
+              "import": "src/catalog/services/serv29.ts",
+              "from": "domain",
+              "to": "service",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/catalog/domain/doma22.ts",
+              "import": "src/notifications/repositories/repo33.ts",
+              "from": "domain",
+              "to": "repository",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/catalog/domain/doma22.ts",
+              "import": "src/progress/services/serv11.ts",
+              "from": "domain",
+              "to": "service",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/catalog/domain/doma28.ts",
+              "import": "src/orders/controllers/cont13.ts",
+              "from": "domain",
+              "to": "controller",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/catalog/domain/doma28.ts",
+              "import": "src/orders/controllers/cont14.ts",
+              "from": "domain",
+              "to": "controller",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/catalog/domain/doma28.ts",
+              "import": "src/payments/services/serv23.ts",
+              "from": "domain",
+              "to": "service",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/catalog/domain/doma32.ts",
+              "import": "src/orders/repositories/repo39.ts",
+              "from": "domain",
+              "to": "repository",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/catalog/domain/doma32.ts",
+              "import": "src/payments/repositories/repo28.ts",
+              "from": "domain",
+              "to": "repository",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/catalog/domain/doma32.ts",
+              "import": "src/progress/services/serv12.ts",
+              "from": "domain",
+              "to": "service",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/catalog/domain/doma7.ts",
+              "import": "src/catalog/controllers/cont29.ts",
+              "from": "domain",
+              "to": "controller",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/catalog/domain/doma7.ts",
+              "import": "src/progress/services/serv39.ts",
+              "from": "domain",
+              "to": "service",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/catalog/domain/ports/port0.ts",
+              "import": "src/catalog/repositories/repo22.ts",
+              "from": "domain",
+              "to": "repository",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/catalog/domain/ports/port0.ts",
+              "import": "src/notifications/repositories/repo22.ts",
+              "from": "domain",
+              "to": "repository",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/catalog/domain/ports/port3.ts",
+              "import": "src/catalog/controllers/cont24.ts",
+              "from": "domain",
+              "to": "controller",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/catalog/domain/ports/port3.ts",
+              "import": "src/catalog/repositories/repo7.ts",
+              "from": "domain",
+              "to": "repository",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/catalog/domain/ports/port36.ts",
+              "import": "src/payments/services/serv35.ts",
+              "from": "domain",
+              "to": "service",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/catalog/domain/ports/port6.ts",
+              "import": "src/progress/services/serv17.ts",
+              "from": "domain",
+              "to": "service",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/catalog/domain/ports/port9.ts",
+              "import": "src/notifications/controllers/cont37.ts",
+              "from": "domain",
+              "to": "controller",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/catalog/domain/ports/port9.ts",
+              "import": "src/orders/repositories/repo17.ts",
+              "from": "domain",
+              "to": "repository",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/catalog/domain/ports/port9.ts",
+              "import": "src/payments/repositories/repo33.ts",
+              "from": "domain",
+              "to": "repository",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/catalog/repositories/repo15.ts",
+              "import": "src/payments/services/serv15.ts",
+              "from": "repository",
+              "to": "service",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/catalog/repositories/repo22.ts",
+              "import": "src/orders/controllers/cont16.ts",
+              "from": "repository",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/catalog/repositories/repo22.ts",
+              "import": "src/orders/services/serv25.ts",
+              "from": "repository",
+              "to": "service",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/catalog/repositories/repo25.ts",
+              "import": "src/orders/services/serv6.ts",
+              "from": "repository",
+              "to": "service",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/catalog/repositories/repo25.ts",
+              "import": "src/payments/services/serv29.ts",
+              "from": "repository",
+              "to": "service",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/catalog/repositories/repo27.ts",
+              "import": "src/catalog/services/serv9.ts",
+              "from": "repository",
+              "to": "service",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/catalog/repositories/repo27.ts",
+              "import": "src/payments/controllers/cont22.ts",
+              "from": "repository",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/catalog/repositories/repo28.ts",
+              "import": "src/catalog/controllers/cont15.ts",
+              "from": "repository",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/catalog/repositories/repo28.ts",
+              "import": "src/catalog/services/serv39.ts",
+              "from": "repository",
+              "to": "service",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/catalog/repositories/repo28.ts",
+              "import": "src/notifications/services/serv11.ts",
+              "from": "repository",
+              "to": "service",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/catalog/repositories/repo28.ts",
+              "import": "src/progress/controllers/cont2.ts",
+              "from": "repository",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/catalog/repositories/repo32.ts",
+              "import": "src/notifications/services/serv23.ts",
+              "from": "repository",
+              "to": "service",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/catalog/repositories/repo4.ts",
+              "import": "src/notifications/controllers/cont30.ts",
+              "from": "repository",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/catalog/services/serv10.ts",
+              "import": "src/catalog/repositories/repo18.ts",
+              "from": "service",
+              "to": "repository",
+              "rule": "service-needs-port"
+            },
+            {
+              "file": "src/catalog/services/serv10.ts",
+              "import": "src/progress/repositories/repo10.ts",
+              "from": "service",
+              "to": "repository",
+              "rule": "service-needs-port"
+            },
+            {
+              "file": "src/catalog/services/serv11.ts",
+              "import": "src/catalog/controllers/cont13.ts",
+              "from": "service",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/catalog/services/serv11.ts",
+              "import": "src/orders/repositories/repo3.ts",
+              "from": "service",
+              "to": "repository",
+              "rule": "service-needs-port"
+            },
+            {
+              "file": "src/catalog/services/serv16.ts",
+              "import": "src/catalog/controllers/cont21.ts",
+              "from": "service",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/catalog/services/serv26.ts",
+              "import": "src/payments/controllers/cont3.ts",
+              "from": "service",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/catalog/services/serv26.ts",
+              "import": "src/payments/repositories/repo5.ts",
+              "from": "service",
+              "to": "repository",
+              "rule": "service-needs-port"
+            },
+            {
+              "file": "src/catalog/services/serv26.ts",
+              "import": "src/progress/controllers/cont28.ts",
+              "from": "service",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/catalog/services/serv29.ts",
+              "import": "src/catalog/repositories/repo34.ts",
+              "from": "service",
+              "to": "repository",
+              "rule": "service-needs-port"
+            },
+            {
+              "file": "src/catalog/services/serv35.ts",
+              "import": "src/orders/repositories/repo1.ts",
+              "from": "service",
+              "to": "repository",
+              "rule": "service-needs-port"
+            },
+            {
+              "file": "src/catalog/services/serv37.ts",
+              "import": "src/catalog/controllers/cont33.ts",
+              "from": "service",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/catalog/services/serv37.ts",
+              "import": "src/payments/repositories/repo34.ts",
+              "from": "service",
+              "to": "repository",
+              "rule": "service-needs-port"
+            },
+            {
+              "file": "src/catalog/services/serv4.ts",
+              "import": "src/catalog/repositories/repo7.ts",
+              "from": "service",
+              "to": "repository",
+              "rule": "service-needs-port"
+            },
+            {
+              "file": "src/catalog/services/serv4.ts",
+              "import": "src/notifications/repositories/repo15.ts",
+              "from": "service",
+              "to": "repository",
+              "rule": "service-needs-port"
+            },
+            {
+              "file": "src/notifications/controllers/cont1.ts",
+              "import": "src/catalog/repositories/repo34.ts",
+              "from": "controller",
+              "to": "repository",
+              "rule": "controller-skips-service"
+            },
+            {
+              "file": "src/notifications/controllers/cont11.ts",
+              "import": "src/catalog/repositories/repo7.ts",
+              "from": "controller",
+              "to": "repository",
+              "rule": "controller-skips-service"
+            },
+            {
+              "file": "src/notifications/controllers/cont15.ts",
+              "import": "src/payments/repositories/repo17.ts",
+              "from": "controller",
+              "to": "repository",
+              "rule": "controller-skips-service"
+            },
+            {
+              "file": "src/notifications/controllers/cont15.ts",
+              "import": "src/progress/repositories/repo34.ts",
+              "from": "controller",
+              "to": "repository",
+              "rule": "controller-skips-service"
+            },
+            {
+              "file": "src/notifications/controllers/cont17.ts",
+              "import": "src/payments/repositories/repo36.ts",
+              "from": "controller",
+              "to": "repository",
+              "rule": "controller-skips-service"
+            },
+            {
+              "file": "src/notifications/controllers/cont22.ts",
+              "import": "src/notifications/repositories/repo7.ts",
+              "from": "controller",
+              "to": "repository",
+              "rule": "controller-skips-service"
+            },
+            {
+              "file": "src/notifications/controllers/cont30.ts",
+              "import": "src/notifications/repositories/repo15.ts",
+              "from": "controller",
+              "to": "repository",
+              "rule": "controller-skips-service"
+            },
+            {
+              "file": "src/notifications/domain/doma11.ts",
+              "import": "src/orders/controllers/cont36.ts",
+              "from": "domain",
+              "to": "controller",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/notifications/domain/doma11.ts",
+              "import": "src/progress/repositories/repo0.ts",
+              "from": "domain",
+              "to": "repository",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/notifications/domain/doma14.ts",
+              "import": "src/notifications/controllers/cont1.ts",
+              "from": "domain",
+              "to": "controller",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/notifications/domain/doma19.ts",
+              "import": "src/catalog/controllers/cont32.ts",
+              "from": "domain",
+              "to": "controller",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/notifications/domain/doma19.ts",
+              "import": "src/progress/controllers/cont2.ts",
+              "from": "domain",
+              "to": "controller",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/notifications/domain/doma29.ts",
+              "import": "src/notifications/services/serv6.ts",
+              "from": "domain",
+              "to": "service",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/notifications/domain/doma29.ts",
+              "import": "src/progress/controllers/cont26.ts",
+              "from": "domain",
+              "to": "controller",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/notifications/domain/doma35.ts",
+              "import": "src/notifications/repositories/repo23.ts",
+              "from": "domain",
+              "to": "repository",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/notifications/domain/ports/port27.ts",
+              "import": "src/orders/repositories/repo22.ts",
+              "from": "domain",
+              "to": "repository",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/notifications/domain/ports/port39.ts",
+              "import": "src/catalog/repositories/repo28.ts",
+              "from": "domain",
+              "to": "repository",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/notifications/domain/ports/port39.ts",
+              "import": "src/notifications/repositories/repo28.ts",
+              "from": "domain",
+              "to": "repository",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/notifications/domain/ports/port39.ts",
+              "import": "src/notifications/services/serv7.ts",
+              "from": "domain",
+              "to": "service",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/notifications/domain/ports/port39.ts",
+              "import": "src/progress/repositories/repo7.ts",
+              "from": "domain",
+              "to": "repository",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/notifications/domain/ports/port9.ts",
+              "import": "src/notifications/controllers/cont10.ts",
+              "from": "domain",
+              "to": "controller",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/notifications/domain/ports/port9.ts",
+              "import": "src/orders/controllers/cont0.ts",
+              "from": "domain",
+              "to": "controller",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/notifications/domain/ports/port9.ts",
+              "import": "src/payments/controllers/cont19.ts",
+              "from": "domain",
+              "to": "controller",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/notifications/repositories/repo11.ts",
+              "import": "src/catalog/controllers/cont19.ts",
+              "from": "repository",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/notifications/repositories/repo11.ts",
+              "import": "src/orders/services/serv19.ts",
+              "from": "repository",
+              "to": "service",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/notifications/repositories/repo11.ts",
+              "import": "src/payments/services/serv8.ts",
+              "from": "repository",
+              "to": "service",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/notifications/repositories/repo17.ts",
+              "import": "src/catalog/services/serv7.ts",
+              "from": "repository",
+              "to": "service",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/notifications/repositories/repo19.ts",
+              "import": "src/notifications/services/serv1.ts",
+              "from": "repository",
+              "to": "service",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/notifications/repositories/repo24.ts",
+              "import": "src/notifications/services/serv29.ts",
+              "from": "repository",
+              "to": "service",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/notifications/repositories/repo25.ts",
+              "import": "src/orders/services/serv38.ts",
+              "from": "repository",
+              "to": "service",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/notifications/repositories/repo25.ts",
+              "import": "src/payments/controllers/cont14.ts",
+              "from": "repository",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/notifications/repositories/repo25.ts",
+              "import": "src/payments/services/serv11.ts",
+              "from": "repository",
+              "to": "service",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/notifications/repositories/repo26.ts",
+              "import": "src/notifications/controllers/cont15.ts",
+              "from": "repository",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/notifications/repositories/repo26.ts",
+              "import": "src/orders/services/serv9.ts",
+              "from": "repository",
+              "to": "service",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/notifications/repositories/repo26.ts",
+              "import": "src/payments/controllers/cont9.ts",
+              "from": "repository",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/notifications/repositories/repo26.ts",
+              "import": "src/progress/services/serv36.ts",
+              "from": "repository",
+              "to": "service",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/notifications/repositories/repo31.ts",
+              "import": "src/catalog/services/serv13.ts",
+              "from": "repository",
+              "to": "service",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/notifications/repositories/repo31.ts",
+              "import": "src/payments/controllers/cont4.ts",
+              "from": "repository",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/notifications/repositories/repo31.ts",
+              "import": "src/payments/services/serv17.ts",
+              "from": "repository",
+              "to": "service",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/notifications/repositories/repo38.ts",
+              "import": "src/payments/services/serv12.ts",
+              "from": "repository",
+              "to": "service",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/notifications/services/serv1.ts",
+              "import": "src/notifications/repositories/repo26.ts",
+              "from": "service",
+              "to": "repository",
+              "rule": "service-needs-port"
+            },
+            {
+              "file": "src/notifications/services/serv1.ts",
+              "import": "src/payments/repositories/repo11.ts",
+              "from": "service",
+              "to": "repository",
+              "rule": "service-needs-port"
+            },
+            {
+              "file": "src/notifications/services/serv10.ts",
+              "import": "src/catalog/repositories/repo20.ts",
+              "from": "service",
+              "to": "repository",
+              "rule": "service-needs-port"
+            },
+            {
+              "file": "src/notifications/services/serv11.ts",
+              "import": "src/notifications/repositories/repo22.ts",
+              "from": "service",
+              "to": "repository",
+              "rule": "service-needs-port"
+            },
+            {
+              "file": "src/notifications/services/serv12.ts",
+              "import": "src/notifications/repositories/repo35.ts",
+              "from": "service",
+              "to": "repository",
+              "rule": "service-needs-port"
+            },
+            {
+              "file": "src/notifications/services/serv12.ts",
+              "import": "src/progress/repositories/repo29.ts",
+              "from": "service",
+              "to": "repository",
+              "rule": "service-needs-port"
+            },
+            {
+              "file": "src/notifications/services/serv8.ts",
+              "import": "src/orders/controllers/cont14.ts",
+              "from": "service",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/notifications/services/serv9.ts",
+              "import": "src/catalog/repositories/repo10.ts",
+              "from": "service",
+              "to": "repository",
+              "rule": "service-needs-port"
+            },
+            {
+              "file": "src/notifications/services/serv9.ts",
+              "import": "src/catalog/repositories/repo24.ts",
+              "from": "service",
+              "to": "repository",
+              "rule": "service-needs-port"
+            },
+            {
+              "file": "src/notifications/services/serv9.ts",
+              "import": "src/orders/repositories/repo20.ts",
+              "from": "service",
+              "to": "repository",
+              "rule": "service-needs-port"
+            },
+            {
+              "file": "src/orders/controllers/cont27.ts",
+              "import": "src/payments/repositories/repo3.ts",
+              "from": "controller",
+              "to": "repository",
+              "rule": "controller-skips-service"
+            },
+            {
+              "file": "src/orders/controllers/cont3.ts",
+              "import": "src/orders/repositories/repo17.ts",
+              "from": "controller",
+              "to": "repository",
+              "rule": "controller-skips-service"
+            },
+            {
+              "file": "src/orders/controllers/cont7.ts",
+              "import": "src/orders/repositories/repo36.ts",
+              "from": "controller",
+              "to": "repository",
+              "rule": "controller-skips-service"
+            },
+            {
+              "file": "src/orders/domain/doma10.ts",
+              "import": "src/catalog/controllers/cont33.ts",
+              "from": "domain",
+              "to": "controller",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/orders/domain/doma10.ts",
+              "import": "src/catalog/repositories/repo39.ts",
+              "from": "domain",
+              "to": "repository",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/orders/domain/doma13.ts",
+              "import": "src/catalog/repositories/repo28.ts",
+              "from": "domain",
+              "to": "repository",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/orders/domain/doma13.ts",
+              "import": "src/payments/services/serv23.ts",
+              "from": "domain",
+              "to": "service",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/orders/domain/doma2.ts",
+              "import": "src/payments/controllers/cont25.ts",
+              "from": "domain",
+              "to": "controller",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/orders/domain/doma2.ts",
+              "import": "src/payments/services/serv6.ts",
+              "from": "domain",
+              "to": "service",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/orders/domain/doma28.ts",
+              "import": "src/orders/controllers/cont25.ts",
+              "from": "domain",
+              "to": "controller",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/orders/domain/doma28.ts",
+              "import": "src/payments/controllers/cont13.ts",
+              "from": "domain",
+              "to": "controller",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/orders/domain/doma28.ts",
+              "import": "src/payments/controllers/cont24.ts",
+              "from": "domain",
+              "to": "controller",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/orders/domain/doma32.ts",
+              "import": "src/orders/repositories/repo16.ts",
+              "from": "domain",
+              "to": "repository",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/orders/domain/doma32.ts",
+              "import": "src/payments/services/serv27.ts",
+              "from": "domain",
+              "to": "service",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/orders/domain/doma38.ts",
+              "import": "src/catalog/controllers/cont28.ts",
+              "from": "domain",
+              "to": "controller",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/orders/domain/doma5.ts",
+              "import": "src/catalog/services/serv22.ts",
+              "from": "domain",
+              "to": "service",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/orders/domain/doma5.ts",
+              "import": "src/notifications/controllers/cont31.ts",
+              "from": "domain",
+              "to": "controller",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/orders/domain/doma5.ts",
+              "import": "src/payments/controllers/cont13.ts",
+              "from": "domain",
+              "to": "controller",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/orders/domain/ports/port12.ts",
+              "import": "src/notifications/services/serv36.ts",
+              "from": "domain",
+              "to": "service",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/orders/domain/ports/port15.ts",
+              "import": "src/notifications/repositories/repo31.ts",
+              "from": "domain",
+              "to": "repository",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/orders/domain/ports/port15.ts",
+              "import": "src/payments/controllers/cont8.ts",
+              "from": "domain",
+              "to": "controller",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/orders/domain/ports/port15.ts",
+              "import": "src/payments/repositories/repo36.ts",
+              "from": "domain",
+              "to": "repository",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/orders/domain/ports/port15.ts",
+              "import": "src/payments/services/serv6.ts",
+              "from": "domain",
+              "to": "service",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/orders/domain/ports/port18.ts",
+              "import": "src/payments/repositories/repo25.ts",
+              "from": "domain",
+              "to": "repository",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/orders/domain/ports/port36.ts",
+              "import": "src/catalog/controllers/cont14.ts",
+              "from": "domain",
+              "to": "controller",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/orders/domain/ports/port39.ts",
+              "import": "src/orders/repositories/repo38.ts",
+              "from": "domain",
+              "to": "repository",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/orders/domain/ports/port39.ts",
+              "import": "src/payments/controllers/cont1.ts",
+              "from": "domain",
+              "to": "controller",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/orders/domain/ports/port39.ts",
+              "import": "src/progress/repositories/repo8.ts",
+              "from": "domain",
+              "to": "repository",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/orders/domain/ports/port39.ts",
+              "import": "src/progress/services/serv9.ts",
+              "from": "domain",
+              "to": "service",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/orders/repositories/repo10.ts",
+              "import": "src/payments/controllers/cont30.ts",
+              "from": "repository",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/orders/repositories/repo11.ts",
+              "import": "src/orders/controllers/cont1.ts",
+              "from": "repository",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/orders/repositories/repo12.ts",
+              "import": "src/catalog/controllers/cont5.ts",
+              "from": "repository",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/orders/repositories/repo12.ts",
+              "import": "src/progress/services/serv11.ts",
+              "from": "repository",
+              "to": "service",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/orders/repositories/repo20.ts",
+              "import": "src/orders/services/serv29.ts",
+              "from": "repository",
+              "to": "service",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/orders/repositories/repo20.ts",
+              "import": "src/payments/controllers/cont29.ts",
+              "from": "repository",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/orders/repositories/repo29.ts",
+              "import": "src/notifications/controllers/cont17.ts",
+              "from": "repository",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/orders/repositories/repo30.ts",
+              "import": "src/orders/controllers/cont31.ts",
+              "from": "repository",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/orders/repositories/repo35.ts",
+              "import": "src/catalog/services/serv35.ts",
+              "from": "repository",
+              "to": "service",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/orders/repositories/repo7.ts",
+              "import": "src/progress/controllers/cont6.ts",
+              "from": "repository",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/orders/services/serv0.ts",
+              "import": "src/progress/controllers/cont19.ts",
+              "from": "service",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/orders/services/serv20.ts",
+              "import": "src/catalog/repositories/repo25.ts",
+              "from": "service",
+              "to": "repository",
+              "rule": "service-needs-port"
+            },
+            {
+              "file": "src/orders/services/serv20.ts",
+              "import": "src/payments/controllers/cont21.ts",
+              "from": "service",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/orders/services/serv25.ts",
+              "import": "src/catalog/controllers/cont5.ts",
+              "from": "service",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/orders/services/serv25.ts",
+              "import": "src/payments/repositories/repo10.ts",
+              "from": "service",
+              "to": "repository",
+              "rule": "service-needs-port"
+            },
+            {
+              "file": "src/orders/services/serv26.ts",
+              "import": "src/notifications/repositories/repo16.ts",
+              "from": "service",
+              "to": "repository",
+              "rule": "service-needs-port"
+            },
+            {
+              "file": "src/orders/services/serv26.ts",
+              "import": "src/progress/repositories/repo4.ts",
+              "from": "service",
+              "to": "repository",
+              "rule": "service-needs-port"
+            },
+            {
+              "file": "src/orders/services/serv27.ts",
+              "import": "src/notifications/repositories/repo21.ts",
+              "from": "service",
+              "to": "repository",
+              "rule": "service-needs-port"
+            },
+            {
+              "file": "src/orders/services/serv29.ts",
+              "import": "src/catalog/controllers/cont2.ts",
+              "from": "service",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/orders/services/serv39.ts",
+              "import": "src/notifications/controllers/cont3.ts",
+              "from": "service",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/payments/controllers/cont10.ts",
+              "import": "src/payments/repositories/repo17.ts",
+              "from": "controller",
+              "to": "repository",
+              "rule": "controller-skips-service"
+            },
+            {
+              "file": "src/payments/controllers/cont10.ts",
+              "import": "src/payments/repositories/repo39.ts",
+              "from": "controller",
+              "to": "repository",
+              "rule": "controller-skips-service"
+            },
+            {
+              "file": "src/payments/controllers/cont12.ts",
+              "import": "src/catalog/repositories/repo21.ts",
+              "from": "controller",
+              "to": "repository",
+              "rule": "controller-skips-service"
+            },
+            {
+              "file": "src/payments/controllers/cont15.ts",
+              "import": "src/payments/repositories/repo35.ts",
+              "from": "controller",
+              "to": "repository",
+              "rule": "controller-skips-service"
+            },
+            {
+              "file": "src/payments/controllers/cont19.ts",
+              "import": "src/progress/repositories/repo39.ts",
+              "from": "controller",
+              "to": "repository",
+              "rule": "controller-skips-service"
+            },
+            {
+              "file": "src/payments/controllers/cont31.ts",
+              "import": "src/catalog/repositories/repo31.ts",
+              "from": "controller",
+              "to": "repository",
+              "rule": "controller-skips-service"
+            },
+            {
+              "file": "src/payments/controllers/cont31.ts",
+              "import": "src/progress/repositories/repo14.ts",
+              "from": "controller",
+              "to": "repository",
+              "rule": "controller-skips-service"
+            },
+            {
+              "file": "src/payments/domain/doma17.ts",
+              "import": "src/catalog/services/serv2.ts",
+              "from": "domain",
+              "to": "service",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/payments/domain/doma26.ts",
+              "import": "src/payments/repositories/repo8.ts",
+              "from": "domain",
+              "to": "repository",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/payments/domain/doma28.ts",
+              "import": "src/catalog/repositories/repo22.ts",
+              "from": "domain",
+              "to": "repository",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/payments/domain/doma28.ts",
+              "import": "src/catalog/services/serv12.ts",
+              "from": "domain",
+              "to": "service",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/payments/domain/doma28.ts",
+              "import": "src/notifications/services/serv11.ts",
+              "from": "domain",
+              "to": "service",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/payments/domain/doma38.ts",
+              "import": "src/catalog/controllers/cont25.ts",
+              "from": "domain",
+              "to": "controller",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/payments/domain/doma38.ts",
+              "import": "src/orders/services/serv18.ts",
+              "from": "domain",
+              "to": "service",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/payments/domain/ports/port27.ts",
+              "import": "src/notifications/services/serv37.ts",
+              "from": "domain",
+              "to": "service",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/payments/domain/ports/port27.ts",
+              "import": "src/orders/services/serv29.ts",
+              "from": "domain",
+              "to": "service",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/payments/domain/ports/port39.ts",
+              "import": "src/progress/services/serv0.ts",
+              "from": "domain",
+              "to": "service",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/payments/repositories/repo1.ts",
+              "import": "src/progress/controllers/cont9.ts",
+              "from": "repository",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/payments/repositories/repo13.ts",
+              "import": "src/orders/controllers/cont2.ts",
+              "from": "repository",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/payments/repositories/repo13.ts",
+              "import": "src/payments/controllers/cont36.ts",
+              "from": "repository",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/payments/repositories/repo15.ts",
+              "import": "src/progress/controllers/cont8.ts",
+              "from": "repository",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/payments/repositories/repo20.ts",
+              "import": "src/progress/controllers/cont37.ts",
+              "from": "repository",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/payments/repositories/repo38.ts",
+              "import": "src/payments/services/serv36.ts",
+              "from": "repository",
+              "to": "service",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/payments/repositories/repo4.ts",
+              "import": "src/notifications/controllers/cont8.ts",
+              "from": "repository",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/payments/repositories/repo4.ts",
+              "import": "src/orders/services/serv16.ts",
+              "from": "repository",
+              "to": "service",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/payments/services/serv0.ts",
+              "import": "src/notifications/controllers/cont11.ts",
+              "from": "service",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/payments/services/serv13.ts",
+              "import": "src/notifications/repositories/repo4.ts",
+              "from": "service",
+              "to": "repository",
+              "rule": "service-needs-port"
+            },
+            {
+              "file": "src/payments/services/serv26.ts",
+              "import": "src/orders/repositories/repo16.ts",
+              "from": "service",
+              "to": "repository",
+              "rule": "service-needs-port"
+            },
+            {
+              "file": "src/payments/services/serv26.ts",
+              "import": "src/progress/controllers/cont22.ts",
+              "from": "service",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/payments/services/serv38.ts",
+              "import": "src/orders/controllers/cont19.ts",
+              "from": "service",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/payments/services/serv38.ts",
+              "import": "src/progress/controllers/cont34.ts",
+              "from": "service",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/payments/services/serv8.ts",
+              "import": "src/payments/repositories/repo19.ts",
+              "from": "service",
+              "to": "repository",
+              "rule": "service-needs-port"
+            },
+            {
+              "file": "src/progress/controllers/cont1.ts",
+              "import": "src/catalog/repositories/repo7.ts",
+              "from": "controller",
+              "to": "repository",
+              "rule": "controller-skips-service"
+            },
+            {
+              "file": "src/progress/controllers/cont16.ts",
+              "import": "src/payments/repositories/repo13.ts",
+              "from": "controller",
+              "to": "repository",
+              "rule": "controller-skips-service"
+            },
+            {
+              "file": "src/progress/controllers/cont26.ts",
+              "import": "src/payments/repositories/repo12.ts",
+              "from": "controller",
+              "to": "repository",
+              "rule": "controller-skips-service"
+            },
+            {
+              "file": "src/progress/controllers/cont29.ts",
+              "import": "src/progress/repositories/repo17.ts",
+              "from": "controller",
+              "to": "repository",
+              "rule": "controller-skips-service"
+            },
+            {
+              "file": "src/progress/controllers/cont38.ts",
+              "import": "src/payments/repositories/repo19.ts",
+              "from": "controller",
+              "to": "repository",
+              "rule": "controller-skips-service"
+            },
+            {
+              "file": "src/progress/controllers/cont38.ts",
+              "import": "src/progress/repositories/repo27.ts",
+              "from": "controller",
+              "to": "repository",
+              "rule": "controller-skips-service"
+            },
+            {
+              "file": "src/progress/domain/doma1.ts",
+              "import": "src/progress/controllers/cont18.ts",
+              "from": "domain",
+              "to": "controller",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/progress/domain/doma1.ts",
+              "import": "src/progress/services/serv3.ts",
+              "from": "domain",
+              "to": "service",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/progress/domain/doma29.ts",
+              "import": "src/payments/controllers/cont7.ts",
+              "from": "domain",
+              "to": "controller",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/progress/domain/doma29.ts",
+              "import": "src/payments/repositories/repo23.ts",
+              "from": "domain",
+              "to": "repository",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/progress/domain/doma5.ts",
+              "import": "src/payments/repositories/repo7.ts",
+              "from": "domain",
+              "to": "repository",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/progress/domain/doma5.ts",
+              "import": "src/progress/services/serv5.ts",
+              "from": "domain",
+              "to": "service",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/progress/domain/doma7.ts",
+              "import": "src/notifications/repositories/repo22.ts",
+              "from": "domain",
+              "to": "repository",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/progress/domain/doma7.ts",
+              "import": "src/notifications/services/serv17.ts",
+              "from": "domain",
+              "to": "service",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/progress/domain/doma7.ts",
+              "import": "src/progress/controllers/cont9.ts",
+              "from": "domain",
+              "to": "controller",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/progress/domain/ports/port0.ts",
+              "import": "src/catalog/controllers/cont22.ts",
+              "from": "domain",
+              "to": "controller",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/progress/domain/ports/port0.ts",
+              "import": "src/notifications/controllers/cont25.ts",
+              "from": "domain",
+              "to": "controller",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/progress/domain/ports/port0.ts",
+              "import": "src/orders/services/serv5.ts",
+              "from": "domain",
+              "to": "service",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/progress/domain/ports/port0.ts",
+              "import": "src/progress/services/serv14.ts",
+              "from": "domain",
+              "to": "service",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/progress/domain/ports/port12.ts",
+              "import": "src/catalog/services/serv6.ts",
+              "from": "domain",
+              "to": "service",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/progress/domain/ports/port18.ts",
+              "import": "src/catalog/controllers/cont1.ts",
+              "from": "domain",
+              "to": "controller",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/progress/domain/ports/port18.ts",
+              "import": "src/notifications/controllers/cont9.ts",
+              "from": "domain",
+              "to": "controller",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/progress/domain/ports/port18.ts",
+              "import": "src/notifications/services/serv17.ts",
+              "from": "domain",
+              "to": "service",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/progress/domain/ports/port18.ts",
+              "import": "src/orders/services/serv2.ts",
+              "from": "domain",
+              "to": "service",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/progress/domain/ports/port27.ts",
+              "import": "src/notifications/controllers/cont15.ts",
+              "from": "domain",
+              "to": "controller",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/progress/domain/ports/port27.ts",
+              "import": "src/notifications/services/serv1.ts",
+              "from": "domain",
+              "to": "service",
+              "rule": "domain-must-be-pure"
+            },
+            {
+              "file": "src/progress/repositories/repo0.ts",
+              "import": "src/catalog/services/serv11.ts",
+              "from": "repository",
+              "to": "service",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/progress/repositories/repo14.ts",
+              "import": "src/catalog/services/serv7.ts",
+              "from": "repository",
+              "to": "service",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/progress/repositories/repo14.ts",
+              "import": "src/payments/services/serv37.ts",
+              "from": "repository",
+              "to": "service",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/progress/repositories/repo28.ts",
+              "import": "src/payments/controllers/cont18.ts",
+              "from": "repository",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/progress/repositories/repo30.ts",
+              "import": "src/payments/services/serv39.ts",
+              "from": "repository",
+              "to": "service",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/progress/repositories/repo30.ts",
+              "import": "src/progress/services/serv30.ts",
+              "from": "repository",
+              "to": "service",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/progress/repositories/repo31.ts",
+              "import": "src/catalog/controllers/cont18.ts",
+              "from": "repository",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/progress/repositories/repo31.ts",
+              "import": "src/progress/services/serv35.ts",
+              "from": "repository",
+              "to": "service",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/progress/repositories/repo32.ts",
+              "import": "src/payments/services/serv6.ts",
+              "from": "repository",
+              "to": "service",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/progress/repositories/repo35.ts",
+              "import": "src/orders/controllers/cont17.ts",
+              "from": "repository",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/progress/repositories/repo38.ts",
+              "import": "src/catalog/services/serv3.ts",
+              "from": "repository",
+              "to": "service",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/progress/repositories/repo6.ts",
+              "import": "src/notifications/controllers/cont1.ts",
+              "from": "repository",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/progress/repositories/repo6.ts",
+              "import": "src/notifications/controllers/cont36.ts",
+              "from": "repository",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/progress/repositories/repo6.ts",
+              "import": "src/orders/controllers/cont25.ts",
+              "from": "repository",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/progress/services/serv12.ts",
+              "import": "src/catalog/repositories/repo18.ts",
+              "from": "service",
+              "to": "repository",
+              "rule": "service-needs-port"
+            },
+            {
+              "file": "src/progress/services/serv12.ts",
+              "import": "src/progress/controllers/cont26.ts",
+              "from": "service",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/progress/services/serv12.ts",
+              "import": "src/progress/repositories/repo37.ts",
+              "from": "service",
+              "to": "repository",
+              "rule": "service-needs-port"
+            },
+            {
+              "file": "src/progress/services/serv15.ts",
+              "import": "src/notifications/repositories/repo20.ts",
+              "from": "service",
+              "to": "repository",
+              "rule": "service-needs-port"
+            },
+            {
+              "file": "src/progress/services/serv27.ts",
+              "import": "src/orders/repositories/repo28.ts",
+              "from": "service",
+              "to": "repository",
+              "rule": "service-needs-port"
+            },
+            {
+              "file": "src/progress/services/serv27.ts",
+              "import": "src/orders/repositories/repo3.ts",
+              "from": "service",
+              "to": "repository",
+              "rule": "service-needs-port"
+            },
+            {
+              "file": "src/progress/services/serv29.ts",
+              "import": "src/notifications/repositories/repo33.ts",
+              "from": "service",
+              "to": "repository",
+              "rule": "service-needs-port"
+            },
+            {
+              "file": "src/progress/services/serv29.ts",
+              "import": "src/orders/controllers/cont0.ts",
+              "from": "service",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/progress/services/serv3.ts",
+              "import": "src/notifications/repositories/repo2.ts",
+              "from": "service",
+              "to": "repository",
+              "rule": "service-needs-port"
+            },
+            {
+              "file": "src/progress/services/serv3.ts",
+              "import": "src/orders/repositories/repo28.ts",
+              "from": "service",
+              "to": "repository",
+              "rule": "service-needs-port"
+            },
+            {
+              "file": "src/progress/services/serv3.ts",
+              "import": "src/progress/controllers/cont22.ts",
+              "from": "service",
+              "to": "controller",
+              "rule": "points-backward"
+            },
+            {
+              "file": "src/progress/services/serv34.ts",
+              "import": "src/notifications/repositories/repo34.ts",
+              "from": "service",
+              "to": "repository",
+              "rule": "service-needs-port"
+            },
+            {
+              "file": "src/progress/services/serv34.ts",
+              "import": "src/notifications/repositories/repo4.ts",
+              "from": "service",
+              "to": "repository",
+              "rule": "service-needs-port"
+            },
+            {
+              "file": "src/progress/services/serv9.ts",
+              "import": "src/notifications/repositories/repo16.ts",
+              "from": "service",
+              "to": "repository",
+              "rule": "service-needs-port"
+            },
+            {
+              "file": "src/progress/services/serv9.ts",
+              "import": "src/notifications/repositories/repo21.ts",
+              "from": "service",
+              "to": "repository",
+              "rule": "service-needs-port"
+            },
+            {
+              "file": "src/progress/services/serv9.ts",
+              "import": "src/orders/repositories/repo0.ts",
+              "from": "service",
+              "to": "repository",
+              "rule": "service-needs-port"
+            },
+            {
+              "file": "src/progress/services/serv9.ts",
+              "import": "src/payments/controllers/cont25.ts",
+              "from": "service",
+              "to": "controller",
+              "rule": "points-backward"
+            }
+          ],
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

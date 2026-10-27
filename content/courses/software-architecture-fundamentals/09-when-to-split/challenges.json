@@ -1,0 +1,50 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_saf_331",
+      "name": "when-to-split-signals",
+      "type": "quiz",
+      "title": "When to split: signals and the strangler approach",
+      "description": "Two statements on CodeDev three months after the modular monolith decision: the measured signals around the weekly leaderboard recompute, and a plan to extract payments into its own service.",
+      "difficulty": "medium",
+      "outcomes": [
+        "structure"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Signals sheet, monthly review (January 2027), one team of 6:\nModule        blocked deploys/mo  peak load vs the rest                 teams  incidents crossing modules (quarter)\ncatalog       0                   about the same                        1      0\norders        0                   about the same                        1      0\nleaderboard   0                   Sun 20:00-20:40: CPU 100%, RSS 3.4 GB  1      2 (instance restarted out of memory,\n                                  (recompute job, in the app process)           checkout returned 502 for 6 and 9 min)\nprogress      0                   about the same                        1      0\n\nAPM, POST /orders p95: 310 ms normally, 2.4 s on Sundays 20:00-20:40.\n\nStatement: \"These numbers are a measured reason to run the leaderboard recompute in a separate process from the one that serves checkout.\"",
+          "explanation": "True. Two of the four signals are measured and point the same way: the recompute needs very different resources from the rest (100% CPU and 3.4 GB for 40 minutes a week), and twice in a quarter its failure took checkout down with it (out-of-memory restarts, 502s). The other signals stay at zero (one team, no blocked deploys), so the smallest step that answers them is to run the job in its own worker process, from the same codebase and the same deploy, on its own instance. A separate service with its own database is not required by this evidence. The misconception is that a split must be all or nothing: a separate process isolates resources and failures long before you need a separate repository.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Extraction plan for payments (draft):\nWeek 1, Monday:  create payments-service (own repository, own database, HTTP API)\nWeek 1, Friday:  deploy it; switch 100% of PaymentGateway.charge calls to it in the same release;\n                 delete src/modules/payments the same day \"to avoid two code paths\";\n                 copy the payments table with a one-off script during the release\nRollback plan:   restore from the backup taken before the release\n\nStatement: \"This plan follows the strangler approach to extracting a module.\"",
+          "explanation": "False. The strangler approach moves traffic gradually while the old path keeps working: put the module behind its port, add an adapter that calls the new service, route a small share of calls to it (or run it in shadow and compare results), raise the share as the numbers stay clean, and delete the old code only when the new path has carried all traffic for a while. This plan is a big-bang cutover: 100% of charges on day one, the old code deleted the same day, the data copied once, and a rollback that means restoring a backup and losing every payment made since. The misconception is that keeping two code paths for a while is waste; it is what lets you switch back in seconds instead of hours.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

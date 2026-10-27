@@ -1,0 +1,66 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_saf_341",
+      "name": "architecture-decision-records",
+      "type": "quiz",
+      "title": "Architecture decision records",
+      "description": "Three statements on ADR 0007 of CodeDev, \"Keep a modular monolith\": its context, a re-evaluation trigger, and how the team changes the decision a year later.",
+      "difficulty": "medium",
+      "outcomes": [
+        "decisions"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "docs/adr/0007-keep-a-modular-monolith.md (accepted 2026-10-16)\nContext: one team of 6 owns all modules. Deploys take a median of 20 min, 12.5 min of it a\nserial test step. Both failed deploys in September came from migration 0412 on the orders\ntable, which three modules read directly. Catalog peak: 71% app CPU on 2 instances.\nINC-77: the first extraction (notifications) sent 37 receipts for declined cards.\nOptions considered: (1) RFC-031, seven services with their own databases;\n(2) one deployable app with enforced module boundaries; (3) no change.\nDecision: option 2.\n\nStatement: \"A developer who joins in a year, after the team has changed, can tell from this ADR why the seven-service plan was not chosen.\"",
+          "explanation": "True. The context records the facts the decision rested on, with numbers (team size, where the 20 minutes go, the cause of both failed deploys, the CPU peak, the INC-77 impact), and the options section shows that RFC-031 was considered rather than ignored. A reader can check each fact against today and see whether the reasons still hold, without asking anyone who was in the meeting. The misconception is that an ADR only needs the decision; without context and options the next reader can only guess, and usually reopens the debate from scratch.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "First draft of docs/adr/0007-keep-a-modular-monolith.md (pull request #640), section \"Re-evaluation triggers\":\n- Revisit this decision when the monolith becomes too big or too slow.\n\nStatement: \"Anyone on the team can check this trigger at the monthly review and agree whether it has fired.\"",
+          "explanation": "False. \"Too big\" and \"too slow\" have no number and no place to read them, so two people looking at the same dashboard can disagree, and the trigger fires whenever someone feels like reopening the debate. A checkable trigger names a measurement, a threshold and a source, for example: \"a second team owns a module (CODEOWNERS)\", \"a module is blocked by other modules' changes more than twice a month (CI dashboard)\", \"a failure in one module takes checkout down twice in a quarter (incident log)\". The misconception is that writing a trigger at all is enough; a trigger without a number is an opinion.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "docs/adr/ in October 2027:\n0007-keep-a-modular-monolith.md   Status: Superseded by 0012 (text unchanged since 2026-10-16)\n0012-extract-payments-service.md  Status: Accepted\n  Context: trigger 1 of ADR 0007 fired - a payments team of 4 was formed in August 2027\n           and owns src/modules/payments; ...\n\nStatement: \"Keeping the text of ADR 0007 and marking it as superseded by ADR 0012 is the intended way to change a decision recorded in an ADR.\"",
+          "explanation": "True. An ADR records a decision made at a point in time with what was known then; it is not edited to match a later decision. The old record changes only its status and points to the new one, and the new record explains which trigger fired and why the answer changed. Both stay in the repository, next to the code, so the history of the decision is reviewable like any other change. The misconception is to rewrite the old ADR in place, which erases the reasoning that was right at the time and makes it look as if the team never decided otherwise.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

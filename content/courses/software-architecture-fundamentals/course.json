@@ -1,0 +1,156 @@
+{
+  "publicId": "software-architecture-fundamentals",
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1793023867/codedev/courses/software-architecture-fundamentals/cover",
+  "title": "Software Architecture Fundamentals: Modules, Dependencies & When to Split a Service",
+  "concept": "Learn the architecture decisions you make every week without calling them that: modules, layers and services, coupling and cohesion, which way dependencies point, ports for payment and email, refactoring without changing behaviour, and deciding between a modular monolith and microservices with evidence.",
+  "description": "A beginner course for developers who have built a small application and now wonder why every change touches five files. Every lesson starts from a situation on the CodeDev learning platform - an OrderService that grew to 900 lines and talks to the database, email and payment directly, a refactor that sent the receipt email before the payment was confirmed, an AI-generated refactor that made two modules import each other, a team that wanted microservices because the monolith felt slow - and answers it with a decision you can check: modules, layers and services, coupling and cohesion measured as fan-in and fan-out, dependency direction, ports and adapters, refactoring behind tests, the Monolith or Microservices scenario, shared databases, the signals that justify splitting a service, and architecture decision records. 10 lessons with True/False quizzes on real code and situations, and TypeScript challenges graded by hidden tests.",
+  "level": "beginner",
+  "durationMinutes": 240,
+  "instructor": "CodeDev Engineering Team",
+  "language": "TypeScript",
+  "category": "Software Architecture",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 50,
+  "accessModel": "free",
+  "publishStatus": "draft",
+  "offers": [],
+  "completionRules": {},
+  "domain": "system-design",
+  "learningOutcomes": [
+    {
+      "code": "structure",
+      "text": "Tell modules, layers and services apart and choose the simplest structure that works"
+    },
+    {
+      "code": "coupling-cohesion",
+      "text": "Measure coupling as fan-in and fan-out and spot modules that do too much"
+    },
+    {
+      "code": "dependency-direction",
+      "text": "Keep dependencies pointing one way and find layer violations and import cycles"
+    },
+    {
+      "code": "ports-refactoring",
+      "text": "Put payment and email behind ports and refactor while keeping behaviour, guarded by tests"
+    },
+    {
+      "code": "decisions",
+      "text": "Decide between a modular monolith and microservices with evidence and record the decision in an ADR"
+    }
+  ],
+  "testedVersions": {
+    "TypeScript": "5.9.3 (tsc --strict in the code runner)"
+  },
+  "lastReviewedAt": "2026-10-26",
+  "sourceLinks": [
+    "https://martinfowler.com/bliki/MonolithFirst.html",
+    "https://adr.github.io/",
+    "https://martinfowler.com/articles/dipInTheWild.html"
+  ],
+  "owner": "CodeDev Engineering Team",
+  "knownIssues": [],
+  "scenario": {
+    "title": "Monolith or Microservices?",
+    "quiz": "chal_quiz_saf_311",
+    "fixBug": "chal_coding_saf_312"
+  },
+  "careerRoles": [
+    "backend_developer",
+    "fullstack_developer",
+    "student"
+  ],
+  "skills": {
+    "system_design": 4,
+    "typescript": 2,
+    "testing": 1
+  },
+  "goals": [
+    "fundamentals",
+    "grow_in_role",
+    "interview_prep"
+  ],
+  "prerequisites": [
+    "typescript-foundations"
+  ],
+  "modules": [
+    {
+      "orderIndex": 1,
+      "title": "Structure",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "01-modules-layers-services",
+          "title": "Modules, layers & services: what's the difference?",
+          "sanityId": "lesson-saf-1-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "02-coupling-cohesion",
+          "title": "Coupling & cohesion: measuring fan-in and fan-out",
+          "sanityId": "lesson-saf-1-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "03-dependency-direction",
+          "title": "Dependency direction: which way imports may point",
+          "sanityId": "lesson-saf-1-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Ports & Refactoring",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "04-ports-adapters",
+          "title": "Ports for payment and email: dependency inversion in practice",
+          "sanityId": "lesson-saf-2-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "05-refactor-safely",
+          "title": "Refactor without changing behaviour: tests first, then small steps",
+          "sanityId": "lesson-saf-2-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "06-spot-circular-import",
+          "title": "Spot the AI mistake: a refactor with a circular import",
+          "sanityId": "lesson-saf-2-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Decisions",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "07-monolith-or-microservices",
+          "title": "Monolith or microservices? Deciding with evidence",
+          "sanityId": "lesson-saf-3-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "08-shared-database",
+          "title": "Shared databases & who owns the data",
+          "sanityId": "lesson-saf-3-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "09-when-to-split",
+          "title": "When to split a service: signals worth measuring",
+          "sanityId": "lesson-saf-3-3"
+        },
+        {
+          "orderIndex": 4,
+          "folder": "10-adr",
+          "title": "Write the decision down: architecture decision records",
+          "sanityId": "lesson-saf-3-4"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_saf_321",
+      "name": "shared-database-ownership",
+      "type": "quiz",
+      "title": "Shared databases: who owns the data?",
+      "description": "Two statements on the orders table of CodeDev: a query from the progress module straight into a table owned by orders, and a versioned view that orders publishes for other modules.",
+      "difficulty": "medium",
+      "outcomes": [
+        "decisions"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "src/modules/progress/report.ts:\n  SELECT o.id, o.course_id, o.amount, o.paid_at\n    FROM orders o\n   WHERE o.learner_id = $1 AND o.status = 'paid'\n\narchitecture/table-owners.json: \"orders\": [\"orders\"]\norders and progress are in the same repository, are deployed together by the same team\nand connect to Postgres with the same database user.\n\nStatement: \"Because orders and progress are deployed together by one team, this query does not couple progress to the schema of the orders table.\"",
+          "explanation": "False. The query depends on the table name, the column names (o.amount, o.paid_at) and on what status = 'paid' means, all of which belong to the orders module. Deploying together only changes when the break shows up: a rename in orders still breaks progress, now at deploy time, as migration 0412 did when the health check failed with \"column o.amount does not exist\". Nothing in an import, a type or the orders tests reveals this dependency, which is why it is called hidden coupling. The misconception is that coupling only exists between separately deployed services; it exists wherever one module relies on another's internals.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "migrations/orders/0410_paid_orders_view.sql (owned by the orders module):\n  CREATE VIEW orders_api.paid_orders_v1 AS\n  SELECT id AS order_id, learner_id, course_id, amount, paid_at\n  FROM orders WHERE status = 'paid';\n  GRANT SELECT ON orders_api.paid_orders_v1 TO progress_app;   -- no grant on orders itself\n\nsrc/modules/orders/paidOrdersView.test.ts asserts that the view returns the columns\norder_id, learner_id, course_id, amount, paid_at.\n\nMigration 0412 (orders module) renames orders.amount to orders.amount_vnd and, in the same file,\nrecreates the view with \"amount_vnd AS amount\". progress only reads orders_api.paid_orders_v1.\n\nStatement: \"With this setup, migration 0412 can rename the column without any change to the progress module.\"",
+          "explanation": "True. Progress depends on the published contract (the view paid_orders_v1 and its five columns), not on the internal table. The orders module changes its table and its view in one migration, keeps the column amount in the view, and its own contract test proves the view still returns the same columns. The grant makes the rule enforceable: progress_app cannot select from orders directly, so it cannot grow a new hidden dependency. This is the acceptable kind of shared read: declared, versioned, owned and tested by the producer. The misconception is that any shared database access is equally bad; what matters is whether the owner controls and tests the contract.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

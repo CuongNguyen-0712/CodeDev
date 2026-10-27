@@ -1,0 +1,3483 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_saf_211",
+      "name": "ports-for-payment-and-email-quiz",
+      "type": "quiz",
+      "title": "Is OrderService really behind a port?",
+      "description": "Two pieces of code from the OrderService refactor: a test that uses fakes passed through the constructor, and a PaymentGateway interface copied from the payment SDK.",
+      "difficulty": "medium",
+      "outcomes": [
+        "ports-refactoring"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "// orders/OrderService.ts imports only ./ports (PaymentGateway, EmailSender, OrderRepository) and ./types\n\nclass FakePayments implements PaymentGateway {\n  calls: string[] = [];\n  constructor(private readonly result: ChargeResult) {}\n  charge(orderId: string, learnerId: string, amountVnd: number): ChargeResult {\n    this.calls.push(`${orderId} ${amountVnd}`);\n    return this.result;\n  }\n}\n\ntest(\"a declined card saves a failed order and sends no receipt\", () => {\n  const emails = new FakeEmails();\n  const orders = new InMemoryOrders();\n  const service = new OrderService({\n    payments: new FakePayments({ status: \"declined\", reason: \"card_declined\" }),\n    emails,\n    orders,\n  });\n  const result = service.placeOrder(an, authCourse);\n  expect(result).toEqual({ ok: false, error: \"payment_declined\", reason: \"card_declined\" });\n  expect(orders.saved.map((o) => o.status)).toEqual([\"payment_failed\"]);\n  expect(emails.sent).toHaveLength(0);\n});\n\nThe CI job that runs this file has no network access.\n\nStatement: \"This test can pass in that CI job, and it checks the declined-card path without needing a special card number from the payment provider's sandbox.\"",
+          "explanation": "True. OrderService receives its payment gateway, mailer and repository through the constructor and only knows the port interfaces, so the test decides what the gateway answers: here a decline, with no HTTP call at all. Nothing in the code under test opens a connection, so a CI job without network can run it, and the declined path is as easy to reach as the happy path. Before the refactor, placeOrder created HttpPaymentClient itself, so every test talked to the sandbox and a decline needed the provider's magic card numbers. The misconception is that you need the real provider (or its sandbox) to test payment logic: you need it to test the adapter, not the rules in OrderService.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "// orders/ports.ts - written during the refactor by copying the SDK's method\nimport type { ChargeRequest, VendorCharge } from \"@acme-pay/sdk\";\n\nexport interface PaymentGateway {\n  createCharge(body: ChargeRequest): VendorCharge; // { id, outcome: \"approved\" | \"card_declined\" | \"insufficient_funds\" }\n}\n\n// orders/OrderService.ts\nconst charge = this.deps.payments.createCharge({\n  customer: learner.id, amount: course.priceVnd, currency: \"VND\", idempotencyKey: orderId,\n});\nif (charge.outcome !== \"approved\") { /* save payment_failed, return payment_declined */ }\n\nThe team plans to add a second payment provider whose API answers { state: \"SUCCESS\" | \"REJECTED\", transactionRef }.\n\nStatement: \"Because OrderService now depends on an interface instead of the HttpPaymentClient class, adding the second provider only needs a new adapter; OrderService itself will not change.\"",
+          "explanation": "False. The interface is a copy of one vendor's API: its request and result types come from @acme-pay/sdk, and OrderService branches on that vendor's outcome strings. A provider that answers state and transactionRef cannot implement createCharge(ChargeRequest): VendorCharge without pretending to be Acme, so either the adapter fakes Acme's types or OrderService and its tests change. A port is useful when it is written in the application's words (charge(orderId, learnerId, amountVnd) returning succeeded/declined) and owned by the code that uses it; translating to a vendor is the adapter's job. The misconception is that any interface decouples you; an interface shaped like the vendor keeps the coupling and only adds a layer.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_saf_212",
+      "name": "order-service-ports",
+      "type": "mini_coding",
+      "title": "Put payment and email behind ports in OrderService",
+      "description": "OrderService.placeOrder sells a premium CodeDev course. Today it creates HttpPaymentClient and SmtpEmailClient inside placeOrder, so it only works with the network and no test can make a card decline or the mail server fail. Refactor it so that the class is built as new OrderService({ payments, emails, orders }), where payments is a PaymentGateway, emails an EmailSender and orders an OrderRepository (the three port interfaces are given in the starter and must not change), and placeOrder uses only these ports. Keep the behaviour exactly as specified above placeOrder: an invalid price (not a positive whole number) gives invalid_price and an existing paid order gives already_owned, both without charging; otherwise take an id from orders.nextId() and call payments.charge(orderId, learnerId, priceVnd); if charge throws, return payment_unavailable and save nothing; a declined charge saves the order as payment_failed with chargeId null, sends no email and returns payment_declined with the reason; a successful charge saves the order as paid with the charge id, then calls emails.sendReceipt(email, orderId, courseTitle, priceVnd) and returns receiptSent true, or receiptSent false when sending throws. The test runner reads { paidBefore?, payments?, emails?, checkouts } from stdin, builds OrderService with recording fakes, places each checkout and prints the result with every port call, then a summary line (summary only for more than 10 checkouts). Wiring the real clients through adapters is not graded.",
+      "difficulty": "easy",
+      "outcomes": [
+        "ports-refactoring"
+      ],
+      "points": 20,
+      "hints": [
+        "If OrderService may not call new HttpPaymentClient, where does it get something it can call charge on, and who decides whether that something is the real provider or a fake?",
+        "Look at the OrderServiceDeps type and at the two places in placeOrder that create a vendor client. The port methods take different arguments and return different shapes than the vendor methods, so the code around those two calls changes too, not only the line with new.",
+        "A similar refactor on a different service: a ProgressService that did `const clock = new SystemClock(); const now = clock.currentTimeMillis();` becomes `constructor(private readonly deps: { clock: Clock })` with `interface Clock { now(): Date }`, and the method reads `this.deps.clock.now()`. A test then passes `{ now: () => new Date(\"2026-10-26T00:00:00Z\") }` and the behaviour is the same as before, only the source of the time moved."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A paid checkout: charge, save as paid, send the receipt",
+          "hidden": false,
+          "score": 3,
+          "input": {
+            "checkouts": [
+              {
+                "learner": {
+                  "id": "u_an",
+                  "email": "an@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              }
+            ]
+          },
+          "expected": "placeOrder u_an nodejs-api-security -> paid ord_1, receipt sent\n  charge ord_1 u_an 249000 -> succeeded\n  save ord_1 u_an nodejs-api-security 249000 paid ch_1\n  sendReceipt an@codedev.test ord_1 \"Authentication & Session Design\" 249000 -> ok\nsummary: 1 charges, 1 paid orders, 0 failed orders, 1 receipts"
+        },
+        {
+          "name": "A declined card is saved as payment_failed and gets no receipt",
+          "hidden": false,
+          "score": 3,
+          "input": {
+            "payments": [
+              "declined:card_declined"
+            ],
+            "checkouts": [
+              {
+                "learner": {
+                  "id": "u_an",
+                  "email": "an@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_binh",
+                  "email": "binh@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              }
+            ]
+          },
+          "expected": "placeOrder u_an nodejs-api-security -> payment_declined (card_declined)\n  charge ord_1 u_an 249000 -> declined:card_declined\n  save ord_1 u_an nodejs-api-security 249000 payment_failed -\nplaceOrder u_binh nodejs-ai-engineering -> paid ord_2, receipt sent\n  charge ord_2 u_binh 149000 -> succeeded\n  save ord_2 u_binh nodejs-ai-engineering 149000 paid ch_2\n  sendReceipt binh@codedev.test ord_2 \"Building LLM Features with TypeScript\" 149000 -> ok\nsummary: 2 charges, 1 paid orders, 1 failed orders, 1 receipts"
+        },
+        {
+          "name": "A learner who already owns the course is not charged",
+          "hidden": false,
+          "score": 2,
+          "input": {
+            "paidBefore": [
+              {
+                "learnerId": "u_an",
+                "courseId": "nodejs-api-security"
+              }
+            ],
+            "checkouts": [
+              {
+                "learner": {
+                  "id": "u_an",
+                  "email": "an@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_an",
+                  "email": "an@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              }
+            ]
+          },
+          "expected": "placeOrder u_an nodejs-api-security -> already_owned\nplaceOrder u_an nodejs-ai-engineering -> paid ord_1, receipt sent\n  charge ord_1 u_an 149000 -> succeeded\n  save ord_1 u_an nodejs-ai-engineering 149000 paid ch_1\n  sendReceipt an@codedev.test ord_1 \"Building LLM Features with TypeScript\" 149000 -> ok\nsummary: 1 charges, 1 paid orders, 0 failed orders, 1 receipts"
+        },
+        {
+          "name": "Mail server down: the order stays paid, receipt not sent",
+          "hidden": true,
+          "score": 3,
+          "input": {
+            "emails": [
+              "down"
+            ],
+            "checkouts": [
+              {
+                "learner": {
+                  "id": "u_an",
+                  "email": "an@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_binh",
+                  "email": "binh@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              }
+            ]
+          },
+          "expected": "placeOrder u_an nodejs-api-security -> paid ord_1, receipt not sent\n  charge ord_1 u_an 249000 -> succeeded\n  save ord_1 u_an nodejs-api-security 249000 paid ch_1\n  sendReceipt an@codedev.test ord_1 \"Authentication & Session Design\" 249000 -> down\nplaceOrder u_binh nodejs-api-security -> paid ord_2, receipt sent\n  charge ord_2 u_binh 249000 -> succeeded\n  save ord_2 u_binh nodejs-api-security 249000 paid ch_2\n  sendReceipt binh@codedev.test ord_2 \"Authentication & Session Design\" 249000 -> ok\nsummary: 2 charges, 2 paid orders, 0 failed orders, 1 receipts"
+        },
+        {
+          "name": "Payment provider down: nothing saved, nothing sent; a later checkout works",
+          "hidden": true,
+          "score": 3,
+          "input": {
+            "payments": [
+              "down"
+            ],
+            "checkouts": [
+              {
+                "learner": {
+                  "id": "u_chi",
+                  "email": "chi@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_chi",
+                  "email": "chi@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              }
+            ]
+          },
+          "expected": "placeOrder u_chi typescript-react-frontend -> payment_unavailable\n  charge ord_1 u_chi 199000 -> down\nplaceOrder u_chi typescript-react-frontend -> paid ord_2, receipt sent\n  charge ord_2 u_chi 199000 -> succeeded\n  save ord_2 u_chi typescript-react-frontend 199000 paid ch_1\n  sendReceipt chi@codedev.test ord_2 \"TypeScript React Frontend\" 199000 -> ok\nsummary: 1 charges, 1 paid orders, 0 failed orders, 1 receipts"
+        },
+        {
+          "name": "Invalid prices, buying twice in one run, buying again after a decline",
+          "hidden": true,
+          "score": 3,
+          "input": {
+            "payments": [
+              "declined:insufficient_funds"
+            ],
+            "checkouts": [
+              {
+                "learner": {
+                  "id": "u_an",
+                  "email": "an@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 0
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_an",
+                  "email": "an@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": -149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_an",
+                  "email": "an@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000.5
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_an",
+                  "email": "an@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": "149000"
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_binh",
+                  "email": "binh@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_binh",
+                  "email": "binh@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_binh",
+                  "email": "binh@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_binh",
+                  "email": "binh@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              }
+            ]
+          },
+          "expected": "placeOrder u_an nodejs-ai-engineering -> invalid_price\nplaceOrder u_an nodejs-ai-engineering -> invalid_price\nplaceOrder u_an nodejs-ai-engineering -> invalid_price\nplaceOrder u_an nodejs-ai-engineering -> invalid_price\nplaceOrder u_binh nodejs-ai-engineering -> payment_declined (insufficient_funds)\n  charge ord_1 u_binh 149000 -> declined:insufficient_funds\n  save ord_1 u_binh nodejs-ai-engineering 149000 payment_failed -\nplaceOrder u_binh nodejs-ai-engineering -> paid ord_2, receipt sent\n  charge ord_2 u_binh 149000 -> succeeded\n  save ord_2 u_binh nodejs-ai-engineering 149000 paid ch_2\n  sendReceipt binh@codedev.test ord_2 \"Building LLM Features with TypeScript\" 149000 -> ok\nplaceOrder u_binh nodejs-ai-engineering -> already_owned\nplaceOrder u_binh nodejs-ai-engineering -> already_owned\nsummary: 2 charges, 1 paid orders, 1 failed orders, 1 receipts"
+        },
+        {
+          "name": "240 checkouts with declines, outages and duplicate purchases: summary only",
+          "hidden": true,
+          "score": 3,
+          "input": {
+            "paidBefore": [
+              {
+                "learnerId": "u_008",
+                "courseId": "nodejs-ai-engineering"
+              }
+            ],
+            "payments": [
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "declined:insufficient_funds",
+              "succeeded",
+              "down",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "declined:insufficient_funds",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "down",
+              "succeeded",
+              "succeeded",
+              "declined:insufficient_funds",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "declined:insufficient_funds",
+              "succeeded",
+              "succeeded",
+              "down",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "declined:insufficient_funds",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "down",
+              "succeeded",
+              "declined:insufficient_funds",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "declined:insufficient_funds",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "down",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "declined:insufficient_funds",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "down",
+              "declined:insufficient_funds",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "declined:insufficient_funds",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "down",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "declined:insufficient_funds",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "declined:insufficient_funds",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "declined:insufficient_funds",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "down",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "declined:insufficient_funds",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "declined:insufficient_funds",
+              "down",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "declined:insufficient_funds",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "down",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "declined:insufficient_funds",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "declined:insufficient_funds",
+              "succeeded",
+              "down",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "declined:insufficient_funds",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "down",
+              "succeeded",
+              "succeeded",
+              "declined:insufficient_funds",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "declined:insufficient_funds",
+              "succeeded",
+              "succeeded",
+              "down",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "declined:insufficient_funds",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded",
+              "succeeded"
+            ],
+            "emails": [
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "down",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "down",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "down",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "down",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "down",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "down",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "down",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "down",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "down",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "down",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "down",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "down",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "down",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "down",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "down",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "down",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "down",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "down",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "ok",
+              "down",
+              "ok"
+            ],
+            "checkouts": [
+              {
+                "learner": {
+                  "id": "u_001",
+                  "email": "learner1@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_008",
+                  "email": "learner8@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_015",
+                  "email": "learner15@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_022",
+                  "email": "learner22@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_029",
+                  "email": "learner29@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_036",
+                  "email": "learner36@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_003",
+                  "email": "learner3@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_010",
+                  "email": "learner10@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_017",
+                  "email": "learner17@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_024",
+                  "email": "learner24@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_031",
+                  "email": "learner31@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_038",
+                  "email": "learner38@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_005",
+                  "email": "learner5@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_012",
+                  "email": "learner12@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_019",
+                  "email": "learner19@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_026",
+                  "email": "learner26@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_033",
+                  "email": "learner33@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_040",
+                  "email": "learner40@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_007",
+                  "email": "learner7@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_014",
+                  "email": "learner14@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_021",
+                  "email": "learner21@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_028",
+                  "email": "learner28@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_035",
+                  "email": "learner35@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_002",
+                  "email": "learner2@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_009",
+                  "email": "learner9@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_016",
+                  "email": "learner16@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_023",
+                  "email": "learner23@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_030",
+                  "email": "learner30@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_037",
+                  "email": "learner37@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_004",
+                  "email": "learner4@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_011",
+                  "email": "learner11@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_018",
+                  "email": "learner18@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_025",
+                  "email": "learner25@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_032",
+                  "email": "learner32@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_039",
+                  "email": "learner39@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_006",
+                  "email": "learner6@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_013",
+                  "email": "learner13@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_020",
+                  "email": "learner20@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_027",
+                  "email": "learner27@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_034",
+                  "email": "learner34@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_001",
+                  "email": "learner1@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_008",
+                  "email": "learner8@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_015",
+                  "email": "learner15@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_022",
+                  "email": "learner22@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_029",
+                  "email": "learner29@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_036",
+                  "email": "learner36@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_003",
+                  "email": "learner3@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_010",
+                  "email": "learner10@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_017",
+                  "email": "learner17@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_024",
+                  "email": "learner24@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_031",
+                  "email": "learner31@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_038",
+                  "email": "learner38@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_005",
+                  "email": "learner5@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_012",
+                  "email": "learner12@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_019",
+                  "email": "learner19@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_026",
+                  "email": "learner26@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_033",
+                  "email": "learner33@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_040",
+                  "email": "learner40@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_007",
+                  "email": "learner7@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_014",
+                  "email": "learner14@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_021",
+                  "email": "learner21@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_028",
+                  "email": "learner28@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_035",
+                  "email": "learner35@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_002",
+                  "email": "learner2@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_009",
+                  "email": "learner9@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_016",
+                  "email": "learner16@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_023",
+                  "email": "learner23@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_030",
+                  "email": "learner30@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_037",
+                  "email": "learner37@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_004",
+                  "email": "learner4@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_011",
+                  "email": "learner11@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_018",
+                  "email": "learner18@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_025",
+                  "email": "learner25@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_032",
+                  "email": "learner32@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_039",
+                  "email": "learner39@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_006",
+                  "email": "learner6@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_013",
+                  "email": "learner13@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_020",
+                  "email": "learner20@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_027",
+                  "email": "learner27@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_034",
+                  "email": "learner34@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_001",
+                  "email": "learner1@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_008",
+                  "email": "learner8@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_015",
+                  "email": "learner15@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_022",
+                  "email": "learner22@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_029",
+                  "email": "learner29@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_036",
+                  "email": "learner36@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_003",
+                  "email": "learner3@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_010",
+                  "email": "learner10@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_017",
+                  "email": "learner17@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_024",
+                  "email": "learner24@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_031",
+                  "email": "learner31@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_038",
+                  "email": "learner38@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_005",
+                  "email": "learner5@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_012",
+                  "email": "learner12@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_019",
+                  "email": "learner19@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_026",
+                  "email": "learner26@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_033",
+                  "email": "learner33@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_040",
+                  "email": "learner40@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_007",
+                  "email": "learner7@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_014",
+                  "email": "learner14@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_021",
+                  "email": "learner21@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_028",
+                  "email": "learner28@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_035",
+                  "email": "learner35@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_002",
+                  "email": "learner2@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_009",
+                  "email": "learner9@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_016",
+                  "email": "learner16@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_023",
+                  "email": "learner23@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_030",
+                  "email": "learner30@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_037",
+                  "email": "learner37@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_004",
+                  "email": "learner4@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_011",
+                  "email": "learner11@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_018",
+                  "email": "learner18@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_025",
+                  "email": "learner25@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_032",
+                  "email": "learner32@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_039",
+                  "email": "learner39@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_006",
+                  "email": "learner6@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_013",
+                  "email": "learner13@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_020",
+                  "email": "learner20@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_027",
+                  "email": "learner27@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_034",
+                  "email": "learner34@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_001",
+                  "email": "learner1@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_008",
+                  "email": "learner8@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_015",
+                  "email": "learner15@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_022",
+                  "email": "learner22@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_029",
+                  "email": "learner29@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_036",
+                  "email": "learner36@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_003",
+                  "email": "learner3@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_010",
+                  "email": "learner10@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_017",
+                  "email": "learner17@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_024",
+                  "email": "learner24@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_031",
+                  "email": "learner31@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_038",
+                  "email": "learner38@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_005",
+                  "email": "learner5@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_012",
+                  "email": "learner12@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_019",
+                  "email": "learner19@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_026",
+                  "email": "learner26@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_033",
+                  "email": "learner33@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_040",
+                  "email": "learner40@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_007",
+                  "email": "learner7@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_014",
+                  "email": "learner14@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_021",
+                  "email": "learner21@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_028",
+                  "email": "learner28@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_035",
+                  "email": "learner35@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_002",
+                  "email": "learner2@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_009",
+                  "email": "learner9@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_016",
+                  "email": "learner16@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_023",
+                  "email": "learner23@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_030",
+                  "email": "learner30@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_037",
+                  "email": "learner37@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_004",
+                  "email": "learner4@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_011",
+                  "email": "learner11@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_018",
+                  "email": "learner18@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_025",
+                  "email": "learner25@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_032",
+                  "email": "learner32@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_039",
+                  "email": "learner39@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_006",
+                  "email": "learner6@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_013",
+                  "email": "learner13@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_020",
+                  "email": "learner20@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_027",
+                  "email": "learner27@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_034",
+                  "email": "learner34@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_001",
+                  "email": "learner1@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_008",
+                  "email": "learner8@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_015",
+                  "email": "learner15@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_022",
+                  "email": "learner22@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_029",
+                  "email": "learner29@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_036",
+                  "email": "learner36@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_003",
+                  "email": "learner3@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_010",
+                  "email": "learner10@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_017",
+                  "email": "learner17@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_024",
+                  "email": "learner24@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_031",
+                  "email": "learner31@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_038",
+                  "email": "learner38@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_005",
+                  "email": "learner5@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_012",
+                  "email": "learner12@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_019",
+                  "email": "learner19@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_026",
+                  "email": "learner26@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_033",
+                  "email": "learner33@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_040",
+                  "email": "learner40@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_007",
+                  "email": "learner7@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_014",
+                  "email": "learner14@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_021",
+                  "email": "learner21@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_028",
+                  "email": "learner28@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_035",
+                  "email": "learner35@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_002",
+                  "email": "learner2@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_009",
+                  "email": "learner9@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_016",
+                  "email": "learner16@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_023",
+                  "email": "learner23@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_030",
+                  "email": "learner30@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_037",
+                  "email": "learner37@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_004",
+                  "email": "learner4@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_011",
+                  "email": "learner11@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_018",
+                  "email": "learner18@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_025",
+                  "email": "learner25@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_032",
+                  "email": "learner32@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_039",
+                  "email": "learner39@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_006",
+                  "email": "learner6@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_013",
+                  "email": "learner13@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_020",
+                  "email": "learner20@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_027",
+                  "email": "learner27@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_034",
+                  "email": "learner34@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_001",
+                  "email": "learner1@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_008",
+                  "email": "learner8@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_015",
+                  "email": "learner15@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_022",
+                  "email": "learner22@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_029",
+                  "email": "learner29@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_036",
+                  "email": "learner36@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_003",
+                  "email": "learner3@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_010",
+                  "email": "learner10@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_017",
+                  "email": "learner17@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_024",
+                  "email": "learner24@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_031",
+                  "email": "learner31@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_038",
+                  "email": "learner38@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_005",
+                  "email": "learner5@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_012",
+                  "email": "learner12@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_019",
+                  "email": "learner19@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_026",
+                  "email": "learner26@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_033",
+                  "email": "learner33@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_040",
+                  "email": "learner40@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_007",
+                  "email": "learner7@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_014",
+                  "email": "learner14@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_021",
+                  "email": "learner21@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_028",
+                  "email": "learner28@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_035",
+                  "email": "learner35@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_002",
+                  "email": "learner2@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_009",
+                  "email": "learner9@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_016",
+                  "email": "learner16@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_023",
+                  "email": "learner23@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_030",
+                  "email": "learner30@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_037",
+                  "email": "learner37@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_004",
+                  "email": "learner4@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_011",
+                  "email": "learner11@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_018",
+                  "email": "learner18@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_025",
+                  "email": "learner25@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_032",
+                  "email": "learner32@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_039",
+                  "email": "learner39@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_006",
+                  "email": "learner6@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_013",
+                  "email": "learner13@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_020",
+                  "email": "learner20@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-api-security",
+                  "title": "Authentication & Session Design",
+                  "priceVnd": 249000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_027",
+                  "email": "learner27@codedev.test"
+                },
+                "course": {
+                  "id": "nodejs-ai-engineering",
+                  "title": "Building LLM Features with TypeScript",
+                  "priceVnd": 149000
+                }
+              },
+              {
+                "learner": {
+                  "id": "u_034",
+                  "email": "learner34@codedev.test"
+                },
+                "course": {
+                  "id": "typescript-react-frontend",
+                  "title": "TypeScript React Frontend",
+                  "priceVnd": 199000
+                }
+              }
+            ]
+          },
+          "expected": "summary: 130 charges, 117 paid orders, 13 failed orders, 108 receipts"
+        }
+      ]
+    }
+  ]
+}
