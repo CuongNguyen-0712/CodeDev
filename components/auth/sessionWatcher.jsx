@@ -35,7 +35,8 @@ export function SessionWatcher() {
     const { data: session, status } = useSession();
     const queryClient = useQueryClient();
     const { showAlert } = useApp();
-    const [accessExpiresAt, setAccessExpiresAt] = useState(0);
+    // Bumped when a refresh (this or another tab) raised the known access expiry.
+    const [refreshCount, setRefreshCount] = useState(0);
     const statusRef = useRef(status);
 
     const leave = useCallback((target) => {
@@ -77,15 +78,8 @@ export function SessionWatcher() {
         }
     }, [status, leave]);
 
-    // Known access expiry: from the session, raised by refreshes in this or another tab.
-    useEffect(() => {
-        if (status !== "authenticated") return;
-        setKnownAccessExpiry(session?.accessExpiresAt);
-        setAccessExpiresAt(getKnownAccessExpiry());
-    }, [session?.accessExpiresAt, status]);
-
     useEffect(() => onAuthEvent((message, { local } = {}) => {
-        if (message?.type === "refreshed") setAccessExpiresAt(getKnownAccessExpiry());
+        if (message?.type === "refreshed") setRefreshCount((n) => n + 1);
         if (message?.type === "signed-out") endSession(SESSION_ERROR.EXPIRED);
         // The user logged out in another tab: this tab follows to the landing page.
         if (message?.type === "logged-out" && !local) leave(LANDING_PATH);
@@ -110,7 +104,11 @@ export function SessionWatcher() {
 
     // Proactive refresh: REFRESH_MARGIN_MS before expiry, or as soon as the tab becomes visible.
     useEffect(() => {
-        if (status !== "authenticated" || !accessExpiresAt) return;
+        if (status !== "authenticated") return;
+        // Known access expiry: from the session, raised by refreshes in this or another tab.
+        setKnownAccessExpiry(session?.accessExpiresAt);
+        const accessExpiresAt = getKnownAccessExpiry();
+        if (!accessExpiresAt) return;
 
         const refreshIfDue = () => {
             if (document.visibilityState !== "visible") return;
@@ -128,7 +126,7 @@ export function SessionWatcher() {
             clearTimeout(timer);
             document.removeEventListener("visibilitychange", refreshIfDue);
         };
-    }, [accessExpiresAt, status]);
+    }, [session?.accessExpiresAt, status, refreshCount]);
 
     return null;
 }

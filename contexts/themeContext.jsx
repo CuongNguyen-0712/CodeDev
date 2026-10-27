@@ -13,9 +13,12 @@ export const ThemeProvider = ({ children }) => {
     const [theme, setTheme] = useState("light");
     const [mounted, setMounted] = useState(false);
 
+    // Hydration-safe: the server renders "light", then the saved theme (already painted by
+    // THEME_SCRIPT) is read once on mount. A lazy initial state would mismatch the server HTML.
     useEffect(() => {
         const savedTheme = localStorage.getItem("theme");
         if (savedTheme === "dark" || savedTheme === "light") {
+            // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time read of browser storage after hydration
             setTheme(savedTheme);
         } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
             setTheme("dark");

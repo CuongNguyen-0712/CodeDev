@@ -272,7 +272,6 @@ export default function StudyingPage({ params }) {
         error,
         refetch,
         isFetching,
-        dataUpdatedAt
     } = useQuery(userQueries.learningProgress(status, params.id));
 
     const [selectedData, setSelectedData] = useState(null);
@@ -328,54 +327,51 @@ export default function StudyingPage({ params }) {
         return `${pathname}?${query.toString()}${hash}`;
     };
 
-    // `?lesson=` is the source of truth for the open lesson, so refresh, shared links and
-    // back/forward all land on it. A missing, unknown or locked lesson falls back to the resume
-    // point (latest last_seen) and the URL is corrected in place.
-    useEffect(() => {
-        if (!data) return;
-
-        const index = lessonParam ? allLessons.findIndex((l) => String(l.id) === lessonParam) : -1;
-        const fromUrl = index >= 0 ? allLessons[index] : null;
-
-        if (fromUrl && isLessonUnlocked(fromUrl, index)) {
-            if (String(selectedData?.lesson) !== String(fromUrl.id)) {
-                setSelectedData({ module: fromUrl.module_id, lesson: fromUrl.id, status: fromUrl.status });
-            }
-            return;
-        }
-
-        const fallback = getCurrentLesson(data);
-        if (!fallback) return;
-
-        setSelectedData(fallback);
-        // Native history calls are synced by the Next.js router without a server round trip.
-        const keepHash = lessonParam ? '' : window.location.hash;
-        window.history.replaceState(null, '', lessonUrl(fallback.lesson, keepHash));
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [data, lessonParam]);
-
-    useEffect(() => {
-        if (!data) return;
-        // Keep selected lesson synced if updated
-        if (selectedData?.lesson) {
-            const updated = allLessons.find(l => l.id === selectedData.lesson);
-            if (updated && updated.status !== selectedData.status) {
-                setSelectedData(prev => ({ ...prev, status: updated.status }));
-            }
-        }
-    }, [dataUpdatedAt]);
-
-    // Leaving the compact layout closes the syllabus sheet.
-    useEffect(() => {
-        if (!isCompact) setMobileSyllabus(false);
-    }, [isCompact]);
-
     const isLessonUnlocked = (lesson, indexInAll) => {
         if (!lesson) return false;
         // First lesson of the whole course is always unlocked
         if (indexInAll === 0) return true;
         return lesson.status === 'completed' || lesson.status === 'in_progress';
     };
+
+    // `?lesson=` is the source of truth for the open lesson, so refresh, shared links and
+    // back/forward all land on it. A missing, unknown or locked lesson falls back to the resume
+    // point (latest last_seen) and the URL is corrected in place. The selection is adjusted during
+    // render whenever the data or the param changes (refetches also refresh the lesson status).
+    const urlLessonIndex = data && lessonParam ? allLessons.findIndex((l) => String(l.id) === lessonParam) : -1;
+    const urlLesson = urlLessonIndex >= 0 ? allLessons[urlLessonIndex] : null;
+    const urlLessonOpen = isLessonUnlocked(urlLesson, urlLessonIndex);
+
+    const [syncedWith, setSyncedWith] = useState(null);
+    if (data && (syncedWith?.data !== data || syncedWith?.lessonParam !== lessonParam)) {
+        setSyncedWith({ data, lessonParam });
+        if (!urlLessonOpen) {
+            const fallback = getCurrentLesson(data);
+            if (fallback) setSelectedData(fallback);
+        } else if (String(selectedData?.lesson) !== String(urlLesson.id)) {
+            setSelectedData({ module: urlLesson.module_id, lesson: urlLesson.id, status: urlLesson.status });
+        } else if (selectedData.status !== urlLesson.status) {
+            setSelectedData((prev) => ({ ...prev, status: urlLesson.status }));
+        }
+    }
+
+    // The URL correction for the fallback touches history, not React state, so it stays an effect.
+    useEffect(() => {
+        if (!data || urlLessonOpen) return;
+        const fallback = getCurrentLesson(data);
+        if (!fallback) return;
+        // Native history calls are synced by the Next.js router without a server round trip.
+        const keepHash = lessonParam ? '' : window.location.hash;
+        window.history.replaceState(null, '', lessonUrl(fallback.lesson, keepHash));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [data, lessonParam]);
+
+    // Leaving the compact layout closes the syllabus sheet (adjusted during render).
+    const [wasCompact, setWasCompact] = useState(isCompact);
+    if (wasCompact !== isCompact) {
+        setWasCompact(isCompact);
+        if (!isCompact) setMobileSyllabus(false);
+    }
 
     const handleSelectLesson = (lesson, moduleId) => {
         if (!lesson) return;

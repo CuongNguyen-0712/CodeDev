@@ -30,6 +30,8 @@ export default function GlobalError({ error, reset }) {
                             >
                                 Try again
                             </button>
+                            {/* A full page load on purpose: the root layout crashed, so client navigation cannot be trusted. */}
+                            {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
                             <a
                                 href="/"
                                 className="inline-flex h-9 items-center rounded-md border border-input px-4 text-sm font-medium text-foreground hover:bg-accent"

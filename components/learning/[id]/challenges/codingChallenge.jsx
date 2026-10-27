@@ -70,6 +70,14 @@ function formatValue(value) {
     }
 }
 
+// Outside the component: reading the clock is fine in event handlers, but the compiler cannot tell
+// a handler declared in the render body from render code (react-hooks/purity).
+async function timed(run) {
+    const started = Date.now();
+    const value = await run();
+    return { value, duration: Date.now() - started };
+}
+
 function formatTime(timestamp) {
     if (!timestamp) return "";
     return new Date(timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -208,10 +216,9 @@ export default function CodingChallenge({ challenge, onPassed, onExhausted }) {
             ...Object.fromEntries(testList.map((t) => [t.id, { id: t.id, name: t.name, isHidden: t.isHidden, status: "running" }])),
         }));
 
-        const startTime = Date.now();
         // Only javascript runs in the browser; other languages run their sample tests in the code runner.
-        const results = workspace.language === "javascript"
-            ? await runTests({
+        const { value: results, duration } = await timed(async () => workspace.language === "javascript"
+            ? runTests({
                 code: draft.code,
                 harness: workspace.harnessCode,
                 entry,
@@ -221,12 +228,12 @@ export default function CodingChallenge({ challenge, onPassed, onExhausted }) {
             })
             : (await runSamples.mutateAsync({ challengeId: challenge.id, code: draft.code })).tests.map((t) => ({
                 ...t, logs: [], timedOut: t.status === "timeout",
-            }));
+            })));
         if (workspace.language !== "javascript") {
             setTestResults((prev) => ({ ...prev, ...Object.fromEntries(results.map((r) => [r.id, r])) }));
         }
         setLastRunMeta({
-            duration: Date.now() - startTime,
+            duration,
             time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
         });
         return results;

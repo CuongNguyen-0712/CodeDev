@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { SiC, SiCplusplus, SiDotnet, SiGo, SiJavascript, SiKotlin, SiOpenjdk, SiPhp, SiPython, SiRust, SiTypescript } from "react-icons/si";
 import { LuAlignLeft, LuFileCode, LuKeyboard } from "react-icons/lu";
@@ -229,6 +229,8 @@ function formatIndentation(text) {
     }).join("\n");
 }
 
+const noSubscription = () => () => {};
+
 function ShortcutKeys({ combo, isMac }) {
     const names = { Mod: isMac ? "Cmd" : "Ctrl", Alt: isMac ? "Option" : "Alt", Up: "Up", Down: "Down" };
     return (
@@ -265,14 +267,11 @@ export default function CodeEditor({
 
     const [cursorPos, setCursorPos] = useState({ line: 1, col: 1 });
     const [scroll, setScroll] = useState({ top: 0, left: 0 });
-    const [isMac, setIsMac] = useState(false);
+    // false on the server and during hydration; the platform never changes, so nothing to subscribe to.
+    const isMac = useSyncExternalStore(noSubscription, () => /Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent || ""), () => false);
 
     const lineCount = Math.max(1, value.split("\n").length);
     const commentToken = /py/i.test(language || "") ? "#" : "//";
-
-    useEffect(() => {
-        setIsMac(/Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent || ""));
-    }, []);
 
     const updateCursorPos = () => {
         const el = textareaRef.current;

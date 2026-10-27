@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { useRouterActions } from '@/router/useRouterActions';
 import { useQuery } from '@tanstack/react-query';
@@ -184,10 +184,12 @@ export default function RoadmapDetailsPage({ params, initialData = null }) {
     const [selectedNodeId, setSelectedNodeId] = useState(null);
     const [detailsOpen, setDetailsOpen] = useState(false);
 
-    // Leaving the compact layout closes the details sheet.
-    useEffect(() => {
+    // Leaving the compact layout closes the details sheet (adjusted during render, not in an effect).
+    const [wasCompact, setWasCompact] = useState(isCompact);
+    if (wasCompact !== isCompact) {
+        setWasCompact(isCompact);
         if (!isCompact) setDetailsOpen(false);
-    }, [isCompact]);
+    }
 
     const stages = groupStages(nodes);
     const nodeProgress = nodes.map((node) => getNodeProgress(node));

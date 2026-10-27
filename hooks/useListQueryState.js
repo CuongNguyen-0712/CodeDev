@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 
 import { defaultFilter, isFiltered, parseListQuery, toQueryParams, LIST_SCHEMAS } from "@/lib/listFilters";
@@ -20,8 +20,11 @@ export function useListQueryState(kind) {
     const state = useMemo(() => parseListQuery(kind, searchParams), [kind, searchParams]);
 
     // Setters stay stable while the URL changes (SearchBar debounces on their identity).
+    // Updated after commit (refs must not be written during render), before any event can call a setter.
     const latest = useRef({ state, searchParams });
-    latest.current = { state, searchParams };
+    useLayoutEffect(() => {
+        latest.current = { state, searchParams };
+    });
 
     const write = useCallback((next, { push = false } = {}) => {
         const params = new URLSearchParams(latest.current.searchParams);

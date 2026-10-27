@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 import useInfiniteScroll from '@/hooks/useInfiniteScroll'
 
@@ -51,18 +51,18 @@ export default function Contact({ state, setState }) {
         search: '',
         offset: 0,
         limit: 20,
-        hasSearch: false,
     })
 
     // The social endpoint only returns users, so the list is fixed to users.
     const [filter] = useState('User');
     const [apiQueue, setApiQueue] = useState([]);
-    const [isProcessing, setIsProcessing] = useState(false);
+    // A ref, not state: the queue effect must not set state synchronously.
+    const processingRef = useRef(false);
 
     const { setRef } = useInfiniteScroll({
         hasMore: social.hasMore,
         onLoadMore: () => {
-            if (!isProcessing && social.hasMore) {
+            if (!processingRef.current && social.hasMore) {
                 setApiQueue((prev) => [...prev, { type: "fetch" }]);
             }
         }
@@ -105,12 +105,12 @@ export default function Contact({ state, setState }) {
         }
     }
 
-    // The initial load is queued by the search/filter effects below, so every
+    // The initial load is queued by the search reset below, so every
     // fetch goes through the queue and reads the current offset.
     const processQueue = async () => {
-        if (isProcessing || apiQueue.length === 0) return;
+        if (processingRef.current || apiQueue.length === 0) return;
 
-        setIsProcessing(true);
+        processingRef.current = true;
 
         const task = apiQueue[0];
 
@@ -128,8 +128,8 @@ export default function Contact({ state, setState }) {
                 await task.execute();
             }
         } finally {
+            processingRef.current = false;
             setApiQueue((prev) => prev.slice(consumed));
-            setIsProcessing(false);
         }
     }
 
@@ -137,10 +137,12 @@ export default function Contact({ state, setState }) {
         processQueue();
     }, [apiQueue])
 
-    const handleSubmitSearch = () => {
-        if (social.search.length > 0 && social.search.trim() === '') return;
-
-        if (social.hasSearch && social.search.trim() === '') {
+    // A new search term (and the first render) resets the list and queues a fetch: adjusted during
+    // render, not in an effect. A term of only spaces keeps the current results.
+    const [searchedTerm, setSearchedTerm] = useState(null);
+    if (searchedTerm !== social.search) {
+        setSearchedTerm(social.search);
+        if (!(social.search.length > 0 && social.search.trim() === '')) {
             setSocial((prev) => ({
                 ...prev,
                 data: {
@@ -152,45 +154,8 @@ export default function Contact({ state, setState }) {
                 pending: true
             }))
             setApiQueue((prev) => [...prev, { type: "fetch" }]);
-            return;
         }
-
-        setSocial((prev) => ({
-            ...prev,
-            data: {
-                user: [],
-                team: []
-            },
-            offset: 0,
-            hasMore: true,
-            hasSearch: true,
-            pending: true
-        }))
-        setApiQueue((prev) => [...prev, { type: "fetch" }]);
     }
-
-    useEffect(() => {
-        handleSubmitSearch();
-    }, [social.search])
-
-    useEffect(() => {
-        setSocial((prev) => ({
-            ...prev,
-            offset: 0,
-            hasMore: true,
-            pending: true,
-            data: {
-                user: [],
-                team: []
-            }
-        }))
-        setApiQueue((prev) => [
-            ...prev,
-            {
-                type: 'fetch'
-            }
-        ])
-    }, [filter])
 
     const refetchData = () => {
         setSocial((prev) => ({

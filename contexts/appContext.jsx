@@ -22,6 +22,7 @@ export const AppProvider = ({ children }) => {
         // sidebar_state cookie on the server would remove it but makes every route dynamic.
         try {
             if (window.innerWidth < 768) {
+                // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time read of viewport/storage after hydration (see shortcut above)
                 setIsDashboard(false);
                 return;
             }
@@ -32,13 +33,14 @@ export const AppProvider = ({ children }) => {
         }
     }, []);
 
-    useEffect(() => {
-        // Same boundary as hooks/use-mobile.js: below 768 px the sidebar is a Sheet.
-        if (typeof window !== 'undefined' && window.innerWidth < 768) {
-            setIsDashboard(false);
-        }
+    // Navigating closes overlays and, below 768 px (same boundary as hooks/use-mobile.js, where the
+    // sidebar is a Sheet), the sidebar. Adjusted during render; only client navigations get here.
+    const [prevPathname, setPrevPathname] = useState(pathname);
+    if (prevPathname !== pathname) {
+        setPrevPathname(pathname);
+        if (window.innerWidth < 768) setIsDashboard(false);
         setOverlayState(null);
-    }, [pathname]);
+    }
 
     const setOverlay = useCallback((value) => {
         setOverlayState((prev) => {

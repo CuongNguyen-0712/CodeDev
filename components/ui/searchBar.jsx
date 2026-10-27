@@ -197,26 +197,23 @@ export default function SearchBar({
     // Draft filter: edited in the panel, applied on "Apply filters"
     const [draftFilter, setDraftFilter] = useState(appliedFilter);
 
-    const appliedFilterKey = useMemo(() => JSON.stringify(appliedFilter || {}), [appliedFilter]);
-    useEffect(() => {
-        setDraftFilter(appliedFilter);
-    }, [appliedFilterKey, appliedFilter]);
-
-    const propFilterKey = useMemo(() => (propFilter ? JSON.stringify(propFilter) : null), [propFilter]);
-    useEffect(() => {
-        if (propFilter !== undefined) {
+    // Props and the applied filter are mirrored into local state during render when they change
+    // (not in effects, which would render once more with stale values).
+    const [synced, setSynced] = useState({ appliedFilter, propFilter, search: effectiveExternalSearch });
+    if (synced.appliedFilter !== appliedFilter || synced.propFilter !== propFilter || synced.search !== effectiveExternalSearch) {
+        setSynced({ appliedFilter, propFilter, search: effectiveExternalSearch });
+        if (synced.appliedFilter !== appliedFilter) setDraftFilter(appliedFilter);
+        if (synced.propFilter !== propFilter && propFilter !== undefined) {
             setState((prev) => ({ ...prev, filter: propFilter }));
         }
-    }, [propFilterKey, propFilter]);
-
-    // The parent may hand back a normalised term (trimmed, single spaces): only overwrite the
-    // input when the meaning differs, so a trailing space being typed is not swallowed.
-    useEffect(() => {
-        if (effectiveExternalSearch !== undefined && normalizeSearch(effectiveExternalSearch) !== normalizeSearch(inputValue)) {
+        // The parent may hand back a normalised term (trimmed, single spaces): only overwrite the
+        // input when the meaning differs, so a trailing space being typed is not swallowed.
+        if (synced.search !== effectiveExternalSearch && effectiveExternalSearch !== undefined
+            && normalizeSearch(effectiveExternalSearch) !== normalizeSearch(inputValue)) {
             setInputValue(effectiveExternalSearch);
             setState((prev) => ({ ...prev, search: effectiveExternalSearch }));
         }
-    }, [effectiveExternalSearch]);
+    }
 
     const handleDebounce = useMemo(
         () =>

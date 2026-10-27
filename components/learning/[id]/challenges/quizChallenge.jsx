@@ -38,14 +38,19 @@ function useCountdown(isoTime) {
     const [seconds, setSeconds] = useState(compute);
 
     useEffect(() => {
-        setSeconds(compute());
-        if (!target) return undefined;
-        const timer = setInterval(() => {
+        // A new target re-syncs right away (from a callback, not synchronously in the effect), then every second.
+        let timer = null;
+        const tick = () => {
             const next = compute();
             setSeconds(next);
             if (next === 0) clearInterval(timer);
-        }, 1000);
-        return () => clearInterval(timer);
+        };
+        const first = setTimeout(tick, 0);
+        if (target) timer = setInterval(tick, 1000);
+        return () => {
+            clearTimeout(first);
+            clearInterval(timer);
+        };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [target]);
 

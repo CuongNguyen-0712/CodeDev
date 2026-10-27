@@ -39,9 +39,12 @@ export default function useCodeDraft({
     const [overQuota, setOverQuota] = useState(false);
 
     const codeRef = useRef("");
+    // Callbacks read the ref; `baseline` mirrors it for rendering `isDirty` (refs cannot be read during render).
     const baselineRef = useRef("");
+    const [baseline, setBaseline] = useState("");
     const timerRef = useRef(null);
     const pendingRef = useRef(false);
+    const serverVersion = server?.version ?? null;
 
     const persist = useCallback(async (value) => {
         if (!key || !isDraftStorageAvailable()) return;
@@ -58,7 +61,7 @@ export default function useCodeDraft({
                 language,
                 code: value,
                 dirty: value !== baselineRef.current,
-                baseVersion: server?.version ?? null,
+                baseVersion: serverVersion,
             });
 
             setLastSavedAt(Date.now());
@@ -73,7 +76,7 @@ export default function useCodeDraft({
                 markPending(key, false);
             }
         }
-    }, [key, userId, challengeId, language, server?.version]);
+    }, [key, userId, challengeId, language, serverVersion]);
 
     const flush = useCallback(async () => {
         if (pendingRef.current) {
@@ -106,6 +109,7 @@ export default function useCodeDraft({
                 initializedKeyRef.current = key;
                 codeRef.current = serverCode ?? starterCode;
                 setCodeState(codeRef.current);
+                setBaseline(baselineRef.current);
                 setRestoredFrom(serverCode !== null ? "server" : "starter");
                 setStatus("unavailable");
                 setReady(true);
@@ -138,6 +142,7 @@ export default function useCodeDraft({
             initializedKeyRef.current = key;
             codeRef.current = initial;
             setCodeState(initial);
+            setBaseline(baselineRef.current);
             setRestoredFrom(source);
             setLastSavedAt(draft?.updatedAt || null);
             setReady(true);
@@ -193,6 +198,7 @@ export default function useCodeDraft({
     // Must only be called after the server confirmed the submission was stored.
     const markSubmitted = useCallback(async ({ code: submittedCode, submissionId, submittedAt }) => {
         baselineRef.current = submittedCode;
+        setBaseline(submittedCode);
         if (!key) return;
 
         try {
@@ -224,7 +230,7 @@ export default function useCodeDraft({
         lastSavedAt,
         restoredFrom,
         overQuota,
-        isDirty: code !== baselineRef.current,
+        isDirty: code !== baseline,
         flush,
         resetToStarter,
         markSubmitted,
