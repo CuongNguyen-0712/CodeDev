@@ -12,7 +12,7 @@ export async function GET(req) {
             return rateCheck.response;
         }
 
-        const session = await getAuthSession();
+        const session = await getAuthSession({ allowLocked: true }); // public read (plan 12.3)
 
         const userId = session?.user?.id || null;
 

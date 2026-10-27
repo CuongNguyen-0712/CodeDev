@@ -18,7 +18,7 @@ export async function GET(req) {
 
         let userId = null;
         try {
-            const session = await getAuthSession();
+            const session = await getAuthSession({ allowLocked: true }); // public read (plan 12.3)
             if (session?.user?.id) {
                 userId = session.user.id;
             }

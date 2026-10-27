@@ -11,7 +11,7 @@ const PUBLIC_ID = /^[A-Za-z0-9_-]{1,64}$/;
 export async function GET(req) {
     try {
         // Not soft: an expired access token gets 401 so the client refreshes instead of seeing guest results.
-        const session = await getAuthSession();
+        const session = await getAuthSession({ allowLocked: true }); // public read (plan 12.3)
 
         const userId = session?.user?.id || null;
 

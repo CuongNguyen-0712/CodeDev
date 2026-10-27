@@ -12,7 +12,7 @@ import { rateLimiters } from "@/lib/rateLimit";
  */
 export async function POST(req) {
     try {
-        const session = await getAuthSession();
+        const session = await getAuthSession({ allowLocked: true }); // the lock page hears "verified" (plan 12.3)
         const userId = session?.user?.id;
 
         if (!userId) {

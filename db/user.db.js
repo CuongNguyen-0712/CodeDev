@@ -47,6 +47,13 @@ export const userDb = {
         return res.rows[0]?.email_verified === true;
     },
 
+    /** End of the 7-day grace period as epoch ms, null when verified (plan 12). */
+    getVerifyLockAt: async ({ userId }) => {
+        const res = await sql(`SELECT verify_lock_at FROM identity.users WHERE public_id = $1;`, [userId]);
+        const value = res.rows[0]?.verify_lock_at;
+        return value ? new Date(value).getTime() : null;
+    },
+
     // Throws SQLSTATE CD409 when the provider account belongs to another user.
     linkProviderAccount: async ({ userId, provider, providerAccountId, providerEmail }) => {
         return await sql(
