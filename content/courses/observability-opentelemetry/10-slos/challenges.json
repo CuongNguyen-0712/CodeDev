@@ -1,0 +1,66 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_otl_411",
+      "name": "submit-slo-error-budget",
+      "type": "quiz",
+      "title": "Read the submit endpoint's SLO",
+      "description": "Three statements on the numbers behind the SLO of POST /submissions (99.5% of valid requests not 5xx and answered within 2 s, rolling 28 days): which requests count, how much budget is left, and what an outage at night really cost.",
+      "difficulty": "medium",
+      "outcomes": [
+        "slo-alerting"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "POST /submissions, rolling 28 days (2026-09-29 .. 2026-10-26)\nall requests                                    12,493,000\n  4xx (400 validation, 401, 403, 413, 422)          93,000\n  5xx (500, 502, 503, 504)                          21,000\n  2xx/3xx slower than 2 s                           10,500\n  2xx/3xx within 2 s                            12,368,500\n\nThe 4xx responses are learners' requests the API rejected: invalid JSON, an expired token, code over the 64 KB limit (413), an unknown language (422).\n\nStatement: \"Counting these 93,000 4xx responses as bad events would make the SLI a more honest measure of what learners experience.\"",
+          "explanation": "False. A 413 for a 3 MB paste or a 422 for an unknown language is the service working correctly: it rejected a request that cannot be served, and no change to the platform's reliability would turn it into a success. Counting them as bad would let one learner's script or a bot that sends invalid requests spend the error budget, and the SLI would drop without anything being wrong with the grader. They are excluded from the valid events instead. The exception is a 4xx caused by your own bug (a validation change that rejects valid code): treat that as an incident and investigate it, rather than counting all 4xx by default. The misconception is that every non-2xx status is a failure of the service.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "POST /submissions, rolling 28 days (2026-09-29 .. 2026-10-26)\nall requests                                    12,493,000\n  4xx (400 validation, 401, 403, 413, 422)          93,000\n  5xx (500, 502, 503, 504)                          21,000\n  2xx/3xx slower than 2 s                           10,500\n  2xx/3xx within 2 s                            12,368,500\n\nSLO: 99.5% of valid requests are good (not 5xx and answered within 2 s), rolling 28 days. 4xx are not valid events.\n\nError budget policy:\nbudget left >= 50%   ship as usual (canary 10% for 30 min)\nbudget left 25-50%   ship only with a 60 min canary and the on-call engineer watching\nbudget left < 25%    feature releases wait; reliability fixes and rollbacks only\n\nStatement: \"About half of the error budget is spent, so under this policy the grader release can ship today, with the 60-minute canary.\"",
+          "explanation": "True. Valid requests = 12,493,000 - 93,000 = 12,400,000, so the budget is 0.5% x 12,400,000 = 62,000 bad requests. Bad requests = 21,000 (5xx) + 10,500 (slower than 2 s) = 31,500, which is 50.8% of the budget: 49.2% is left, in the 25-50% band of the policy. The release may go out, but with the longer canary. Two common slips change the answer: dividing by all 12,493,000 requests (a slightly larger budget) or forgetting the slow requests (only 34% spent, which would wrongly allow shipping as usual).",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "SLO: 99.5% of valid submit requests are good, rolling 28 days = 40,320 minutes. The review deck says: \"Our error budget is 201.6 minutes of downtime per 28 days.\"\n\nLast Sunday the grader was fully down from 02:00 to 03:30 (90 minutes, every submit request failed).\nTraffic: 28-day average 307 valid requests/min; Sunday 02:00-03:30: 60 valid requests/min; weekday peak about 2,000 valid requests/min.\nValid requests in the 28 days: 12,400,000.\n\nStatement: \"The outage used 90 of the 201.6 minutes, so it consumed about 45% of the error budget.\"",
+          "explanation": "False. The SLI counts requests, so the budget is 0.5% x 12,400,000 = 62,000 bad requests. The outage failed 90 x 60 = 5,400 requests, about 8.7% of the budget. The 201.6-minute figure is the budget translated into time at the average rate of 307 requests per minute; at night traffic was a fifth of that, so each minute of outage spent a fifth as much. The same 90 minutes at the 2,000-requests-per-minute peak would have failed 180,000 requests, nearly three times the whole budget. The misconception is that \"minutes of downtime\" is what a request-based SLO measures: it is only a way to talk about it.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

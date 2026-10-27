@@ -1,0 +1,2523 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_otl_221",
+      "name": "find-the-missing-800ms-evidence",
+      "type": "quiz",
+      "title": "Find the Missing 800 ms: read the evidence",
+      "description": "POST /submissions takes 1,240 ms but its child spans cover only about 440 ms. Six statements on one evidence pack - the slow trace (A), a second trace found by submission id (B), the request's logs (C), the code (D) and the Collector's own metrics (E) - take you from reading the evidence to a hypothesis, past two wrong explanations, to the scope of the fix and its verification.",
+      "difficulty": "medium",
+      "outcomes": [
+        "trace-context"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence A - the slow trace (service submissions-api, host api-7f9c):\nTrace 4bf92f3577b34da6a3ce929d0e0e4736\nSpan                          Start      End        Duration   Self time\nPOST /submissions             0 ms       1,240 ms   1,240 ms   802 ms\n  auth.verify                 1 ms       35 ms      34 ms      34 ms\n  submissions.validate        35 ms      57 ms      22 ms      22 ms\n  cache.get problem:p_42      57 ms      66 ms      9 ms       9 ms\n  INSERT submissions          866 ms     1,124 ms   258 ms     258 ms\n  send grading                1,124 ms   1,239 ms   115 ms     115 ms\n\nStatement: \"The children of POST /submissions cover about 440 ms of its 1,240 ms, and almost all of the uncovered time is one stretch: the 800 ms between the end of cache.get and the start of INSERT submissions.\"",
+          "explanation": "True. The children do not overlap, so their covered time is the plain sum: 34 + 22 + 9 + 258 + 115 = 438 ms. The root's self time of 802 ms is 1,240 - 438, and 800 ms of it lies between 66 ms (cache.get ends) and 866 ms (INSERT starts); the remaining 2 ms are the first millisecond and the last one. Locating the hole precisely is the first step: it tells you which code to read. The common mistake is to read a large root self time as \"the root's own code is slow\" without checking where the uncovered time sits.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence B - search submission.id = sub_9f2:\nTrace 7d1c09e4b2a54f8e9c3b6a1d0f2e4c58 (service submissions-api, host api-7f9c)\nplagiarism.check   start 14:03:12.066   duration 800 ms   parent: none (root span)\n  attributes: submission.id=sub_9f2  plagiarism.verdict=clean\nRoot spans named plagiarism.check, last 24 h: 18,412\nRoot spans named POST /submissions, last 24 h: 18,430\n\nEvidence C - the request's logs (submission_id = sub_9f2):\n14:03:12.000 info request started            trace_id=4bf92f35... route=\"POST /submissions\"\n14:03:12.066 info calling plagiarism service trace_id=4bf92f35... bytes=1840\n14:03:12.866 info plagiarism verdict         verdict=clean took_ms=800\n14:03:13.240 info request finished           trace_id=4bf92f35... status=202 duration_ms=1240\n\nStatement: \"The missing 800 ms were recorded: the plagiarism call has a span, but it was started where no context was active, so the SDK gave it a trace of its own instead of making it a child of POST /submissions.\"",
+          "explanation": "True. B's span starts at .066 and lasts 800 ms, exactly the hole in A (66 ms to 866 ms), with the same submission id from the same service and host, and it has no parent. C confirms the call at .066 and the verdict at .866, and the verdict line has no trace_id: when it was written, no span was active. The 18,412 orphan roots against 18,430 requests show it happens on practically every submission. The time is not missing; it is attached to the wrong trace. The misconception is that a hole in a trace means time nobody measured.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence E - Collector internal metrics, 14:00-14:10:\notelcol_receiver_refused_spans{receiver=\"otlp\"}              0\notelcol_exporter_sent_spans{exporter=\"otlp/traces\"}          1,284,120\notelcol_exporter_send_failed_spans{exporter=\"otlp/traces\"}   0\notelcol_exporter_queue_size{exporter=\"otlp/traces\"}          12 (capacity 5,000)\n\nEvidence B - search submission.id = sub_9f2:\nTrace 7d1c09e4b2a54f8e9c3b6a1d0f2e4c58 (service submissions-api, host api-7f9c)\nplagiarism.check   start 14:03:12.066   duration 800 ms   parent: none (root span)\n  attributes: submission.id=sub_9f2  plagiarism.verdict=clean\nRoot spans named plagiarism.check, last 24 h: 18,412\nRoot spans named POST /submissions, last 24 h: 18,430\n\nStatement: \"The Collector dropped the plagiarism span under load; increasing the exporter's queue size would put it back under POST /submissions.\"",
+          "explanation": "False. E shows nothing refused, nothing failed and a queue at 12 of 5,000. More decisively, B shows the span reached the backend: it was not dropped, it is a root span in another trace. The parent of a span is decided in the process, by the context active when the span starts; the Collector forwards spans and cannot re-parent them. A dropped span looks different: it is missing everywhere, and its own children (if any) show a parent id that no span in the trace has. The misconception is to blame the pipeline for every gap before searching for the missing operation.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence A - the slow trace (service submissions-api, host api-7f9c):\nTrace 4bf92f3577b34da6a3ce929d0e0e4736\nSpan                          Start      End        Duration   Self time\nPOST /submissions             0 ms       1,240 ms   1,240 ms   802 ms\n  auth.verify                 1 ms       35 ms      34 ms      34 ms\n  submissions.validate        35 ms      57 ms      22 ms      22 ms\n  cache.get problem:p_42      57 ms      66 ms      9 ms       9 ms\n  INSERT submissions          866 ms     1,124 ms   258 ms     258 ms\n  send grading                1,124 ms   1,239 ms   115 ms     115 ms\n\nEvidence B - search submission.id = sub_9f2:\nTrace 7d1c09e4b2a54f8e9c3b6a1d0f2e4c58 (service submissions-api, host api-7f9c)\nplagiarism.check   start 14:03:12.066   duration 800 ms   parent: none (root span)\n  attributes: submission.id=sub_9f2  plagiarism.verdict=clean\nRoot spans named plagiarism.check, last 24 h: 18,412\nRoot spans named POST /submissions, last 24 h: 18,430\n\nEvidence C - the request's logs (submission_id = sub_9f2):\n14:03:12.000 info request started            trace_id=4bf92f35... route=\"POST /submissions\"\n14:03:12.066 info calling plagiarism service trace_id=4bf92f35... bytes=1840\n14:03:12.866 info plagiarism verdict         verdict=clean took_ms=800\n14:03:13.240 info request finished           trace_id=4bf92f35... status=202 duration_ms=1240\n\nStatement: \"The gap is an artefact of clock skew: the API host's clock and the clock that timed the plagiarism call disagree by about 800 ms.\"",
+          "explanation": "False. Clock skew shifts spans recorded by different machines against each other. Every span in A and B is recorded by service submissions-api on host api-7f9c, and every line in C comes from the same process: one clock. The logs agree with the spans on their own terms (took_ms=800, duration_ms=1240), and the plagiarism service's own clock appears nowhere in this evidence. The misconception is to reach for skew whenever times do not add up, even when everything was measured by the same process.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence A - the slow trace (service submissions-api, host api-7f9c):\nTrace 4bf92f3577b34da6a3ce929d0e0e4736\nSpan                          Start      End        Duration   Self time\nPOST /submissions             0 ms       1,240 ms   1,240 ms   802 ms\n  auth.verify                 1 ms       35 ms      34 ms      34 ms\n  submissions.validate        35 ms      57 ms      22 ms      22 ms\n  cache.get problem:p_42      57 ms      66 ms      9 ms       9 ms\n  INSERT submissions          866 ms     1,124 ms   258 ms     258 ms\n  send grading                1,124 ms   1,239 ms   115 ms     115 ms\n\nEvidence D - the code added last Thursday:\nasync create(dto, user) {\n  await this.auth.verify(user);\n  const id = this.validate(dto);\n  const problem = await this.cache.get(`problem:${dto.problemId}`);\n  this.logger.info({ submission_id: id }, \"calling plagiarism service\");\n  const verdict = await this.checkPlagiarism(id, dto.code);\n  await this.repo.insert({ id, userId: user.id, problemId: problem.id, verdict });\n  await this.enqueueGrading(id);\n  return { id };\n}\nprivate checkPlagiarism(submissionId, code) {\n  const startTime = Date.now();\n  return new Promise((resolve, reject) => {\n    // callback client, one connection opened at startup\n    this.plagiarism.check({ code }, (err, result) => {\n      const span = tracer.startSpan(\"plagiarism.check\", { startTime, attributes: { \"submission.id\": submissionId } });\n      span.end();\n      this.logger.info({ submission_id: submissionId, verdict: result?.verdict, took_ms: Date.now() - startTime }, \"plagiarism verdict\");\n      err ? reject(err) : resolve(result.verdict);\n    });\n  });\n}\n\nStatement: \"The same lost context also detaches the work after the call, so the fix must wrap repo.insert and enqueueGrading in context.bind as well, not only the plagiarism callback.\"",
+          "explanation": "False. A shows INSERT submissions and send grading as children of POST /submissions, in the right trace. They run after await this.checkPlagiarism(...), and an await continuation resumes in the context of the async function that awaited, whoever resolved the promise. Only the code inside the callback runs in the context of the client's connection, which was opened at startup with no span active. The fix belongs where the context is lost: bind the callback passed to check (or start the span before the call). The misconception is to spread context.bind over code that never lost its context, which hides where the real boundary is.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence D - the code added last Thursday:\nasync create(dto, user) {\n  await this.auth.verify(user);\n  const id = this.validate(dto);\n  const problem = await this.cache.get(`problem:${dto.problemId}`);\n  this.logger.info({ submission_id: id }, \"calling plagiarism service\");\n  const verdict = await this.checkPlagiarism(id, dto.code);\n  await this.repo.insert({ id, userId: user.id, problemId: problem.id, verdict });\n  await this.enqueueGrading(id);\n  return { id };\n}\nprivate checkPlagiarism(submissionId, code) {\n  const startTime = Date.now();\n  return new Promise((resolve, reject) => {\n    // callback client, one connection opened at startup\n    this.plagiarism.check({ code }, (err, result) => {\n      const span = tracer.startSpan(\"plagiarism.check\", { startTime, attributes: { \"submission.id\": submissionId } });\n      span.end();\n      this.logger.info({ submission_id: submissionId, verdict: result?.verdict, took_ms: Date.now() - startTime }, \"plagiarism verdict\");\n      err ? reject(err) : resolve(result.verdict);\n    });\n  });\n}\n\nFix deployed: the callback passed to this.plagiarism.check is wrapped with context.bind(context.active(), ...).\n\nStatement: \"To verify it, check a new trace of POST /submissions: plagiarism.check should be a child from about 66 ms to 866 ms, the root's self time should drop from about 800 ms to a few milliseconds, new root spans named plagiarism.check should stop appearing, and the plagiarism verdict log line should carry the request's trace_id.\"",
+          "explanation": "True. Each check matches one symptom in the evidence: the child closes the hole in A, the self time measures that nothing else is missing, the orphan count from B should drop to zero for requests served by the new version, and the log line from C proves the callback now runs in the request's context. Add a regression test with an in-memory exporter (two concurrent submissions, each check under its own request) so the next refactor of the client cannot bring the hole back. The misconception is to verify by eye on a single trace and stop there.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_otl_222",
+      "name": "find-the-missing-800ms",
+      "type": "fix_bug",
+      "title": "Find the Missing 800 ms",
+      "description": "Since the plagiarism check was added, traces of POST /submissions on CodeDev have a hole: the root span is 1,240 ms long but its children cover about 440 ms, and every request also creates a separate trace whose root is \"plagiarism.check\", with the same submission id and the same timing. The trace report has a second problem: its self time column shows negative or too small values for spans whose children run in parallel or keep running after the span ends.\n\nThe file contains a context API on top of AsyncLocalStorage (context.active(), context.with(), context.bind(); await and promises carry the context by themselves), a tiny tracer, a fake clock and the plagiarism client, which keeps one connection and calls your callback from code that runs outside any request. Fix the app code so that:\n- every plagiarism.check span is a child of the POST /submissions span of the request that made the call, also when several requests are in flight;\n- selfTime returns the part of the span's own [start..end] that none of its children covers: overlapping children count once, and the part of a child outside its parent does not count.\n\nInput (stdin): { \"submissions\": [{ \"id\", \"startAt\", \"plagiarismMs\", \"steps\" }] }. A step is \"name:ms\" (a span with ms of fake I/O), \"plagiarism\" (the plagiarism check, at most one per submission), \"&<step>\" (started but not awaited) or an array of steps run with Promise.all.\nOutput: every trace as a tree, one span per line: name, the submission id when the span has one, [start..end] in fake ms and self=<self time>; children sorted by start, then end, then name. Do not change the context, the tracer, the clock, the plagiarism client or the test runner.",
+      "difficulty": "medium",
+      "outcomes": [
+        "trace-context"
+      ],
+      "points": 30,
+      "hints": [
+        "Where is plagiarism.check started, and which context is active at that exact moment? Who calls that code: the request, or the client's connection?",
+        "Two places: the callback passed to plagiarismClient.check (the context API in the file has a way to carry the caller's context into a function that someone else calls later), and the loop in selfTime that subtracts child durations. Draw two children [20..30] and [20..45] under a parent [0..60]: what should self time be?",
+        "A similar computation on other data: a room is booked [9..12], [10..11] and [11..14]; the time it is busy within a working day [8..13] is the length of the union of the bookings clipped to the day: [9..13] = 4 hours, not 3 + 1 + 3 = 7. Sort the intervals by start, clip each to the day and merge the ones that overlap before adding lengths."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "The incident: one submission, an 800 ms plagiarism call after the cache lookup",
+          "input": {
+            "submissions": [
+              {
+                "id": "sub_9f2",
+                "startAt": 0,
+                "plagiarismMs": 800,
+                "steps": [
+                  "auth.verify:30",
+                  "cache.get problem:15",
+                  "plagiarism",
+                  "INSERT submissions:250",
+                  "send grading:120"
+                ]
+              }
+            ]
+          },
+          "hidden": false,
+          "score": 3,
+          "expected": "POST /submissions sub_9f2 [0..1215] self=0\n  auth.verify [0..30] self=30\n  cache.get problem [30..45] self=15\n  plagiarism.check sub_9f2 [45..845] self=800\n  INSERT submissions [845..1095] self=250\n  send grading [1095..1215] self=120"
+        },
+        {
+          "name": "Two overlapping requests, and a cache lookup in parallel with the rate-limit check",
+          "input": {
+            "submissions": [
+              {
+                "id": "sub_101",
+                "startAt": 0,
+                "plagiarismMs": 600,
+                "steps": [
+                  "auth.verify:20",
+                  [
+                    "cache.get problem:10",
+                    "rateLimit.check:25"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:80"
+                ]
+              },
+              {
+                "id": "sub_102",
+                "startAt": 15,
+                "plagiarismMs": 300,
+                "steps": [
+                  "auth.verify:20",
+                  [
+                    "cache.get problem:40",
+                    "rateLimit.check:5"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:60"
+                ]
+              }
+            ]
+          },
+          "hidden": false,
+          "score": 3,
+          "expected": "POST /submissions sub_101 [0..725] self=0\n  auth.verify [0..20] self=20\n  cache.get problem [20..30] self=10\n  rateLimit.check [20..45] self=25\n  plagiarism.check sub_101 [45..645] self=600\n  INSERT submissions [645..725] self=80\nPOST /submissions sub_102 [15..435] self=0\n  auth.verify [15..35] self=20\n  rateLimit.check [35..40] self=5\n  cache.get problem [35..75] self=40\n  plagiarism.check sub_102 [75..375] self=300\n  INSERT submissions [375..435] self=60"
+        },
+        {
+          "name": "Fan-out: three parallel children whose durations add up to more than the parent",
+          "input": {
+            "submissions": [
+              {
+                "id": "sub_201",
+                "startAt": 100,
+                "plagiarismMs": 90,
+                "steps": [
+                  [
+                    "plagiarism",
+                    "cache.get problem:100",
+                    "rateLimit.check:70"
+                  ],
+                  "INSERT submissions:30"
+                ]
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 3,
+          "expected": "POST /submissions sub_201 [100..230] self=0\n  rateLimit.check [100..170] self=70\n  plagiarism.check sub_201 [100..190] self=90\n  cache.get problem [100..200] self=100\n  INSERT submissions [200..230] self=30"
+        },
+        {
+          "name": "A span that is not awaited outlives the request: it is clipped to the parent",
+          "input": {
+            "submissions": [
+              {
+                "id": "sub_301",
+                "startAt": 0,
+                "plagiarismMs": 50,
+                "steps": [
+                  "auth.verify:10",
+                  "&audit.write:500",
+                  "plagiarism",
+                  "INSERT submissions:40"
+                ]
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 2,
+          "expected": "POST /submissions sub_301 [0..100] self=0\n  auth.verify [0..10] self=10\n  plagiarism.check sub_301 [10..60] self=50\n  audit.write [10..510] self=500\n  INSERT submissions [60..100] self=40"
+        },
+        {
+          "name": "Five requests start at the same moment: each plagiarism span stays in its own trace",
+          "input": {
+            "submissions": [
+              {
+                "id": "sub_400",
+                "startAt": 0,
+                "plagiarismMs": 500,
+                "steps": [
+                  "auth.verify:5",
+                  "plagiarism",
+                  "INSERT submissions:10"
+                ]
+              },
+              {
+                "id": "sub_401",
+                "startAt": 0,
+                "plagiarismMs": 100,
+                "steps": [
+                  "auth.verify:5",
+                  "plagiarism",
+                  "INSERT submissions:20"
+                ]
+              },
+              {
+                "id": "sub_402",
+                "startAt": 0,
+                "plagiarismMs": 300,
+                "steps": [
+                  "auth.verify:5",
+                  "plagiarism",
+                  "INSERT submissions:30"
+                ]
+              },
+              {
+                "id": "sub_403",
+                "startAt": 0,
+                "plagiarismMs": 100,
+                "steps": [
+                  "auth.verify:5",
+                  "plagiarism",
+                  "INSERT submissions:40"
+                ]
+              },
+              {
+                "id": "sub_404",
+                "startAt": 0,
+                "plagiarismMs": 0,
+                "steps": [
+                  "auth.verify:5",
+                  "plagiarism",
+                  "INSERT submissions:50"
+                ]
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 2,
+          "expected": "POST /submissions sub_404 [0..55] self=0\n  auth.verify [0..5] self=5\n  plagiarism.check sub_404 [5..5] self=0\n  INSERT submissions [5..55] self=50\nPOST /submissions sub_401 [0..125] self=0\n  auth.verify [0..5] self=5\n  plagiarism.check sub_401 [5..105] self=100\n  INSERT submissions [105..125] self=20\nPOST /submissions sub_403 [0..145] self=0\n  auth.verify [0..5] self=5\n  plagiarism.check sub_403 [5..105] self=100\n  INSERT submissions [105..145] self=40\nPOST /submissions sub_402 [0..335] self=0\n  auth.verify [0..5] self=5\n  plagiarism.check sub_402 [5..305] self=300\n  INSERT submissions [305..335] self=30\nPOST /submissions sub_400 [0..515] self=0\n  auth.verify [0..5] self=5\n  plagiarism.check sub_400 [5..505] self=500\n  INSERT submissions [505..515] self=10"
+        },
+        {
+          "name": "Degenerate input: no steps, zero-length spans and an instant plagiarism answer",
+          "input": {
+            "submissions": [
+              {
+                "id": "sub_501",
+                "startAt": 0,
+                "plagiarismMs": 0,
+                "steps": []
+              },
+              {
+                "id": "sub_502",
+                "startAt": 0,
+                "plagiarismMs": 0,
+                "steps": [
+                  "auth.verify:0",
+                  "plagiarism",
+                  [
+                    "cache.get problem:0",
+                    "rateLimit.check:0"
+                  ]
+                ]
+              },
+              {
+                "id": "sub_503",
+                "startAt": 5,
+                "plagiarismMs": 0,
+                "steps": [
+                  "plagiarism",
+                  "&audit.write:0"
+                ]
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 2,
+          "expected": "POST /submissions sub_501 [0..0] self=0\nPOST /submissions sub_502 [0..0] self=0\n  auth.verify [0..0] self=0\n  cache.get problem [0..0] self=0\n  plagiarism.check sub_502 [0..0] self=0\n  rateLimit.check [0..0] self=0\nPOST /submissions sub_503 [5..5] self=0\n  audit.write [5..5] self=0\n  plagiarism.check sub_503 [5..5] self=0"
+        },
+        {
+          "name": "Large: 150 staggered submissions with parallel steps and background spans",
+          "input": {
+            "submissions": [
+              {
+                "id": "sub_7000",
+                "startAt": 0,
+                "plagiarismMs": 200,
+                "steps": [
+                  "auth.verify:10",
+                  [
+                    "cache.get problem:5",
+                    "rateLimit.check:8"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:40",
+                  "&audit.write:300",
+                  "send grading:15"
+                ]
+              },
+              {
+                "id": "sub_7001",
+                "startAt": 37,
+                "plagiarismMs": 331,
+                "steps": [
+                  "auth.verify:13",
+                  "cache.get problem:7",
+                  [
+                    "plagiarism",
+                    "INSERT drafts:101"
+                  ],
+                  "INSERT submissions:50",
+                  "send grading:20"
+                ]
+              },
+              {
+                "id": "sub_7002",
+                "startAt": 74,
+                "plagiarismMs": 462,
+                "steps": [
+                  "auth.verify:16",
+                  [
+                    "cache.get problem:7",
+                    "rateLimit.check:10"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:60",
+                  "send grading:25"
+                ]
+              },
+              {
+                "id": "sub_7003",
+                "startAt": 111,
+                "plagiarismMs": 593,
+                "steps": [
+                  "auth.verify:19",
+                  "cache.get problem:6",
+                  "plagiarism",
+                  "INSERT submissions:70",
+                  "send grading:30"
+                ]
+              },
+              {
+                "id": "sub_7004",
+                "startAt": 148,
+                "plagiarismMs": 724,
+                "steps": [
+                  "auth.verify:22",
+                  [
+                    "cache.get problem:9",
+                    "rateLimit.check:8"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:80",
+                  "send grading:35"
+                ]
+              },
+              {
+                "id": "sub_7005",
+                "startAt": 185,
+                "plagiarismMs": 855,
+                "steps": [
+                  "auth.verify:25",
+                  "cache.get problem:8",
+                  [
+                    "plagiarism",
+                    "INSERT drafts:105"
+                  ],
+                  "INSERT submissions:90",
+                  "&audit.write:305",
+                  "send grading:40"
+                ]
+              },
+              {
+                "id": "sub_7006",
+                "startAt": 222,
+                "plagiarismMs": 986,
+                "steps": [
+                  "auth.verify:28",
+                  [
+                    "cache.get problem:6",
+                    "rateLimit.check:10"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:100",
+                  "send grading:15"
+                ]
+              },
+              {
+                "id": "sub_7007",
+                "startAt": 259,
+                "plagiarismMs": 217,
+                "steps": [
+                  "auth.verify:10",
+                  "cache.get problem:7",
+                  "plagiarism",
+                  "INSERT submissions:110",
+                  "send grading:20"
+                ]
+              },
+              {
+                "id": "sub_7008",
+                "startAt": 296,
+                "plagiarismMs": 348,
+                "steps": [
+                  "auth.verify:13",
+                  [
+                    "cache.get problem:8",
+                    "rateLimit.check:8"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:120",
+                  "send grading:25"
+                ]
+              },
+              {
+                "id": "sub_7009",
+                "startAt": 333,
+                "plagiarismMs": 479,
+                "steps": [
+                  "auth.verify:16",
+                  "cache.get problem:6",
+                  [
+                    "plagiarism",
+                    "INSERT drafts:109"
+                  ],
+                  "INSERT submissions:40",
+                  "send grading:30"
+                ]
+              },
+              {
+                "id": "sub_7010",
+                "startAt": 370,
+                "plagiarismMs": 610,
+                "steps": [
+                  "auth.verify:19",
+                  [
+                    "cache.get problem:5",
+                    "rateLimit.check:10"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:50",
+                  "&audit.write:310",
+                  "send grading:35"
+                ]
+              },
+              {
+                "id": "sub_7011",
+                "startAt": 407,
+                "plagiarismMs": 741,
+                "steps": [
+                  "auth.verify:22",
+                  "cache.get problem:8",
+                  "plagiarism",
+                  "INSERT submissions:60",
+                  "send grading:40"
+                ]
+              },
+              {
+                "id": "sub_7012",
+                "startAt": 444,
+                "plagiarismMs": 872,
+                "steps": [
+                  "auth.verify:25",
+                  [
+                    "cache.get problem:7",
+                    "rateLimit.check:8"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:70",
+                  "send grading:15"
+                ]
+              },
+              {
+                "id": "sub_7013",
+                "startAt": 481,
+                "plagiarismMs": 1003,
+                "steps": [
+                  "auth.verify:28",
+                  "cache.get problem:7",
+                  [
+                    "plagiarism",
+                    "INSERT drafts:113"
+                  ],
+                  "INSERT submissions:80",
+                  "send grading:20"
+                ]
+              },
+              {
+                "id": "sub_7014",
+                "startAt": 518,
+                "plagiarismMs": 234,
+                "steps": [
+                  "auth.verify:10",
+                  [
+                    "cache.get problem:9",
+                    "rateLimit.check:10"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:90",
+                  "send grading:25"
+                ]
+              },
+              {
+                "id": "sub_7015",
+                "startAt": 555,
+                "plagiarismMs": 365,
+                "steps": [
+                  "auth.verify:13",
+                  "cache.get problem:6",
+                  "plagiarism",
+                  "INSERT submissions:100",
+                  "&audit.write:315",
+                  "send grading:30"
+                ]
+              },
+              {
+                "id": "sub_7016",
+                "startAt": 592,
+                "plagiarismMs": 496,
+                "steps": [
+                  "auth.verify:16",
+                  [
+                    "cache.get problem:6",
+                    "rateLimit.check:8"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:110",
+                  "send grading:35"
+                ]
+              },
+              {
+                "id": "sub_7017",
+                "startAt": 629,
+                "plagiarismMs": 627,
+                "steps": [
+                  "auth.verify:19",
+                  "cache.get problem:8",
+                  [
+                    "plagiarism",
+                    "INSERT drafts:117"
+                  ],
+                  "INSERT submissions:120",
+                  "send grading:40"
+                ]
+              },
+              {
+                "id": "sub_7018",
+                "startAt": 666,
+                "plagiarismMs": 758,
+                "steps": [
+                  "auth.verify:22",
+                  [
+                    "cache.get problem:8",
+                    "rateLimit.check:10"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:40",
+                  "send grading:15"
+                ]
+              },
+              {
+                "id": "sub_7019",
+                "startAt": 703,
+                "plagiarismMs": 889,
+                "steps": [
+                  "auth.verify:25",
+                  "cache.get problem:7",
+                  "plagiarism",
+                  "INSERT submissions:50",
+                  "send grading:20"
+                ]
+              },
+              {
+                "id": "sub_7020",
+                "startAt": 740,
+                "plagiarismMs": 1020,
+                "steps": [
+                  "auth.verify:28",
+                  [
+                    "cache.get problem:5",
+                    "rateLimit.check:8"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:60",
+                  "&audit.write:320",
+                  "send grading:25"
+                ]
+              },
+              {
+                "id": "sub_7021",
+                "startAt": 777,
+                "plagiarismMs": 251,
+                "steps": [
+                  "auth.verify:10",
+                  "cache.get problem:6",
+                  [
+                    "plagiarism",
+                    "INSERT drafts:121"
+                  ],
+                  "INSERT submissions:70",
+                  "send grading:30"
+                ]
+              },
+              {
+                "id": "sub_7022",
+                "startAt": 814,
+                "plagiarismMs": 382,
+                "steps": [
+                  "auth.verify:13",
+                  [
+                    "cache.get problem:7",
+                    "rateLimit.check:10"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:80",
+                  "send grading:35"
+                ]
+              },
+              {
+                "id": "sub_7023",
+                "startAt": 851,
+                "plagiarismMs": 513,
+                "steps": [
+                  "auth.verify:16",
+                  "cache.get problem:8",
+                  "plagiarism",
+                  "INSERT submissions:90",
+                  "send grading:40"
+                ]
+              },
+              {
+                "id": "sub_7024",
+                "startAt": 888,
+                "plagiarismMs": 644,
+                "steps": [
+                  "auth.verify:19",
+                  [
+                    "cache.get problem:9",
+                    "rateLimit.check:8"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:100",
+                  "send grading:15"
+                ]
+              },
+              {
+                "id": "sub_7025",
+                "startAt": 925,
+                "plagiarismMs": 775,
+                "steps": [
+                  "auth.verify:22",
+                  "cache.get problem:7",
+                  [
+                    "plagiarism",
+                    "INSERT drafts:125"
+                  ],
+                  "INSERT submissions:110",
+                  "&audit.write:325",
+                  "send grading:20"
+                ]
+              },
+              {
+                "id": "sub_7026",
+                "startAt": 962,
+                "plagiarismMs": 906,
+                "steps": [
+                  "auth.verify:25",
+                  [
+                    "cache.get problem:6",
+                    "rateLimit.check:10"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:120",
+                  "send grading:25"
+                ]
+              },
+              {
+                "id": "sub_7027",
+                "startAt": 999,
+                "plagiarismMs": 1037,
+                "steps": [
+                  "auth.verify:28",
+                  "cache.get problem:6",
+                  "plagiarism",
+                  "INSERT submissions:40",
+                  "send grading:30"
+                ]
+              },
+              {
+                "id": "sub_7028",
+                "startAt": 1036,
+                "plagiarismMs": 268,
+                "steps": [
+                  "auth.verify:10",
+                  [
+                    "cache.get problem:8",
+                    "rateLimit.check:8"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:50",
+                  "send grading:35"
+                ]
+              },
+              {
+                "id": "sub_7029",
+                "startAt": 1073,
+                "plagiarismMs": 399,
+                "steps": [
+                  "auth.verify:13",
+                  "cache.get problem:8",
+                  [
+                    "plagiarism",
+                    "INSERT drafts:129"
+                  ],
+                  "INSERT submissions:60",
+                  "send grading:40"
+                ]
+              },
+              {
+                "id": "sub_7030",
+                "startAt": 1110,
+                "plagiarismMs": 530,
+                "steps": [
+                  "auth.verify:16",
+                  [
+                    "cache.get problem:5",
+                    "rateLimit.check:10"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:70",
+                  "&audit.write:330",
+                  "send grading:15"
+                ]
+              },
+              {
+                "id": "sub_7031",
+                "startAt": 1147,
+                "plagiarismMs": 661,
+                "steps": [
+                  "auth.verify:19",
+                  "cache.get problem:7",
+                  "plagiarism",
+                  "INSERT submissions:80",
+                  "send grading:20"
+                ]
+              },
+              {
+                "id": "sub_7032",
+                "startAt": 1184,
+                "plagiarismMs": 792,
+                "steps": [
+                  "auth.verify:22",
+                  [
+                    "cache.get problem:7",
+                    "rateLimit.check:8"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:90",
+                  "send grading:25"
+                ]
+              },
+              {
+                "id": "sub_7033",
+                "startAt": 1221,
+                "plagiarismMs": 923,
+                "steps": [
+                  "auth.verify:25",
+                  "cache.get problem:6",
+                  [
+                    "plagiarism",
+                    "INSERT drafts:133"
+                  ],
+                  "INSERT submissions:100",
+                  "send grading:30"
+                ]
+              },
+              {
+                "id": "sub_7034",
+                "startAt": 1258,
+                "plagiarismMs": 1054,
+                "steps": [
+                  "auth.verify:28",
+                  [
+                    "cache.get problem:9",
+                    "rateLimit.check:10"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:110",
+                  "send grading:35"
+                ]
+              },
+              {
+                "id": "sub_7035",
+                "startAt": 1295,
+                "plagiarismMs": 285,
+                "steps": [
+                  "auth.verify:10",
+                  "cache.get problem:8",
+                  "plagiarism",
+                  "INSERT submissions:120",
+                  "&audit.write:335",
+                  "send grading:40"
+                ]
+              },
+              {
+                "id": "sub_7036",
+                "startAt": 1332,
+                "plagiarismMs": 416,
+                "steps": [
+                  "auth.verify:13",
+                  [
+                    "cache.get problem:6",
+                    "rateLimit.check:8"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:40",
+                  "send grading:15"
+                ]
+              },
+              {
+                "id": "sub_7037",
+                "startAt": 1369,
+                "plagiarismMs": 547,
+                "steps": [
+                  "auth.verify:16",
+                  "cache.get problem:7",
+                  [
+                    "plagiarism",
+                    "INSERT drafts:137"
+                  ],
+                  "INSERT submissions:50",
+                  "send grading:20"
+                ]
+              },
+              {
+                "id": "sub_7038",
+                "startAt": 1406,
+                "plagiarismMs": 678,
+                "steps": [
+                  "auth.verify:19",
+                  [
+                    "cache.get problem:8",
+                    "rateLimit.check:10"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:60",
+                  "send grading:25"
+                ]
+              },
+              {
+                "id": "sub_7039",
+                "startAt": 1443,
+                "plagiarismMs": 809,
+                "steps": [
+                  "auth.verify:22",
+                  "cache.get problem:6",
+                  "plagiarism",
+                  "INSERT submissions:70",
+                  "send grading:30"
+                ]
+              },
+              {
+                "id": "sub_7040",
+                "startAt": 1480,
+                "plagiarismMs": 940,
+                "steps": [
+                  "auth.verify:25",
+                  [
+                    "cache.get problem:5",
+                    "rateLimit.check:8"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:80",
+                  "&audit.write:340",
+                  "send grading:35"
+                ]
+              },
+              {
+                "id": "sub_7041",
+                "startAt": 1517,
+                "plagiarismMs": 1071,
+                "steps": [
+                  "auth.verify:28",
+                  "cache.get problem:8",
+                  [
+                    "plagiarism",
+                    "INSERT drafts:141"
+                  ],
+                  "INSERT submissions:90",
+                  "send grading:40"
+                ]
+              },
+              {
+                "id": "sub_7042",
+                "startAt": 1554,
+                "plagiarismMs": 302,
+                "steps": [
+                  "auth.verify:10",
+                  [
+                    "cache.get problem:7",
+                    "rateLimit.check:10"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:100",
+                  "send grading:15"
+                ]
+              },
+              {
+                "id": "sub_7043",
+                "startAt": 1591,
+                "plagiarismMs": 433,
+                "steps": [
+                  "auth.verify:13",
+                  "cache.get problem:7",
+                  "plagiarism",
+                  "INSERT submissions:110",
+                  "send grading:20"
+                ]
+              },
+              {
+                "id": "sub_7044",
+                "startAt": 1628,
+                "plagiarismMs": 564,
+                "steps": [
+                  "auth.verify:16",
+                  [
+                    "cache.get problem:9",
+                    "rateLimit.check:8"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:120",
+                  "send grading:25"
+                ]
+              },
+              {
+                "id": "sub_7045",
+                "startAt": 1665,
+                "plagiarismMs": 695,
+                "steps": [
+                  "auth.verify:19",
+                  "cache.get problem:6",
+                  [
+                    "plagiarism",
+                    "INSERT drafts:145"
+                  ],
+                  "INSERT submissions:40",
+                  "&audit.write:345",
+                  "send grading:30"
+                ]
+              },
+              {
+                "id": "sub_7046",
+                "startAt": 1702,
+                "plagiarismMs": 826,
+                "steps": [
+                  "auth.verify:22",
+                  [
+                    "cache.get problem:6",
+                    "rateLimit.check:10"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:50",
+                  "send grading:35"
+                ]
+              },
+              {
+                "id": "sub_7047",
+                "startAt": 1739,
+                "plagiarismMs": 957,
+                "steps": [
+                  "auth.verify:25",
+                  "cache.get problem:8",
+                  "plagiarism",
+                  "INSERT submissions:60",
+                  "send grading:40"
+                ]
+              },
+              {
+                "id": "sub_7048",
+                "startAt": 1776,
+                "plagiarismMs": 1088,
+                "steps": [
+                  "auth.verify:28",
+                  [
+                    "cache.get problem:8",
+                    "rateLimit.check:8"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:70",
+                  "send grading:15"
+                ]
+              },
+              {
+                "id": "sub_7049",
+                "startAt": 1813,
+                "plagiarismMs": 319,
+                "steps": [
+                  "auth.verify:10",
+                  "cache.get problem:7",
+                  [
+                    "plagiarism",
+                    "INSERT drafts:149"
+                  ],
+                  "INSERT submissions:80",
+                  "send grading:20"
+                ]
+              },
+              {
+                "id": "sub_7050",
+                "startAt": 1850,
+                "plagiarismMs": 450,
+                "steps": [
+                  "auth.verify:13",
+                  [
+                    "cache.get problem:5",
+                    "rateLimit.check:10"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:90",
+                  "&audit.write:350",
+                  "send grading:25"
+                ]
+              },
+              {
+                "id": "sub_7051",
+                "startAt": 1887,
+                "plagiarismMs": 581,
+                "steps": [
+                  "auth.verify:16",
+                  "cache.get problem:6",
+                  "plagiarism",
+                  "INSERT submissions:100",
+                  "send grading:30"
+                ]
+              },
+              {
+                "id": "sub_7052",
+                "startAt": 1924,
+                "plagiarismMs": 712,
+                "steps": [
+                  "auth.verify:19",
+                  [
+                    "cache.get problem:7",
+                    "rateLimit.check:8"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:110",
+                  "send grading:35"
+                ]
+              },
+              {
+                "id": "sub_7053",
+                "startAt": 1961,
+                "plagiarismMs": 843,
+                "steps": [
+                  "auth.verify:22",
+                  "cache.get problem:8",
+                  [
+                    "plagiarism",
+                    "INSERT drafts:153"
+                  ],
+                  "INSERT submissions:120",
+                  "send grading:40"
+                ]
+              },
+              {
+                "id": "sub_7054",
+                "startAt": 1998,
+                "plagiarismMs": 974,
+                "steps": [
+                  "auth.verify:25",
+                  [
+                    "cache.get problem:9",
+                    "rateLimit.check:10"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:40",
+                  "send grading:15"
+                ]
+              },
+              {
+                "id": "sub_7055",
+                "startAt": 2035,
+                "plagiarismMs": 205,
+                "steps": [
+                  "auth.verify:28",
+                  "cache.get problem:7",
+                  "plagiarism",
+                  "INSERT submissions:50",
+                  "&audit.write:355",
+                  "send grading:20"
+                ]
+              },
+              {
+                "id": "sub_7056",
+                "startAt": 2072,
+                "plagiarismMs": 336,
+                "steps": [
+                  "auth.verify:10",
+                  [
+                    "cache.get problem:6",
+                    "rateLimit.check:8"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:60",
+                  "send grading:25"
+                ]
+              },
+              {
+                "id": "sub_7057",
+                "startAt": 2109,
+                "plagiarismMs": 467,
+                "steps": [
+                  "auth.verify:13",
+                  "cache.get problem:6",
+                  [
+                    "plagiarism",
+                    "INSERT drafts:157"
+                  ],
+                  "INSERT submissions:70",
+                  "send grading:30"
+                ]
+              },
+              {
+                "id": "sub_7058",
+                "startAt": 2146,
+                "plagiarismMs": 598,
+                "steps": [
+                  "auth.verify:16",
+                  [
+                    "cache.get problem:8",
+                    "rateLimit.check:10"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:80",
+                  "send grading:35"
+                ]
+              },
+              {
+                "id": "sub_7059",
+                "startAt": 2183,
+                "plagiarismMs": 729,
+                "steps": [
+                  "auth.verify:19",
+                  "cache.get problem:8",
+                  "plagiarism",
+                  "INSERT submissions:90",
+                  "send grading:40"
+                ]
+              },
+              {
+                "id": "sub_7060",
+                "startAt": 2220,
+                "plagiarismMs": 860,
+                "steps": [
+                  "auth.verify:22",
+                  [
+                    "cache.get problem:5",
+                    "rateLimit.check:8"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:100",
+                  "&audit.write:360",
+                  "send grading:15"
+                ]
+              },
+              {
+                "id": "sub_7061",
+                "startAt": 2257,
+                "plagiarismMs": 991,
+                "steps": [
+                  "auth.verify:25",
+                  "cache.get problem:7",
+                  [
+                    "plagiarism",
+                    "INSERT drafts:161"
+                  ],
+                  "INSERT submissions:110",
+                  "send grading:20"
+                ]
+              },
+              {
+                "id": "sub_7062",
+                "startAt": 2294,
+                "plagiarismMs": 222,
+                "steps": [
+                  "auth.verify:28",
+                  [
+                    "cache.get problem:7",
+                    "rateLimit.check:10"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:120",
+                  "send grading:25"
+                ]
+              },
+              {
+                "id": "sub_7063",
+                "startAt": 2331,
+                "plagiarismMs": 353,
+                "steps": [
+                  "auth.verify:10",
+                  "cache.get problem:6",
+                  "plagiarism",
+                  "INSERT submissions:40",
+                  "send grading:30"
+                ]
+              },
+              {
+                "id": "sub_7064",
+                "startAt": 2368,
+                "plagiarismMs": 484,
+                "steps": [
+                  "auth.verify:13",
+                  [
+                    "cache.get problem:9",
+                    "rateLimit.check:8"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:50",
+                  "send grading:35"
+                ]
+              },
+              {
+                "id": "sub_7065",
+                "startAt": 2405,
+                "plagiarismMs": 615,
+                "steps": [
+                  "auth.verify:16",
+                  "cache.get problem:8",
+                  [
+                    "plagiarism",
+                    "INSERT drafts:165"
+                  ],
+                  "INSERT submissions:60",
+                  "&audit.write:365",
+                  "send grading:40"
+                ]
+              },
+              {
+                "id": "sub_7066",
+                "startAt": 2442,
+                "plagiarismMs": 746,
+                "steps": [
+                  "auth.verify:19",
+                  [
+                    "cache.get problem:6",
+                    "rateLimit.check:10"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:70",
+                  "send grading:15"
+                ]
+              },
+              {
+                "id": "sub_7067",
+                "startAt": 2479,
+                "plagiarismMs": 877,
+                "steps": [
+                  "auth.verify:22",
+                  "cache.get problem:7",
+                  "plagiarism",
+                  "INSERT submissions:80",
+                  "send grading:20"
+                ]
+              },
+              {
+                "id": "sub_7068",
+                "startAt": 2516,
+                "plagiarismMs": 1008,
+                "steps": [
+                  "auth.verify:25",
+                  [
+                    "cache.get problem:8",
+                    "rateLimit.check:8"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:90",
+                  "send grading:25"
+                ]
+              },
+              {
+                "id": "sub_7069",
+                "startAt": 2553,
+                "plagiarismMs": 239,
+                "steps": [
+                  "auth.verify:28",
+                  "cache.get problem:6",
+                  [
+                    "plagiarism",
+                    "INSERT drafts:169"
+                  ],
+                  "INSERT submissions:100",
+                  "send grading:30"
+                ]
+              },
+              {
+                "id": "sub_7070",
+                "startAt": 2590,
+                "plagiarismMs": 370,
+                "steps": [
+                  "auth.verify:10",
+                  [
+                    "cache.get problem:5",
+                    "rateLimit.check:10"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:110",
+                  "&audit.write:370",
+                  "send grading:35"
+                ]
+              },
+              {
+                "id": "sub_7071",
+                "startAt": 2627,
+                "plagiarismMs": 501,
+                "steps": [
+                  "auth.verify:13",
+                  "cache.get problem:8",
+                  "plagiarism",
+                  "INSERT submissions:120",
+                  "send grading:40"
+                ]
+              },
+              {
+                "id": "sub_7072",
+                "startAt": 2664,
+                "plagiarismMs": 632,
+                "steps": [
+                  "auth.verify:16",
+                  [
+                    "cache.get problem:7",
+                    "rateLimit.check:8"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:40",
+                  "send grading:15"
+                ]
+              },
+              {
+                "id": "sub_7073",
+                "startAt": 2701,
+                "plagiarismMs": 763,
+                "steps": [
+                  "auth.verify:19",
+                  "cache.get problem:7",
+                  [
+                    "plagiarism",
+                    "INSERT drafts:173"
+                  ],
+                  "INSERT submissions:50",
+                  "send grading:20"
+                ]
+              },
+              {
+                "id": "sub_7074",
+                "startAt": 2738,
+                "plagiarismMs": 894,
+                "steps": [
+                  "auth.verify:22",
+                  [
+                    "cache.get problem:9",
+                    "rateLimit.check:10"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:60",
+                  "send grading:25"
+                ]
+              },
+              {
+                "id": "sub_7075",
+                "startAt": 2775,
+                "plagiarismMs": 1025,
+                "steps": [
+                  "auth.verify:25",
+                  "cache.get problem:6",
+                  "plagiarism",
+                  "INSERT submissions:70",
+                  "&audit.write:375",
+                  "send grading:30"
+                ]
+              },
+              {
+                "id": "sub_7076",
+                "startAt": 2812,
+                "plagiarismMs": 256,
+                "steps": [
+                  "auth.verify:28",
+                  [
+                    "cache.get problem:6",
+                    "rateLimit.check:8"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:80",
+                  "send grading:35"
+                ]
+              },
+              {
+                "id": "sub_7077",
+                "startAt": 2849,
+                "plagiarismMs": 387,
+                "steps": [
+                  "auth.verify:10",
+                  "cache.get problem:8",
+                  [
+                    "plagiarism",
+                    "INSERT drafts:177"
+                  ],
+                  "INSERT submissions:90",
+                  "send grading:40"
+                ]
+              },
+              {
+                "id": "sub_7078",
+                "startAt": 2886,
+                "plagiarismMs": 518,
+                "steps": [
+                  "auth.verify:13",
+                  [
+                    "cache.get problem:8",
+                    "rateLimit.check:10"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:100",
+                  "send grading:15"
+                ]
+              },
+              {
+                "id": "sub_7079",
+                "startAt": 2923,
+                "plagiarismMs": 649,
+                "steps": [
+                  "auth.verify:16",
+                  "cache.get problem:7",
+                  "plagiarism",
+                  "INSERT submissions:110",
+                  "send grading:20"
+                ]
+              },
+              {
+                "id": "sub_7080",
+                "startAt": 2960,
+                "plagiarismMs": 780,
+                "steps": [
+                  "auth.verify:19",
+                  [
+                    "cache.get problem:5",
+                    "rateLimit.check:8"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:120",
+                  "&audit.write:380",
+                  "send grading:25"
+                ]
+              },
+              {
+                "id": "sub_7081",
+                "startAt": 2997,
+                "plagiarismMs": 911,
+                "steps": [
+                  "auth.verify:22",
+                  "cache.get problem:6",
+                  [
+                    "plagiarism",
+                    "INSERT drafts:181"
+                  ],
+                  "INSERT submissions:40",
+                  "send grading:30"
+                ]
+              },
+              {
+                "id": "sub_7082",
+                "startAt": 3034,
+                "plagiarismMs": 1042,
+                "steps": [
+                  "auth.verify:25",
+                  [
+                    "cache.get problem:7",
+                    "rateLimit.check:10"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:50",
+                  "send grading:35"
+                ]
+              },
+              {
+                "id": "sub_7083",
+                "startAt": 3071,
+                "plagiarismMs": 273,
+                "steps": [
+                  "auth.verify:28",
+                  "cache.get problem:8",
+                  "plagiarism",
+                  "INSERT submissions:60",
+                  "send grading:40"
+                ]
+              },
+              {
+                "id": "sub_7084",
+                "startAt": 3108,
+                "plagiarismMs": 404,
+                "steps": [
+                  "auth.verify:10",
+                  [
+                    "cache.get problem:9",
+                    "rateLimit.check:8"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:70",
+                  "send grading:15"
+                ]
+              },
+              {
+                "id": "sub_7085",
+                "startAt": 3145,
+                "plagiarismMs": 535,
+                "steps": [
+                  "auth.verify:13",
+                  "cache.get problem:7",
+                  [
+                    "plagiarism",
+                    "INSERT drafts:185"
+                  ],
+                  "INSERT submissions:80",
+                  "&audit.write:385",
+                  "send grading:20"
+                ]
+              },
+              {
+                "id": "sub_7086",
+                "startAt": 3182,
+                "plagiarismMs": 666,
+                "steps": [
+                  "auth.verify:16",
+                  [
+                    "cache.get problem:6",
+                    "rateLimit.check:10"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:90",
+                  "send grading:25"
+                ]
+              },
+              {
+                "id": "sub_7087",
+                "startAt": 3219,
+                "plagiarismMs": 797,
+                "steps": [
+                  "auth.verify:19",
+                  "cache.get problem:6",
+                  "plagiarism",
+                  "INSERT submissions:100",
+                  "send grading:30"
+                ]
+              },
+              {
+                "id": "sub_7088",
+                "startAt": 3256,
+                "plagiarismMs": 928,
+                "steps": [
+                  "auth.verify:22",
+                  [
+                    "cache.get problem:8",
+                    "rateLimit.check:8"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:110",
+                  "send grading:35"
+                ]
+              },
+              {
+                "id": "sub_7089",
+                "startAt": 3293,
+                "plagiarismMs": 1059,
+                "steps": [
+                  "auth.verify:25",
+                  "cache.get problem:8",
+                  [
+                    "plagiarism",
+                    "INSERT drafts:189"
+                  ],
+                  "INSERT submissions:120",
+                  "send grading:40"
+                ]
+              },
+              {
+                "id": "sub_7090",
+                "startAt": 3330,
+                "plagiarismMs": 290,
+                "steps": [
+                  "auth.verify:28",
+                  [
+                    "cache.get problem:5",
+                    "rateLimit.check:10"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:40",
+                  "&audit.write:390",
+                  "send grading:15"
+                ]
+              },
+              {
+                "id": "sub_7091",
+                "startAt": 3367,
+                "plagiarismMs": 421,
+                "steps": [
+                  "auth.verify:10",
+                  "cache.get problem:7",
+                  "plagiarism",
+                  "INSERT submissions:50",
+                  "send grading:20"
+                ]
+              },
+              {
+                "id": "sub_7092",
+                "startAt": 3404,
+                "plagiarismMs": 552,
+                "steps": [
+                  "auth.verify:13",
+                  [
+                    "cache.get problem:7",
+                    "rateLimit.check:8"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:60",
+                  "send grading:25"
+                ]
+              },
+              {
+                "id": "sub_7093",
+                "startAt": 3441,
+                "plagiarismMs": 683,
+                "steps": [
+                  "auth.verify:16",
+                  "cache.get problem:6",
+                  [
+                    "plagiarism",
+                    "INSERT drafts:193"
+                  ],
+                  "INSERT submissions:70",
+                  "send grading:30"
+                ]
+              },
+              {
+                "id": "sub_7094",
+                "startAt": 3478,
+                "plagiarismMs": 814,
+                "steps": [
+                  "auth.verify:19",
+                  [
+                    "cache.get problem:9",
+                    "rateLimit.check:10"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:80",
+                  "send grading:35"
+                ]
+              },
+              {
+                "id": "sub_7095",
+                "startAt": 3515,
+                "plagiarismMs": 945,
+                "steps": [
+                  "auth.verify:22",
+                  "cache.get problem:8",
+                  "plagiarism",
+                  "INSERT submissions:90",
+                  "&audit.write:395",
+                  "send grading:40"
+                ]
+              },
+              {
+                "id": "sub_7096",
+                "startAt": 3552,
+                "plagiarismMs": 1076,
+                "steps": [
+                  "auth.verify:25",
+                  [
+                    "cache.get problem:6",
+                    "rateLimit.check:8"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:100",
+                  "send grading:15"
+                ]
+              },
+              {
+                "id": "sub_7097",
+                "startAt": 3589,
+                "plagiarismMs": 307,
+                "steps": [
+                  "auth.verify:28",
+                  "cache.get problem:7",
+                  [
+                    "plagiarism",
+                    "INSERT drafts:197"
+                  ],
+                  "INSERT submissions:110",
+                  "send grading:20"
+                ]
+              },
+              {
+                "id": "sub_7098",
+                "startAt": 3626,
+                "plagiarismMs": 438,
+                "steps": [
+                  "auth.verify:10",
+                  [
+                    "cache.get problem:8",
+                    "rateLimit.check:10"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:120",
+                  "send grading:25"
+                ]
+              },
+              {
+                "id": "sub_7099",
+                "startAt": 3663,
+                "plagiarismMs": 569,
+                "steps": [
+                  "auth.verify:13",
+                  "cache.get problem:6",
+                  "plagiarism",
+                  "INSERT submissions:40",
+                  "send grading:30"
+                ]
+              },
+              {
+                "id": "sub_7100",
+                "startAt": 3700,
+                "plagiarismMs": 700,
+                "steps": [
+                  "auth.verify:16",
+                  [
+                    "cache.get problem:5",
+                    "rateLimit.check:8"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:50",
+                  "&audit.write:400",
+                  "send grading:35"
+                ]
+              },
+              {
+                "id": "sub_7101",
+                "startAt": 3737,
+                "plagiarismMs": 831,
+                "steps": [
+                  "auth.verify:19",
+                  "cache.get problem:8",
+                  [
+                    "plagiarism",
+                    "INSERT drafts:201"
+                  ],
+                  "INSERT submissions:60",
+                  "send grading:40"
+                ]
+              },
+              {
+                "id": "sub_7102",
+                "startAt": 3774,
+                "plagiarismMs": 962,
+                "steps": [
+                  "auth.verify:22",
+                  [
+                    "cache.get problem:7",
+                    "rateLimit.check:10"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:70",
+                  "send grading:15"
+                ]
+              },
+              {
+                "id": "sub_7103",
+                "startAt": 3811,
+                "plagiarismMs": 1093,
+                "steps": [
+                  "auth.verify:25",
+                  "cache.get problem:7",
+                  "plagiarism",
+                  "INSERT submissions:80",
+                  "send grading:20"
+                ]
+              },
+              {
+                "id": "sub_7104",
+                "startAt": 3848,
+                "plagiarismMs": 324,
+                "steps": [
+                  "auth.verify:28",
+                  [
+                    "cache.get problem:9",
+                    "rateLimit.check:8"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:90",
+                  "send grading:25"
+                ]
+              },
+              {
+                "id": "sub_7105",
+                "startAt": 3885,
+                "plagiarismMs": 455,
+                "steps": [
+                  "auth.verify:10",
+                  "cache.get problem:6",
+                  [
+                    "plagiarism",
+                    "INSERT drafts:205"
+                  ],
+                  "INSERT submissions:100",
+                  "&audit.write:405",
+                  "send grading:30"
+                ]
+              },
+              {
+                "id": "sub_7106",
+                "startAt": 3922,
+                "plagiarismMs": 586,
+                "steps": [
+                  "auth.verify:13",
+                  [
+                    "cache.get problem:6",
+                    "rateLimit.check:10"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:110",
+                  "send grading:35"
+                ]
+              },
+              {
+                "id": "sub_7107",
+                "startAt": 3959,
+                "plagiarismMs": 717,
+                "steps": [
+                  "auth.verify:16",
+                  "cache.get problem:8",
+                  "plagiarism",
+                  "INSERT submissions:120",
+                  "send grading:40"
+                ]
+              },
+              {
+                "id": "sub_7108",
+                "startAt": 3996,
+                "plagiarismMs": 848,
+                "steps": [
+                  "auth.verify:19",
+                  [
+                    "cache.get problem:8",
+                    "rateLimit.check:8"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:40",
+                  "send grading:15"
+                ]
+              },
+              {
+                "id": "sub_7109",
+                "startAt": 4033,
+                "plagiarismMs": 979,
+                "steps": [
+                  "auth.verify:22",
+                  "cache.get problem:7",
+                  [
+                    "plagiarism",
+                    "INSERT drafts:209"
+                  ],
+                  "INSERT submissions:50",
+                  "send grading:20"
+                ]
+              },
+              {
+                "id": "sub_7110",
+                "startAt": 4070,
+                "plagiarismMs": 210,
+                "steps": [
+                  "auth.verify:25",
+                  [
+                    "cache.get problem:5",
+                    "rateLimit.check:10"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:60",
+                  "&audit.write:410",
+                  "send grading:25"
+                ]
+              },
+              {
+                "id": "sub_7111",
+                "startAt": 4107,
+                "plagiarismMs": 341,
+                "steps": [
+                  "auth.verify:28",
+                  "cache.get problem:6",
+                  "plagiarism",
+                  "INSERT submissions:70",
+                  "send grading:30"
+                ]
+              },
+              {
+                "id": "sub_7112",
+                "startAt": 4144,
+                "plagiarismMs": 472,
+                "steps": [
+                  "auth.verify:10",
+                  [
+                    "cache.get problem:7",
+                    "rateLimit.check:8"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:80",
+                  "send grading:35"
+                ]
+              },
+              {
+                "id": "sub_7113",
+                "startAt": 4181,
+                "plagiarismMs": 603,
+                "steps": [
+                  "auth.verify:13",
+                  "cache.get problem:8",
+                  [
+                    "plagiarism",
+                    "INSERT drafts:213"
+                  ],
+                  "INSERT submissions:90",
+                  "send grading:40"
+                ]
+              },
+              {
+                "id": "sub_7114",
+                "startAt": 4218,
+                "plagiarismMs": 734,
+                "steps": [
+                  "auth.verify:16",
+                  [
+                    "cache.get problem:9",
+                    "rateLimit.check:10"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:100",
+                  "send grading:15"
+                ]
+              },
+              {
+                "id": "sub_7115",
+                "startAt": 4255,
+                "plagiarismMs": 865,
+                "steps": [
+                  "auth.verify:19",
+                  "cache.get problem:7",
+                  "plagiarism",
+                  "INSERT submissions:110",
+                  "&audit.write:415",
+                  "send grading:20"
+                ]
+              },
+              {
+                "id": "sub_7116",
+                "startAt": 4292,
+                "plagiarismMs": 996,
+                "steps": [
+                  "auth.verify:22",
+                  [
+                    "cache.get problem:6",
+                    "rateLimit.check:8"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:120",
+                  "send grading:25"
+                ]
+              },
+              {
+                "id": "sub_7117",
+                "startAt": 4329,
+                "plagiarismMs": 227,
+                "steps": [
+                  "auth.verify:25",
+                  "cache.get problem:6",
+                  [
+                    "plagiarism",
+                    "INSERT drafts:217"
+                  ],
+                  "INSERT submissions:40",
+                  "send grading:30"
+                ]
+              },
+              {
+                "id": "sub_7118",
+                "startAt": 4366,
+                "plagiarismMs": 358,
+                "steps": [
+                  "auth.verify:28",
+                  [
+                    "cache.get problem:8",
+                    "rateLimit.check:10"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:50",
+                  "send grading:35"
+                ]
+              },
+              {
+                "id": "sub_7119",
+                "startAt": 4403,
+                "plagiarismMs": 489,
+                "steps": [
+                  "auth.verify:10",
+                  "cache.get problem:8",
+                  "plagiarism",
+                  "INSERT submissions:60",
+                  "send grading:40"
+                ]
+              },
+              {
+                "id": "sub_7120",
+                "startAt": 4440,
+                "plagiarismMs": 620,
+                "steps": [
+                  "auth.verify:13",
+                  [
+                    "cache.get problem:5",
+                    "rateLimit.check:8"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:70",
+                  "&audit.write:420",
+                  "send grading:15"
+                ]
+              },
+              {
+                "id": "sub_7121",
+                "startAt": 4477,
+                "plagiarismMs": 751,
+                "steps": [
+                  "auth.verify:16",
+                  "cache.get problem:7",
+                  [
+                    "plagiarism",
+                    "INSERT drafts:221"
+                  ],
+                  "INSERT submissions:80",
+                  "send grading:20"
+                ]
+              },
+              {
+                "id": "sub_7122",
+                "startAt": 4514,
+                "plagiarismMs": 882,
+                "steps": [
+                  "auth.verify:19",
+                  [
+                    "cache.get problem:7",
+                    "rateLimit.check:10"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:90",
+                  "send grading:25"
+                ]
+              },
+              {
+                "id": "sub_7123",
+                "startAt": 4551,
+                "plagiarismMs": 1013,
+                "steps": [
+                  "auth.verify:22",
+                  "cache.get problem:6",
+                  "plagiarism",
+                  "INSERT submissions:100",
+                  "send grading:30"
+                ]
+              },
+              {
+                "id": "sub_7124",
+                "startAt": 4588,
+                "plagiarismMs": 244,
+                "steps": [
+                  "auth.verify:25",
+                  [
+                    "cache.get problem:9",
+                    "rateLimit.check:8"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:110",
+                  "send grading:35"
+                ]
+              },
+              {
+                "id": "sub_7125",
+                "startAt": 4625,
+                "plagiarismMs": 375,
+                "steps": [
+                  "auth.verify:28",
+                  "cache.get problem:8",
+                  [
+                    "plagiarism",
+                    "INSERT drafts:225"
+                  ],
+                  "INSERT submissions:120",
+                  "&audit.write:425",
+                  "send grading:40"
+                ]
+              },
+              {
+                "id": "sub_7126",
+                "startAt": 4662,
+                "plagiarismMs": 506,
+                "steps": [
+                  "auth.verify:10",
+                  [
+                    "cache.get problem:6",
+                    "rateLimit.check:10"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:40",
+                  "send grading:15"
+                ]
+              },
+              {
+                "id": "sub_7127",
+                "startAt": 4699,
+                "plagiarismMs": 637,
+                "steps": [
+                  "auth.verify:13",
+                  "cache.get problem:7",
+                  "plagiarism",
+                  "INSERT submissions:50",
+                  "send grading:20"
+                ]
+              },
+              {
+                "id": "sub_7128",
+                "startAt": 4736,
+                "plagiarismMs": 768,
+                "steps": [
+                  "auth.verify:16",
+                  [
+                    "cache.get problem:8",
+                    "rateLimit.check:8"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:60",
+                  "send grading:25"
+                ]
+              },
+              {
+                "id": "sub_7129",
+                "startAt": 4773,
+                "plagiarismMs": 899,
+                "steps": [
+                  "auth.verify:19",
+                  "cache.get problem:6",
+                  [
+                    "plagiarism",
+                    "INSERT drafts:229"
+                  ],
+                  "INSERT submissions:70",
+                  "send grading:30"
+                ]
+              },
+              {
+                "id": "sub_7130",
+                "startAt": 4810,
+                "plagiarismMs": 1030,
+                "steps": [
+                  "auth.verify:22",
+                  [
+                    "cache.get problem:5",
+                    "rateLimit.check:10"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:80",
+                  "&audit.write:430",
+                  "send grading:35"
+                ]
+              },
+              {
+                "id": "sub_7131",
+                "startAt": 4847,
+                "plagiarismMs": 261,
+                "steps": [
+                  "auth.verify:25",
+                  "cache.get problem:8",
+                  "plagiarism",
+                  "INSERT submissions:90",
+                  "send grading:40"
+                ]
+              },
+              {
+                "id": "sub_7132",
+                "startAt": 4884,
+                "plagiarismMs": 392,
+                "steps": [
+                  "auth.verify:28",
+                  [
+                    "cache.get problem:7",
+                    "rateLimit.check:8"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:100",
+                  "send grading:15"
+                ]
+              },
+              {
+                "id": "sub_7133",
+                "startAt": 4921,
+                "plagiarismMs": 523,
+                "steps": [
+                  "auth.verify:10",
+                  "cache.get problem:7",
+                  [
+                    "plagiarism",
+                    "INSERT drafts:233"
+                  ],
+                  "INSERT submissions:110",
+                  "send grading:20"
+                ]
+              },
+              {
+                "id": "sub_7134",
+                "startAt": 4958,
+                "plagiarismMs": 654,
+                "steps": [
+                  "auth.verify:13",
+                  [
+                    "cache.get problem:9",
+                    "rateLimit.check:10"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:120",
+                  "send grading:25"
+                ]
+              },
+              {
+                "id": "sub_7135",
+                "startAt": 4995,
+                "plagiarismMs": 785,
+                "steps": [
+                  "auth.verify:16",
+                  "cache.get problem:6",
+                  "plagiarism",
+                  "INSERT submissions:40",
+                  "&audit.write:435",
+                  "send grading:30"
+                ]
+              },
+              {
+                "id": "sub_7136",
+                "startAt": 5032,
+                "plagiarismMs": 916,
+                "steps": [
+                  "auth.verify:19",
+                  [
+                    "cache.get problem:6",
+                    "rateLimit.check:8"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:50",
+                  "send grading:35"
+                ]
+              },
+              {
+                "id": "sub_7137",
+                "startAt": 5069,
+                "plagiarismMs": 1047,
+                "steps": [
+                  "auth.verify:22",
+                  "cache.get problem:8",
+                  [
+                    "plagiarism",
+                    "INSERT drafts:237"
+                  ],
+                  "INSERT submissions:60",
+                  "send grading:40"
+                ]
+              },
+              {
+                "id": "sub_7138",
+                "startAt": 5106,
+                "plagiarismMs": 278,
+                "steps": [
+                  "auth.verify:25",
+                  [
+                    "cache.get problem:8",
+                    "rateLimit.check:10"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:70",
+                  "send grading:15"
+                ]
+              },
+              {
+                "id": "sub_7139",
+                "startAt": 5143,
+                "plagiarismMs": 409,
+                "steps": [
+                  "auth.verify:28",
+                  "cache.get problem:7",
+                  "plagiarism",
+                  "INSERT submissions:80",
+                  "send grading:20"
+                ]
+              },
+              {
+                "id": "sub_7140",
+                "startAt": 5180,
+                "plagiarismMs": 540,
+                "steps": [
+                  "auth.verify:10",
+                  [
+                    "cache.get problem:5",
+                    "rateLimit.check:8"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:90",
+                  "&audit.write:440",
+                  "send grading:25"
+                ]
+              },
+              {
+                "id": "sub_7141",
+                "startAt": 5217,
+                "plagiarismMs": 671,
+                "steps": [
+                  "auth.verify:13",
+                  "cache.get problem:6",
+                  [
+                    "plagiarism",
+                    "INSERT drafts:241"
+                  ],
+                  "INSERT submissions:100",
+                  "send grading:30"
+                ]
+              },
+              {
+                "id": "sub_7142",
+                "startAt": 5254,
+                "plagiarismMs": 802,
+                "steps": [
+                  "auth.verify:16",
+                  [
+                    "cache.get problem:7",
+                    "rateLimit.check:10"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:110",
+                  "send grading:35"
+                ]
+              },
+              {
+                "id": "sub_7143",
+                "startAt": 5291,
+                "plagiarismMs": 933,
+                "steps": [
+                  "auth.verify:19",
+                  "cache.get problem:8",
+                  "plagiarism",
+                  "INSERT submissions:120",
+                  "send grading:40"
+                ]
+              },
+              {
+                "id": "sub_7144",
+                "startAt": 5328,
+                "plagiarismMs": 1064,
+                "steps": [
+                  "auth.verify:22",
+                  [
+                    "cache.get problem:9",
+                    "rateLimit.check:8"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:40",
+                  "send grading:15"
+                ]
+              },
+              {
+                "id": "sub_7145",
+                "startAt": 5365,
+                "plagiarismMs": 295,
+                "steps": [
+                  "auth.verify:25",
+                  "cache.get problem:7",
+                  [
+                    "plagiarism",
+                    "INSERT drafts:245"
+                  ],
+                  "INSERT submissions:50",
+                  "&audit.write:445",
+                  "send grading:20"
+                ]
+              },
+              {
+                "id": "sub_7146",
+                "startAt": 5402,
+                "plagiarismMs": 426,
+                "steps": [
+                  "auth.verify:28",
+                  [
+                    "cache.get problem:6",
+                    "rateLimit.check:10"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:60",
+                  "send grading:25"
+                ]
+              },
+              {
+                "id": "sub_7147",
+                "startAt": 5439,
+                "plagiarismMs": 557,
+                "steps": [
+                  "auth.verify:10",
+                  "cache.get problem:6",
+                  "plagiarism",
+                  "INSERT submissions:70",
+                  "send grading:30"
+                ]
+              },
+              {
+                "id": "sub_7148",
+                "startAt": 5476,
+                "plagiarismMs": 688,
+                "steps": [
+                  "auth.verify:13",
+                  [
+                    "cache.get problem:8",
+                    "rateLimit.check:8"
+                  ],
+                  "plagiarism",
+                  "INSERT submissions:80",
+                  "send grading:35"
+                ]
+              },
+              {
+                "id": "sub_7149",
+                "startAt": 5513,
+                "plagiarismMs": 819,
+                "steps": [
+                  "auth.verify:16",
+                  "cache.get problem:8",
+                  [
+                    "plagiarism",
+                    "INSERT drafts:249"
+                  ],
+                  "INSERT submissions:90",
+                  "send grading:40"
+                ]
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 3,
+          "expected": "POST /submissions sub_7000 [0..273] self=0\n  auth.verify [0..10] self=10\n  cache.get problem [10..15] self=5\n  rateLimit.check [10..18] self=8\n  plagiarism.check sub_7000 [18..218] self=200\n  INSERT submissions [218..258] self=40\n  send grading [258..273] self=15\n  audit.write [258..558] self=300\nPOST /submissions sub_7001 [37..458] self=0\n  auth.verify [37..50] self=13\n  cache.get problem [50..57] self=7\n  INSERT drafts [57..158] self=101\n  plagiarism.check sub_7001 [57..388] self=331\n  INSERT submissions [388..438] self=50\n  send grading [438..458] self=20\nPOST /submissions sub_7002 [74..647] self=0\n  auth.verify [74..90] self=16\n  cache.get problem [90..97] self=7\n  rateLimit.check [90..100] self=10\n  plagiarism.check sub_7002 [100..562] self=462\n  INSERT submissions [562..622] self=60\n  send grading [622..647] self=25\nPOST /submissions sub_7003 [111..829] self=0\n  auth.verify [111..130] self=19\n  cache.get problem [130..136] self=6\n  plagiarism.check sub_7003 [136..729] self=593\n  INSERT submissions [729..799] self=70\n  send grading [799..829] self=30\nPOST /submissions sub_7004 [148..1018] self=0\n  auth.verify [148..170] self=22\n  rateLimit.check [170..178] self=8\n  cache.get problem [170..179] self=9\n  plagiarism.check sub_7004 [179..903] self=724\n  INSERT submissions [903..983] self=80\n  send grading [983..1018] self=35\nPOST /submissions sub_7005 [185..1203] self=0\n  auth.verify [185..210] self=25\n  cache.get problem [210..218] self=8\n  INSERT drafts [218..323] self=105\n  plagiarism.check sub_7005 [218..1073] self=855\n  INSERT submissions [1073..1163] self=90\n  send grading [1163..1203] self=40\n  audit.write [1163..1468] self=305\nPOST /submissions sub_7006 [222..1361] self=0\n  auth.verify [222..250] self=28\n  cache.get problem [250..256] self=6\n  rateLimit.check [250..260] self=10\n  plagiarism.check sub_7006 [260..1246] self=986\n  INSERT submissions [1246..1346] self=100\n  send grading [1346..1361] self=15\nPOST /submissions sub_7007 [259..623] self=0\n  auth.verify [259..269] self=10\n  cache.get problem [269..276] self=7\n  plagiarism.check sub_7007 [276..493] self=217\n  INSERT submissions [493..603] self=110\n  send grading [603..623] self=20\nPOST /submissions sub_7008 [296..810] self=0\n  auth.verify [296..309] self=13\n  cache.get problem [309..317] self=8\n  rateLimit.check [309..317] self=8\n  plagiarism.check sub_7008 [317..665] self=348\n  INSERT submissions [665..785] self=120\n  send grading [785..810] self=25\nPOST /submissions sub_7009 [333..904] self=0\n  auth.verify [333..349] self=16\n  cache.get problem [349..355] self=6\n  INSERT drafts [355..464] self=109\n  plagiarism.check sub_7009 [355..834] self=479\n  INSERT submissions [834..874] self=40\n  send grading [874..904] self=30\nPOST /submissions sub_7010 [370..1094] self=0\n  auth.verify [370..389] self=19\n  cache.get problem [389..394] self=5\n  rateLimit.check [389..399] self=10\n  plagiarism.check sub_7010 [399..1009] self=610\n  INSERT submissions [1009..1059] self=50\n  send grading [1059..1094] self=35\n  audit.write [1059..1369] self=310\nPOST /submissions sub_7011 [407..1278] self=0\n  auth.verify [407..429] self=22\n  cache.get problem [429..437] self=8\n  plagiarism.check sub_7011 [437..1178] self=741\n  INSERT submissions [1178..1238] self=60\n  send grading [1238..1278] self=40\nPOST /submissions sub_7012 [444..1434] self=0\n  auth.verify [444..469] self=25\n  cache.get problem [469..476] self=7\n  rateLimit.check [469..477] self=8\n  plagiarism.check sub_7012 [477..1349] self=872\n  INSERT submissions [1349..1419] self=70\n  send grading [1419..1434] self=15\nPOST /submissions sub_7013 [481..1619] self=0\n  auth.verify [481..509] self=28\n  cache.get problem [509..516] self=7\n  INSERT drafts [516..629] self=113\n  plagiarism.check sub_7013 [516..1519] self=1003\n  INSERT submissions [1519..1599] self=80\n  send grading [1599..1619] self=20\nPOST /submissions sub_7014 [518..887] self=0\n  auth.verify [518..528] self=10\n  cache.get problem [528..537] self=9\n  rateLimit.check [528..538] self=10\n  plagiarism.check sub_7014 [538..772] self=234\n  INSERT submissions [772..862] self=90\n  send grading [862..887] self=25\nPOST /submissions sub_7015 [555..1069] self=0\n  auth.verify [555..568] self=13\n  cache.get problem [568..574] self=6\n  plagiarism.check sub_7015 [574..939] self=365\n  INSERT submissions [939..1039] self=100\n  send grading [1039..1069] self=30\n  audit.write [1039..1354] self=315\nPOST /submissions sub_7016 [592..1257] self=0\n  auth.verify [592..608] self=16\n  cache.get problem [608..614] self=6\n  rateLimit.check [608..616] self=8\n  plagiarism.check sub_7016 [616..1112] self=496\n  INSERT submissions [1112..1222] self=110\n  send grading [1222..1257] self=35\nPOST /submissions sub_7017 [629..1443] self=0\n  auth.verify [629..648] self=19\n  cache.get problem [648..656] self=8\n  INSERT drafts [656..773] self=117\n  plagiarism.check sub_7017 [656..1283] self=627\n  INSERT submissions [1283..1403] self=120\n  send grading [1403..1443] self=40\nPOST /submissions sub_7018 [666..1511] self=0\n  auth.verify [666..688] self=22\n  cache.get problem [688..696] self=8\n  rateLimit.check [688..698] self=10\n  plagiarism.check sub_7018 [698..1456] self=758\n  INSERT submissions [1456..1496] self=40\n  send grading [1496..1511] self=15\nPOST /submissions sub_7019 [703..1694] self=0\n  auth.verify [703..728] self=25\n  cache.get problem [728..735] self=7\n  plagiarism.check sub_7019 [735..1624] self=889\n  INSERT submissions [1624..1674] self=50\n  send grading [1674..1694] self=20\nPOST /submissions sub_7020 [740..1881] self=0\n  auth.verify [740..768] self=28\n  cache.get problem [768..773] self=5\n  rateLimit.check [768..776] self=8\n  plagiarism.check sub_7020 [776..1796] self=1020\n  INSERT submissions [1796..1856] self=60\n  send grading [1856..1881] self=25\n  audit.write [1856..2176] self=320\nPOST /submissions sub_7021 [777..1144] self=0\n  auth.verify [777..787] self=10\n  cache.get problem [787..793] self=6\n  INSERT drafts [793..914] self=121\n  plagiarism.check sub_7021 [793..1044] self=251\n  INSERT submissions [1044..1114] self=70\n  send grading [1114..1144] self=30\nPOST /submissions sub_7022 [814..1334] self=0\n  auth.verify [814..827] self=13\n  cache.get problem [827..834] self=7\n  rateLimit.check [827..837] self=10\n  plagiarism.check sub_7022 [837..1219] self=382\n  INSERT submissions [1219..1299] self=80\n  send grading [1299..1334] self=35\nPOST /submissions sub_7023 [851..1518] self=0\n  auth.verify [851..867] self=16\n  cache.get problem [867..875] self=8\n  plagiarism.check sub_7023 [875..1388] self=513\n  INSERT submissions [1388..1478] self=90\n  send grading [1478..1518] self=40\nPOST /submissions sub_7024 [888..1675] self=0\n  auth.verify [888..907] self=19\n  rateLimit.check [907..915] self=8\n  cache.get problem [907..916] self=9\n  plagiarism.check sub_7024 [916..1560] self=644\n  INSERT submissions [1560..1660] self=100\n  send grading [1660..1675] self=15\nPOST /submissions sub_7025 [925..1859] self=0\n  auth.verify [925..947] self=22\n  cache.get problem [947..954] self=7\n  INSERT drafts [954..1079] self=125\n  plagiarism.check sub_7025 [954..1729] self=775\n  INSERT submissions [1729..1839] self=110\n  send grading [1839..1859] self=20\n  audit.write [1839..2164] self=325\nPOST /submissions sub_7026 [962..2048] self=0\n  auth.verify [962..987] self=25\n  cache.get problem [987..993] self=6\n  rateLimit.check [987..997] self=10\n  plagiarism.check sub_7026 [997..1903] self=906\n  INSERT submissions [1903..2023] self=120\n  send grading [2023..2048] self=25\nPOST /submissions sub_7027 [999..2140] self=0\n  auth.verify [999..1027] self=28\n  cache.get problem [1027..1033] self=6\n  plagiarism.check sub_7027 [1033..2070] self=1037\n  INSERT submissions [2070..2110] self=40\n  send grading [2110..2140] self=30\nPOST /submissions sub_7028 [1036..1407] self=0\n  auth.verify [1036..1046] self=10\n  cache.get problem [1046..1054] self=8\n  rateLimit.check [1046..1054] self=8\n  plagiarism.check sub_7028 [1054..1322] self=268\n  INSERT submissions [1322..1372] self=50\n  send grading [1372..1407] self=35\nPOST /submissions sub_7029 [1073..1593] self=0\n  auth.verify [1073..1086] self=13\n  cache.get problem [1086..1094] self=8\n  INSERT drafts [1094..1223] self=129\n  plagiarism.check sub_7029 [1094..1493] self=399\n  INSERT submissions [1493..1553] self=60\n  send grading [1553..1593] self=40\nPOST /submissions sub_7030 [1110..1751] self=0\n  auth.verify [1110..1126] self=16\n  cache.get problem [1126..1131] self=5\n  rateLimit.check [1126..1136] self=10\n  plagiarism.check sub_7030 [1136..1666] self=530\n  INSERT submissions [1666..1736] self=70\n  send grading [1736..1751] self=15\n  audit.write [1736..2066] self=330\nPOST /submissions sub_7031 [1147..1934] self=0\n  auth.verify [1147..1166] self=19\n  cache.get problem [1166..1173] self=7\n  plagiarism.check sub_7031 [1173..1834] self=661\n  INSERT submissions [1834..1914] self=80\n  send grading [1914..1934] self=20\nPOST /submissions sub_7032 [1184..2121] self=0\n  auth.verify [1184..1206] self=22\n  cache.get problem [1206..1213] self=7\n  rateLimit.check [1206..1214] self=8\n  plagiarism.check sub_7032 [1214..2006] self=792\n  INSERT submissions [2006..2096] self=90\n  send grading [2096..2121] self=25\nPOST /submissions sub_7033 [1221..2305] self=0\n  auth.verify [1221..1246] self=25\n  cache.get problem [1246..1252] self=6\n  INSERT drafts [1252..1385] self=133\n  plagiarism.check sub_7033 [1252..2175] self=923\n  INSERT submissions [2175..2275] self=100\n  send grading [2275..2305] self=30\nPOST /submissions sub_7034 [1258..2495] self=0\n  auth.verify [1258..1286] self=28\n  cache.get problem [1286..1295] self=9\n  rateLimit.check [1286..1296] self=10\n  plagiarism.check sub_7034 [1296..2350] self=1054\n  INSERT submissions [2350..2460] self=110\n  send grading [2460..2495] self=35\nPOST /submissions sub_7035 [1295..1758] self=0\n  auth.verify [1295..1305] self=10\n  cache.get problem [1305..1313] self=8\n  plagiarism.check sub_7035 [1313..1598] self=285\n  INSERT submissions [1598..1718] self=120\n  send grading [1718..1758] self=40\n  audit.write [1718..2053] self=335\nPOST /submissions sub_7036 [1332..1824] self=0\n  auth.verify [1332..1345] self=13\n  cache.get problem [1345..1351] self=6\n  rateLimit.check [1345..1353] self=8\n  plagiarism.check sub_7036 [1353..1769] self=416\n  INSERT submissions [1769..1809] self=40\n  send grading [1809..1824] self=15\nPOST /submissions sub_7037 [1369..2009] self=0\n  auth.verify [1369..1385] self=16\n  cache.get problem [1385..1392] self=7\n  INSERT drafts [1392..1529] self=137\n  plagiarism.check sub_7037 [1392..1939] self=547\n  INSERT submissions [1939..1989] self=50\n  send grading [1989..2009] self=20\nPOST /submissions sub_7038 [1406..2198] self=0\n  auth.verify [1406..1425] self=19\n  cache.get problem [1425..1433] self=8\n  rateLimit.check [1425..1435] self=10\n  plagiarism.check sub_7038 [1435..2113] self=678\n  INSERT submissions [2113..2173] self=60\n  send grading [2173..2198] self=25\nPOST /submissions sub_7039 [1443..2380] self=0\n  auth.verify [1443..1465] self=22\n  cache.get problem [1465..1471] self=6\n  plagiarism.check sub_7039 [1471..2280] self=809\n  INSERT submissions [2280..2350] self=70\n  send grading [2350..2380] self=30\nPOST /submissions sub_7040 [1480..2568] self=0\n  auth.verify [1480..1505] self=25\n  cache.get problem [1505..1510] self=5\n  rateLimit.check [1505..1513] self=8\n  plagiarism.check sub_7040 [1513..2453] self=940\n  INSERT submissions [2453..2533] self=80\n  send grading [2533..2568] self=35\n  audit.write [2533..2873] self=340\nPOST /submissions sub_7041 [1517..2754] self=0\n  auth.verify [1517..1545] self=28\n  cache.get problem [1545..1553] self=8\n  INSERT drafts [1553..1694] self=141\n  plagiarism.check sub_7041 [1553..2624] self=1071\n  INSERT submissions [2624..2714] self=90\n  send grading [2714..2754] self=40\nPOST /submissions sub_7042 [1554..1991] self=0\n  auth.verify [1554..1564] self=10\n  cache.get problem [1564..1571] self=7\n  rateLimit.check [1564..1574] self=10\n  plagiarism.check sub_7042 [1574..1876] self=302\n  INSERT submissions [1876..1976] self=100\n  send grading [1976..1991] self=15\nPOST /submissions sub_7043 [1591..2174] self=0\n  auth.verify [1591..1604] self=13\n  cache.get problem [1604..1611] self=7\n  plagiarism.check sub_7043 [1611..2044] self=433\n  INSERT submissions [2044..2154] self=110\n  send grading [2154..2174] self=20\nPOST /submissions sub_7044 [1628..2362] self=0\n  auth.verify [1628..1644] self=16\n  rateLimit.check [1644..1652] self=8\n  cache.get problem [1644..1653] self=9\n  plagiarism.check sub_7044 [1653..2217] self=564\n  INSERT submissions [2217..2337] self=120\n  send grading [2337..2362] self=25\nPOST /submissions sub_7045 [1665..2455] self=0\n  auth.verify [1665..1684] self=19\n  cache.get problem [1684..1690] self=6\n  INSERT drafts [1690..1835] self=145\n  plagiarism.check sub_7045 [1690..2385] self=695\n  INSERT submissions [2385..2425] self=40\n  send grading [2425..2455] self=30\n  audit.write [2425..2770] self=345\nPOST /submissions sub_7046 [1702..2645] self=0\n  auth.verify [1702..1724] self=22\n  cache.get problem [1724..1730] self=6\n  rateLimit.check [1724..1734] self=10\n  plagiarism.check sub_7046 [1734..2560] self=826\n  INSERT submissions [2560..2610] self=50\n  send grading [2610..2645] self=35\nPOST /submissions sub_7047 [1739..2829] self=0\n  auth.verify [1739..1764] self=25\n  cache.get problem [1764..1772] self=8\n  plagiarism.check sub_7047 [1772..2729] self=957\n  INSERT submissions [2729..2789] self=60\n  send grading [2789..2829] self=40\nPOST /submissions sub_7048 [1776..2985] self=0\n  auth.verify [1776..1804] self=28\n  cache.get problem [1804..1812] self=8\n  rateLimit.check [1804..1812] self=8\n  plagiarism.check sub_7048 [1812..2900] self=1088\n  INSERT submissions [2900..2970] self=70\n  send grading [2970..2985] self=15\nPOST /submissions sub_7049 [1813..2249] self=0\n  auth.verify [1813..1823] self=10\n  cache.get problem [1823..1830] self=7\n  INSERT drafts [1830..1979] self=149\n  plagiarism.check sub_7049 [1830..2149] self=319\n  INSERT submissions [2149..2229] self=80\n  send grading [2229..2249] self=20\nPOST /submissions sub_7050 [1850..2438] self=0\n  auth.verify [1850..1863] self=13\n  cache.get problem [1863..1868] self=5\n  rateLimit.check [1863..1873] self=10\n  plagiarism.check sub_7050 [1873..2323] self=450\n  INSERT submissions [2323..2413] self=90\n  send grading [2413..2438] self=25\n  audit.write [2413..2763] self=350\nPOST /submissions sub_7051 [1887..2620] self=0\n  auth.verify [1887..1903] self=16\n  cache.get problem [1903..1909] self=6\n  plagiarism.check sub_7051 [1909..2490] self=581\n  INSERT submissions [2490..2590] self=100\n  send grading [2590..2620] self=30\nPOST /submissions sub_7052 [1924..2808] self=0\n  auth.verify [1924..1943] self=19\n  cache.get problem [1943..1950] self=7\n  rateLimit.check [1943..1951] self=8\n  plagiarism.check sub_7052 [1951..2663] self=712\n  INSERT submissions [2663..2773] self=110\n  send grading [2773..2808] self=35\nPOST /submissions sub_7053 [1961..2994] self=0\n  auth.verify [1961..1983] self=22\n  cache.get problem [1983..1991] self=8\n  INSERT drafts [1991..2144] self=153\n  plagiarism.check sub_7053 [1991..2834] self=843\n  INSERT submissions [2834..2954] self=120\n  send grading [2954..2994] self=40\nPOST /submissions sub_7054 [1998..3062] self=0\n  auth.verify [1998..2023] self=25\n  cache.get problem [2023..2032] self=9\n  rateLimit.check [2023..2033] self=10\n  plagiarism.check sub_7054 [2033..3007] self=974\n  INSERT submissions [3007..3047] self=40\n  send grading [3047..3062] self=15\nPOST /submissions sub_7055 [2035..2345] self=0\n  auth.verify [2035..2063] self=28\n  cache.get problem [2063..2070] self=7\n  plagiarism.check sub_7055 [2070..2275] self=205\n  INSERT submissions [2275..2325] self=50\n  send grading [2325..2345] self=20\n  audit.write [2325..2680] self=355\nPOST /submissions sub_7056 [2072..2511] self=0\n  auth.verify [2072..2082] self=10\n  cache.get problem [2082..2088] self=6\n  rateLimit.check [2082..2090] self=8\n  plagiarism.check sub_7056 [2090..2426] self=336\n  INSERT submissions [2426..2486] self=60\n  send grading [2486..2511] self=25\nPOST /submissions sub_7057 [2109..2695] self=0\n  auth.verify [2109..2122] self=13\n  cache.get problem [2122..2128] self=6\n  INSERT drafts [2128..2285] self=157\n  plagiarism.check sub_7057 [2128..2595] self=467\n  INSERT submissions [2595..2665] self=70\n  send grading [2665..2695] self=30\nPOST /submissions sub_7058 [2146..2885] self=0\n  auth.verify [2146..2162] self=16\n  cache.get problem [2162..2170] self=8\n  rateLimit.check [2162..2172] self=10\n  plagiarism.check sub_7058 [2172..2770] self=598\n  INSERT submissions [2770..2850] self=80\n  send grading [2850..2885] self=35\nPOST /submissions sub_7059 [2183..3069] self=0\n  auth.verify [2183..2202] self=19\n  cache.get problem [2202..2210] self=8\n  plagiarism.check sub_7059 [2210..2939] self=729\n  INSERT submissions [2939..3029] self=90\n  send grading [3029..3069] self=40\nPOST /submissions sub_7060 [2220..3225] self=0\n  auth.verify [2220..2242] self=22\n  cache.get problem [2242..2247] self=5\n  rateLimit.check [2242..2250] self=8\n  plagiarism.check sub_7060 [2250..3110] self=860\n  INSERT submissions [3110..3210] self=100\n  send grading [3210..3225] self=15\n  audit.write [3210..3570] self=360\nPOST /submissions sub_7061 [2257..3410] self=0\n  auth.verify [2257..2282] self=25\n  cache.get problem [2282..2289] self=7\n  INSERT drafts [2289..2450] self=161\n  plagiarism.check sub_7061 [2289..3280] self=991\n  INSERT submissions [3280..3390] self=110\n  send grading [3390..3410] self=20\nPOST /submissions sub_7062 [2294..2699] self=0\n  auth.verify [2294..2322] self=28\n  cache.get problem [2322..2329] self=7\n  rateLimit.check [2322..2332] self=10\n  plagiarism.check sub_7062 [2332..2554] self=222\n  INSERT submissions [2554..2674] self=120\n  send grading [2674..2699] self=25\nPOST /submissions sub_7063 [2331..2770] self=0\n  auth.verify [2331..2341] self=10\n  cache.get problem [2341..2347] self=6\n  plagiarism.check sub_7063 [2347..2700] self=353\n  INSERT submissions [2700..2740] self=40\n  send grading [2740..2770] self=30\nPOST /submissions sub_7064 [2368..2959] self=0\n  auth.verify [2368..2381] self=13\n  rateLimit.check [2381..2389] self=8\n  cache.get problem [2381..2390] self=9\n  plagiarism.check sub_7064 [2390..2874] self=484\n  INSERT submissions [2874..2924] self=50\n  send grading [2924..2959] self=35\nPOST /submissions sub_7065 [2405..3144] self=0\n  auth.verify [2405..2421] self=16\n  cache.get problem [2421..2429] self=8\n  INSERT drafts [2429..2594] self=165\n  plagiarism.check sub_7065 [2429..3044] self=615\n  INSERT submissions [3044..3104] self=60\n  send grading [3104..3144] self=40\n  audit.write [3104..3469] self=365\nPOST /submissions sub_7066 [2442..3302] self=0\n  auth.verify [2442..2461] self=19\n  cache.get problem [2461..2467] self=6\n  rateLimit.check [2461..2471] self=10\n  plagiarism.check sub_7066 [2471..3217] self=746\n  INSERT submissions [3217..3287] self=70\n  send grading [3287..3302] self=15\nPOST /submissions sub_7067 [2479..3485] self=0\n  auth.verify [2479..2501] self=22\n  cache.get problem [2501..2508] self=7\n  plagiarism.check sub_7067 [2508..3385] self=877\n  INSERT submissions [3385..3465] self=80\n  send grading [3465..3485] self=20\nPOST /submissions sub_7068 [2516..3672] self=0\n  auth.verify [2516..2541] self=25\n  cache.get problem [2541..2549] self=8\n  rateLimit.check [2541..2549] self=8\n  plagiarism.check sub_7068 [2549..3557] self=1008\n  INSERT submissions [3557..3647] self=90\n  send grading [3647..3672] self=25\nPOST /submissions sub_7069 [2553..2956] self=0\n  auth.verify [2553..2581] self=28\n  cache.get problem [2581..2587] self=6\n  INSERT drafts [2587..2756] self=169\n  plagiarism.check sub_7069 [2587..2826] self=239\n  INSERT submissions [2826..2926] self=100\n  send grading [2926..2956] self=30\nPOST /submissions sub_7070 [2590..3125] self=0\n  auth.verify [2590..2600] self=10\n  cache.get problem [2600..2605] self=5\n  rateLimit.check [2600..2610] self=10\n  plagiarism.check sub_7070 [2610..2980] self=370\n  INSERT submissions [2980..3090] self=110\n  send grading [3090..3125] self=35\n  audit.write [3090..3460] self=370\nPOST /submissions sub_7071 [2627..3309] self=0\n  auth.verify [2627..2640] self=13\n  cache.get problem [2640..2648] self=8\n  plagiarism.check sub_7071 [2648..3149] self=501\n  INSERT submissions [3149..3269] self=120\n  send grading [3269..3309] self=40\nPOST /submissions sub_7072 [2664..3375] self=0\n  auth.verify [2664..2680] self=16\n  cache.get problem [2680..2687] self=7\n  rateLimit.check [2680..2688] self=8\n  plagiarism.check sub_7072 [2688..3320] self=632\n  INSERT submissions [3320..3360] self=40\n  send grading [3360..3375] self=15\nPOST /submissions sub_7073 [2701..3560] self=0\n  auth.verify [2701..2720] self=19\n  cache.get problem [2720..2727] self=7\n  INSERT drafts [2727..2900] self=173\n  plagiarism.check sub_7073 [2727..3490] self=763\n  INSERT submissions [3490..3540] self=50\n  send grading [3540..3560] self=20\nPOST /submissions sub_7074 [2738..3749] self=0\n  auth.verify [2738..2760] self=22\n  cache.get problem [2760..2769] self=9\n  rateLimit.check [2760..2770] self=10\n  plagiarism.check sub_7074 [2770..3664] self=894\n  INSERT submissions [3664..3724] self=60\n  send grading [3724..3749] self=25\nPOST /submissions sub_7075 [2775..3931] self=0\n  auth.verify [2775..2800] self=25\n  cache.get problem [2800..2806] self=6\n  plagiarism.check sub_7075 [2806..3831] self=1025\n  INSERT submissions [3831..3901] self=70\n  send grading [3901..3931] self=30\n  audit.write [3901..4276] self=375\nPOST /submissions sub_7076 [2812..3219] self=0\n  auth.verify [2812..2840] self=28\n  cache.get problem [2840..2846] self=6\n  rateLimit.check [2840..2848] self=8\n  plagiarism.check sub_7076 [2848..3104] self=256\n  INSERT submissions [3104..3184] self=80\n  send grading [3184..3219] self=35\nPOST /submissions sub_7077 [2849..3384] self=0\n  auth.verify [2849..2859] self=10\n  cache.get problem [2859..2867] self=8\n  INSERT drafts [2867..3044] self=177\n  plagiarism.check sub_7077 [2867..3254] self=387\n  INSERT submissions [3254..3344] self=90\n  send grading [3344..3384] self=40\nPOST /submissions sub_7078 [2886..3542] self=0\n  auth.verify [2886..2899] self=13\n  cache.get problem [2899..2907] self=8\n  rateLimit.check [2899..2909] self=10\n  plagiarism.check sub_7078 [2909..3427] self=518\n  INSERT submissions [3427..3527] self=100\n  send grading [3527..3542] self=15\nPOST /submissions sub_7079 [2923..3725] self=0\n  auth.verify [2923..2939] self=16\n  cache.get problem [2939..2946] self=7\n  plagiarism.check sub_7079 [2946..3595] self=649\n  INSERT submissions [3595..3705] self=110\n  send grading [3705..3725] self=20\nPOST /submissions sub_7080 [2960..3912] self=0\n  auth.verify [2960..2979] self=19\n  cache.get problem [2979..2984] self=5\n  rateLimit.check [2979..2987] self=8\n  plagiarism.check sub_7080 [2987..3767] self=780\n  INSERT submissions [3767..3887] self=120\n  send grading [3887..3912] self=25\n  audit.write [3887..4267] self=380\nPOST /submissions sub_7081 [2997..4006] self=0\n  auth.verify [2997..3019] self=22\n  cache.get problem [3019..3025] self=6\n  INSERT drafts [3025..3206] self=181\n  plagiarism.check sub_7081 [3025..3936] self=911\n  INSERT submissions [3936..3976] self=40\n  send grading [3976..4006] self=30\nPOST /submissions sub_7082 [3034..4196] self=0\n  auth.verify [3034..3059] self=25\n  cache.get problem [3059..3066] self=7\n  rateLimit.check [3059..3069] self=10\n  plagiarism.check sub_7082 [3069..4111] self=1042\n  INSERT submissions [4111..4161] self=50\n  send grading [4161..4196] self=35\nPOST /submissions sub_7083 [3071..3480] self=0\n  auth.verify [3071..3099] self=28\n  cache.get problem [3099..3107] self=8\n  plagiarism.check sub_7083 [3107..3380] self=273\n  INSERT submissions [3380..3440] self=60\n  send grading [3440..3480] self=40\nPOST /submissions sub_7084 [3108..3616] self=0\n  auth.verify [3108..3118] self=10\n  rateLimit.check [3118..3126] self=8\n  cache.get problem [3118..3127] self=9\n  plagiarism.check sub_7084 [3127..3531] self=404\n  INSERT submissions [3531..3601] self=70\n  send grading [3601..3616] self=15\nPOST /submissions sub_7085 [3145..3800] self=0\n  auth.verify [3145..3158] self=13\n  cache.get problem [3158..3165] self=7\n  INSERT drafts [3165..3350] self=185\n  plagiarism.check sub_7085 [3165..3700] self=535\n  INSERT submissions [3700..3780] self=80\n  send grading [3780..3800] self=20\n  audit.write [3780..4165] self=385\nPOST /submissions sub_7086 [3182..3989] self=0\n  auth.verify [3182..3198] self=16\n  cache.get problem [3198..3204] self=6\n  rateLimit.check [3198..3208] self=10\n  plagiarism.check sub_7086 [3208..3874] self=666\n  INSERT submissions [3874..3964] self=90\n  send grading [3964..3989] self=25\nPOST /submissions sub_7087 [3219..4171] self=0\n  auth.verify [3219..3238] self=19\n  cache.get problem [3238..3244] self=6\n  plagiarism.check sub_7087 [3244..4041] self=797\n  INSERT submissions [4041..4141] self=100\n  send grading [4141..4171] self=30\nPOST /submissions sub_7088 [3256..4359] self=0\n  auth.verify [3256..3278] self=22\n  cache.get problem [3278..3286] self=8\n  rateLimit.check [3278..3286] self=8\n  plagiarism.check sub_7088 [3286..4214] self=928\n  INSERT submissions [4214..4324] self=110\n  send grading [4324..4359] self=35\nPOST /submissions sub_7089 [3293..4545] self=0\n  auth.verify [3293..3318] self=25\n  cache.get problem [3318..3326] self=8\n  INSERT drafts [3326..3515] self=189\n  plagiarism.check sub_7089 [3326..4385] self=1059\n  INSERT submissions [4385..4505] self=120\n  send grading [4505..4545] self=40\nPOST /submissions sub_7090 [3330..3713] self=0\n  auth.verify [3330..3358] self=28\n  cache.get problem [3358..3363] self=5\n  rateLimit.check [3358..3368] self=10\n  plagiarism.check sub_7090 [3368..3658] self=290\n  INSERT submissions [3658..3698] self=40\n  send grading [3698..3713] self=15\n  audit.write [3698..4088] self=390\nPOST /submissions sub_7091 [3367..3875] self=0\n  auth.verify [3367..3377] self=10\n  cache.get problem [3377..3384] self=7\n  plagiarism.check sub_7091 [3384..3805] self=421\n  INSERT submissions [3805..3855] self=50\n  send grading [3855..3875] self=20\nPOST /submissions sub_7092 [3404..4062] self=0\n  auth.verify [3404..3417] self=13\n  cache.get problem [3417..3424] self=7\n  rateLimit.check [3417..3425] self=8\n  plagiarism.check sub_7092 [3425..3977] self=552\n  INSERT submissions [3977..4037] self=60\n  send grading [4037..4062] self=25\nPOST /submissions sub_7093 [3441..4246] self=0\n  auth.verify [3441..3457] self=16\n  cache.get problem [3457..3463] self=6\n  INSERT drafts [3463..3656] self=193\n  plagiarism.check sub_7093 [3463..4146] self=683\n  INSERT submissions [4146..4216] self=70\n  send grading [4216..4246] self=30\nPOST /submissions sub_7094 [3478..4436] self=0\n  auth.verify [3478..3497] self=19\n  cache.get problem [3497..3506] self=9\n  rateLimit.check [3497..3507] self=10\n  plagiarism.check sub_7094 [3507..4321] self=814\n  INSERT submissions [4321..4401] self=80\n  send grading [4401..4436] self=35\nPOST /submissions sub_7095 [3515..4620] self=0\n  auth.verify [3515..3537] self=22\n  cache.get problem [3537..3545] self=8\n  plagiarism.check sub_7095 [3545..4490] self=945\n  INSERT submissions [4490..4580] self=90\n  send grading [4580..4620] self=40\n  audit.write [4580..4975] self=395\nPOST /submissions sub_7096 [3552..4776] self=0\n  auth.verify [3552..3577] self=25\n  cache.get problem [3577..3583] self=6\n  rateLimit.check [3577..3585] self=8\n  plagiarism.check sub_7096 [3585..4661] self=1076\n  INSERT submissions [4661..4761] self=100\n  send grading [4761..4776] self=15\nPOST /submissions sub_7097 [3589..4061] self=0\n  auth.verify [3589..3617] self=28\n  cache.get problem [3617..3624] self=7\n  INSERT drafts [3624..3821] self=197\n  plagiarism.check sub_7097 [3624..3931] self=307\n  INSERT submissions [3931..4041] self=110\n  send grading [4041..4061] self=20\nPOST /submissions sub_7098 [3626..4229] self=0\n  auth.verify [3626..3636] self=10\n  cache.get problem [3636..3644] self=8\n  rateLimit.check [3636..3646] self=10\n  plagiarism.check sub_7098 [3646..4084] self=438\n  INSERT submissions [4084..4204] self=120\n  send grading [4204..4229] self=25\nPOST /submissions sub_7099 [3663..4321] self=0\n  auth.verify [3663..3676] self=13\n  cache.get problem [3676..3682] self=6\n  plagiarism.check sub_7099 [3682..4251] self=569\n  INSERT submissions [4251..4291] self=40\n  send grading [4291..4321] self=30\nPOST /submissions sub_7100 [3700..4509] self=0\n  auth.verify [3700..3716] self=16\n  cache.get problem [3716..3721] self=5\n  rateLimit.check [3716..3724] self=8\n  plagiarism.check sub_7100 [3724..4424] self=700\n  INSERT submissions [4424..4474] self=50\n  send grading [4474..4509] self=35\n  audit.write [4474..4874] self=400\nPOST /submissions sub_7101 [3737..4695] self=0\n  auth.verify [3737..3756] self=19\n  cache.get problem [3756..3764] self=8\n  INSERT drafts [3764..3965] self=201\n  plagiarism.check sub_7101 [3764..4595] self=831\n  INSERT submissions [4595..4655] self=60\n  send grading [4655..4695] self=40\nPOST /submissions sub_7102 [3774..4853] self=0\n  auth.verify [3774..3796] self=22\n  cache.get problem [3796..3803] self=7\n  rateLimit.check [3796..3806] self=10\n  plagiarism.check sub_7102 [3806..4768] self=962\n  INSERT submissions [4768..4838] self=70\n  send grading [4838..4853] self=15\nPOST /submissions sub_7103 [3811..5036] self=0\n  auth.verify [3811..3836] self=25\n  cache.get problem [3836..3843] self=7\n  plagiarism.check sub_7103 [3843..4936] self=1093\n  INSERT submissions [4936..5016] self=80\n  send grading [5016..5036] self=20\nPOST /submissions sub_7104 [3848..4324] self=0\n  auth.verify [3848..3876] self=28\n  rateLimit.check [3876..3884] self=8\n  cache.get problem [3876..3885] self=9\n  plagiarism.check sub_7104 [3885..4209] self=324\n  INSERT submissions [4209..4299] self=90\n  send grading [4299..4324] self=25\nPOST /submissions sub_7105 [3885..4486] self=0\n  auth.verify [3885..3895] self=10\n  cache.get problem [3895..3901] self=6\n  INSERT drafts [3901..4106] self=205\n  plagiarism.check sub_7105 [3901..4356] self=455\n  INSERT submissions [4356..4456] self=100\n  send grading [4456..4486] self=30\n  audit.write [4456..4861] self=405\nPOST /submissions sub_7106 [3922..4676] self=0\n  auth.verify [3922..3935] self=13\n  cache.get problem [3935..3941] self=6\n  rateLimit.check [3935..3945] self=10\n  plagiarism.check sub_7106 [3945..4531] self=586\n  INSERT submissions [4531..4641] self=110\n  send grading [4641..4676] self=35\nPOST /submissions sub_7107 [3959..4860] self=0\n  auth.verify [3959..3975] self=16\n  cache.get problem [3975..3983] self=8\n  plagiarism.check sub_7107 [3983..4700] self=717\n  INSERT submissions [4700..4820] self=120\n  send grading [4820..4860] self=40\nPOST /submissions sub_7108 [3996..4926] self=0\n  auth.verify [3996..4015] self=19\n  cache.get problem [4015..4023] self=8\n  rateLimit.check [4015..4023] self=8\n  plagiarism.check sub_7108 [4023..4871] self=848\n  INSERT submissions [4871..4911] self=40\n  send grading [4911..4926] self=15\nPOST /submissions sub_7109 [4033..5111] self=0\n  auth.verify [4033..4055] self=22\n  cache.get problem [4055..4062] self=7\n  INSERT drafts [4062..4271] self=209\n  plagiarism.check sub_7109 [4062..5041] self=979\n  INSERT submissions [5041..5091] self=50\n  send grading [5091..5111] self=20\nPOST /submissions sub_7110 [4070..4400] self=0\n  auth.verify [4070..4095] self=25\n  cache.get problem [4095..4100] self=5\n  rateLimit.check [4095..4105] self=10\n  plagiarism.check sub_7110 [4105..4315] self=210\n  INSERT submissions [4315..4375] self=60\n  send grading [4375..4400] self=25\n  audit.write [4375..4785] self=410\nPOST /submissions sub_7111 [4107..4582] self=0\n  auth.verify [4107..4135] self=28\n  cache.get problem [4135..4141] self=6\n  plagiarism.check sub_7111 [4141..4482] self=341\n  INSERT submissions [4482..4552] self=70\n  send grading [4552..4582] self=30\nPOST /submissions sub_7112 [4144..4749] self=0\n  auth.verify [4144..4154] self=10\n  cache.get problem [4154..4161] self=7\n  rateLimit.check [4154..4162] self=8\n  plagiarism.check sub_7112 [4162..4634] self=472\n  INSERT submissions [4634..4714] self=80\n  send grading [4714..4749] self=35\nPOST /submissions sub_7113 [4181..4935] self=0\n  auth.verify [4181..4194] self=13\n  cache.get problem [4194..4202] self=8\n  INSERT drafts [4202..4415] self=213\n  plagiarism.check sub_7113 [4202..4805] self=603\n  INSERT submissions [4805..4895] self=90\n  send grading [4895..4935] self=40\nPOST /submissions sub_7114 [4218..5093] self=0\n  auth.verify [4218..4234] self=16\n  cache.get problem [4234..4243] self=9\n  rateLimit.check [4234..4244] self=10\n  plagiarism.check sub_7114 [4244..4978] self=734\n  INSERT submissions [4978..5078] self=100\n  send grading [5078..5093] self=15\nPOST /submissions sub_7115 [4255..5276] self=0\n  auth.verify [4255..4274] self=19\n  cache.get problem [4274..4281] self=7\n  plagiarism.check sub_7115 [4281..5146] self=865\n  INSERT submissions [5146..5256] self=110\n  send grading [5256..5276] self=20\n  audit.write [5256..5671] self=415\nPOST /submissions sub_7116 [4292..5463] self=0\n  auth.verify [4292..4314] self=22\n  cache.get problem [4314..4320] self=6\n  rateLimit.check [4314..4322] self=8\n  plagiarism.check sub_7116 [4322..5318] self=996\n  INSERT submissions [5318..5438] self=120\n  send grading [5438..5463] self=25\nPOST /submissions sub_7117 [4329..4657] self=0\n  auth.verify [4329..4354] self=25\n  cache.get problem [4354..4360] self=6\n  INSERT drafts [4360..4577] self=217\n  plagiarism.check sub_7117 [4360..4587] self=227\n  INSERT submissions [4587..4627] self=40\n  send grading [4627..4657] self=30\nPOST /submissions sub_7118 [4366..4847] self=0\n  auth.verify [4366..4394] self=28\n  cache.get problem [4394..4402] self=8\n  rateLimit.check [4394..4404] self=10\n  plagiarism.check sub_7118 [4404..4762] self=358\n  INSERT submissions [4762..4812] self=50\n  send grading [4812..4847] self=35\nPOST /submissions sub_7119 [4403..5010] self=0\n  auth.verify [4403..4413] self=10\n  cache.get problem [4413..4421] self=8\n  plagiarism.check sub_7119 [4421..4910] self=489\n  INSERT submissions [4910..4970] self=60\n  send grading [4970..5010] self=40\nPOST /submissions sub_7120 [4440..5166] self=0\n  auth.verify [4440..4453] self=13\n  cache.get problem [4453..4458] self=5\n  rateLimit.check [4453..4461] self=8\n  plagiarism.check sub_7120 [4461..5081] self=620\n  INSERT submissions [5081..5151] self=70\n  send grading [5151..5166] self=15\n  audit.write [5151..5571] self=420\nPOST /submissions sub_7121 [4477..5351] self=0\n  auth.verify [4477..4493] self=16\n  cache.get problem [4493..4500] self=7\n  INSERT drafts [4500..4721] self=221\n  plagiarism.check sub_7121 [4500..5251] self=751\n  INSERT submissions [5251..5331] self=80\n  send grading [5331..5351] self=20\nPOST /submissions sub_7122 [4514..5540] self=0\n  auth.verify [4514..4533] self=19\n  cache.get problem [4533..4540] self=7\n  rateLimit.check [4533..4543] self=10\n  plagiarism.check sub_7122 [4543..5425] self=882\n  INSERT submissions [5425..5515] self=90\n  send grading [5515..5540] self=25\nPOST /submissions sub_7123 [4551..5722] self=0\n  auth.verify [4551..4573] self=22\n  cache.get problem [4573..4579] self=6\n  plagiarism.check sub_7123 [4579..5592] self=1013\n  INSERT submissions [5592..5692] self=100\n  send grading [5692..5722] self=30\nPOST /submissions sub_7124 [4588..5011] self=0\n  auth.verify [4588..4613] self=25\n  rateLimit.check [4613..4621] self=8\n  cache.get problem [4613..4622] self=9\n  plagiarism.check sub_7124 [4622..4866] self=244\n  INSERT submissions [4866..4976] self=110\n  send grading [4976..5011] self=35\nPOST /submissions sub_7125 [4625..5196] self=0\n  auth.verify [4625..4653] self=28\n  cache.get problem [4653..4661] self=8\n  INSERT drafts [4661..4886] self=225\n  plagiarism.check sub_7125 [4661..5036] self=375\n  INSERT submissions [5036..5156] self=120\n  send grading [5156..5196] self=40\n  audit.write [5156..5581] self=425\nPOST /submissions sub_7126 [4662..5243] self=0\n  auth.verify [4662..4672] self=10\n  cache.get problem [4672..4678] self=6\n  rateLimit.check [4672..4682] self=10\n  plagiarism.check sub_7126 [4682..5188] self=506\n  INSERT submissions [5188..5228] self=40\n  send grading [5228..5243] self=15\nPOST /submissions sub_7127 [4699..5426] self=0\n  auth.verify [4699..4712] self=13\n  cache.get problem [4712..4719] self=7\n  plagiarism.check sub_7127 [4719..5356] self=637\n  INSERT submissions [5356..5406] self=50\n  send grading [5406..5426] self=20\nPOST /submissions sub_7128 [4736..5613] self=0\n  auth.verify [4736..4752] self=16\n  cache.get problem [4752..4760] self=8\n  rateLimit.check [4752..4760] self=8\n  plagiarism.check sub_7128 [4760..5528] self=768\n  INSERT submissions [5528..5588] self=60\n  send grading [5588..5613] self=25\nPOST /submissions sub_7129 [4773..5797] self=0\n  auth.verify [4773..4792] self=19\n  cache.get problem [4792..4798] self=6\n  INSERT drafts [4798..5027] self=229\n  plagiarism.check sub_7129 [4798..5697] self=899\n  INSERT submissions [5697..5767] self=70\n  send grading [5767..5797] self=30\nPOST /submissions sub_7130 [4810..5987] self=0\n  auth.verify [4810..4832] self=22\n  cache.get problem [4832..4837] self=5\n  rateLimit.check [4832..4842] self=10\n  plagiarism.check sub_7130 [4842..5872] self=1030\n  INSERT submissions [5872..5952] self=80\n  send grading [5952..5987] self=35\n  audit.write [5952..6382] self=430\nPOST /submissions sub_7131 [4847..5271] self=0\n  auth.verify [4847..4872] self=25\n  cache.get problem [4872..4880] self=8\n  plagiarism.check sub_7131 [4880..5141] self=261\n  INSERT submissions [5141..5231] self=90\n  send grading [5231..5271] self=40\nPOST /submissions sub_7132 [4884..5427] self=0\n  auth.verify [4884..4912] self=28\n  cache.get problem [4912..4919] self=7\n  rateLimit.check [4912..4920] self=8\n  plagiarism.check sub_7132 [4920..5312] self=392\n  INSERT submissions [5312..5412] self=100\n  send grading [5412..5427] self=15\nPOST /submissions sub_7133 [4921..5591] self=0\n  auth.verify [4921..4931] self=10\n  cache.get problem [4931..4938] self=7\n  INSERT drafts [4938..5171] self=233\n  plagiarism.check sub_7133 [4938..5461] self=523\n  INSERT submissions [5461..5571] self=110\n  send grading [5571..5591] self=20\nPOST /submissions sub_7134 [4958..5780] self=0\n  auth.verify [4958..4971] self=13\n  cache.get problem [4971..4980] self=9\n  rateLimit.check [4971..4981] self=10\n  plagiarism.check sub_7134 [4981..5635] self=654\n  INSERT submissions [5635..5755] self=120\n  send grading [5755..5780] self=25\nPOST /submissions sub_7135 [4995..5872] self=0\n  auth.verify [4995..5011] self=16\n  cache.get problem [5011..5017] self=6\n  plagiarism.check sub_7135 [5017..5802] self=785\n  INSERT submissions [5802..5842] self=40\n  send grading [5842..5872] self=30\n  audit.write [5842..6277] self=435\nPOST /submissions sub_7136 [5032..6060] self=0\n  auth.verify [5032..5051] self=19\n  cache.get problem [5051..5057] self=6\n  rateLimit.check [5051..5059] self=8\n  plagiarism.check sub_7136 [5059..5975] self=916\n  INSERT submissions [5975..6025] self=50\n  send grading [6025..6060] self=35\nPOST /submissions sub_7137 [5069..6246] self=0\n  auth.verify [5069..5091] self=22\n  cache.get problem [5091..5099] self=8\n  INSERT drafts [5099..5336] self=237\n  plagiarism.check sub_7137 [5099..6146] self=1047\n  INSERT submissions [6146..6206] self=60\n  send grading [6206..6246] self=40\nPOST /submissions sub_7138 [5106..5504] self=0\n  auth.verify [5106..5131] self=25\n  cache.get problem [5131..5139] self=8\n  rateLimit.check [5131..5141] self=10\n  plagiarism.check sub_7138 [5141..5419] self=278\n  INSERT submissions [5419..5489] self=70\n  send grading [5489..5504] self=15\nPOST /submissions sub_7139 [5143..5687] self=0\n  auth.verify [5143..5171] self=28\n  cache.get problem [5171..5178] self=7\n  plagiarism.check sub_7139 [5178..5587] self=409\n  INSERT submissions [5587..5667] self=80\n  send grading [5667..5687] self=20\nPOST /submissions sub_7140 [5180..5853] self=0\n  auth.verify [5180..5190] self=10\n  cache.get problem [5190..5195] self=5\n  rateLimit.check [5190..5198] self=8\n  plagiarism.check sub_7140 [5198..5738] self=540\n  INSERT submissions [5738..5828] self=90\n  send grading [5828..5853] self=25\n  audit.write [5828..6268] self=440\nPOST /submissions sub_7141 [5217..6037] self=0\n  auth.verify [5217..5230] self=13\n  cache.get problem [5230..5236] self=6\n  INSERT drafts [5236..5477] self=241\n  plagiarism.check sub_7141 [5236..5907] self=671\n  INSERT submissions [5907..6007] self=100\n  send grading [6007..6037] self=30\nPOST /submissions sub_7142 [5254..6227] self=0\n  auth.verify [5254..5270] self=16\n  cache.get problem [5270..5277] self=7\n  rateLimit.check [5270..5280] self=10\n  plagiarism.check sub_7142 [5280..6082] self=802\n  INSERT submissions [6082..6192] self=110\n  send grading [6192..6227] self=35\nPOST /submissions sub_7143 [5291..6411] self=0\n  auth.verify [5291..5310] self=19\n  cache.get problem [5310..5318] self=8\n  plagiarism.check sub_7143 [5318..6251] self=933\n  INSERT submissions [6251..6371] self=120\n  send grading [6371..6411] self=40\nPOST /submissions sub_7144 [5328..6478] self=0\n  auth.verify [5328..5350] self=22\n  rateLimit.check [5350..5358] self=8\n  cache.get problem [5350..5359] self=9\n  plagiarism.check sub_7144 [5359..6423] self=1064\n  INSERT submissions [6423..6463] self=40\n  send grading [6463..6478] self=15\nPOST /submissions sub_7145 [5365..5762] self=0\n  auth.verify [5365..5390] self=25\n  cache.get problem [5390..5397] self=7\n  INSERT drafts [5397..5642] self=245\n  plagiarism.check sub_7145 [5397..5692] self=295\n  INSERT submissions [5692..5742] self=50\n  send grading [5742..5762] self=20\n  audit.write [5742..6187] self=445\nPOST /submissions sub_7146 [5402..5951] self=0\n  auth.verify [5402..5430] self=28\n  cache.get problem [5430..5436] self=6\n  rateLimit.check [5430..5440] self=10\n  plagiarism.check sub_7146 [5440..5866] self=426\n  INSERT submissions [5866..5926] self=60\n  send grading [5926..5951] self=25\nPOST /submissions sub_7147 [5439..6112] self=0\n  auth.verify [5439..5449] self=10\n  cache.get problem [5449..5455] self=6\n  plagiarism.check sub_7147 [5455..6012] self=557\n  INSERT submissions [6012..6082] self=70\n  send grading [6082..6112] self=30\nPOST /submissions sub_7148 [5476..6300] self=0\n  auth.verify [5476..5489] self=13\n  cache.get problem [5489..5497] self=8\n  rateLimit.check [5489..5497] self=8\n  plagiarism.check sub_7148 [5497..6185] self=688\n  INSERT submissions [6185..6265] self=80\n  send grading [6265..6300] self=35\nPOST /submissions sub_7149 [5513..6486] self=0\n  auth.verify [5513..5529] self=16\n  cache.get problem [5529..5537] self=8\n  INSERT drafts [5537..5786] self=249\n  plagiarism.check sub_7149 [5537..6356] self=819\n  INSERT submissions [6356..6446] self=90\n  send grading [6446..6486] self=40"
+        }
+      ]
+    }
+  ]
+}

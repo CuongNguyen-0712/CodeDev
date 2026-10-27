@@ -1,0 +1,187 @@
+{
+  "publicId": "observability-opentelemetry",
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1793025126/codedev/courses/observability-opentelemetry/cover",
+  "title": "Observability with OpenTelemetry: Logs, Traces, Metrics & SLO Alerts",
+  "concept": "See what production is doing and alert on what users feel: structured logs with trace ids, W3C trace context across services and queues, spans that add up, percentiles from histograms, metric labels that don't explode, and SLO burn-rate alerts instead of noisy thresholds.",
+  "description": "An advanced course for developers who are paged for their services. Every lesson starts from an incident on the CodeDev learning platform - 800 ms missing from a trace of the submit endpoint, a metrics bill that tripled after someone labelled a counter with user_id, logs that could not be joined to the request that failed, an alert that woke the team 14 times in a week for nothing - and fixes it with instrumentation you can test: logs, metrics and traces, structured logging, trace context and propagation through async code and queues, the Find the Missing 800 ms scenario, histograms and percentiles, cardinality, SLOs and multi-window burn-rate alerts. 12 lessons with True/False quizzes on real traces, logs and dashboards, and TypeScript challenges graded by hidden tests.",
+  "level": "advanced",
+  "durationMinutes": 400,
+  "instructor": "CodeDev Engineering Team",
+  "language": "TypeScript",
+  "category": "DevOps",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 150,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 600
+    },
+    {
+      "priceType": "money",
+      "amount": 249000,
+      "currency": "VND"
+    }
+  ],
+  "completionRules": {},
+  "domain": "quality",
+  "learningOutcomes": [
+    {
+      "code": "signals",
+      "text": "Choose between logs, metrics and traces and write structured logs that join to traces"
+    },
+    {
+      "code": "trace-context",
+      "text": "Propagate W3C trace context across services, async callbacks and queues"
+    },
+    {
+      "code": "latency-metrics",
+      "text": "Compute percentiles from histograms and read latency honestly"
+    },
+    {
+      "code": "cardinality",
+      "text": "Keep metric labels bounded so cost and queries stay under control"
+    },
+    {
+      "code": "slo-alerting",
+      "text": "Alert on SLO burn rate over multiple windows instead of instant thresholds"
+    }
+  ],
+  "testedVersions": {
+    "TypeScript": "5.9.3 (tsc --strict in the code runner)",
+    "OpenTelemetry JS": "lesson examples, check current SDK versions",
+    "W3C Trace Context": "Recommendation (traceparent v00)"
+  },
+  "lastReviewedAt": "2026-10-26",
+  "sourceLinks": [
+    "https://opentelemetry.io/docs/concepts/signals/",
+    "https://www.w3.org/TR/trace-context/",
+    "https://sre.google/workbook/alerting-on-slos/"
+  ],
+  "owner": "CodeDev Engineering Team",
+  "knownIssues": [
+    "No collector or backend in the code runner: challenges work on recorded spans, logs and histograms"
+  ],
+  "scenario": {
+    "title": "Find the Missing 800 ms",
+    "quiz": "chal_quiz_otl_221",
+    "fixBug": "chal_coding_otl_222"
+  },
+  "careerRoles": [
+    "backend_developer",
+    "devops_engineer",
+    "fullstack_developer"
+  ],
+  "skills": {
+    "system_design": 3,
+    "performance": 4,
+    "typescript": 3
+  },
+  "goals": [
+    "grow_in_role",
+    "performance"
+  ],
+  "prerequisites": [
+    "nestjs-modular-monolith"
+  ],
+  "modules": [
+    {
+      "orderIndex": 1,
+      "title": "Signals",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "01-logs-metrics-traces",
+          "title": "Logs, metrics & traces: which question each one answers",
+          "sanityId": "lesson-otl-1-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "02-structured-logs",
+          "title": "Structured logs with trace ids",
+          "sanityId": "lesson-otl-1-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "03-trace-context",
+          "title": "W3C trace context: traceparent from service to service",
+          "sanityId": "lesson-otl-1-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Traces",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "04-async-context",
+          "title": "Keep context across async callbacks & queues",
+          "sanityId": "lesson-otl-2-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "05-find-missing-800ms",
+          "title": "Find the missing 800 ms: a trace with a hole in it",
+          "sanityId": "lesson-otl-2-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "06-span-design",
+          "title": "Span design: names, attributes & what not to record",
+          "sanityId": "lesson-otl-2-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Metrics",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "07-histograms-percentiles",
+          "title": "Percentiles from histograms",
+          "sanityId": "lesson-otl-3-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "08-cardinality",
+          "title": "Cardinality: labels that don't explode",
+          "sanityId": "lesson-otl-3-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "09-spot-user-id-label",
+          "title": "Spot the AI mistake: user_id as a metric label",
+          "sanityId": "lesson-otl-3-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 4,
+      "title": "Alerting",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "10-slos",
+          "title": "SLOs & error budgets for the submit endpoint",
+          "sanityId": "lesson-otl-4-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "11-burn-rate-alerts",
+          "title": "Multi-window burn-rate alerts",
+          "sanityId": "lesson-otl-4-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "12-noisy-alert",
+          "title": "Fix it: an alert that wakes the team for nothing",
+          "sanityId": "lesson-otl-4-3"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,66 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_otl_231",
+      "name": "span-design-review",
+      "type": "quiz",
+      "title": "Review the span design",
+      "description": "Three statements from CodeDev's first tracing review: span names built from raw paths, a span carrying a token and a password hash, and a grading timeout that left no trace under head sampling. Decide which design rule each piece of evidence breaks and what the fix does.",
+      "difficulty": "medium",
+      "outcomes": [
+        "signals"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Span names of submissions-api, last 7 days (2,184,331 distinct names):\nGET /courses/8812/lessons/3      count 41\nGET /courses/8812/lessons/4      count 38\nGET /courses/9921/lessons/1      count 12\n...\n\nProposed change: name the server span from the route template and move the ids to attributes:\nspan name   GET /courses/:courseId/lessons/:lessonId\nattributes  http.route = \"/courses/:courseId/lessons/:lessonId\", course.id = \"8812\", lesson.id = \"3\"\n\nStatement: \"After the change the span name has one value for this route however many courses and lessons exist, and support can still find every request for course 8812 by searching course.id = 8812.\"",
+          "explanation": "True. The route template is the same for every course and lesson, so the operation list shrinks to roughly one name per route, and latency breakdowns per operation become meaningful again. The ids are not lost: trace backends index span attributes and are built to search high-cardinality values, which is how a single submission or course is found. The common misconception is that low-cardinality names mean losing the ability to find a specific request; the detail moves to attributes, it does not disappear. (Ids as metric labels are a different matter, covered in module 3.)",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A span found by the security review (trace UI, service submissions-api):\nPATCH /users/u_8812/email\n  http.request.header.authorization   Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...\n  user.email                          an.nguyen@example.com\n  db.statement                        UPDATE users SET email = 'an.nguyen@example.com', password_hash = '$2b$12$Qe1...' WHERE id = 'u_8812'\n\nContext: the trace backend is self-hosted, only reachable from the company VPN, and every engineer has read access to it. Traces are kept for 30 days.\n\nStatement: \"Because the backend is internal and behind the VPN, keeping the Authorization header, the e-mail and the full UPDATE statement on spans is acceptable; it only has to be removed before traces are sent to an external vendor.\"",
+          "explanation": "False. \"Internal\" here means every engineer can read live bearer tokens (which let them act as the user until the token expires), e-mail addresses and password hashes for 30 days, in a system that was never designed or audited to hold them. Secrets and personal data must not be recorded at all: allow-list the request headers you capture, use a pseudonymous id instead of the e-mail, and record only parameterised SQL (WHERE id = $1) without values. A Collector redaction step is useful as a second line of defence, not as the reason to keep recording. The data already stored must be purged and the exposed tokens rotated. The misconception is that access control on the backend turns telemetry into a safe place for secrets.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Sampler in both services:\nnew NodeSDK({ sampler: new ParentBasedSampler({ root: new TraceIdRatioBasedSampler(0.1) }), ... })\n\nGrading jobs yesterday: 2,140. Timed out: 7.\nSupport asks for the trace of one of the timeouts; the log line has trace_id=2c9e41f0..., the trace UI answers \"Trace not found\".\n\nStatement: \"With this head sampler, the decision is made before the job runs, so a trace that ends in a timeout is kept with the same 10% probability as any other: on average fewer than one of yesterday's seven timeouts has a trace. A tail-sampling policy that keeps traces with an error status would keep them, as long as the worker's spans reach the Collector within its decision window.\"",
+          "explanation": "True. TraceIdRatioBasedSampler decides from the trace id when the root span starts, and ParentBased makes every child (including the worker, through the sampled flag in traceparent) follow that decision. The outcome is unknown at that point, so 7 timeouts kept at 10% means 0.7 traces on average, and on about half of such days (0.9^7 = 0.48) none at all. Tail sampling in the Collector decides after the spans arrive and can keep every trace with an error status, at the cost of routing all spans of a trace to one Collector and holding them in memory. The condition in the statement matters: a worker that picks the job up minutes after the request sends its spans after the decision for the request's spans was made, which is one more reason to give long-running jobs their own linked traces. The misconception is that \"10% sampling\" still gives you 10% of something useful for rare events; the rate and the alert for timeouts belong in a metric, which is not sampled.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

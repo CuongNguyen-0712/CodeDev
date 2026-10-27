@@ -1,0 +1,6607 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_otl_311",
+      "name": "percentiles-from-histograms-quiz",
+      "type": "quiz",
+      "title": "What does this p95 really say?",
+      "description": "Two pieces of evidence from the submit latency incident: a dashboard that averages the p95 of each instance, and a histogram_quantile result read from its buckets.",
+      "difficulty": "medium",
+      "outcomes": [
+        "latency-metrics"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Grafana panel \"Submit latency p95\". Each API instance computes its own p95 in process (a summary) and exports it as submit_latency_p95_seconds. The panel query is:\n\navg(submit_latency_p95_seconds)\n\nLast 30 minutes, per instance:\ninstance  requests  p95\napi-1     4200      0.21 s\napi-2     4100      0.20 s\napi-3     700       3.80 s\npanel     -         1.40 s\n\nStatement: \"1.40 s is the p95 of all 9,000 submit requests of these 30 minutes.\"",
+          "explanation": "False. The average of three percentiles is not a percentile of anything. It gives api-3, which served 700 requests, the same weight as api-1 with 4,200, and three numbers cannot tell you how many of the 9,000 requests were slower than any given time. The p95 of all requests is the time under which 8,550 of them finished; to compute it you need the counts per latency range from every instance, summed: export a histogram, sum its buckets by le across instances and apply histogram_quantile to the sum. The misconception is that percentiles can be combined like counts or sums; they cannot be averaged, added or merged.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "PromQL, last 5 minutes of POST /submissions on all instances:\n\nsum by (le) (increase(http_server_request_duration_seconds_bucket{http_route=\"/submissions\"}[5m]))\nle=\"0.1\"   610\nle=\"0.25\"  900\nle=\"0.5\"   960\nle=\"1\"     990\nle=\"+Inf\"  1000\n\nhistogram_quantile(0.95, sum by (le) (rate(http_server_request_duration_seconds_bucket{http_route=\"/submissions\"}[5m])))\n=> 0.4583\n\nStatement: \"The real p95 of these requests lies between 0.25 s and 0.5 s; the value 0.458 s comes from assuming that the 60 requests of that bucket are spread evenly across it.\"",
+          "explanation": "True. The 950th of 1,000 requests is in the bucket from 0.25 s to 0.5 s: 900 requests finished within 0.25 s and 960 within 0.5 s. That is all the buckets know. histogram_quantile places the rank linearly inside the bucket: 0.25 + 0.25 x (950 - 900) / 60 = 0.458 s. If those 60 requests were all close to 0.26 s the real p95 would be about 0.26 s; if they were all close to 0.49 s, about 0.49 s. The error is bounded by the width of the bucket, which is why you put bucket boundaries near the thresholds you care about, such as an SLO at 0.5 s. The misconception is to read 0.458 as a measured value with three digits of precision.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_otl_312",
+      "name": "percentiles-from-histogram-buckets",
+      "type": "mini_coding",
+      "title": "Percentiles from histogram buckets",
+      "description": "The CodeDev latency dashboard for POST /submissions must show p50, p95 and p99 over all API instances, like this PromQL query: histogram_quantile(q, sum by (le) (increase(http_server_request_duration_seconds_bucket[window]))). There is no Prometheus in the code runner: you get, for each instance, two snapshots of its cumulative buckets (start and end of the window) and compute the same numbers yourself. Write three functions.\n\ncounterIncrease(start, end): how much a counter grew between two snapshots. Counters only go up, so an end value lower than the start value means the process restarted and the counter began again at 0: the increase is then the end value. Otherwise it is end - start.\n\nmergeIncreases(instances): for every instance and every bucket of its end snapshot, the increase of that bucket (counterIncrease of the start and end counts with the same le; a bucket missing from start - the instance started during the window - counts from 0). Add the increases of all instances bucket by bucket (same le): sum the buckets, never average the percentiles of each instance. Return one { le, count } per le, sorted by le ascending (+Inf, given as Infinity, last).\n\nhistogramQuantile(q, buckets), on cumulative buckets sorted by le, exactly like Prometheus: (1) q < 0 returns -Infinity and q > 1 returns Infinity; (2) no +Inf bucket, or fewer than 2 buckets, returns NaN; total = count of the +Inf bucket, and total 0 returns NaN; (3) rank = q * total; find the first bucket other than +Inf whose count >= rank; (4) if there is none (the rank falls in the +Inf bucket), return the le of the highest bucket other than +Inf; (5) otherwise interpolate linearly inside that bucket: lower = le of the previous bucket (0 for the first bucket), before = count of the previous bucket (0 for the first), result = lower + (le - lower) * (rank - before) / (count - before).\n\nInput (stdin, JSON): { \"windowSeconds\": 300, \"quantiles\": [0.5, 0.95, 0.99], \"instances\": [{ \"instance\": \"api-1\", \"start\": [{ \"le\": \"0.1\", \"count\": 180 }, ..., { \"le\": \"+Inf\", \"count\": 400 }], \"end\": [...] }] }. The runner turns le into a number (Infinity for \"+Inf\") and prints the request count of the window (the +Inf bucket of your merged buckets, 0 without one), its rate per second with 3 decimals, then one line per quantile in milliseconds, rounded to the nearest millisecond, for example \"p95 609 ms\" (NaN, +Inf and -Inf are printed as such). Boundaries are positive and the same on every instance; buckets are cumulative.",
+      "difficulty": "medium",
+      "outcomes": [
+        "latency-metrics"
+      ],
+      "points": 30,
+      "hints": [
+        "A bucket le=\"0.5\" counts every request that took 0.5 s or less since the process started. What do you have to do to its two snapshots to know how many requests of the window took 0.5 s or less, on one instance and then on all of them?",
+        "Look at three places: the restart rule in counterIncrease (an end value lower than its start), the +Inf bucket (it gives the total, but it is never the bucket you interpolate in), and the lower edge of the first bucket, which is 0. Check the special cases (q outside 0..1, no +Inf bucket, total 0) before you compute the rank.",
+        "A worked example on other numbers: cumulative buckets le 0.2 -> 40, le 0.4 -> 70, le 0.8 -> 95, +Inf -> 100. For q = 0.6 the rank is 60: the first bucket with count >= 60 is le 0.4, so lower 0.2, before 40 and the result is 0.2 + 0.2 x (60 - 40) / (70 - 40) = 0.333 s. For q = 0.97 the rank is 97, which no finite bucket reaches, so the result is 0.8. An instance whose le 0.2 bucket went from 500 to 12 restarted: its increase is 12."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "One instance: p50, p95 and p99 interpolated inside their buckets",
+          "input": {
+            "windowSeconds": 300,
+            "quantiles": [
+              0.5,
+              0.95,
+              0.99
+            ],
+            "instances": [
+              {
+                "instance": "api-1",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 3
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 23
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 113
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 413
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 823
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 1203
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 1823
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 2083
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 2163
+                  },
+                  {
+                    "le": "1",
+                    "count": 2203
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 2225
+                  },
+                  {
+                    "le": "5",
+                    "count": 2231
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 2232
+                  },
+                  {
+                    "le": "10",
+                    "count": 2232
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 2232
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 3
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 27
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 147
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 543
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 1093
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 1623
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 2473
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 2823
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 2927
+                  },
+                  {
+                    "le": "1",
+                    "count": 2979
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 3010
+                  },
+                  {
+                    "le": "5",
+                    "count": 3020
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 3022
+                  },
+                  {
+                    "le": "10",
+                    "count": 3022
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 3022
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": "requests 790 in 300 s = 2.633/s\np50 96 ms\np95 609 ms\np99 2017 ms",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Three instances: buckets are summed, a slow instance moves p99",
+          "input": {
+            "windowSeconds": 300,
+            "quantiles": [
+              0.5,
+              0.95,
+              0.99
+            ],
+            "instances": [
+              {
+                "instance": "api-1",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 5
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 35
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 155
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 555
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 1055
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 1505
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 2205
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 2505
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 2595
+                  },
+                  {
+                    "le": "1",
+                    "count": 2635
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 2655
+                  },
+                  {
+                    "le": "5",
+                    "count": 2659
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 2659
+                  },
+                  {
+                    "le": "10",
+                    "count": 2659
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 2659
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 6
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 44
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 214
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 774
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 1464
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 2084
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 3044
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 3444
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 3559
+                  },
+                  {
+                    "le": "1",
+                    "count": 3609
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 3634
+                  },
+                  {
+                    "le": "5",
+                    "count": 3639
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 3639
+                  },
+                  {
+                    "le": "10",
+                    "count": 3639
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 3639
+                  }
+                ]
+              },
+              {
+                "instance": "api-2",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 4
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 32
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 142
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 532
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 1052
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 1482
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 2172
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 2482
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 2562
+                  },
+                  {
+                    "le": "1",
+                    "count": 2607
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 2625
+                  },
+                  {
+                    "le": "5",
+                    "count": 2628
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 2628
+                  },
+                  {
+                    "le": "10",
+                    "count": 2628
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 2628
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 6
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 43
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 201
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 741
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 1461
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 2056
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 2996
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 3416
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 3526
+                  },
+                  {
+                    "le": "1",
+                    "count": 3583
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 3605
+                  },
+                  {
+                    "le": "5",
+                    "count": 3609
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 3609
+                  },
+                  {
+                    "le": "10",
+                    "count": 3609
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 3609
+                  }
+                ]
+              },
+              {
+                "instance": "api-3",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 2
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 12
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 32
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 62
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 152
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 232
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 292
+                  },
+                  {
+                    "le": "1",
+                    "count": 362
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 482
+                  },
+                  {
+                    "le": "5",
+                    "count": 542
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 554
+                  },
+                  {
+                    "le": "10",
+                    "count": 557
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 557
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 3
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 16
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 42
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 82
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 202
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 310
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 392
+                  },
+                  {
+                    "le": "1",
+                    "count": 487
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 657
+                  },
+                  {
+                    "le": "5",
+                    "count": 743
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 761
+                  },
+                  {
+                    "le": "10",
+                    "count": 766
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 766
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": "requests 2170 in 300 s = 7.233/s\np50 94 ms\np95 928 ms\np99 3777 ms",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "An instance restarted during the window: its counters began again at 0",
+          "input": {
+            "windowSeconds": 300,
+            "quantiles": [
+              0.5,
+              0.95,
+              0.99
+            ],
+            "instances": [
+              {
+                "instance": "api-1",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 5
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 35
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 155
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 555
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 1055
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 1505
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 2205
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 2505
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 2595
+                  },
+                  {
+                    "le": "1",
+                    "count": 2635
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 2655
+                  },
+                  {
+                    "le": "5",
+                    "count": 2659
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 2659
+                  },
+                  {
+                    "le": "10",
+                    "count": 2659
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 2659
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 6
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 44
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 214
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 774
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 1464
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 2084
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 3044
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 3444
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 3559
+                  },
+                  {
+                    "le": "1",
+                    "count": 3609
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 3634
+                  },
+                  {
+                    "le": "5",
+                    "count": 3639
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 3639
+                  },
+                  {
+                    "le": "10",
+                    "count": 3639
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 3639
+                  }
+                ]
+              },
+              {
+                "instance": "api-2",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 40
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 340
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1540
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 5640
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 10840
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 15140
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 22040
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 25140
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 25940
+                  },
+                  {
+                    "le": "1",
+                    "count": 26390
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 26570
+                  },
+                  {
+                    "le": "5",
+                    "count": 26600
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 26602
+                  },
+                  {
+                    "le": "10",
+                    "count": 26602
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 26602
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 2
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 12
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 52
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 112
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 182
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 322
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 442
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 532
+                  },
+                  {
+                    "le": "1",
+                    "count": 612
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 672
+                  },
+                  {
+                    "le": "5",
+                    "count": 697
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 701
+                  },
+                  {
+                    "le": "10",
+                    "count": 702
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 702
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": "requests 1682 in 300 s = 5.607/s\np50 130 ms\np95 1275 ms\np99 3863 ms",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "p99 falls in the +Inf bucket: the highest finite bound is returned",
+          "input": {
+            "windowSeconds": 60,
+            "quantiles": [
+              0.5,
+              0.9,
+              0.95,
+              0.99
+            ],
+            "instances": [
+              {
+                "instance": "api-1",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 5
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 25
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 55
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 95
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 185
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 245
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 275
+                  },
+                  {
+                    "le": "1",
+                    "count": 295
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 325
+                  },
+                  {
+                    "le": "5",
+                    "count": 340
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 346
+                  },
+                  {
+                    "le": "10",
+                    "count": 350
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 360
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 6
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 32
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 72
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 124
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 244
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 324
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 364
+                  },
+                  {
+                    "le": "1",
+                    "count": 390
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 430
+                  },
+                  {
+                    "le": "5",
+                    "count": 450
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 459
+                  },
+                  {
+                    "le": "10",
+                    "count": 465
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 480
+                  }
+                ]
+              },
+              {
+                "instance": "api-2",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 4
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 22
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 50
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 88
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 176
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 238
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 266
+                  },
+                  {
+                    "le": "1",
+                    "count": 288
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 316
+                  },
+                  {
+                    "le": "5",
+                    "count": 330
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 337
+                  },
+                  {
+                    "le": "10",
+                    "count": 342
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 354
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 6
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 29
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 66
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 115
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 231
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 315
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 352
+                  },
+                  {
+                    "le": "1",
+                    "count": 381
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 418
+                  },
+                  {
+                    "le": "5",
+                    "count": 438
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 447
+                  },
+                  {
+                    "le": "10",
+                    "count": 453
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 469
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": "requests 235 in 60 s = 3.917/s\np50 271 ms\np90 3523 ms\np95 7708 ms\np99 10000 ms",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "A new instance started during the window (no start snapshot)",
+          "input": {
+            "windowSeconds": 120,
+            "quantiles": [
+              0.5,
+              0.75,
+              0.99
+            ],
+            "instances": [
+              {
+                "instance": "api-1",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 2
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 12
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 72
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 272
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 522
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 752
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 1102
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 1252
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 1297
+                  },
+                  {
+                    "le": "1",
+                    "count": 1317
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 1327
+                  },
+                  {
+                    "le": "5",
+                    "count": 1329
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 1329
+                  },
+                  {
+                    "le": "10",
+                    "count": 1329
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 1329
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 2
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 15
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 95
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 365
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 695
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 1000
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 1470
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 1670
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 1730
+                  },
+                  {
+                    "le": "1",
+                    "count": 1756
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 1769
+                  },
+                  {
+                    "le": "5",
+                    "count": 1772
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 1772
+                  },
+                  {
+                    "le": "10",
+                    "count": 1772
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 1772
+                  }
+                ]
+              },
+              {
+                "instance": "api-4",
+                "start": [],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 2
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 6
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 12
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 32
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 62
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 87
+                  },
+                  {
+                    "le": "1",
+                    "count": 109
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 127
+                  },
+                  {
+                    "le": "5",
+                    "count": 135
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 137
+                  },
+                  {
+                    "le": "10",
+                    "count": 137
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 137
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": "requests 580 in 120 s = 4.833/s\np50 132 ms\np75 359 ms\np99 3944 ms",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "No requests in the window and quantiles outside 0..1",
+          "input": {
+            "windowSeconds": 300,
+            "quantiles": [
+              0.5,
+              0.99,
+              -0.5,
+              1.5
+            ],
+            "instances": [
+              {
+                "instance": "api-1",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 5
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 35
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 155
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 555
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 1055
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 1505
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 2205
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 2505
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 2595
+                  },
+                  {
+                    "le": "1",
+                    "count": 2635
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 2655
+                  },
+                  {
+                    "le": "5",
+                    "count": 2659
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 2659
+                  },
+                  {
+                    "le": "10",
+                    "count": 2659
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 2659
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 5
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 35
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 155
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 555
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 1055
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 1505
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 2205
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 2505
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 2595
+                  },
+                  {
+                    "le": "1",
+                    "count": 2635
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 2655
+                  },
+                  {
+                    "le": "5",
+                    "count": 2659
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 2659
+                  },
+                  {
+                    "le": "10",
+                    "count": 2659
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 2659
+                  }
+                ]
+              },
+              {
+                "instance": "api-2",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 4
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 32
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 142
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 532
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 1052
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 1482
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 2172
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 2482
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 2562
+                  },
+                  {
+                    "le": "1",
+                    "count": 2607
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 2625
+                  },
+                  {
+                    "le": "5",
+                    "count": 2628
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 2628
+                  },
+                  {
+                    "le": "10",
+                    "count": 2628
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 2628
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 4
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 32
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 142
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 532
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 1052
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 1482
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 2172
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 2482
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 2562
+                  },
+                  {
+                    "le": "1",
+                    "count": 2607
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 2625
+                  },
+                  {
+                    "le": "5",
+                    "count": 2628
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 2628
+                  },
+                  {
+                    "le": "10",
+                    "count": 2628
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 2628
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": "requests 0 in 300 s = 0.000/s\np50 NaN\np99 NaN\np-50 -Inf\np150 +Inf",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "No +Inf bucket exported: the quantile is NaN",
+          "input": {
+            "windowSeconds": 60,
+            "quantiles": [
+              0.5
+            ],
+            "instances": [
+              {
+                "instance": "api-9",
+                "start": [
+                  {
+                    "le": "0.1",
+                    "count": 1
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 3
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 6
+                  },
+                  {
+                    "le": "1",
+                    "count": 10
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.1",
+                    "count": 2
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 7
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 13
+                  },
+                  {
+                    "le": "1",
+                    "count": 21
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": "requests 0 in 60 s = 0.000/s\np50 NaN",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Large: 40 instances with restarts, new instances and slow ones",
+          "input": {
+            "windowSeconds": 300,
+            "quantiles": [
+              0.5,
+              0.9,
+              0.95,
+              0.99,
+              0.999
+            ],
+            "instances": [
+              {
+                "instance": "api-1",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 210
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1050
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 3147
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 6082
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 9436
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 14677
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 17611
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 18870
+                  },
+                  {
+                    "le": "1",
+                    "count": 19708
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 20588
+                  },
+                  {
+                    "le": "5",
+                    "count": 20965
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 21049
+                  },
+                  {
+                    "le": "10",
+                    "count": 21091
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 21113
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 229
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1145
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 3434
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 6639
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 10300
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 16022
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 19224
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 20598
+                  },
+                  {
+                    "le": "1",
+                    "count": 21514
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 22476
+                  },
+                  {
+                    "le": "5",
+                    "count": 22888
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 22981
+                  },
+                  {
+                    "le": "10",
+                    "count": 23027
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 23051
+                  }
+                ]
+              },
+              {
+                "instance": "api-2",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 1
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 314
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1562
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 4684
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 9055
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 14049
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 21853
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 26223
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 28097
+                  },
+                  {
+                    "le": "1",
+                    "count": 29345
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 30656
+                  },
+                  {
+                    "le": "5",
+                    "count": 31218
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 31343
+                  },
+                  {
+                    "le": "10",
+                    "count": 31406
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 31437
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 2
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 328
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1628
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 4879
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 9430
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 14630
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 22755
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 27306
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 29258
+                  },
+                  {
+                    "le": "1",
+                    "count": 30558
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 31923
+                  },
+                  {
+                    "le": "5",
+                    "count": 32508
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 32638
+                  },
+                  {
+                    "le": "10",
+                    "count": 32703
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 32735
+                  }
+                ]
+              },
+              {
+                "instance": "api-3",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 1
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 325
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1622
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 4862
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 9399
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 14585
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 22686
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 27223
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 29168
+                  },
+                  {
+                    "le": "1",
+                    "count": 30464
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 31825
+                  },
+                  {
+                    "le": "5",
+                    "count": 32408
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 32539
+                  },
+                  {
+                    "le": "10",
+                    "count": 32604
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 32637
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 1
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 346
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1722
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 5158
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 9967
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 15465
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 24053
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 28863
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 30925
+                  },
+                  {
+                    "le": "1",
+                    "count": 32300
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 33743
+                  },
+                  {
+                    "le": "5",
+                    "count": 34361
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 34500
+                  },
+                  {
+                    "le": "10",
+                    "count": 34569
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 34605
+                  }
+                ]
+              },
+              {
+                "instance": "api-4",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 1
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 205
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1023
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 3067
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 5928
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 9198
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 14307
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 17169
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 18396
+                  },
+                  {
+                    "le": "1",
+                    "count": 19214
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 20074
+                  },
+                  {
+                    "le": "5",
+                    "count": 20443
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 20524
+                  },
+                  {
+                    "le": "10",
+                    "count": 20565
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 20587
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 1
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 224
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1117
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 3347
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 6468
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 10034
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 15604
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 18724
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 20061
+                  },
+                  {
+                    "le": "1",
+                    "count": 20953
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 21890
+                  },
+                  {
+                    "le": "5",
+                    "count": 22292
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 22382
+                  },
+                  {
+                    "le": "10",
+                    "count": 22426
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 22451
+                  }
+                ]
+              },
+              {
+                "instance": "api-5",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 1
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 283
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1409
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 4221
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 8157
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 12655
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 19684
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 23621
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 25309
+                  },
+                  {
+                    "le": "1",
+                    "count": 26434
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 28965
+                  },
+                  {
+                    "le": "5",
+                    "count": 30371
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 30934
+                  },
+                  {
+                    "le": "10",
+                    "count": 31217
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 31358
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 1
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 297
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1477
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 4426
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 8552
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 13269
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 20638
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 24766
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 26537
+                  },
+                  {
+                    "le": "1",
+                    "count": 27717
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 30371
+                  },
+                  {
+                    "le": "5",
+                    "count": 31845
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 32436
+                  },
+                  {
+                    "le": "10",
+                    "count": 32734
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 32883
+                  }
+                ]
+              },
+              {
+                "instance": "api-6",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 266
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1332
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 3998
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 7729
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 11994
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 18657
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 22387
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 23987
+                  },
+                  {
+                    "le": "1",
+                    "count": 25053
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 26172
+                  },
+                  {
+                    "le": "5",
+                    "count": 26651
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 26758
+                  },
+                  {
+                    "le": "10",
+                    "count": 26811
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 26837
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 289
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1442
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 4325
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 8361
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 12975
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 20183
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 24218
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 25948
+                  },
+                  {
+                    "le": "1",
+                    "count": 27102
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 28313
+                  },
+                  {
+                    "le": "5",
+                    "count": 28832
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 28949
+                  },
+                  {
+                    "le": "10",
+                    "count": 29007
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 29036
+                  }
+                ]
+              },
+              {
+                "instance": "api-7",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 1
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 266
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1324
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 3971
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 7677
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 11913
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 18531
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 22237
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 23825
+                  },
+                  {
+                    "le": "1",
+                    "count": 24885
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 25998
+                  },
+                  {
+                    "le": "5",
+                    "count": 26475
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 26581
+                  },
+                  {
+                    "le": "10",
+                    "count": 26634
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 26661
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 1
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 277
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1373
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 4116
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 7956
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 12343
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 19200
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 23039
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 24684
+                  },
+                  {
+                    "le": "1",
+                    "count": 25782
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 26935
+                  },
+                  {
+                    "le": "5",
+                    "count": 27430
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 27540
+                  },
+                  {
+                    "le": "10",
+                    "count": 27596
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 27624
+                  }
+                ]
+              },
+              {
+                "instance": "api-8",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 334
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1668
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 5001
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 9666
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 14998
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 23329
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 27994
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 29993
+                  },
+                  {
+                    "le": "1",
+                    "count": 31326
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 32726
+                  },
+                  {
+                    "le": "5",
+                    "count": 33327
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 33461
+                  },
+                  {
+                    "le": "10",
+                    "count": 33529
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 33563
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 1
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 354
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1763
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 5283
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 10208
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 15839
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 24635
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 29560
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 31672
+                  },
+                  {
+                    "le": "1",
+                    "count": 33079
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 34558
+                  },
+                  {
+                    "le": "5",
+                    "count": 35194
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 35336
+                  },
+                  {
+                    "le": "10",
+                    "count": 35408
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 35444
+                  }
+                ]
+              },
+              {
+                "instance": "api-9",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 186
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 929
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 2786
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 5387
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 8359
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 13003
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 15604
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 16719
+                  },
+                  {
+                    "le": "1",
+                    "count": 17461
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 21361
+                  },
+                  {
+                    "le": "5",
+                    "count": 23776
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 24890
+                  },
+                  {
+                    "le": "10",
+                    "count": 25447
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 25726
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 1
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 197
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 978
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 2930
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 5664
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 8788
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 13670
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 16403
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 17575
+                  },
+                  {
+                    "le": "1",
+                    "count": 18355
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 22455
+                  },
+                  {
+                    "le": "5",
+                    "count": 24994
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 26166
+                  },
+                  {
+                    "le": "10",
+                    "count": 26752
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 27047
+                  }
+                ]
+              },
+              {
+                "instance": "api-10",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 318
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1590
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 4770
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 9220
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 14306
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 22252
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 26703
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 28611
+                  },
+                  {
+                    "le": "1",
+                    "count": 29883
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 32744
+                  },
+                  {
+                    "le": "5",
+                    "count": 34333
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 34969
+                  },
+                  {
+                    "le": "10",
+                    "count": 35288
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 35447
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 330
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1648
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 4945
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 9557
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 14829
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 23066
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 27680
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 29659
+                  },
+                  {
+                    "le": "1",
+                    "count": 30978
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 33945
+                  },
+                  {
+                    "le": "5",
+                    "count": 35593
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 36252
+                  },
+                  {
+                    "le": "10",
+                    "count": 36584
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 36749
+                  }
+                ]
+              },
+              {
+                "instance": "api-11",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 1
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 357
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1779
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 5332
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 10307
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 15992
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 24877
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 29851
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 31984
+                  },
+                  {
+                    "le": "1",
+                    "count": 33407
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 34901
+                  },
+                  {
+                    "le": "5",
+                    "count": 35542
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 35684
+                  },
+                  {
+                    "le": "10",
+                    "count": 35756
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 35792
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 23
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 112
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 333
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 640
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 992
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 1542
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 1849
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 1981
+                  },
+                  {
+                    "le": "1",
+                    "count": 2068
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 2162
+                  },
+                  {
+                    "le": "5",
+                    "count": 2202
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 2210
+                  },
+                  {
+                    "le": "10",
+                    "count": 2215
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 2218
+                  }
+                ]
+              },
+              {
+                "instance": "api-12",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 1
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 376
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1876
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 5625
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 10873
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 16870
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 26241
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 31489
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 33739
+                  },
+                  {
+                    "le": "1",
+                    "count": 35238
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 36813
+                  },
+                  {
+                    "le": "5",
+                    "count": 37487
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 37638
+                  },
+                  {
+                    "le": "10",
+                    "count": 37714
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 37751
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 1
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 386
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1921
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 5757
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 11127
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 17264
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 26853
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 32224
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 34526
+                  },
+                  {
+                    "le": "1",
+                    "count": 36061
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 37673
+                  },
+                  {
+                    "le": "5",
+                    "count": 38364
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 38519
+                  },
+                  {
+                    "le": "10",
+                    "count": 38598
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 38636
+                  }
+                ]
+              },
+              {
+                "instance": "api-13",
+                "start": [],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 20
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 99
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 296
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 571
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 885
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 1374
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 1648
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 1766
+                  },
+                  {
+                    "le": "1",
+                    "count": 1845
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 1928
+                  },
+                  {
+                    "le": "5",
+                    "count": 1965
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 1974
+                  },
+                  {
+                    "le": "10",
+                    "count": 1979
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 1982
+                  }
+                ]
+              },
+              {
+                "instance": "api-14",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 1
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 394
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1962
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 5883
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 11371
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 17643
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 27442
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 32930
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 35282
+                  },
+                  {
+                    "le": "1",
+                    "count": 36851
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 38498
+                  },
+                  {
+                    "le": "5",
+                    "count": 39204
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 39362
+                  },
+                  {
+                    "le": "10",
+                    "count": 39440
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 39479
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 1
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 406
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 2021
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 6061
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 11716
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 18179
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 28275
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 33931
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 36354
+                  },
+                  {
+                    "le": "1",
+                    "count": 37971
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 39669
+                  },
+                  {
+                    "le": "5",
+                    "count": 40398
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 40561
+                  },
+                  {
+                    "le": "10",
+                    "count": 40642
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 40683
+                  }
+                ]
+              },
+              {
+                "instance": "api-15",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 1
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 194
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 965
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 2890
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 5584
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 8663
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 13474
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 16168
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 17322
+                  },
+                  {
+                    "le": "1",
+                    "count": 18092
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 19824
+                  },
+                  {
+                    "le": "5",
+                    "count": 20787
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 21171
+                  },
+                  {
+                    "le": "10",
+                    "count": 21364
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 21461
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 2
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 212
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1048
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 3136
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 6057
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 9395
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 14612
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 17533
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 18785
+                  },
+                  {
+                    "le": "1",
+                    "count": 19621
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 21498
+                  },
+                  {
+                    "le": "5",
+                    "count": 22542
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 22960
+                  },
+                  {
+                    "le": "10",
+                    "count": 23169
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 23274
+                  }
+                ]
+              },
+              {
+                "instance": "api-16",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 1
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 216
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1075
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 3221
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 6225
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 9659
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 15022
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 18026
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 19313
+                  },
+                  {
+                    "le": "1",
+                    "count": 20171
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 21072
+                  },
+                  {
+                    "le": "5",
+                    "count": 21458
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 21544
+                  },
+                  {
+                    "le": "10",
+                    "count": 21588
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 21610
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 1
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 238
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1182
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 3539
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 6838
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 10608
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 16496
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 19793
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 21206
+                  },
+                  {
+                    "le": "1",
+                    "count": 22148
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 23138
+                  },
+                  {
+                    "le": "5",
+                    "count": 23562
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 23657
+                  },
+                  {
+                    "le": "10",
+                    "count": 23705
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 23730
+                  }
+                ]
+              },
+              {
+                "instance": "api-17",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 246
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1226
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 3672
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 7097
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 11010
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 17126
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 20551
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 22019
+                  },
+                  {
+                    "le": "1",
+                    "count": 22998
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 24025
+                  },
+                  {
+                    "le": "5",
+                    "count": 24465
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 24564
+                  },
+                  {
+                    "le": "10",
+                    "count": 24614
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 24640
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 263
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1312
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 3931
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 7597
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 11785
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 18332
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 21997
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 23568
+                  },
+                  {
+                    "le": "1",
+                    "count": 24617
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 25717
+                  },
+                  {
+                    "le": "5",
+                    "count": 26189
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 26296
+                  },
+                  {
+                    "le": "10",
+                    "count": 26351
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 26380
+                  }
+                ]
+              },
+              {
+                "instance": "api-18",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 1
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 197
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 982
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 2944
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 5691
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 8831
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 13736
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 16483
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 17660
+                  },
+                  {
+                    "le": "1",
+                    "count": 18445
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 22564
+                  },
+                  {
+                    "le": "5",
+                    "count": 25115
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 26293
+                  },
+                  {
+                    "le": "10",
+                    "count": 26882
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 27177
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 1
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 204
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1017
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 3047
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 5889
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 9136
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 14208
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 17048
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 18266
+                  },
+                  {
+                    "le": "1",
+                    "count": 19078
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 23338
+                  },
+                  {
+                    "le": "5",
+                    "count": 25977
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 27197
+                  },
+                  {
+                    "le": "10",
+                    "count": 27806
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 28112
+                  }
+                ]
+              },
+              {
+                "instance": "api-19",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 1
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 330
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1650
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 4948
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 9567
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 14845
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 23092
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 27711
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 29690
+                  },
+                  {
+                    "le": "1",
+                    "count": 31009
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 32394
+                  },
+                  {
+                    "le": "5",
+                    "count": 32987
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 33120
+                  },
+                  {
+                    "le": "10",
+                    "count": 33187
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 33221
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 1
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 345
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1728
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 5184
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 10024
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 15554
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 24195
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 29035
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 31109
+                  },
+                  {
+                    "le": "1",
+                    "count": 32492
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 33945
+                  },
+                  {
+                    "le": "5",
+                    "count": 34568
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 34709
+                  },
+                  {
+                    "le": "10",
+                    "count": 34779
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 34816
+                  }
+                ]
+              },
+              {
+                "instance": "api-20",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 1
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 187
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 933
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 2797
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 5405
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 8387
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 13046
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 15656
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 16775
+                  },
+                  {
+                    "le": "1",
+                    "count": 17521
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 19199
+                  },
+                  {
+                    "le": "5",
+                    "count": 20131
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 20504
+                  },
+                  {
+                    "le": "10",
+                    "count": 20691
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 20786
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 2
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 207
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1025
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 3068
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 5926
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 9194
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 14299
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 17159
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 18385
+                  },
+                  {
+                    "le": "1",
+                    "count": 19203
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 21041
+                  },
+                  {
+                    "le": "5",
+                    "count": 22063
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 22472
+                  },
+                  {
+                    "le": "10",
+                    "count": 22677
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 22781
+                  }
+                ]
+              },
+              {
+                "instance": "api-21",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 1
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 209
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1041
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 3120
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 6030
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 9354
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 14549
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 17458
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 18706
+                  },
+                  {
+                    "le": "1",
+                    "count": 19537
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 20410
+                  },
+                  {
+                    "le": "5",
+                    "count": 20784
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 20867
+                  },
+                  {
+                    "le": "10",
+                    "count": 20909
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 20931
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 1
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 218
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1083
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 3243
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 6265
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 9718
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 15114
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 18135
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 19432
+                  },
+                  {
+                    "le": "1",
+                    "count": 20295
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 21202
+                  },
+                  {
+                    "le": "5",
+                    "count": 21591
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 21677
+                  },
+                  {
+                    "le": "10",
+                    "count": 21722
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 21746
+                  }
+                ]
+              },
+              {
+                "instance": "api-22",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 254
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1272
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 3814
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 7373
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 11441
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 17797
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 21357
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 22883
+                  },
+                  {
+                    "le": "1",
+                    "count": 23900
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 24967
+                  },
+                  {
+                    "le": "5",
+                    "count": 25424
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 25526
+                  },
+                  {
+                    "le": "10",
+                    "count": 25578
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 25605
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 18
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 87
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 261
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 504
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 782
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 1218
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 1462
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 1566
+                  },
+                  {
+                    "le": "1",
+                    "count": 1636
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 1710
+                  },
+                  {
+                    "le": "5",
+                    "count": 1742
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 1749
+                  },
+                  {
+                    "le": "10",
+                    "count": 1753
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 1754
+                  }
+                ]
+              },
+              {
+                "instance": "api-23",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 238
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1187
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 3559
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 6879
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 10673
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 16601
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 19921
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 21344
+                  },
+                  {
+                    "le": "1",
+                    "count": 22293
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 23288
+                  },
+                  {
+                    "le": "5",
+                    "count": 23716
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 23811
+                  },
+                  {
+                    "le": "10",
+                    "count": 23859
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 23882
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 251
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1250
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 3744
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 7235
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 11226
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 17460
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 20952
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 22448
+                  },
+                  {
+                    "le": "1",
+                    "count": 23446
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 24492
+                  },
+                  {
+                    "le": "5",
+                    "count": 24942
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 25042
+                  },
+                  {
+                    "le": "10",
+                    "count": 25094
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 25119
+                  }
+                ]
+              },
+              {
+                "instance": "api-24",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 359
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1794
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 5377
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 10393
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 16126
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 25085
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 30102
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 32253
+                  },
+                  {
+                    "le": "1",
+                    "count": 33686
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 35192
+                  },
+                  {
+                    "le": "5",
+                    "count": 35838
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 35982
+                  },
+                  {
+                    "le": "10",
+                    "count": 36054
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 36090
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 373
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1860
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 5574
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 10773
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 16716
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 26002
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 31202
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 33432
+                  },
+                  {
+                    "le": "1",
+                    "count": 34917
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 36479
+                  },
+                  {
+                    "le": "5",
+                    "count": 37149
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 37298
+                  },
+                  {
+                    "le": "10",
+                    "count": 37373
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 37412
+                  }
+                ]
+              },
+              {
+                "instance": "api-25",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 1
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 356
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1777
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 5329
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 10300
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 15982
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 24858
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 29829
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 31961
+                  },
+                  {
+                    "le": "1",
+                    "count": 33382
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 36577
+                  },
+                  {
+                    "le": "5",
+                    "count": 38354
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 39064
+                  },
+                  {
+                    "le": "10",
+                    "count": 39419
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 39596
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 2
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 375
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1870
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 5605
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 10834
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 16810
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 26145
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 31373
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 33616
+                  },
+                  {
+                    "le": "1",
+                    "count": 35111
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 38471
+                  },
+                  {
+                    "le": "5",
+                    "count": 40339
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 41086
+                  },
+                  {
+                    "le": "10",
+                    "count": 41459
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 41646
+                  }
+                ]
+              },
+              {
+                "instance": "api-26",
+                "start": [],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 16
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 77
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 229
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 443
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 687
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 1068
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 1280
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 1371
+                  },
+                  {
+                    "le": "1",
+                    "count": 1432
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 1496
+                  },
+                  {
+                    "le": "5",
+                    "count": 1523
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 1530
+                  },
+                  {
+                    "le": "10",
+                    "count": 1534
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 1536
+                  }
+                ]
+              },
+              {
+                "instance": "api-27",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 208
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1043
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 3127
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 6046
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 9382
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 14592
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 17511
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 18763
+                  },
+                  {
+                    "le": "1",
+                    "count": 19597
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 23975
+                  },
+                  {
+                    "le": "5",
+                    "count": 26685
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 27937
+                  },
+                  {
+                    "le": "10",
+                    "count": 28563
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 28875
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 218
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1092
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 3274
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 6330
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 9822
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 15275
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 18330
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 19641
+                  },
+                  {
+                    "le": "1",
+                    "count": 20514
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 25096
+                  },
+                  {
+                    "le": "5",
+                    "count": 27933
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 29245
+                  },
+                  {
+                    "le": "10",
+                    "count": 29900
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 30227
+                  }
+                ]
+              },
+              {
+                "instance": "api-28",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 1
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 261
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1299
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 3896
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 7532
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 11687
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 18177
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 21811
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 23369
+                  },
+                  {
+                    "le": "1",
+                    "count": 24407
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 25498
+                  },
+                  {
+                    "le": "5",
+                    "count": 25966
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 26071
+                  },
+                  {
+                    "le": "10",
+                    "count": 26124
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 26151
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 2
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 279
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1388
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 4159
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 8039
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 12474
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 19402
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 23281
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 24945
+                  },
+                  {
+                    "le": "1",
+                    "count": 26052
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 27216
+                  },
+                  {
+                    "le": "5",
+                    "count": 27716
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 27828
+                  },
+                  {
+                    "le": "10",
+                    "count": 27884
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 27913
+                  }
+                ]
+              },
+              {
+                "instance": "api-29",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 304
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1521
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 4562
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 8819
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 13684
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 21286
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 25544
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 27369
+                  },
+                  {
+                    "le": "1",
+                    "count": 28586
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 29863
+                  },
+                  {
+                    "le": "5",
+                    "count": 30412
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 30535
+                  },
+                  {
+                    "le": "10",
+                    "count": 30597
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 30627
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 1
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 324
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1619
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 4853
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 9382
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 14557
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 22644
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 27174
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 29116
+                  },
+                  {
+                    "le": "1",
+                    "count": 30410
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 31768
+                  },
+                  {
+                    "le": "5",
+                    "count": 32353
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 32484
+                  },
+                  {
+                    "le": "10",
+                    "count": 32551
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 32584
+                  }
+                ]
+              },
+              {
+                "instance": "api-30",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 243
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1214
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 3642
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 7042
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 10928
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 16999
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 20399
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 21857
+                  },
+                  {
+                    "le": "1",
+                    "count": 22829
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 25015
+                  },
+                  {
+                    "le": "5",
+                    "count": 26229
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 26716
+                  },
+                  {
+                    "le": "10",
+                    "count": 26959
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 27081
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 1
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 258
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1285
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 3855
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 7453
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 11565
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 17990
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 21588
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 23131
+                  },
+                  {
+                    "le": "1",
+                    "count": 24160
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 26473
+                  },
+                  {
+                    "le": "5",
+                    "count": 27758
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 28273
+                  },
+                  {
+                    "le": "10",
+                    "count": 28530
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 28659
+                  }
+                ]
+              },
+              {
+                "instance": "api-31",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 1
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 301
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1499
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 4495
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 8690
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 13485
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 20977
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 25173
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 26972
+                  },
+                  {
+                    "le": "1",
+                    "count": 28172
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 29431
+                  },
+                  {
+                    "le": "5",
+                    "count": 29971
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 30091
+                  },
+                  {
+                    "le": "10",
+                    "count": 30152
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 30182
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 1
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 311
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1545
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 4627
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 8943
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 13876
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 21583
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 25900
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 27750
+                  },
+                  {
+                    "le": "1",
+                    "count": 28985
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 30281
+                  },
+                  {
+                    "le": "5",
+                    "count": 30836
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 30961
+                  },
+                  {
+                    "le": "10",
+                    "count": 31023
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 31053
+                  }
+                ]
+              },
+              {
+                "instance": "api-32",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 1
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 316
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1575
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 4723
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 9129
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 14165
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 22032
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 26439
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 28327
+                  },
+                  {
+                    "le": "1",
+                    "count": 29587
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 30909
+                  },
+                  {
+                    "le": "5",
+                    "count": 31476
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 31601
+                  },
+                  {
+                    "le": "10",
+                    "count": 31663
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 31696
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 2
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 331
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1647
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 4936
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 9539
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 14799
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 23018
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 27622
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 29596
+                  },
+                  {
+                    "le": "1",
+                    "count": 30914
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 32295
+                  },
+                  {
+                    "le": "5",
+                    "count": 32888
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 33019
+                  },
+                  {
+                    "le": "10",
+                    "count": 33084
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 33120
+                  }
+                ]
+              },
+              {
+                "instance": "api-33",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 219
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1090
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 3265
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 6310
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 9788
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 15223
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 18268
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 19573
+                  },
+                  {
+                    "le": "1",
+                    "count": 20444
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 21358
+                  },
+                  {
+                    "le": "5",
+                    "count": 21751
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 21838
+                  },
+                  {
+                    "le": "10",
+                    "count": 21883
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 21906
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 10
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 44
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 128
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 246
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 382
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 593
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 711
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 761
+                  },
+                  {
+                    "le": "1",
+                    "count": 796
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 832
+                  },
+                  {
+                    "le": "5",
+                    "count": 848
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 853
+                  },
+                  {
+                    "le": "10",
+                    "count": 856
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 858
+                  }
+                ]
+              },
+              {
+                "instance": "api-34",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 206
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1027
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 3079
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 5952
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 9235
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 14365
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 17238
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 18470
+                  },
+                  {
+                    "le": "1",
+                    "count": 19292
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 20154
+                  },
+                  {
+                    "le": "5",
+                    "count": 20523
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 20606
+                  },
+                  {
+                    "le": "10",
+                    "count": 20647
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 20668
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 217
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1080
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 3238
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 6259
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 9710
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 15104
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 18124
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 19419
+                  },
+                  {
+                    "le": "1",
+                    "count": 20283
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 21189
+                  },
+                  {
+                    "le": "5",
+                    "count": 21578
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 21665
+                  },
+                  {
+                    "le": "10",
+                    "count": 21710
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 21732
+                  }
+                ]
+              },
+              {
+                "instance": "api-35",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 1
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 241
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1204
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 3609
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 6977
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 10826
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 16840
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 20207
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 21651
+                  },
+                  {
+                    "le": "1",
+                    "count": 22613
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 24777
+                  },
+                  {
+                    "le": "5",
+                    "count": 25980
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 26461
+                  },
+                  {
+                    "le": "10",
+                    "count": 26702
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 26824
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 1
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 255
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1271
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 3807
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 7357
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 11413
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 17752
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 21301
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 22823
+                  },
+                  {
+                    "le": "1",
+                    "count": 23838
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 26120
+                  },
+                  {
+                    "le": "5",
+                    "count": 27389
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 27897
+                  },
+                  {
+                    "le": "10",
+                    "count": 28152
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 28281
+                  }
+                ]
+              },
+              {
+                "instance": "api-36",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 1
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 275
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1367
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 4095
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 7913
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 12275
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 19092
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 22910
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 24547
+                  },
+                  {
+                    "le": "1",
+                    "count": 25639
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 31365
+                  },
+                  {
+                    "le": "5",
+                    "count": 34909
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 36545
+                  },
+                  {
+                    "le": "10",
+                    "count": 37363
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 37772
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 1
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 287
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1428
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 4275
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 8260
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 12812
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 19926
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 23910
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 25618
+                  },
+                  {
+                    "le": "1",
+                    "count": 26758
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 32734
+                  },
+                  {
+                    "le": "5",
+                    "count": 36433
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 38140
+                  },
+                  {
+                    "le": "10",
+                    "count": 38995
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 39423
+                  }
+                ]
+              },
+              {
+                "instance": "api-37",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 309
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1544
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 4632
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 8954
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 13892
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 21609
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 25930
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 27782
+                  },
+                  {
+                    "le": "1",
+                    "count": 29017
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 30315
+                  },
+                  {
+                    "le": "5",
+                    "count": 30871
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 30995
+                  },
+                  {
+                    "le": "10",
+                    "count": 31057
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 31088
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 1
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 322
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1601
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 4797
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 9271
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 14383
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 22370
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 26843
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 28761
+                  },
+                  {
+                    "le": "1",
+                    "count": 30040
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 31385
+                  },
+                  {
+                    "le": "5",
+                    "count": 31962
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 32091
+                  },
+                  {
+                    "le": "10",
+                    "count": 32156
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 32188
+                  }
+                ]
+              },
+              {
+                "instance": "api-38",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 300
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1496
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 4487
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 8676
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 13463
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 20940
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 25128
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 26922
+                  },
+                  {
+                    "le": "1",
+                    "count": 28120
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 29377
+                  },
+                  {
+                    "le": "5",
+                    "count": 29917
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 30037
+                  },
+                  {
+                    "le": "10",
+                    "count": 30097
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 30127
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 1
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 312
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1552
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 4650
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 8987
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 13944
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 21686
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 26022
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 27880
+                  },
+                  {
+                    "le": "1",
+                    "count": 29122
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 30424
+                  },
+                  {
+                    "le": "5",
+                    "count": 30984
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 31108
+                  },
+                  {
+                    "le": "10",
+                    "count": 31170
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 31202
+                  }
+                ]
+              },
+              {
+                "instance": "api-39",
+                "start": [],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 1
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 17
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 77
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 225
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 431
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 668
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 1036
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 1242
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 1331
+                  },
+                  {
+                    "le": "1",
+                    "count": 1391
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 1453
+                  },
+                  {
+                    "le": "5",
+                    "count": 1480
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 1487
+                  },
+                  {
+                    "le": "10",
+                    "count": 1490
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 1491
+                  }
+                ]
+              },
+              {
+                "instance": "api-40",
+                "start": [
+                  {
+                    "le": "0.005",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 223
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1111
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 3330
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 6436
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 9986
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 15532
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 18639
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 19972
+                  },
+                  {
+                    "le": "1",
+                    "count": 20860
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 22858
+                  },
+                  {
+                    "le": "5",
+                    "count": 23968
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 24412
+                  },
+                  {
+                    "le": "10",
+                    "count": 24634
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 24745
+                  }
+                ],
+                "end": [
+                  {
+                    "le": "0.005",
+                    "count": 0
+                  },
+                  {
+                    "le": "0.01",
+                    "count": 243
+                  },
+                  {
+                    "le": "0.025",
+                    "count": 1204
+                  },
+                  {
+                    "le": "0.05",
+                    "count": 3605
+                  },
+                  {
+                    "le": "0.075",
+                    "count": 6967
+                  },
+                  {
+                    "le": "0.1",
+                    "count": 10810
+                  },
+                  {
+                    "le": "0.25",
+                    "count": 16813
+                  },
+                  {
+                    "le": "0.5",
+                    "count": 20176
+                  },
+                  {
+                    "le": "0.75",
+                    "count": 21618
+                  },
+                  {
+                    "le": "1",
+                    "count": 22579
+                  },
+                  {
+                    "le": "2.5",
+                    "count": 24741
+                  },
+                  {
+                    "le": "5",
+                    "count": 25943
+                  },
+                  {
+                    "le": "7.5",
+                    "count": 26424
+                  },
+                  {
+                    "le": "10",
+                    "count": 26666
+                  },
+                  {
+                    "le": "+Inf",
+                    "count": 26787
+                  }
+                ]
+              }
+            ]
+          },
+          "expected": "requests 61142 in 300 s = 203.807/s\np50 147 ms\np90 1254 ms\np95 2516 ms\np99 7174 ms\np99.9 10000 ms",
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

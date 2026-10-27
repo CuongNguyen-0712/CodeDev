@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Course cover: observability (a trace waterfall with a gap, a burn-rate alert). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#14112A"/>
+      <stop offset="0.55" stop-color="#110F16"/>
+      <stop offset="1" stop-color="#0D0B13"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#7B61FF" stop-opacity="0.26"/>
+      <stop offset="1" stop-color="#7B61FF" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#FFFFFF" fill-opacity="0.07"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8C8399"/></marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#dots)"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- Copy -->
+  <g id="copy" font-family="Segoe UI, Inter, Arial, sans-serif">
+    <rect x="112" y="152" width="92" height="92" rx="20" fill="#7B61FF"/>
+    <text x="158" y="214" text-anchor="middle" font-size="34" font-weight="800" fill="#FFFFFF">OT</text>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#C3B7FF">OPENTELEMETRY · SLO</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">Observability</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">in Practice</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Logs · Traces · Metrics · Burn-rate alerts</text>
+    <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#E3DDFF">
+      <rect x="110" y="660" width="200" height="52" rx="26" fill="#1A1530" stroke="#7B61FF"/>
+      <text x="209.8" y="695" text-anchor="middle">traceparent</text>
+      <rect x="325.6" y="660" width="75" height="52" rx="26" fill="#1A1530" stroke="#7B61FF"/>
+      <text x="363.0" y="695" text-anchor="middle">p95</text>
+      <rect x="416.40000000000003" y="660" width="75" height="52" rx="26" fill="#1A1530" stroke="#7B61FF"/>
+      <text x="453.8" y="695" text-anchor="middle">SLO</text>
+    </g>
+  </g>
+
+  <g id="art" font-family="Consolas, Menlo, monospace">
+    <text x="880" y="250" font-size="20" fill="#C3B7FF" text-anchor="start">POST /submissions  1,240 ms</text>
+    <rect x="880" y="270" width="560" height="22" rx="6" fill="#7B61FF"/>
+    <rect x="900" y="302" width="120" height="22" rx="6" fill="#4FB0F7"/>
+    <rect x="1040" y="334" width="140" height="22" rx="6" fill="#3DBE7B"/>
+    <rect x="1190" y="366" width="230" height="22" rx="6" fill="none" stroke="#F2555A" stroke-width="2" stroke-dasharray="6 6"/>
+    <text x="1305" y="383" font-size="16" fill="#F2555A" text-anchor="middle">800 ms: no span</text>
+    <text x="880" y="440" font-size="18" fill="#B8B2C8" text-anchor="start">db.query 118 ms · cache 140 ms</text>
+    <rect x="880" y="480" width="560" height="110" rx="14" fill="#1F1A0E" stroke="#F2C14E" stroke-width="2"/>
+    <text x="905" y="520" font-size="19" fill="#F6D98E" text-anchor="start">burn rate 14.4x (1h) · 6x (6h)</text>
+    <text x="905" y="556" font-size="19" fill="#F2C14E" text-anchor="start">page: error budget 2% left</text>
+  </g>
+</svg>

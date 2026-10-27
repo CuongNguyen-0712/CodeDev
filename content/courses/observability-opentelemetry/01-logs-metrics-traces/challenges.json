@@ -1,0 +1,36 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_otl_111",
+      "name": "logs-metrics-traces-quiz",
+      "type": "quiz",
+      "title": "Which signal answers this question?",
+      "description": "A latency dashboard and a sampling config from the evening POST /submissions slowed down: decide what each signal can and cannot tell you.",
+      "difficulty": "medium",
+      "outcomes": ["signals"],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The API dashboard during the incident, from the histogram http.server.request.duration with the attributes http.request.method, http.route and http.response.status_code:\n\nPOST /submissions   19:30-19:40   p50 0.11 s   p95 0.18 s   p99 0.31 s   5xx 0.1%\nPOST /submissions   19:40-19:50   p50 0.14 s   p95 2.6 s    p99 3.1 s    5xx 4.2%\n\nStatement: \"This histogram is enough to find which submission requests were slow and in which step - database, queue or grading service - the 2.5 extra seconds were spent.\"",
+          "explanation": "False. A metric is an aggregate: the histogram counts requests per duration bucket for each combination of method, route and status. It tells you that something is wrong and how much (p95 went from 0.18 s to 2.6 s, 4.2% of responses are 5xx) and when it started, which is exactly what an alert needs. It has no request ids and no breakdown into steps, and adding a submission id or a step name as an attribute would turn one time series into millions (lesson 8). To see where the time went inside one slow request you need its trace: the spans of the database call, the enqueue and the HTTP call to grading-service, each with its own duration. Many backends link the two with exemplars, sample trace ids stored next to a histogram bucket. The misconception is that a detailed enough dashboard can replace traces; it can tell you which route, never which request or which step.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "To cut the tracing bill, the team changes the API's OpenTelemetry setup (simplified):\n\nconst sdk = new NodeSDK({\n  sampler: new ParentBasedSampler({ root: new TraceIdRatioBasedSampler(0.1) }),\n  traceExporter: new OTLPTraceExporter(),\n  metricReader: new PeriodicExportingMetricReader({ exporter: new OTLPMetricExporter() }),\n  instrumentations: [getNodeAutoInstrumentations()],\n});\n\nThe dashboard's request rate and error rate come from the http.server.request.duration histogram that the HTTP instrumentation records through the meter, not from spans.\n\nStatement: \"After the change, about 90% of new traces are no longer recorded, but the dashboard's request count and error rate stay accurate.\"",
+          "explanation": "True. The sampler decides which traces are recorded and exported; it does not touch metric instruments. The HTTP instrumentation records the duration histogram for every request, sampled or not, so request counts, error rates and percentiles still cover 100% of the traffic. With ParentBasedSampler, requests that arrive with a parent keep the parent's decision, so roughly 10% of new root traces are kept. This is why metrics are the right source for alerts and rates, and traces for examples of individual requests. The misconception is that sampling traces makes every signal approximate; it only does when the metrics are computed from spans afterwards, for example by a collector component that turns received spans into metrics - then they only see the sampled 10%.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        }
+      ]
+    }
+  ]
+}

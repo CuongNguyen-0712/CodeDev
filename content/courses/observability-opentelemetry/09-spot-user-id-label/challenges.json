@@ -1,0 +1,394 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_otl_331",
+      "name": "user-id-label-review-quiz",
+      "type": "quiz",
+      "title": "Review the AI's metric",
+      "description": "Two pieces of evidence from the review of the AI-written submissions counter: the bill after it shipped with a dashboard that hides the labels, and the proposed fix.",
+      "difficulty": "medium",
+      "outcomes": [
+        "cardinality"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The change the AI assistant wrote for \"add a metric so we can see which learners submit the most\":\n\n+ submissions.add(1, { user_id: req.userId, url: req.url, method: req.method, status: String(status) });\n\nMetrics vendor usage for codedev-api:\n         active series   monthly cost\nbefore   41,200          $310\nafter    128,900         $970\n\ncount(codedev_submissions_total) => 87,400\n\nThe team dashboard only shows totals and uses:\nsum without (user_id, url) (rate(codedev_submissions_total[5m]))\n\nStatement: \"Because the dashboard query removes user_id and url with sum without (...), those series are not stored, so the bill will drop back once this panel is saved.\"",
+          "explanation": "False. Labels are attached when the counter is recorded, in the API process: every combination of user_id, url, method and status is exported, scraped, indexed and stored as its own series before any query runs. sum without (...) aggregates at query time; it changes what the panel shows, not what the backend keeps, and it even makes every refresh of the panel read the 87,400 series. To stop paying for them you have to stop recording the labels (or drop them in the SDK with a View, or in the collector, before export). The misconception is that a query decides what is stored.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The fix proposed in review:\n\nsubmissions.add(1, {\n  route: req.route,                                // \"/submissions\"\n  method: req.method,                              // always \"POST\" on this handler\n  status_class: `${Math.floor(status / 100)}xx`,   // \"2xx\" ... \"5xx\"\n});\nif (req.userId) {\n  analytics.track({ name: \"submission_created\", userId: req.userId, properties: { challengeId: req.challengeId, status } });\n}\n\nThe admin page \"Top submitters this week\" now reads the submission_created events from the analytics warehouse.\n\nStatement: \"After this change codedev_submissions_total stays at a handful of series however many learners submit, and the per-learner question is answered from the events, which are built to hold one row per submission.\"",
+          "explanation": "True. Each label now has a small, fixed set of values: one route template for this handler, one method and at most five status classes, so the counter has at most about five series whether CodeDev has a thousand learners or a million. The learner id has not disappeared: it moved to an event, where one row per submission is the normal shape and where a query like \"top 10 learners this week\" is cheap. The misconception is that dropping user_id from the metric means losing the per-learner answer; it means asking the store that is designed for it.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_otl_332",
+      "name": "spot-the-ai-mistake-user-id-label",
+      "type": "fix_bug",
+      "title": "Spot the AI Mistake: user_id as a metric label",
+      "description": "The request sent to an AI coding assistant was: \"Add a metric so we can see which learners submit the most.\" The assistant added a counter, codedev_submissions_total, to the submit handler (POST /submissions) with the labels user_id, url (the raw URL with its query string), method and status (the exact code), and a topLearners(n) for the admin dashboard that sums the counter by user_id. The totals were right, the tests passed and the pull request was merged. Three weeks later the metrics bill had tripled: the counter had one series per learner, per challenge, per query string and per status code, and it grew with every new learner.\n\nFix SubmissionMetrics:\n- the counter keeps only bounded labels: route (the route template matched by the router, req.route), method, and status_class (the first digit of the response status + \"xx\", for example \"4xx\");\n- per-learner counts go to the analytics sink provided in the file: for each submission by a signed-in learner, call analytics.track({ name: \"submission_created\", userId, properties: { challengeId, status } }); a request without a userId (an expired session answered with 401) is counted in the metric but not sent to analytics;\n- topLearners(n) answers from the sink with analytics.topUsers(\"submission_created\", n) (highest count first, ties by learner id).\n\nInput (stdin, JSON): a list of steps: { \"submit\": { \"userId\": \"u_an\", \"challengeId\": \"c_17\", \"status\": 202, \"query\": \"&attempt=2\" } } (userId null without a session), { \"simulate\": { \"learners\": 10000, \"perLearner\": 2, \"challenges\": 40 } }, { \"total\": true }, { \"top\": 3 }, { \"series\": true } and { \"analytics\": true }. The runner prints the total of the counter (\"total: 6\"), the top list (\"top 3: u_an 3, u_chi 2, u_binh 1\"), the number of series of the counter (and the series themselves when there are at most 12) and the submission_created events in the sink. Do not change the types, FakeMeter, AnalyticsSink or the test runner. The public tests pass on the assistant's code; the hidden tests count the series with 10,000 learners and check what reaches the analytics sink.",
+      "difficulty": "medium",
+      "outcomes": [
+        "cardinality"
+      ],
+      "points": 30,
+      "hints": [
+        "How many different values can user_id take on CodeDev next year? And url? Multiply them with the other labels: that is how many series the metrics backend has to keep for this one counter. Which of the four labels have a small, fixed set of values?",
+        "Look at the object passed to this.submissions.add in onSubmission: each key is a label. The request already carries a value that names the route without the ids, and the status can be reduced to its class. Then look at the AnalyticsSink class at the bottom of the file: it already knows how to count events per user, so topLearners does not need the counter at all.",
+        "A similar case with other data: a counter of video plays labelled { video_id, viewer_id, quality } grows with every viewer. Keep { quality } (and the player version) on the counter, which tells you how many plays fail or buffer, and send { name: \"video_played\", userId: viewerId, properties: { videoId } } to the event pipeline, where \"most active viewers\" is a group-by over events. Anonymous viewers stay in the counter but do not become a fake user in the events."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Counts submissions and finds the learners who submit the most",
+          "input": [
+            {
+              "submit": {
+                "userId": "u_an",
+                "challengeId": "c_17",
+                "status": 202
+              }
+            },
+            {
+              "submit": {
+                "userId": "u_an",
+                "challengeId": "c_17",
+                "status": 422
+              }
+            },
+            {
+              "submit": {
+                "userId": "u_binh",
+                "challengeId": "c_17",
+                "status": 202
+              }
+            },
+            {
+              "submit": {
+                "userId": "u_an",
+                "challengeId": "c_18",
+                "status": 202
+              }
+            },
+            {
+              "submit": {
+                "userId": "u_chi",
+                "challengeId": "c_18",
+                "status": 202
+              }
+            },
+            {
+              "submit": {
+                "userId": "u_chi",
+                "challengeId": "c_19",
+                "status": 202
+              }
+            },
+            {
+              "total": true
+            },
+            {
+              "top": 3
+            }
+          ],
+          "expected": "total: 6\ntop 3: u_an 3, u_chi 2, u_binh 1",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Ties are ordered by learner id and top(n) returns at most n learners",
+          "input": [
+            {
+              "submit": {
+                "userId": "u_dung",
+                "challengeId": "c_20",
+                "status": 202
+              }
+            },
+            {
+              "submit": {
+                "userId": "u_binh",
+                "challengeId": "c_20",
+                "status": 202
+              }
+            },
+            {
+              "submit": {
+                "userId": "u_binh",
+                "challengeId": "c_21",
+                "status": 500
+              }
+            },
+            {
+              "submit": {
+                "userId": "u_dung",
+                "challengeId": "c_21",
+                "status": 202
+              }
+            },
+            {
+              "submit": {
+                "userId": "u_an",
+                "challengeId": "c_22",
+                "status": 202
+              }
+            },
+            {
+              "top": 1
+            },
+            {
+              "top": 2
+            },
+            {
+              "top": 10
+            },
+            {
+              "total": true
+            }
+          ],
+          "expected": "top 1: u_binh 2\ntop 2: u_binh 2, u_dung 2\ntop 10: u_binh 2, u_dung 2, u_an 1\ntotal: 5",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "No submissions yet",
+          "input": [
+            {
+              "total": true
+            },
+            {
+              "top": 3
+            }
+          ],
+          "expected": "total: 0\ntop 3: (none)",
+          "hidden": false,
+          "score": 2
+        },
+        {
+          "name": "Series use the route template, the method and the status class only",
+          "input": [
+            {
+              "submit": {
+                "userId": "u_an",
+                "challengeId": "c_17",
+                "status": 202,
+                "query": "&attempt=1"
+              }
+            },
+            {
+              "submit": {
+                "userId": "u_an",
+                "challengeId": "c_17",
+                "status": 202,
+                "query": "&attempt=2"
+              }
+            },
+            {
+              "submit": {
+                "userId": "u_binh",
+                "challengeId": "c_17",
+                "status": 422
+              }
+            },
+            {
+              "submit": {
+                "userId": "u_binh",
+                "challengeId": "c_42",
+                "status": 400,
+                "query": "&attempt=1"
+              }
+            },
+            {
+              "submit": {
+                "userId": "u_chi",
+                "challengeId": "c_42",
+                "status": 503
+              }
+            },
+            {
+              "submit": {
+                "userId": "u_chi",
+                "challengeId": "c_99",
+                "status": 202
+              }
+            },
+            {
+              "series": true
+            },
+            {
+              "total": true
+            }
+          ],
+          "expected": "series: 3\n  {method=\"POST\",route=\"/submissions\",status_class=\"2xx\"} 3\n  {method=\"POST\",route=\"/submissions\",status_class=\"4xx\"} 2\n  {method=\"POST\",route=\"/submissions\",status_class=\"5xx\"} 1\ntotal: 6",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "10,000 learners: the counter keeps a bounded number of series",
+          "input": [
+            {
+              "simulate": {
+                "learners": 10000,
+                "perLearner": 2,
+                "challenges": 40
+              }
+            },
+            {
+              "series": true
+            },
+            {
+              "total": true
+            },
+            {
+              "top": 3
+            }
+          ],
+          "expected": "series: 3\n  {method=\"POST\",route=\"/submissions\",status_class=\"2xx\"} 17600\n  {method=\"POST\",route=\"/submissions\",status_class=\"4xx\"} 1600\n  {method=\"POST\",route=\"/submissions\",status_class=\"5xx\"} 800\ntotal: 20000\ntop 3: u0 2, u1 2, u10 2",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Every submission of a signed-in learner reaches the analytics sink",
+          "input": [
+            {
+              "submit": {
+                "userId": "u_an",
+                "challengeId": "c_17",
+                "status": 202
+              }
+            },
+            {
+              "submit": {
+                "userId": "u_binh",
+                "challengeId": "c_17",
+                "status": 422,
+                "query": "&attempt=3"
+              }
+            },
+            {
+              "submit": {
+                "userId": "u_an",
+                "challengeId": "c_18",
+                "status": 500
+              }
+            },
+            {
+              "analytics": true
+            },
+            {
+              "simulate": {
+                "learners": 300,
+                "perLearner": 3,
+                "challenges": 12
+              }
+            },
+            {
+              "analytics": true
+            },
+            {
+              "top": 2
+            }
+          ],
+          "expected": "analytics: 3 submission_created events from 2 learners\n  last: u_an c_18 500\nanalytics: 903 submission_created events from 302 learners\n  last: u299 c_11 202\ntop 2: u0 3, u1 3",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Requests without a session are counted in the metric, not in analytics or the top list",
+          "input": [
+            {
+              "submit": {
+                "userId": null,
+                "challengeId": "c_17",
+                "status": 401
+              }
+            },
+            {
+              "submit": {
+                "userId": null,
+                "challengeId": "c_17",
+                "status": 401
+              }
+            },
+            {
+              "submit": {
+                "userId": null,
+                "challengeId": "c_18",
+                "status": 401
+              }
+            },
+            {
+              "submit": {
+                "userId": "u_an",
+                "challengeId": "c_17",
+                "status": 202
+              }
+            },
+            {
+              "submit": {
+                "userId": "u_binh",
+                "challengeId": "c_17",
+                "status": 202
+              }
+            },
+            {
+              "submit": {
+                "userId": "u_an",
+                "challengeId": "c_18",
+                "status": 202
+              }
+            },
+            {
+              "total": true
+            },
+            {
+              "series": true
+            },
+            {
+              "top": 3
+            },
+            {
+              "analytics": true
+            }
+          ],
+          "expected": "total: 6\nseries: 2\n  {method=\"POST\",route=\"/submissions\",status_class=\"2xx\"} 3\n  {method=\"POST\",route=\"/submissions\",status_class=\"4xx\"} 3\ntop 3: u_an 2, u_binh 1\nanalytics: 3 submission_created events from 2 learners\n  last: u_an c_18 202",
+          "hidden": true,
+          "score": 2
+        }
+      ]
+    }
+  ]
+}
