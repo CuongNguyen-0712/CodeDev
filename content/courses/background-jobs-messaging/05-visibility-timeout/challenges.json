@@ -1,0 +1,3587 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_bjm_221",
+      "name": "visibility-timeout-quiz",
+      "type": "quiz",
+      "title": "Why did the grading job run twice?",
+      "description": "Two pieces of evidence from the grading queue: the worker logs of the duplicated submission, and a heartbeat added to a worker that grades in its own process.",
+      "difficulty": "medium",
+      "outcomes": [
+        "failure-handling"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Queue attribute: VisibilityTimeout = 60 (seconds). Worker logs:\n\n12:00:00.012 grader-1 received sub_4471 receiveCount=1\n12:01:00.031 grader-2 received sub_4471 receiveCount=2\n12:01:10.144 grader-1 graded sub_4471 in 70.1 s -> result r_9001\n12:01:10.162 grader-1 DeleteMessage sub_4471 (receipt from 12:00:00) -> 200\n12:02:10.377 grader-2 graded sub_4471 in 70.3 s -> result r_9002\n12:02:10.391 grader-2 DeleteMessage sub_4471 (receipt from 12:01:00) -> 200\n\nThe graders do not call ChangeMessageVisibility.\n\nStatement: \"The delivery to grader-2 at 12:01:00 is the queue working as configured: grader-1 had neither deleted the message nor extended its visibility within 60 seconds of receiving it.\"",
+          "explanation": "True. Receiving a message hides it for the visibility timeout; it is not handed over for good. Grader-1 received it at 12:00:00 and its delete only came at 12:01:10, after the 60-second lease had ended, and it never extended the lease. At 12:01:00 the message was visible again, so the next receive delivered it with a receive count of 2 and a new receipt handle. The queue cannot tell a slow worker from a dead one. The fix is on the configuration and worker side: a timeout above the measured p99 of the jobs, a heartbeat that extends the lease while the work is alive, and an idempotent result write. The misconception is that a redelivery is a queue bug; it is the mechanism that recovers jobs from crashed workers.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A team grades small Python submissions inside the worker process itself and adds a heartbeat:\n\nconst heartbeat = setInterval(() => {\n  sqs.send(new ChangeMessageVisibilityCommand({ QueueUrl, ReceiptHandle: msg.ReceiptHandle, VisibilityTimeout: 60 }))\n    .then(() => logger.info(\"heartbeat\", msg.MessageId));\n}, 20_000);\ntry {\n  const result = runTestsSync(submission);   // synchronous, CPU-bound, up to 70 s\n  await saveResult(result);\n  await deleteMessage(msg);\n} finally {\n  clearInterval(heartbeat);\n}\n\nLogs for a 70-second run: \"received\" at 0 s, \"graded\" at 70 s, no \"heartbeat\" line in between.\n\nStatement: \"Because the worker calls ChangeMessageVisibility every 20 seconds, a 70-second run can no longer be received by a second worker.\"",
+          "explanation": "False. setInterval callbacks run on the event loop, and runTestsSync keeps the event loop busy for the whole 70 seconds, so the timer cannot fire until the tests are done: the missing \"heartbeat\" lines prove it. The lease is never extended, ends at 60 seconds, and a second worker can receive the message, exactly as before. BullMQ's automatic lock renewal fails the same way, which shows up as stalled jobs. CPU-bound work has to run outside the event loop (a worker thread, a child process, a sandboxed processor or a separate service) for a heartbeat to work. The misconception is that scheduling a timer guarantees it runs on time; in Node.js it runs only when the event loop is free.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_bjm_222",
+      "name": "visibility-timeout-queue",
+      "type": "mini_coding",
+      "title": "Build the lease: receive, ack, extend and redeliver",
+      "description": "CodeDev's grading queue ran a 70-second job twice because its visibility timeout is 60 seconds, and an old delivery's ack could act on a message that a newer delivery was grading. Implement the queue side, class VisibilityQueue(visibilityTimeoutMs), on a fake clock (every method gets `now` in milliseconds). send(id, body, now): the message is visible from now; ids are unique. receive(now): among messages visible at or before now, take the one that became visible earliest (ties: sent first), add 1 to its receive count, issue the receipt handle \"<id>#<receiveCount>\", hide it until now + visibilityTimeoutMs and return { messageId, body, receiptHandle, receiveCount }; return null when none is visible. ack(receiptHandle, now): delete the message and return true only if the handle is current, meaning it is the latest handle issued for a message that still exists (it stays valid after the timeout passed, until the message is received again); otherwise return false and change nothing. extendVisibility(receiptHandle, timeoutMs, now): only for a current handle whose message is still hidden (now < the time it becomes visible), hide it until now + timeoutMs and return true; timeoutMs 0 makes it visible at once. Return false and change nothing if the handle is not current, the message is visible again, or timeoutMs is not a whole number from 0 to 43200000. The runner simulates workers that poll, work for each message's workMs, send heartbeats, crash, and make extra client calls. Input: { visibilityTimeoutMs, untilMs, messages: [{ id, at, workMs }], workers: [{ name, pollMs, heartbeatMs?, extendMs? }], crashes?: [{ message, delivery, afterMs }], calls?: [{ at, ack? | extend?, timeoutMs? }] }. Output: { deliveries (receives per message), rejectedAcks, remaining (not deleted), log }.",
+      "difficulty": "hard",
+      "outcomes": [
+        "failure-handling"
+      ],
+      "points": 40,
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "hints": [
+        "For each stored message, what must the queue remember so that it can answer two questions at any time: is it visible at `now`, and which receipt handle is allowed to act on it?",
+        "Look at what receive changes (receive count, current handle, the time the message becomes visible), and make ack and extendVisibility start with the same check: find the message from the handle and compare the handle with the latest one issued. extendVisibility has two more conditions: the message is still hidden, and timeoutMs is valid.",
+        "A worked trace with a 30,000 ms timeout: send m at 0. receive(0) gives m#1, hidden until 30,000. extendVisibility(\"m#1\", 30000, 20000) is true: hidden until 50,000. receive(49999) is null; receive(50000) gives m#2. Now ack(\"m#1\", 51000) is false, extendVisibility(\"m#1\", 1000, 51000) is false, and ack(\"m#2\", 90000) is true even though m#2's lease ended at 80,000, because nobody received m again."
+      ],
+      "tests": [
+        {
+          "name": "The incident: a 70 s job with a 60 s timeout is received again every 60 s and every ack is rejected",
+          "input": {
+            "visibilityTimeoutMs": 60000,
+            "untilMs": 200000,
+            "messages": [
+              {
+                "id": "grade-s1",
+                "at": 0,
+                "workMs": 70000
+              }
+            ],
+            "workers": [
+              {
+                "name": "w1",
+                "pollMs": 5000
+              },
+              {
+                "name": "w2",
+                "pollMs": 5000
+              }
+            ]
+          },
+          "expected": {
+            "deliveries": {
+              "grade-s1": 4
+            },
+            "rejectedAcks": [
+              "t=70000 w1 grade-s1#1",
+              "t=130000 w2 grade-s1#2",
+              "t=190000 w1 grade-s1#3"
+            ],
+            "remaining": [
+              "grade-s1"
+            ],
+            "log": [
+              "t=0 w1 received grade-s1#1 (receive count 1)",
+              "t=60000 w2 received grade-s1#2 (receive count 2)",
+              "t=70000 w1 ack grade-s1#1 rejected",
+              "t=120000 w1 received grade-s1#3 (receive count 3)",
+              "t=130000 w2 ack grade-s1#2 rejected",
+              "t=180000 w2 received grade-s1#4 (receive count 4)",
+              "t=190000 w1 ack grade-s1#3 rejected"
+            ]
+          },
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Short jobs are received once each and deleted by their ack",
+          "input": {
+            "visibilityTimeoutMs": 30000,
+            "untilMs": 60000,
+            "messages": [
+              {
+                "id": "grade-a",
+                "at": 0,
+                "workMs": 10000
+              },
+              {
+                "id": "grade-b",
+                "at": 0,
+                "workMs": 10000
+              },
+              {
+                "id": "grade-c",
+                "at": 2000,
+                "workMs": 10000
+              }
+            ],
+            "workers": [
+              {
+                "name": "w1",
+                "pollMs": 1000
+              }
+            ]
+          },
+          "expected": {
+            "deliveries": {
+              "grade-a": 1,
+              "grade-b": 1,
+              "grade-c": 1
+            },
+            "rejectedAcks": [],
+            "remaining": [],
+            "log": [
+              "t=0 w1 received grade-a#1 (receive count 1)",
+              "t=10000 w1 ack grade-a#1 ok",
+              "t=10000 w1 received grade-b#1 (receive count 1)",
+              "t=20000 w1 ack grade-b#1 ok",
+              "t=20000 w1 received grade-c#1 (receive count 1)",
+              "t=30000 w1 ack grade-c#1 ok"
+            ]
+          },
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Heartbeat every 20 s keeps the 70 s job with one worker",
+          "input": {
+            "visibilityTimeoutMs": 60000,
+            "untilMs": 200000,
+            "messages": [
+              {
+                "id": "grade-s1",
+                "at": 0,
+                "workMs": 70000
+              }
+            ],
+            "workers": [
+              {
+                "name": "w1",
+                "pollMs": 5000,
+                "heartbeatMs": 20000,
+                "extendMs": 60000
+              },
+              {
+                "name": "w2",
+                "pollMs": 5000,
+                "heartbeatMs": 20000,
+                "extendMs": 60000
+              }
+            ]
+          },
+          "expected": {
+            "deliveries": {
+              "grade-s1": 1
+            },
+            "rejectedAcks": [],
+            "remaining": [],
+            "log": [
+              "t=0 w1 received grade-s1#1 (receive count 1)",
+              "t=70000 w1 ack grade-s1#1 ok"
+            ]
+          },
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "A crashed worker's message returns when its last extension ends, with receive count 2",
+          "input": {
+            "visibilityTimeoutMs": 30000,
+            "untilMs": 200000,
+            "messages": [
+              {
+                "id": "grade-s2",
+                "at": 0,
+                "workMs": 90000
+              }
+            ],
+            "workers": [
+              {
+                "name": "w1",
+                "pollMs": 5000,
+                "heartbeatMs": 20000,
+                "extendMs": 30000
+              },
+              {
+                "name": "w2",
+                "pollMs": 5000,
+                "heartbeatMs": 20000,
+                "extendMs": 30000
+              }
+            ],
+            "crashes": [
+              {
+                "message": "grade-s2",
+                "delivery": 1,
+                "afterMs": 50000
+              }
+            ]
+          },
+          "expected": {
+            "deliveries": {
+              "grade-s2": 2
+            },
+            "rejectedAcks": [],
+            "remaining": [],
+            "log": [
+              "t=0 w1 received grade-s2#1 (receive count 1)",
+              "t=50000 w1 crashed working on grade-s2#1",
+              "t=70000 w1 received grade-s2#2 (receive count 2)",
+              "t=160000 w1 ack grade-s2#2 ok"
+            ]
+          },
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "A late ack with the current handle is accepted; extending an expired message is rejected",
+          "input": {
+            "visibilityTimeoutMs": 30000,
+            "untilMs": 200000,
+            "messages": [
+              {
+                "id": "grade-m1",
+                "at": 0,
+                "workMs": 45000
+              },
+              {
+                "id": "grade-m2",
+                "at": 1000,
+                "workMs": 20000
+              }
+            ],
+            "workers": [
+              {
+                "name": "w1",
+                "pollMs": 100000
+              }
+            ],
+            "crashes": [
+              {
+                "message": "grade-m2",
+                "delivery": 1,
+                "afterMs": 1000
+              }
+            ],
+            "calls": [
+              {
+                "at": 80000,
+                "extend": "grade-m2#1",
+                "timeoutMs": 10000
+              },
+              {
+                "at": 90000,
+                "ack": "grade-m2#1"
+              }
+            ]
+          },
+          "expected": {
+            "deliveries": {
+              "grade-m1": 1,
+              "grade-m2": 1
+            },
+            "rejectedAcks": [],
+            "remaining": [],
+            "log": [
+              "t=0 w1 received grade-m1#1 (receive count 1)",
+              "t=45000 w1 ack grade-m1#1 ok",
+              "t=45000 w1 received grade-m2#1 (receive count 1)",
+              "t=46000 w1 crashed working on grade-m2#1",
+              "t=80000 client extend grade-m2#1 10000 rejected",
+              "t=90000 client ack grade-m2#1 ok"
+            ]
+          },
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Invalid handles and timeouts are rejected; extend 0 releases the message",
+          "input": {
+            "visibilityTimeoutMs": 30000,
+            "untilMs": 60000,
+            "messages": [
+              {
+                "id": "grade-a",
+                "at": 0,
+                "workMs": 20000
+              }
+            ],
+            "workers": [
+              {
+                "name": "w1",
+                "pollMs": 1000
+              },
+              {
+                "name": "w2",
+                "pollMs": 1000
+              }
+            ],
+            "calls": [
+              {
+                "at": 5000,
+                "ack": ""
+              },
+              {
+                "at": 5000,
+                "ack": "grade-a"
+              },
+              {
+                "at": 5000,
+                "ack": "grade-x#1"
+              },
+              {
+                "at": 5000,
+                "ack": "grade-a#0"
+              },
+              {
+                "at": 5000,
+                "ack": "grade-a#2"
+              },
+              {
+                "at": 6000,
+                "extend": "grade-a#1",
+                "timeoutMs": -1
+              },
+              {
+                "at": 6000,
+                "extend": "grade-a#1",
+                "timeoutMs": 1.5
+              },
+              {
+                "at": 6000,
+                "extend": "grade-a#1",
+                "timeoutMs": 50000000
+              },
+              {
+                "at": 6000,
+                "extend": "nope#1",
+                "timeoutMs": 1000
+              },
+              {
+                "at": 7000,
+                "extend": "grade-a#1",
+                "timeoutMs": 0
+              }
+            ]
+          },
+          "expected": {
+            "deliveries": {
+              "grade-a": 2
+            },
+            "rejectedAcks": [
+              "t=20000 w1 grade-a#1"
+            ],
+            "remaining": [],
+            "log": [
+              "t=0 w1 received grade-a#1 (receive count 1)",
+              "t=5000 client ack  rejected",
+              "t=5000 client ack grade-a rejected",
+              "t=5000 client ack grade-x#1 rejected",
+              "t=5000 client ack grade-a#0 rejected",
+              "t=5000 client ack grade-a#2 rejected",
+              "t=6000 client extend grade-a#1 -1 rejected",
+              "t=6000 client extend grade-a#1 1.5 rejected",
+              "t=6000 client extend grade-a#1 50000000 rejected",
+              "t=6000 client extend nope#1 1000 rejected",
+              "t=7000 client extend grade-a#1 0 ok",
+              "t=7000 w2 received grade-a#2 (receive count 2)",
+              "t=20000 w1 ack grade-a#1 rejected",
+              "t=27000 w2 ack grade-a#2 ok"
+            ]
+          },
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Large: 360 grading jobs, 8 workers (3 with heartbeats), crashes and redeliveries",
+          "input": {
+            "visibilityTimeoutMs": 60000,
+            "untilMs": 2400000,
+            "messages": [
+              {
+                "id": "grade-0000",
+                "at": 1957,
+                "workMs": 45000
+              },
+              {
+                "id": "grade-0001",
+                "at": 5165,
+                "workMs": 45000
+              },
+              {
+                "id": "grade-0002",
+                "at": 8237,
+                "workMs": 45000
+              },
+              {
+                "id": "grade-0003",
+                "at": 14441,
+                "workMs": 80000
+              },
+              {
+                "id": "grade-0004",
+                "at": 16044,
+                "workMs": 25000
+              },
+              {
+                "id": "grade-0005",
+                "at": 22351,
+                "workMs": 15000
+              },
+              {
+                "id": "grade-0006",
+                "at": 25866,
+                "workMs": 30000
+              },
+              {
+                "id": "grade-0007",
+                "at": 28612,
+                "workMs": 25000
+              },
+              {
+                "id": "grade-0008",
+                "at": 32052,
+                "workMs": 45000
+              },
+              {
+                "id": "grade-0009",
+                "at": 36785,
+                "workMs": 65000
+              },
+              {
+                "id": "grade-0010",
+                "at": 41513,
+                "workMs": 15000
+              },
+              {
+                "id": "grade-0011",
+                "at": 44936,
+                "workMs": 65000
+              },
+              {
+                "id": "grade-0012",
+                "at": 48966,
+                "workMs": 35000
+              },
+              {
+                "id": "grade-0013",
+                "at": 54711,
+                "workMs": 5000
+              },
+              {
+                "id": "grade-0014",
+                "at": 56289,
+                "workMs": 5000
+              },
+              {
+                "id": "grade-0015",
+                "at": 60350,
+                "workMs": 20000
+              },
+              {
+                "id": "grade-0016",
+                "at": 65878,
+                "workMs": 5000
+              },
+              {
+                "id": "grade-0017",
+                "at": 68424,
+                "workMs": 5000
+              },
+              {
+                "id": "grade-0018",
+                "at": 72953,
+                "workMs": 35000
+              },
+              {
+                "id": "grade-0019",
+                "at": 76933,
+                "workMs": 50000
+              },
+              {
+                "id": "grade-0020",
+                "at": 82878,
+                "workMs": 35000
+              },
+              {
+                "id": "grade-0021",
+                "at": 86992,
+                "workMs": 40000
+              },
+              {
+                "id": "grade-0022",
+                "at": 89976,
+                "workMs": 25000
+              },
+              {
+                "id": "grade-0023",
+                "at": 94027,
+                "workMs": 45000
+              },
+              {
+                "id": "grade-0024",
+                "at": 98516,
+                "workMs": 75000
+              },
+              {
+                "id": "grade-0025",
+                "at": 102539,
+                "workMs": 25000
+              },
+              {
+                "id": "grade-0026",
+                "at": 105355,
+                "workMs": 35000
+              },
+              {
+                "id": "grade-0027",
+                "at": 108263,
+                "workMs": 30000
+              },
+              {
+                "id": "grade-0028",
+                "at": 112811,
+                "workMs": 5000
+              },
+              {
+                "id": "grade-0029",
+                "at": 116480,
+                "workMs": 10000
+              },
+              {
+                "id": "grade-0030",
+                "at": 120731,
+                "workMs": 30000
+              },
+              {
+                "id": "grade-0031",
+                "at": 125211,
+                "workMs": 35000
+              },
+              {
+                "id": "grade-0032",
+                "at": 128672,
+                "workMs": 50000
+              },
+              {
+                "id": "grade-0033",
+                "at": 134700,
+                "workMs": 30000
+              },
+              {
+                "id": "grade-0034",
+                "at": 137035,
+                "workMs": 30000
+              },
+              {
+                "id": "grade-0035",
+                "at": 140197,
+                "workMs": 20000
+              },
+              {
+                "id": "grade-0036",
+                "at": 144934,
+                "workMs": 35000
+              },
+              {
+                "id": "grade-0037",
+                "at": 148148,
+                "workMs": 50000
+              },
+              {
+                "id": "grade-0038",
+                "at": 153218,
+                "workMs": 15000
+              },
+              {
+                "id": "grade-0039",
+                "at": 158703,
+                "workMs": 35000
+              },
+              {
+                "id": "grade-0040",
+                "at": 162116,
+                "workMs": 45000
+              },
+              {
+                "id": "grade-0041",
+                "at": 165150,
+                "workMs": 25000
+              },
+              {
+                "id": "grade-0042",
+                "at": 169560,
+                "workMs": 30000
+              },
+              {
+                "id": "grade-0043",
+                "at": 172577,
+                "workMs": 40000
+              },
+              {
+                "id": "grade-0044",
+                "at": 176694,
+                "workMs": 20000
+              },
+              {
+                "id": "grade-0045",
+                "at": 182023,
+                "workMs": 85000
+              },
+              {
+                "id": "grade-0046",
+                "at": 186883,
+                "workMs": 20000
+              },
+              {
+                "id": "grade-0047",
+                "at": 190440,
+                "workMs": 30000
+              },
+              {
+                "id": "grade-0048",
+                "at": 192503,
+                "workMs": 40000
+              },
+              {
+                "id": "grade-0049",
+                "at": 196426,
+                "workMs": 50000
+              },
+              {
+                "id": "grade-0050",
+                "at": 202118,
+                "workMs": 15000
+              },
+              {
+                "id": "grade-0051",
+                "at": 204870,
+                "workMs": 30000
+              },
+              {
+                "id": "grade-0052",
+                "at": 208562,
+                "workMs": 45000
+              },
+              {
+                "id": "grade-0053",
+                "at": 213177,
+                "workMs": 5000
+              },
+              {
+                "id": "grade-0054",
+                "at": 217044,
+                "workMs": 40000
+              },
+              {
+                "id": "grade-0055",
+                "at": 220082,
+                "workMs": 20000
+              },
+              {
+                "id": "grade-0056",
+                "at": 224166,
+                "workMs": 45000
+              },
+              {
+                "id": "grade-0057",
+                "at": 229742,
+                "workMs": 5000
+              },
+              {
+                "id": "grade-0058",
+                "at": 234421,
+                "workMs": 20000
+              },
+              {
+                "id": "grade-0059",
+                "at": 236381,
+                "workMs": 15000
+              },
+              {
+                "id": "grade-0060",
+                "at": 240445,
+                "workMs": 35000
+              },
+              {
+                "id": "grade-0061",
+                "at": 245843,
+                "workMs": 35000
+              },
+              {
+                "id": "grade-0062",
+                "at": 250638,
+                "workMs": 50000
+              },
+              {
+                "id": "grade-0063",
+                "at": 254664,
+                "workMs": 40000
+              },
+              {
+                "id": "grade-0064",
+                "at": 258479,
+                "workMs": 50000
+              },
+              {
+                "id": "grade-0065",
+                "at": 260866,
+                "workMs": 20000
+              },
+              {
+                "id": "grade-0066",
+                "at": 264258,
+                "workMs": 5000
+              },
+              {
+                "id": "grade-0067",
+                "at": 270825,
+                "workMs": 35000
+              },
+              {
+                "id": "grade-0068",
+                "at": 273644,
+                "workMs": 25000
+              },
+              {
+                "id": "grade-0069",
+                "at": 278706,
+                "workMs": 65000
+              },
+              {
+                "id": "grade-0070",
+                "at": 282850,
+                "workMs": 10000
+              },
+              {
+                "id": "grade-0071",
+                "at": 285551,
+                "workMs": 5000
+              },
+              {
+                "id": "grade-0072",
+                "at": 289221,
+                "workMs": 45000
+              },
+              {
+                "id": "grade-0073",
+                "at": 292480,
+                "workMs": 25000
+              },
+              {
+                "id": "grade-0074",
+                "at": 297453,
+                "workMs": 40000
+              },
+              {
+                "id": "grade-0075",
+                "at": 302495,
+                "workMs": 75000
+              },
+              {
+                "id": "grade-0076",
+                "at": 304172,
+                "workMs": 25000
+              },
+              {
+                "id": "grade-0077",
+                "at": 309335,
+                "workMs": 40000
+              },
+              {
+                "id": "grade-0078",
+                "at": 312933,
+                "workMs": 50000
+              },
+              {
+                "id": "grade-0079",
+                "at": 318190,
+                "workMs": 45000
+              },
+              {
+                "id": "grade-0080",
+                "at": 320071,
+                "workMs": 35000
+              },
+              {
+                "id": "grade-0081",
+                "at": 324977,
+                "workMs": 20000
+              },
+              {
+                "id": "grade-0082",
+                "at": 330623,
+                "workMs": 10000
+              },
+              {
+                "id": "grade-0083",
+                "at": 334678,
+                "workMs": 50000
+              },
+              {
+                "id": "grade-0084",
+                "at": 336522,
+                "workMs": 35000
+              },
+              {
+                "id": "grade-0085",
+                "at": 342461,
+                "workMs": 50000
+              },
+              {
+                "id": "grade-0086",
+                "at": 346674,
+                "workMs": 40000
+              },
+              {
+                "id": "grade-0087",
+                "at": 350230,
+                "workMs": 5000
+              },
+              {
+                "id": "grade-0088",
+                "at": 353698,
+                "workMs": 5000
+              },
+              {
+                "id": "grade-0089",
+                "at": 358681,
+                "workMs": 5000
+              },
+              {
+                "id": "grade-0090",
+                "at": 362153,
+                "workMs": 20000
+              },
+              {
+                "id": "grade-0091",
+                "at": 364959,
+                "workMs": 25000
+              },
+              {
+                "id": "grade-0092",
+                "at": 368251,
+                "workMs": 35000
+              },
+              {
+                "id": "grade-0093",
+                "at": 374276,
+                "workMs": 15000
+              },
+              {
+                "id": "grade-0094",
+                "at": 376473,
+                "workMs": 15000
+              },
+              {
+                "id": "grade-0095",
+                "at": 382071,
+                "workMs": 25000
+              },
+              {
+                "id": "grade-0096",
+                "at": 384373,
+                "workMs": 25000
+              },
+              {
+                "id": "grade-0097",
+                "at": 390465,
+                "workMs": 10000
+              },
+              {
+                "id": "grade-0098",
+                "at": 393724,
+                "workMs": 5000
+              },
+              {
+                "id": "grade-0099",
+                "at": 396364,
+                "workMs": 15000
+              },
+              {
+                "id": "grade-0100",
+                "at": 402879,
+                "workMs": 30000
+              },
+              {
+                "id": "grade-0101",
+                "at": 405534,
+                "workMs": 80000
+              },
+              {
+                "id": "grade-0102",
+                "at": 409706,
+                "workMs": 15000
+              },
+              {
+                "id": "grade-0103",
+                "at": 412203,
+                "workMs": 15000
+              },
+              {
+                "id": "grade-0104",
+                "at": 416453,
+                "workMs": 20000
+              },
+              {
+                "id": "grade-0105",
+                "at": 422390,
+                "workMs": 85000
+              },
+              {
+                "id": "grade-0106",
+                "at": 424104,
+                "workMs": 15000
+              },
+              {
+                "id": "grade-0107",
+                "at": 430626,
+                "workMs": 35000
+              },
+              {
+                "id": "grade-0108",
+                "at": 432278,
+                "workMs": 30000
+              },
+              {
+                "id": "grade-0109",
+                "at": 438393,
+                "workMs": 50000
+              },
+              {
+                "id": "grade-0110",
+                "at": 441837,
+                "workMs": 85000
+              },
+              {
+                "id": "grade-0111",
+                "at": 445641,
+                "workMs": 15000
+              },
+              {
+                "id": "grade-0112",
+                "at": 450206,
+                "workMs": 35000
+              },
+              {
+                "id": "grade-0113",
+                "at": 452353,
+                "workMs": 10000
+              },
+              {
+                "id": "grade-0114",
+                "at": 458619,
+                "workMs": 75000
+              },
+              {
+                "id": "grade-0115",
+                "at": 461704,
+                "workMs": 10000
+              },
+              {
+                "id": "grade-0116",
+                "at": 465590,
+                "workMs": 35000
+              },
+              {
+                "id": "grade-0117",
+                "at": 469431,
+                "workMs": 40000
+              },
+              {
+                "id": "grade-0118",
+                "at": 474962,
+                "workMs": 70000
+              },
+              {
+                "id": "grade-0119",
+                "at": 476126,
+                "workMs": 5000
+              },
+              {
+                "id": "grade-0120",
+                "at": 482395,
+                "workMs": 50000
+              },
+              {
+                "id": "grade-0121",
+                "at": 485544,
+                "workMs": 70000
+              },
+              {
+                "id": "grade-0122",
+                "at": 488128,
+                "workMs": 45000
+              },
+              {
+                "id": "grade-0123",
+                "at": 494130,
+                "workMs": 20000
+              },
+              {
+                "id": "grade-0124",
+                "at": 497162,
+                "workMs": 25000
+              },
+              {
+                "id": "grade-0125",
+                "at": 500383,
+                "workMs": 40000
+              },
+              {
+                "id": "grade-0126",
+                "at": 506182,
+                "workMs": 5000
+              },
+              {
+                "id": "grade-0127",
+                "at": 509416,
+                "workMs": 75000
+              },
+              {
+                "id": "grade-0128",
+                "at": 512714,
+                "workMs": 20000
+              },
+              {
+                "id": "grade-0129",
+                "at": 518269,
+                "workMs": 20000
+              },
+              {
+                "id": "grade-0130",
+                "at": 522989,
+                "workMs": 45000
+              },
+              {
+                "id": "grade-0131",
+                "at": 525149,
+                "workMs": 10000
+              },
+              {
+                "id": "grade-0132",
+                "at": 529680,
+                "workMs": 5000
+              },
+              {
+                "id": "grade-0133",
+                "at": 533262,
+                "workMs": 20000
+              },
+              {
+                "id": "grade-0134",
+                "at": 537153,
+                "workMs": 45000
+              },
+              {
+                "id": "grade-0135",
+                "at": 540329,
+                "workMs": 50000
+              },
+              {
+                "id": "grade-0136",
+                "at": 546805,
+                "workMs": 10000
+              },
+              {
+                "id": "grade-0137",
+                "at": 548541,
+                "workMs": 15000
+              },
+              {
+                "id": "grade-0138",
+                "at": 553957,
+                "workMs": 50000
+              },
+              {
+                "id": "grade-0139",
+                "at": 556082,
+                "workMs": 20000
+              },
+              {
+                "id": "grade-0140",
+                "at": 562366,
+                "workMs": 15000
+              },
+              {
+                "id": "grade-0141",
+                "at": 565396,
+                "workMs": 65000
+              },
+              {
+                "id": "grade-0142",
+                "at": 569692,
+                "workMs": 30000
+              },
+              {
+                "id": "grade-0143",
+                "at": 573281,
+                "workMs": 10000
+              },
+              {
+                "id": "grade-0144",
+                "at": 577792,
+                "workMs": 85000
+              },
+              {
+                "id": "grade-0145",
+                "at": 580448,
+                "workMs": 20000
+              },
+              {
+                "id": "grade-0146",
+                "at": 585259,
+                "workMs": 65000
+              },
+              {
+                "id": "grade-0147",
+                "at": 588828,
+                "workMs": 50000
+              },
+              {
+                "id": "grade-0148",
+                "at": 592181,
+                "workMs": 20000
+              },
+              {
+                "id": "grade-0149",
+                "at": 597273,
+                "workMs": 5000
+              },
+              {
+                "id": "grade-0150",
+                "at": 601447,
+                "workMs": 5000
+              },
+              {
+                "id": "grade-0151",
+                "at": 604862,
+                "workMs": 30000
+              },
+              {
+                "id": "grade-0152",
+                "at": 610395,
+                "workMs": 50000
+              },
+              {
+                "id": "grade-0153",
+                "at": 614554,
+                "workMs": 40000
+              },
+              {
+                "id": "grade-0154",
+                "at": 616886,
+                "workMs": 40000
+              },
+              {
+                "id": "grade-0155",
+                "at": 620921,
+                "workMs": 40000
+              },
+              {
+                "id": "grade-0156",
+                "at": 625924,
+                "workMs": 10000
+              },
+              {
+                "id": "grade-0157",
+                "at": 629606,
+                "workMs": 20000
+              },
+              {
+                "id": "grade-0158",
+                "at": 634307,
+                "workMs": 5000
+              },
+              {
+                "id": "grade-0159",
+                "at": 636940,
+                "workMs": 45000
+              },
+              {
+                "id": "grade-0160",
+                "at": 641977,
+                "workMs": 20000
+              },
+              {
+                "id": "grade-0161",
+                "at": 644902,
+                "workMs": 20000
+              },
+              {
+                "id": "grade-0162",
+                "at": 648122,
+                "workMs": 50000
+              },
+              {
+                "id": "grade-0163",
+                "at": 653263,
+                "workMs": 50000
+              },
+              {
+                "id": "grade-0164",
+                "at": 656597,
+                "workMs": 5000
+              },
+              {
+                "id": "grade-0165",
+                "at": 660464,
+                "workMs": 45000
+              },
+              {
+                "id": "grade-0166",
+                "at": 665576,
+                "workMs": 5000
+              },
+              {
+                "id": "grade-0167",
+                "at": 668465,
+                "workMs": 15000
+              },
+              {
+                "id": "grade-0168",
+                "at": 674536,
+                "workMs": 40000
+              },
+              {
+                "id": "grade-0169",
+                "at": 676782,
+                "workMs": 20000
+              },
+              {
+                "id": "grade-0170",
+                "at": 681849,
+                "workMs": 70000
+              },
+              {
+                "id": "grade-0171",
+                "at": 686015,
+                "workMs": 45000
+              },
+              {
+                "id": "grade-0172",
+                "at": 690408,
+                "workMs": 35000
+              },
+              {
+                "id": "grade-0173",
+                "at": 692562,
+                "workMs": 70000
+              },
+              {
+                "id": "grade-0174",
+                "at": 697811,
+                "workMs": 5000
+              },
+              {
+                "id": "grade-0175",
+                "at": 701540,
+                "workMs": 35000
+              },
+              {
+                "id": "grade-0176",
+                "at": 705776,
+                "workMs": 70000
+              },
+              {
+                "id": "grade-0177",
+                "at": 708147,
+                "workMs": 45000
+              },
+              {
+                "id": "grade-0178",
+                "at": 713831,
+                "workMs": 30000
+              },
+              {
+                "id": "grade-0179",
+                "at": 717437,
+                "workMs": 65000
+              },
+              {
+                "id": "grade-0180",
+                "at": 722864,
+                "workMs": 20000
+              },
+              {
+                "id": "grade-0181",
+                "at": 726753,
+                "workMs": 40000
+              },
+              {
+                "id": "grade-0182",
+                "at": 730432,
+                "workMs": 35000
+              },
+              {
+                "id": "grade-0183",
+                "at": 733743,
+                "workMs": 35000
+              },
+              {
+                "id": "grade-0184",
+                "at": 736626,
+                "workMs": 5000
+              },
+              {
+                "id": "grade-0185",
+                "at": 741698,
+                "workMs": 15000
+              },
+              {
+                "id": "grade-0186",
+                "at": 744260,
+                "workMs": 10000
+              },
+              {
+                "id": "grade-0187",
+                "at": 749669,
+                "workMs": 10000
+              },
+              {
+                "id": "grade-0188",
+                "at": 753706,
+                "workMs": 20000
+              },
+              {
+                "id": "grade-0189",
+                "at": 756637,
+                "workMs": 25000
+              },
+              {
+                "id": "grade-0190",
+                "at": 762714,
+                "workMs": 10000
+              },
+              {
+                "id": "grade-0191",
+                "at": 764261,
+                "workMs": 25000
+              },
+              {
+                "id": "grade-0192",
+                "at": 768971,
+                "workMs": 25000
+              },
+              {
+                "id": "grade-0193",
+                "at": 772099,
+                "workMs": 35000
+              },
+              {
+                "id": "grade-0194",
+                "at": 777131,
+                "workMs": 30000
+              },
+              {
+                "id": "grade-0195",
+                "at": 781019,
+                "workMs": 35000
+              },
+              {
+                "id": "grade-0196",
+                "at": 786052,
+                "workMs": 40000
+              },
+              {
+                "id": "grade-0197",
+                "at": 790043,
+                "workMs": 25000
+              },
+              {
+                "id": "grade-0198",
+                "at": 793866,
+                "workMs": 20000
+              },
+              {
+                "id": "grade-0199",
+                "at": 798863,
+                "workMs": 20000
+              },
+              {
+                "id": "grade-0200",
+                "at": 802344,
+                "workMs": 20000
+              },
+              {
+                "id": "grade-0201",
+                "at": 805089,
+                "workMs": 80000
+              },
+              {
+                "id": "grade-0202",
+                "at": 808136,
+                "workMs": 10000
+              },
+              {
+                "id": "grade-0203",
+                "at": 813622,
+                "workMs": 40000
+              },
+              {
+                "id": "grade-0204",
+                "at": 816199,
+                "workMs": 15000
+              },
+              {
+                "id": "grade-0205",
+                "at": 822240,
+                "workMs": 10000
+              },
+              {
+                "id": "grade-0206",
+                "at": 824922,
+                "workMs": 5000
+              },
+              {
+                "id": "grade-0207",
+                "at": 829519,
+                "workMs": 45000
+              },
+              {
+                "id": "grade-0208",
+                "at": 834762,
+                "workMs": 65000
+              },
+              {
+                "id": "grade-0209",
+                "at": 836862,
+                "workMs": 85000
+              },
+              {
+                "id": "grade-0210",
+                "at": 840428,
+                "workMs": 25000
+              },
+              {
+                "id": "grade-0211",
+                "at": 844200,
+                "workMs": 15000
+              },
+              {
+                "id": "grade-0212",
+                "at": 849010,
+                "workMs": 10000
+              },
+              {
+                "id": "grade-0213",
+                "at": 854083,
+                "workMs": 40000
+              },
+              {
+                "id": "grade-0214",
+                "at": 857881,
+                "workMs": 30000
+              },
+              {
+                "id": "grade-0215",
+                "at": 860193,
+                "workMs": 10000
+              },
+              {
+                "id": "grade-0216",
+                "at": 864490,
+                "workMs": 10000
+              },
+              {
+                "id": "grade-0217",
+                "at": 869901,
+                "workMs": 45000
+              },
+              {
+                "id": "grade-0218",
+                "at": 872708,
+                "workMs": 15000
+              },
+              {
+                "id": "grade-0219",
+                "at": 877802,
+                "workMs": 45000
+              },
+              {
+                "id": "grade-0220",
+                "at": 881317,
+                "workMs": 5000
+              },
+              {
+                "id": "grade-0221",
+                "at": 886587,
+                "workMs": 50000
+              },
+              {
+                "id": "grade-0222",
+                "at": 890811,
+                "workMs": 10000
+              },
+              {
+                "id": "grade-0223",
+                "at": 892355,
+                "workMs": 20000
+              },
+              {
+                "id": "grade-0224",
+                "at": 897640,
+                "workMs": 35000
+              },
+              {
+                "id": "grade-0225",
+                "at": 901645,
+                "workMs": 10000
+              },
+              {
+                "id": "grade-0226",
+                "at": 905596,
+                "workMs": 45000
+              },
+              {
+                "id": "grade-0227",
+                "at": 908973,
+                "workMs": 5000
+              },
+              {
+                "id": "grade-0228",
+                "at": 914327,
+                "workMs": 85000
+              },
+              {
+                "id": "grade-0229",
+                "at": 916420,
+                "workMs": 35000
+              },
+              {
+                "id": "grade-0230",
+                "at": 922232,
+                "workMs": 20000
+              },
+              {
+                "id": "grade-0231",
+                "at": 926909,
+                "workMs": 40000
+              },
+              {
+                "id": "grade-0232",
+                "at": 928549,
+                "workMs": 50000
+              },
+              {
+                "id": "grade-0233",
+                "at": 933158,
+                "workMs": 10000
+              },
+              {
+                "id": "grade-0234",
+                "at": 937133,
+                "workMs": 10000
+              },
+              {
+                "id": "grade-0235",
+                "at": 942217,
+                "workMs": 50000
+              },
+              {
+                "id": "grade-0236",
+                "at": 946282,
+                "workMs": 20000
+              },
+              {
+                "id": "grade-0237",
+                "at": 950918,
+                "workMs": 50000
+              },
+              {
+                "id": "grade-0238",
+                "at": 954060,
+                "workMs": 40000
+              },
+              {
+                "id": "grade-0239",
+                "at": 957344,
+                "workMs": 35000
+              },
+              {
+                "id": "grade-0240",
+                "at": 962364,
+                "workMs": 15000
+              },
+              {
+                "id": "grade-0241",
+                "at": 966212,
+                "workMs": 10000
+              },
+              {
+                "id": "grade-0242",
+                "at": 970184,
+                "workMs": 40000
+              },
+              {
+                "id": "grade-0243",
+                "at": 974710,
+                "workMs": 10000
+              },
+              {
+                "id": "grade-0244",
+                "at": 977740,
+                "workMs": 35000
+              },
+              {
+                "id": "grade-0245",
+                "at": 981627,
+                "workMs": 30000
+              },
+              {
+                "id": "grade-0246",
+                "at": 984522,
+                "workMs": 5000
+              },
+              {
+                "id": "grade-0247",
+                "at": 990941,
+                "workMs": 45000
+              },
+              {
+                "id": "grade-0248",
+                "at": 993916,
+                "workMs": 30000
+              },
+              {
+                "id": "grade-0249",
+                "at": 998090,
+                "workMs": 30000
+              },
+              {
+                "id": "grade-0250",
+                "at": 1000578,
+                "workMs": 15000
+              },
+              {
+                "id": "grade-0251",
+                "at": 1006518,
+                "workMs": 15000
+              },
+              {
+                "id": "grade-0252",
+                "at": 1010124,
+                "workMs": 20000
+              },
+              {
+                "id": "grade-0253",
+                "at": 1013979,
+                "workMs": 20000
+              },
+              {
+                "id": "grade-0254",
+                "at": 1017044,
+                "workMs": 40000
+              },
+              {
+                "id": "grade-0255",
+                "at": 1021233,
+                "workMs": 35000
+              },
+              {
+                "id": "grade-0256",
+                "at": 1025170,
+                "workMs": 20000
+              },
+              {
+                "id": "grade-0257",
+                "at": 1029997,
+                "workMs": 35000
+              },
+              {
+                "id": "grade-0258",
+                "at": 1032660,
+                "workMs": 20000
+              },
+              {
+                "id": "grade-0259",
+                "at": 1036619,
+                "workMs": 35000
+              },
+              {
+                "id": "grade-0260",
+                "at": 1042027,
+                "workMs": 35000
+              },
+              {
+                "id": "grade-0261",
+                "at": 1044142,
+                "workMs": 20000
+              },
+              {
+                "id": "grade-0262",
+                "at": 1050916,
+                "workMs": 45000
+              },
+              {
+                "id": "grade-0263",
+                "at": 1052996,
+                "workMs": 25000
+              },
+              {
+                "id": "grade-0264",
+                "at": 1056823,
+                "workMs": 5000
+              },
+              {
+                "id": "grade-0265",
+                "at": 1062964,
+                "workMs": 50000
+              },
+              {
+                "id": "grade-0266",
+                "at": 1064725,
+                "workMs": 35000
+              },
+              {
+                "id": "grade-0267",
+                "at": 1070831,
+                "workMs": 35000
+              },
+              {
+                "id": "grade-0268",
+                "at": 1073554,
+                "workMs": 50000
+              },
+              {
+                "id": "grade-0269",
+                "at": 1076456,
+                "workMs": 20000
+              },
+              {
+                "id": "grade-0270",
+                "at": 1081195,
+                "workMs": 85000
+              },
+              {
+                "id": "grade-0271",
+                "at": 1086584,
+                "workMs": 70000
+              },
+              {
+                "id": "grade-0272",
+                "at": 1090750,
+                "workMs": 30000
+              },
+              {
+                "id": "grade-0273",
+                "at": 1092237,
+                "workMs": 10000
+              },
+              {
+                "id": "grade-0274",
+                "at": 1096659,
+                "workMs": 35000
+              },
+              {
+                "id": "grade-0275",
+                "at": 1102582,
+                "workMs": 35000
+              },
+              {
+                "id": "grade-0276",
+                "at": 1104339,
+                "workMs": 35000
+              },
+              {
+                "id": "grade-0277",
+                "at": 1109750,
+                "workMs": 10000
+              },
+              {
+                "id": "grade-0278",
+                "at": 1112945,
+                "workMs": 30000
+              },
+              {
+                "id": "grade-0279",
+                "at": 1118751,
+                "workMs": 15000
+              },
+              {
+                "id": "grade-0280",
+                "at": 1122091,
+                "workMs": 20000
+              },
+              {
+                "id": "grade-0281",
+                "at": 1126154,
+                "workMs": 40000
+              },
+              {
+                "id": "grade-0282",
+                "at": 1130969,
+                "workMs": 75000
+              },
+              {
+                "id": "grade-0283",
+                "at": 1133287,
+                "workMs": 35000
+              },
+              {
+                "id": "grade-0284",
+                "at": 1138242,
+                "workMs": 45000
+              },
+              {
+                "id": "grade-0285",
+                "at": 1141592,
+                "workMs": 45000
+              },
+              {
+                "id": "grade-0286",
+                "at": 1144927,
+                "workMs": 15000
+              },
+              {
+                "id": "grade-0287",
+                "at": 1149382,
+                "workMs": 30000
+              },
+              {
+                "id": "grade-0288",
+                "at": 1152743,
+                "workMs": 50000
+              },
+              {
+                "id": "grade-0289",
+                "at": 1157575,
+                "workMs": 5000
+              },
+              {
+                "id": "grade-0290",
+                "at": 1161450,
+                "workMs": 15000
+              },
+              {
+                "id": "grade-0291",
+                "at": 1166926,
+                "workMs": 5000
+              },
+              {
+                "id": "grade-0292",
+                "at": 1169891,
+                "workMs": 40000
+              },
+              {
+                "id": "grade-0293",
+                "at": 1172218,
+                "workMs": 40000
+              },
+              {
+                "id": "grade-0294",
+                "at": 1177333,
+                "workMs": 20000
+              },
+              {
+                "id": "grade-0295",
+                "at": 1180448,
+                "workMs": 20000
+              },
+              {
+                "id": "grade-0296",
+                "at": 1184423,
+                "workMs": 15000
+              },
+              {
+                "id": "grade-0297",
+                "at": 1190364,
+                "workMs": 75000
+              },
+              {
+                "id": "grade-0298",
+                "at": 1194180,
+                "workMs": 10000
+              },
+              {
+                "id": "grade-0299",
+                "at": 1198561,
+                "workMs": 45000
+              },
+              {
+                "id": "grade-0300",
+                "at": 1202305,
+                "workMs": 20000
+              },
+              {
+                "id": "grade-0301",
+                "at": 1204874,
+                "workMs": 35000
+              },
+              {
+                "id": "grade-0302",
+                "at": 1210403,
+                "workMs": 25000
+              },
+              {
+                "id": "grade-0303",
+                "at": 1214855,
+                "workMs": 50000
+              },
+              {
+                "id": "grade-0304",
+                "at": 1217665,
+                "workMs": 5000
+              },
+              {
+                "id": "grade-0305",
+                "at": 1222933,
+                "workMs": 5000
+              },
+              {
+                "id": "grade-0306",
+                "at": 1226351,
+                "workMs": 15000
+              },
+              {
+                "id": "grade-0307",
+                "at": 1230542,
+                "workMs": 20000
+              },
+              {
+                "id": "grade-0308",
+                "at": 1234378,
+                "workMs": 30000
+              },
+              {
+                "id": "grade-0309",
+                "at": 1238230,
+                "workMs": 40000
+              },
+              {
+                "id": "grade-0310",
+                "at": 1241750,
+                "workMs": 45000
+              },
+              {
+                "id": "grade-0311",
+                "at": 1246043,
+                "workMs": 5000
+              },
+              {
+                "id": "grade-0312",
+                "at": 1249798,
+                "workMs": 50000
+              },
+              {
+                "id": "grade-0313",
+                "at": 1252113,
+                "workMs": 20000
+              },
+              {
+                "id": "grade-0314",
+                "at": 1256353,
+                "workMs": 70000
+              },
+              {
+                "id": "grade-0315",
+                "at": 1261928,
+                "workMs": 35000
+              },
+              {
+                "id": "grade-0316",
+                "at": 1266237,
+                "workMs": 45000
+              },
+              {
+                "id": "grade-0317",
+                "at": 1269022,
+                "workMs": 20000
+              },
+              {
+                "id": "grade-0318",
+                "at": 1273197,
+                "workMs": 20000
+              },
+              {
+                "id": "grade-0319",
+                "at": 1278078,
+                "workMs": 5000
+              },
+              {
+                "id": "grade-0320",
+                "at": 1281130,
+                "workMs": 40000
+              },
+              {
+                "id": "grade-0321",
+                "at": 1286251,
+                "workMs": 50000
+              },
+              {
+                "id": "grade-0322",
+                "at": 1289534,
+                "workMs": 45000
+              },
+              {
+                "id": "grade-0323",
+                "at": 1292895,
+                "workMs": 50000
+              },
+              {
+                "id": "grade-0324",
+                "at": 1296707,
+                "workMs": 30000
+              },
+              {
+                "id": "grade-0325",
+                "at": 1300697,
+                "workMs": 45000
+              },
+              {
+                "id": "grade-0326",
+                "at": 1305723,
+                "workMs": 30000
+              },
+              {
+                "id": "grade-0327",
+                "at": 1310205,
+                "workMs": 45000
+              },
+              {
+                "id": "grade-0328",
+                "at": 1312372,
+                "workMs": 45000
+              },
+              {
+                "id": "grade-0329",
+                "at": 1318805,
+                "workMs": 5000
+              },
+              {
+                "id": "grade-0330",
+                "at": 1321032,
+                "workMs": 40000
+              },
+              {
+                "id": "grade-0331",
+                "at": 1326333,
+                "workMs": 50000
+              },
+              {
+                "id": "grade-0332",
+                "at": 1329010,
+                "workMs": 70000
+              },
+              {
+                "id": "grade-0333",
+                "at": 1333025,
+                "workMs": 25000
+              },
+              {
+                "id": "grade-0334",
+                "at": 1337924,
+                "workMs": 40000
+              },
+              {
+                "id": "grade-0335",
+                "at": 1340825,
+                "workMs": 25000
+              },
+              {
+                "id": "grade-0336",
+                "at": 1345924,
+                "workMs": 50000
+              },
+              {
+                "id": "grade-0337",
+                "at": 1348094,
+                "workMs": 35000
+              },
+              {
+                "id": "grade-0338",
+                "at": 1354999,
+                "workMs": 35000
+              },
+              {
+                "id": "grade-0339",
+                "at": 1356233,
+                "workMs": 20000
+              },
+              {
+                "id": "grade-0340",
+                "at": 1362097,
+                "workMs": 40000
+              },
+              {
+                "id": "grade-0341",
+                "at": 1365178,
+                "workMs": 30000
+              },
+              {
+                "id": "grade-0342",
+                "at": 1368945,
+                "workMs": 30000
+              },
+              {
+                "id": "grade-0343",
+                "at": 1373953,
+                "workMs": 10000
+              },
+              {
+                "id": "grade-0344",
+                "at": 1378829,
+                "workMs": 5000
+              },
+              {
+                "id": "grade-0345",
+                "at": 1382523,
+                "workMs": 75000
+              },
+              {
+                "id": "grade-0346",
+                "at": 1384546,
+                "workMs": 50000
+              },
+              {
+                "id": "grade-0347",
+                "at": 1390183,
+                "workMs": 35000
+              },
+              {
+                "id": "grade-0348",
+                "at": 1393028,
+                "workMs": 70000
+              },
+              {
+                "id": "grade-0349",
+                "at": 1397692,
+                "workMs": 5000
+              },
+              {
+                "id": "grade-0350",
+                "at": 1400700,
+                "workMs": 35000
+              },
+              {
+                "id": "grade-0351",
+                "at": 1404960,
+                "workMs": 15000
+              },
+              {
+                "id": "grade-0352",
+                "at": 1408778,
+                "workMs": 10000
+              },
+              {
+                "id": "grade-0353",
+                "at": 1413232,
+                "workMs": 35000
+              },
+              {
+                "id": "grade-0354",
+                "at": 1416728,
+                "workMs": 30000
+              },
+              {
+                "id": "grade-0355",
+                "at": 1422199,
+                "workMs": 10000
+              },
+              {
+                "id": "grade-0356",
+                "at": 1424797,
+                "workMs": 5000
+              },
+              {
+                "id": "grade-0357",
+                "at": 1429739,
+                "workMs": 45000
+              },
+              {
+                "id": "grade-0358",
+                "at": 1432810,
+                "workMs": 45000
+              },
+              {
+                "id": "grade-0359",
+                "at": 1437398,
+                "workMs": 20000
+              }
+            ],
+            "workers": [
+              {
+                "name": "w1",
+                "pollMs": 2000
+              },
+              {
+                "name": "w2",
+                "pollMs": 2000,
+                "heartbeatMs": 20000,
+                "extendMs": 60000
+              },
+              {
+                "name": "w3",
+                "pollMs": 3000
+              },
+              {
+                "name": "w4",
+                "pollMs": 3000,
+                "heartbeatMs": 25000,
+                "extendMs": 45000
+              },
+              {
+                "name": "w5",
+                "pollMs": 2000
+              },
+              {
+                "name": "w6",
+                "pollMs": 1000,
+                "heartbeatMs": 15000,
+                "extendMs": 30000
+              },
+              {
+                "name": "w7",
+                "pollMs": 2500
+              },
+              {
+                "name": "w8",
+                "pollMs": 4000
+              }
+            ],
+            "crashes": [
+              {
+                "message": "grade-0010",
+                "delivery": 1,
+                "afterMs": 18000
+              },
+              {
+                "message": "grade-0016",
+                "delivery": 1,
+                "afterMs": 21000
+              },
+              {
+                "message": "grade-0043",
+                "delivery": 1,
+                "afterMs": 11000
+              },
+              {
+                "message": "grade-0068",
+                "delivery": 1,
+                "afterMs": 10000
+              },
+              {
+                "message": "grade-0068",
+                "delivery": 2,
+                "afterMs": 3000
+              },
+              {
+                "message": "grade-0094",
+                "delivery": 1,
+                "afterMs": 19000
+              },
+              {
+                "message": "grade-0096",
+                "delivery": 1,
+                "afterMs": 20000
+              },
+              {
+                "message": "grade-0097",
+                "delivery": 1,
+                "afterMs": 21000
+              },
+              {
+                "message": "grade-0097",
+                "delivery": 2,
+                "afterMs": 3000
+              },
+              {
+                "message": "grade-0098",
+                "delivery": 1,
+                "afterMs": 13000
+              },
+              {
+                "message": "grade-0103",
+                "delivery": 1,
+                "afterMs": 15000
+              },
+              {
+                "message": "grade-0104",
+                "delivery": 1,
+                "afterMs": 23000
+              },
+              {
+                "message": "grade-0104",
+                "delivery": 2,
+                "afterMs": 3000
+              },
+              {
+                "message": "grade-0121",
+                "delivery": 1,
+                "afterMs": 4000
+              },
+              {
+                "message": "grade-0135",
+                "delivery": 1,
+                "afterMs": 32000
+              },
+              {
+                "message": "grade-0136",
+                "delivery": 1,
+                "afterMs": 21000
+              },
+              {
+                "message": "grade-0147",
+                "delivery": 1,
+                "afterMs": 12000
+              },
+              {
+                "message": "grade-0157",
+                "delivery": 1,
+                "afterMs": 33000
+              },
+              {
+                "message": "grade-0163",
+                "delivery": 1,
+                "afterMs": 23000
+              },
+              {
+                "message": "grade-0172",
+                "delivery": 1,
+                "afterMs": 3000
+              },
+              {
+                "message": "grade-0175",
+                "delivery": 1,
+                "afterMs": 8000
+              },
+              {
+                "message": "grade-0175",
+                "delivery": 2,
+                "afterMs": 3000
+              },
+              {
+                "message": "grade-0215",
+                "delivery": 1,
+                "afterMs": 17000
+              },
+              {
+                "message": "grade-0215",
+                "delivery": 2,
+                "afterMs": 3000
+              },
+              {
+                "message": "grade-0265",
+                "delivery": 1,
+                "afterMs": 3000
+              },
+              {
+                "message": "grade-0286",
+                "delivery": 1,
+                "afterMs": 40000
+              },
+              {
+                "message": "grade-0286",
+                "delivery": 2,
+                "afterMs": 3000
+              },
+              {
+                "message": "grade-0291",
+                "delivery": 1,
+                "afterMs": 25000
+              },
+              {
+                "message": "grade-0310",
+                "delivery": 1,
+                "afterMs": 25000
+              },
+              {
+                "message": "grade-0320",
+                "delivery": 1,
+                "afterMs": 33000
+              },
+              {
+                "message": "grade-0345",
+                "delivery": 1,
+                "afterMs": 13000
+              },
+              {
+                "message": "grade-0349",
+                "delivery": 1,
+                "afterMs": 32000
+              }
+            ],
+            "calls": [
+              {
+                "at": 100000,
+                "ack": "grade-0001#1"
+              },
+              {
+                "at": 200000,
+                "extend": "grade-0002#1",
+                "timeoutMs": 5000
+              }
+            ]
+          },
+          "expected": {
+            "deliveries": {
+              "grade-0000": 1,
+              "grade-0001": 1,
+              "grade-0002": 1,
+              "grade-0003": 1,
+              "grade-0004": 1,
+              "grade-0005": 1,
+              "grade-0006": 1,
+              "grade-0007": 1,
+              "grade-0008": 1,
+              "grade-0009": 1,
+              "grade-0010": 1,
+              "grade-0011": 1,
+              "grade-0012": 1,
+              "grade-0013": 1,
+              "grade-0014": 1,
+              "grade-0015": 1,
+              "grade-0016": 1,
+              "grade-0017": 1,
+              "grade-0018": 1,
+              "grade-0019": 1,
+              "grade-0020": 1,
+              "grade-0021": 1,
+              "grade-0022": 1,
+              "grade-0023": 1,
+              "grade-0024": 1,
+              "grade-0025": 1,
+              "grade-0026": 1,
+              "grade-0027": 1,
+              "grade-0028": 1,
+              "grade-0029": 1,
+              "grade-0030": 1,
+              "grade-0031": 1,
+              "grade-0032": 1,
+              "grade-0033": 1,
+              "grade-0034": 1,
+              "grade-0035": 1,
+              "grade-0036": 1,
+              "grade-0037": 1,
+              "grade-0038": 1,
+              "grade-0039": 1,
+              "grade-0040": 1,
+              "grade-0041": 1,
+              "grade-0042": 1,
+              "grade-0043": 2,
+              "grade-0044": 1,
+              "grade-0045": 1,
+              "grade-0046": 1,
+              "grade-0047": 1,
+              "grade-0048": 1,
+              "grade-0049": 1,
+              "grade-0050": 1,
+              "grade-0051": 1,
+              "grade-0052": 1,
+              "grade-0053": 1,
+              "grade-0054": 1,
+              "grade-0055": 1,
+              "grade-0056": 1,
+              "grade-0057": 1,
+              "grade-0058": 1,
+              "grade-0059": 1,
+              "grade-0060": 1,
+              "grade-0061": 1,
+              "grade-0062": 1,
+              "grade-0063": 1,
+              "grade-0064": 1,
+              "grade-0065": 1,
+              "grade-0066": 1,
+              "grade-0067": 1,
+              "grade-0068": 3,
+              "grade-0069": 1,
+              "grade-0070": 1,
+              "grade-0071": 1,
+              "grade-0072": 1,
+              "grade-0073": 1,
+              "grade-0074": 1,
+              "grade-0075": 2,
+              "grade-0076": 1,
+              "grade-0077": 1,
+              "grade-0078": 1,
+              "grade-0079": 1,
+              "grade-0080": 1,
+              "grade-0081": 1,
+              "grade-0082": 1,
+              "grade-0083": 1,
+              "grade-0084": 1,
+              "grade-0085": 1,
+              "grade-0086": 1,
+              "grade-0087": 1,
+              "grade-0088": 1,
+              "grade-0089": 1,
+              "grade-0090": 1,
+              "grade-0091": 1,
+              "grade-0092": 1,
+              "grade-0093": 1,
+              "grade-0094": 1,
+              "grade-0095": 1,
+              "grade-0096": 2,
+              "grade-0097": 1,
+              "grade-0098": 1,
+              "grade-0099": 1,
+              "grade-0100": 1,
+              "grade-0101": 2,
+              "grade-0102": 1,
+              "grade-0103": 2,
+              "grade-0104": 1,
+              "grade-0105": 1,
+              "grade-0106": 1,
+              "grade-0107": 1,
+              "grade-0108": 1,
+              "grade-0109": 1,
+              "grade-0110": 1,
+              "grade-0111": 1,
+              "grade-0112": 1,
+              "grade-0113": 1,
+              "grade-0114": 1,
+              "grade-0115": 1,
+              "grade-0116": 1,
+              "grade-0117": 1,
+              "grade-0118": 1,
+              "grade-0119": 1,
+              "grade-0120": 1,
+              "grade-0121": 2,
+              "grade-0122": 1,
+              "grade-0123": 1,
+              "grade-0124": 1,
+              "grade-0125": 1,
+              "grade-0126": 1,
+              "grade-0127": 1,
+              "grade-0128": 1,
+              "grade-0129": 1,
+              "grade-0130": 1,
+              "grade-0131": 1,
+              "grade-0132": 1,
+              "grade-0133": 1,
+              "grade-0134": 1,
+              "grade-0135": 2,
+              "grade-0136": 1,
+              "grade-0137": 1,
+              "grade-0138": 1,
+              "grade-0139": 1,
+              "grade-0140": 1,
+              "grade-0141": 1,
+              "grade-0142": 1,
+              "grade-0143": 1,
+              "grade-0144": 1,
+              "grade-0145": 1,
+              "grade-0146": 1,
+              "grade-0147": 2,
+              "grade-0148": 1,
+              "grade-0149": 1,
+              "grade-0150": 1,
+              "grade-0151": 1,
+              "grade-0152": 1,
+              "grade-0153": 1,
+              "grade-0154": 1,
+              "grade-0155": 1,
+              "grade-0156": 1,
+              "grade-0157": 1,
+              "grade-0158": 1,
+              "grade-0159": 1,
+              "grade-0160": 1,
+              "grade-0161": 1,
+              "grade-0162": 1,
+              "grade-0163": 2,
+              "grade-0164": 1,
+              "grade-0165": 1,
+              "grade-0166": 1,
+              "grade-0167": 1,
+              "grade-0168": 1,
+              "grade-0169": 1,
+              "grade-0170": 1,
+              "grade-0171": 1,
+              "grade-0172": 2,
+              "grade-0173": 1,
+              "grade-0174": 1,
+              "grade-0175": 3,
+              "grade-0176": 1,
+              "grade-0177": 1,
+              "grade-0178": 1,
+              "grade-0179": 1,
+              "grade-0180": 1,
+              "grade-0181": 1,
+              "grade-0182": 1,
+              "grade-0183": 1,
+              "grade-0184": 1,
+              "grade-0185": 1,
+              "grade-0186": 1,
+              "grade-0187": 1,
+              "grade-0188": 1,
+              "grade-0189": 1,
+              "grade-0190": 1,
+              "grade-0191": 1,
+              "grade-0192": 1,
+              "grade-0193": 1,
+              "grade-0194": 1,
+              "grade-0195": 1,
+              "grade-0196": 1,
+              "grade-0197": 1,
+              "grade-0198": 1,
+              "grade-0199": 1,
+              "grade-0200": 1,
+              "grade-0201": 1,
+              "grade-0202": 1,
+              "grade-0203": 1,
+              "grade-0204": 1,
+              "grade-0205": 1,
+              "grade-0206": 1,
+              "grade-0207": 1,
+              "grade-0208": 1,
+              "grade-0209": 1,
+              "grade-0210": 1,
+              "grade-0211": 1,
+              "grade-0212": 1,
+              "grade-0213": 1,
+              "grade-0214": 1,
+              "grade-0215": 1,
+              "grade-0216": 1,
+              "grade-0217": 1,
+              "grade-0218": 1,
+              "grade-0219": 1,
+              "grade-0220": 1,
+              "grade-0221": 1,
+              "grade-0222": 1,
+              "grade-0223": 1,
+              "grade-0224": 1,
+              "grade-0225": 1,
+              "grade-0226": 1,
+              "grade-0227": 1,
+              "grade-0228": 1,
+              "grade-0229": 1,
+              "grade-0230": 1,
+              "grade-0231": 1,
+              "grade-0232": 1,
+              "grade-0233": 1,
+              "grade-0234": 1,
+              "grade-0235": 1,
+              "grade-0236": 1,
+              "grade-0237": 1,
+              "grade-0238": 1,
+              "grade-0239": 1,
+              "grade-0240": 1,
+              "grade-0241": 1,
+              "grade-0242": 1,
+              "grade-0243": 1,
+              "grade-0244": 1,
+              "grade-0245": 1,
+              "grade-0246": 1,
+              "grade-0247": 1,
+              "grade-0248": 1,
+              "grade-0249": 1,
+              "grade-0250": 1,
+              "grade-0251": 1,
+              "grade-0252": 1,
+              "grade-0253": 1,
+              "grade-0254": 1,
+              "grade-0255": 1,
+              "grade-0256": 1,
+              "grade-0257": 1,
+              "grade-0258": 1,
+              "grade-0259": 1,
+              "grade-0260": 1,
+              "grade-0261": 1,
+              "grade-0262": 1,
+              "grade-0263": 1,
+              "grade-0264": 1,
+              "grade-0265": 2,
+              "grade-0266": 1,
+              "grade-0267": 1,
+              "grade-0268": 1,
+              "grade-0269": 1,
+              "grade-0270": 1,
+              "grade-0271": 1,
+              "grade-0272": 1,
+              "grade-0273": 1,
+              "grade-0274": 1,
+              "grade-0275": 1,
+              "grade-0276": 1,
+              "grade-0277": 1,
+              "grade-0278": 1,
+              "grade-0279": 1,
+              "grade-0280": 1,
+              "grade-0281": 1,
+              "grade-0282": 1,
+              "grade-0283": 1,
+              "grade-0284": 1,
+              "grade-0285": 1,
+              "grade-0286": 1,
+              "grade-0287": 1,
+              "grade-0288": 1,
+              "grade-0289": 1,
+              "grade-0290": 1,
+              "grade-0291": 1,
+              "grade-0292": 1,
+              "grade-0293": 1,
+              "grade-0294": 1,
+              "grade-0295": 1,
+              "grade-0296": 1,
+              "grade-0297": 2,
+              "grade-0298": 1,
+              "grade-0299": 1,
+              "grade-0300": 1,
+              "grade-0301": 1,
+              "grade-0302": 1,
+              "grade-0303": 1,
+              "grade-0304": 1,
+              "grade-0305": 1,
+              "grade-0306": 1,
+              "grade-0307": 1,
+              "grade-0308": 1,
+              "grade-0309": 1,
+              "grade-0310": 2,
+              "grade-0311": 1,
+              "grade-0312": 1,
+              "grade-0313": 1,
+              "grade-0314": 1,
+              "grade-0315": 1,
+              "grade-0316": 1,
+              "grade-0317": 1,
+              "grade-0318": 1,
+              "grade-0319": 1,
+              "grade-0320": 2,
+              "grade-0321": 1,
+              "grade-0322": 1,
+              "grade-0323": 1,
+              "grade-0324": 1,
+              "grade-0325": 1,
+              "grade-0326": 1,
+              "grade-0327": 1,
+              "grade-0328": 1,
+              "grade-0329": 1,
+              "grade-0330": 1,
+              "grade-0331": 1,
+              "grade-0332": 1,
+              "grade-0333": 1,
+              "grade-0334": 1,
+              "grade-0335": 1,
+              "grade-0336": 1,
+              "grade-0337": 1,
+              "grade-0338": 1,
+              "grade-0339": 1,
+              "grade-0340": 1,
+              "grade-0341": 1,
+              "grade-0342": 1,
+              "grade-0343": 1,
+              "grade-0344": 1,
+              "grade-0345": 2,
+              "grade-0346": 1,
+              "grade-0347": 1,
+              "grade-0348": 3,
+              "grade-0349": 1,
+              "grade-0350": 1,
+              "grade-0351": 1,
+              "grade-0352": 1,
+              "grade-0353": 1,
+              "grade-0354": 1,
+              "grade-0355": 1,
+              "grade-0356": 1,
+              "grade-0357": 1,
+              "grade-0358": 1,
+              "grade-0359": 1
+            },
+            "rejectedAcks": [
+              "t=380000 w3 grade-0075#1",
+              "t=488000 w1 grade-0101#1",
+              "t=1287000 w8 grade-0297#1",
+              "t=1508000 w3 grade-0348#1",
+              "t=1568000 w5 grade-0348#2"
+            ],
+            "remaining": [],
+            "log": [
+              "t=2000 w1 received grade-0000#1 (receive count 1)",
+              "t=6000 w2 received grade-0001#1 (receive count 1)",
+              "t=9000 w3 received grade-0002#1 (receive count 1)",
+              "t=15000 w4 received grade-0003#1 (receive count 1)",
+              "t=17000 w6 received grade-0004#1 (receive count 1)",
+              "t=22500 w7 received grade-0005#1 (receive count 1)",
+              "t=26000 w5 received grade-0006#1 (receive count 1)",
+              "t=32000 w8 received grade-0007#1 (receive count 1)",
+              "t=37500 w7 ack grade-0005#1 ok",
+              "t=37500 w7 received grade-0008#1 (receive count 1)",
+              "t=42000 w6 ack grade-0004#1 ok",
+              "t=42000 w6 received grade-0009#1 (receive count 1)",
+              "t=47000 w1 ack grade-0000#1 ok",
+              "t=47000 w1 received grade-0010#1 (receive count 1)",
+              "t=51000 w2 ack grade-0001#1 ok",
+              "t=51000 w2 received grade-0011#1 (receive count 1)",
+              "t=54000 w3 ack grade-0002#1 ok",
+              "t=54000 w3 received grade-0012#1 (receive count 1)",
+              "t=56000 w5 ack grade-0006#1 ok",
+              "t=56000 w5 received grade-0013#1 (receive count 1)",
+              "t=57000 w8 ack grade-0007#1 ok",
+              "t=57000 w8 received grade-0014#1 (receive count 1)",
+              "t=61000 w5 ack grade-0013#1 ok",
+              "t=61000 w5 received grade-0015#1 (receive count 1)",
+              "t=62000 w1 ack grade-0010#1 ok",
+              "t=62000 w8 ack grade-0014#1 ok",
+              "t=66000 w1 received grade-0016#1 (receive count 1)",
+              "t=70000 w8 received grade-0017#1 (receive count 1)",
+              "t=71000 w1 ack grade-0016#1 ok",
+              "t=73000 w1 received grade-0018#1 (receive count 1)",
+              "t=75000 w8 ack grade-0017#1 ok",
+              "t=79000 w8 received grade-0019#1 (receive count 1)",
+              "t=81000 w5 ack grade-0015#1 ok",
+              "t=82500 w7 ack grade-0008#1 ok",
+              "t=83000 w5 received grade-0020#1 (receive count 1)",
+              "t=87500 w7 received grade-0021#1 (receive count 1)",
+              "t=89000 w3 ack grade-0012#1 ok",
+              "t=92000 w3 received grade-0022#1 (receive count 1)",
+              "t=95000 w4 ack grade-0003#1 ok",
+              "t=95000 w4 received grade-0023#1 (receive count 1)",
+              "t=100000 client ack grade-0001#1 rejected",
+              "t=107000 w6 ack grade-0009#1 ok",
+              "t=107000 w6 received grade-0024#1 (receive count 1)",
+              "t=108000 w1 ack grade-0018#1 ok",
+              "t=108000 w1 received grade-0025#1 (receive count 1)",
+              "t=116000 w2 ack grade-0011#1 ok",
+              "t=116000 w2 received grade-0026#1 (receive count 1)",
+              "t=117000 w3 ack grade-0022#1 ok",
+              "t=117000 w3 received grade-0027#1 (receive count 1)",
+              "t=118000 w5 ack grade-0020#1 ok",
+              "t=118000 w5 received grade-0028#1 (receive count 1)",
+              "t=123000 w5 ack grade-0028#1 ok",
+              "t=123000 w5 received grade-0029#1 (receive count 1)",
+              "t=127500 w7 ack grade-0021#1 ok",
+              "t=127500 w7 received grade-0030#1 (receive count 1)",
+              "t=129000 w8 ack grade-0019#1 ok",
+              "t=129000 w8 received grade-0031#1 (receive count 1)",
+              "t=133000 w1 ack grade-0025#1 ok",
+              "t=133000 w5 ack grade-0029#1 ok",
+              "t=133000 w1 received grade-0032#1 (receive count 1)",
+              "t=135000 w5 received grade-0033#1 (receive count 1)",
+              "t=140000 w4 ack grade-0023#1 ok",
+              "t=140000 w4 received grade-0034#1 (receive count 1)",
+              "t=147000 w3 ack grade-0027#1 ok",
+              "t=147000 w3 received grade-0035#1 (receive count 1)",
+              "t=151000 w2 ack grade-0026#1 ok",
+              "t=151000 w2 received grade-0036#1 (receive count 1)",
+              "t=157500 w7 ack grade-0030#1 ok",
+              "t=157500 w7 received grade-0037#1 (receive count 1)",
+              "t=164000 w8 ack grade-0031#1 ok",
+              "t=164000 w8 received grade-0038#1 (receive count 1)",
+              "t=165000 w5 ack grade-0033#1 ok",
+              "t=165000 w5 received grade-0039#1 (receive count 1)",
+              "t=167000 w3 ack grade-0035#1 ok",
+              "t=167000 w3 received grade-0040#1 (receive count 1)",
+              "t=170000 w4 ack grade-0034#1 ok",
+              "t=170000 w4 received grade-0041#1 (receive count 1)",
+              "t=179000 w8 ack grade-0038#1 ok",
+              "t=179000 w8 received grade-0042#1 (receive count 1)",
+              "t=182000 w6 ack grade-0024#1 ok",
+              "t=182000 w6 received grade-0043#1 (receive count 1)",
+              "t=183000 w1 ack grade-0032#1 ok",
+              "t=183000 w1 received grade-0044#1 (receive count 1)",
+              "t=186000 w2 ack grade-0036#1 ok",
+              "t=186000 w2 received grade-0045#1 (receive count 1)",
+              "t=193000 w6 crashed working on grade-0043#1",
+              "t=194000 w6 received grade-0046#1 (receive count 1)",
+              "t=195000 w4 ack grade-0041#1 ok",
+              "t=195000 w4 received grade-0047#1 (receive count 1)",
+              "t=200000 client extend grade-0002#1 5000 rejected",
+              "t=200000 w5 ack grade-0039#1 ok",
+              "t=200000 w5 received grade-0048#1 (receive count 1)",
+              "t=203000 w1 ack grade-0044#1 ok",
+              "t=203000 w1 received grade-0049#1 (receive count 1)",
+              "t=207500 w7 ack grade-0037#1 ok",
+              "t=207500 w7 received grade-0050#1 (receive count 1)",
+              "t=209000 w8 ack grade-0042#1 ok",
+              "t=209000 w8 received grade-0051#1 (receive count 1)",
+              "t=212000 w3 ack grade-0040#1 ok",
+              "t=212000 w3 received grade-0052#1 (receive count 1)",
+              "t=214000 w6 ack grade-0046#1 ok",
+              "t=214000 w6 received grade-0053#1 (receive count 1)",
+              "t=219000 w6 ack grade-0053#1 ok",
+              "t=219000 w6 received grade-0054#1 (receive count 1)",
+              "t=222500 w7 ack grade-0050#1 ok",
+              "t=222500 w7 received grade-0055#1 (receive count 1)",
+              "t=225000 w4 ack grade-0047#1 ok",
+              "t=225000 w4 received grade-0056#1 (receive count 1)",
+              "t=239000 w8 ack grade-0051#1 ok",
+              "t=239000 w8 received grade-0057#1 (receive count 1)",
+              "t=240000 w5 ack grade-0048#1 ok",
+              "t=240000 w5 received grade-0058#1 (receive count 1)",
+              "t=242500 w7 ack grade-0055#1 ok",
+              "t=242500 w7 received grade-0059#1 (receive count 1)",
+              "t=244000 w8 ack grade-0057#1 ok",
+              "t=244000 w8 received grade-0060#1 (receive count 1)",
+              "t=253000 w1 ack grade-0049#1 ok",
+              "t=253000 w1 received grade-0043#2 (receive count 2)",
+              "t=257000 w3 ack grade-0052#1 ok",
+              "t=257000 w3 received grade-0061#1 (receive count 1)",
+              "t=257500 w7 ack grade-0059#1 ok",
+              "t=257500 w7 received grade-0062#1 (receive count 1)",
+              "t=259000 w6 ack grade-0054#1 ok",
+              "t=259000 w6 received grade-0063#1 (receive count 1)",
+              "t=260000 w5 ack grade-0058#1 ok",
+              "t=260000 w5 received grade-0064#1 (receive count 1)",
+              "t=270000 w4 ack grade-0056#1 ok",
+              "t=270000 w4 received grade-0065#1 (receive count 1)",
+              "t=271000 w2 ack grade-0045#1 ok",
+              "t=271000 w2 received grade-0066#1 (receive count 1)",
+              "t=276000 w2 ack grade-0066#1 ok",
+              "t=276000 w2 received grade-0067#1 (receive count 1)",
+              "t=279000 w8 ack grade-0060#1 ok",
+              "t=279000 w8 received grade-0068#1 (receive count 1)",
+              "t=289000 w8 crashed working on grade-0068#1",
+              "t=290000 w4 ack grade-0065#1 ok",
+              "t=290000 w4 received grade-0069#1 (receive count 1)",
+              "t=292000 w3 ack grade-0061#1 ok",
+              "t=292000 w3 received grade-0070#1 (receive count 1)",
+              "t=293000 w1 ack grade-0043#2 ok",
+              "t=293000 w8 received grade-0071#1 (receive count 1)",
+              "t=293000 w1 received grade-0072#1 (receive count 1)",
+              "t=298000 w8 ack grade-0071#1 ok",
+              "t=298000 w8 received grade-0073#1 (receive count 1)",
+              "t=299000 w6 ack grade-0063#1 ok",
+              "t=299000 w6 received grade-0074#1 (receive count 1)",
+              "t=302000 w3 ack grade-0070#1 ok",
+              "t=305000 w3 received grade-0075#1 (receive count 1)",
+              "t=307500 w7 ack grade-0062#1 ok",
+              "t=307500 w7 received grade-0076#1 (receive count 1)",
+              "t=310000 w5 ack grade-0064#1 ok",
+              "t=310000 w5 received grade-0077#1 (receive count 1)",
+              "t=311000 w2 ack grade-0067#1 ok",
+              "t=313000 w2 received grade-0078#1 (receive count 1)",
+              "t=323000 w8 ack grade-0073#1 ok",
+              "t=323000 w8 received grade-0079#1 (receive count 1)",
+              "t=332500 w7 ack grade-0076#1 ok",
+              "t=332500 w7 received grade-0080#1 (receive count 1)",
+              "t=338000 w1 ack grade-0072#1 ok",
+              "t=338000 w1 received grade-0081#1 (receive count 1)",
+              "t=339000 w6 ack grade-0074#1 ok",
+              "t=339000 w6 received grade-0082#1 (receive count 1)",
+              "t=349000 w6 ack grade-0082#1 ok",
+              "t=349000 w6 received grade-0083#1 (receive count 1)",
+              "t=350000 w5 ack grade-0077#1 ok",
+              "t=350000 w5 received grade-0084#1 (receive count 1)",
+              "t=355000 w4 ack grade-0069#1 ok",
+              "t=355000 w4 received grade-0068#2 (receive count 2)",
+              "t=358000 w1 ack grade-0081#1 ok",
+              "t=358000 w4 crashed working on grade-0068#2",
+              "t=358000 w1 received grade-0085#1 (receive count 1)",
+              "t=361000 w4 received grade-0086#1 (receive count 1)",
+              "t=363000 w2 ack grade-0078#1 ok",
+              "t=363000 w2 received grade-0087#1 (receive count 1)",
+              "t=367500 w7 ack grade-0080#1 ok",
+              "t=367500 w7 received grade-0088#1 (receive count 1)",
+              "t=368000 w2 ack grade-0087#1 ok",
+              "t=368000 w8 ack grade-0079#1 ok",
+              "t=368000 w2 received grade-0089#1 (receive count 1)",
+              "t=368000 w8 received grade-0090#1 (receive count 1)",
+              "t=372500 w7 ack grade-0088#1 ok",
+              "t=372500 w7 received grade-0091#1 (receive count 1)",
+              "t=373000 w2 ack grade-0089#1 ok",
+              "t=373000 w2 received grade-0075#2 (receive count 2)",
+              "t=380000 w3 ack grade-0075#1 rejected",
+              "t=380000 w3 received grade-0092#1 (receive count 1)",
+              "t=385000 w5 ack grade-0084#1 ok",
+              "t=385000 w5 received grade-0093#1 (receive count 1)",
+              "t=388000 w8 ack grade-0090#1 ok",
+              "t=388000 w8 received grade-0094#1 (receive count 1)",
+              "t=397500 w7 ack grade-0091#1 ok",
+              "t=397500 w7 received grade-0095#1 (receive count 1)",
+              "t=399000 w6 ack grade-0083#1 ok",
+              "t=399000 w6 received grade-0096#1 (receive count 1)",
+              "t=400000 w5 ack grade-0093#1 ok",
+              "t=400000 w5 received grade-0097#1 (receive count 1)",
+              "t=401000 w4 ack grade-0086#1 ok",
+              "t=401000 w4 received grade-0098#1 (receive count 1)",
+              "t=403000 w8 ack grade-0094#1 ok",
+              "t=403000 w8 received grade-0099#1 (receive count 1)",
+              "t=406000 w4 ack grade-0098#1 ok",
+              "t=406000 w4 received grade-0100#1 (receive count 1)",
+              "t=408000 w1 ack grade-0085#1 ok",
+              "t=408000 w1 received grade-0101#1 (receive count 1)",
+              "t=410000 w5 ack grade-0097#1 ok",
+              "t=410000 w5 received grade-0102#1 (receive count 1)",
+              "t=415000 w3 ack grade-0092#1 ok",
+              "t=415000 w3 received grade-0103#1 (receive count 1)",
+              "t=418000 w8 ack grade-0099#1 ok",
+              "t=418000 w8 received grade-0068#3 (receive count 3)",
+              "t=419000 w6 crashed working on grade-0096#1",
+              "t=420000 w6 received grade-0104#1 (receive count 1)",
+              "t=422500 w7 ack grade-0095#1 ok",
+              "t=422500 w7 received grade-0105#1 (receive count 1)",
+              "t=425000 w5 ack grade-0102#1 ok",
+              "t=425000 w5 received grade-0106#1 (receive count 1)",
+              "t=430000 w3 crashed working on grade-0103#1",
+              "t=433000 w3 received grade-0107#1 (receive count 1)",
+              "t=436000 w4 ack grade-0100#1 ok",
+              "t=436000 w4 received grade-0108#1 (receive count 1)",
+              "t=440000 w5 ack grade-0106#1 ok",
+              "t=440000 w6 ack grade-0104#1 ok",
+              "t=440000 w5 received grade-0109#1 (receive count 1)",
+              "t=442000 w6 received grade-0110#1 (receive count 1)",
+              "t=443000 w8 ack grade-0068#3 ok",
+              "t=447000 w8 received grade-0096#2 (receive count 2)",
+              "t=448000 w2 ack grade-0075#2 ok",
+              "t=448000 w2 received grade-0111#1 (receive count 1)",
+              "t=463000 w2 ack grade-0111#1 ok",
+              "t=463000 w2 received grade-0112#1 (receive count 1)",
+              "t=466000 w4 ack grade-0108#1 ok",
+              "t=466000 w4 received grade-0113#1 (receive count 1)",
+              "t=468000 w3 ack grade-0107#1 ok",
+              "t=468000 w3 received grade-0114#1 (receive count 1)",
+              "t=472000 w8 ack grade-0096#2 ok",
+              "t=472000 w8 received grade-0115#1 (receive count 1)",
+              "t=476000 w4 ack grade-0113#1 ok",
+              "t=476000 w4 received grade-0116#1 (receive count 1)",
+              "t=482000 w8 ack grade-0115#1 ok",
+              "t=482000 w8 received grade-0101#2 (receive count 2)",
+              "t=488000 w1 ack grade-0101#1 rejected",
+              "t=488000 w1 received grade-0117#1 (receive count 1)",
+              "t=490000 w5 ack grade-0109#1 ok",
+              "t=490000 w5 received grade-0118#1 (receive count 1)",
+              "t=498000 w2 ack grade-0112#1 ok",
+              "t=498000 w2 received grade-0103#2 (receive count 2)",
+              "t=507500 w7 ack grade-0105#1 ok",
+              "t=507500 w7 received grade-0119#1 (receive count 1)",
+              "t=511000 w4 ack grade-0116#1 ok",
+              "t=511000 w4 received grade-0120#1 (receive count 1)",
+              "t=512500 w7 ack grade-0119#1 ok",
+              "t=512500 w7 received grade-0121#1 (receive count 1)",
+              "t=513000 w2 ack grade-0103#2 ok",
+              "t=513000 w2 received grade-0122#1 (receive count 1)",
+              "t=516500 w7 crashed working on grade-0121#1",
+              "t=519000 w7 received grade-0123#1 (receive count 1)",
+              "t=527000 w6 ack grade-0110#1 ok",
+              "t=527000 w6 received grade-0124#1 (receive count 1)",
+              "t=528000 w1 ack grade-0117#1 ok",
+              "t=528000 w1 received grade-0125#1 (receive count 1)",
+              "t=539000 w7 ack grade-0123#1 ok",
+              "t=539000 w7 received grade-0126#1 (receive count 1)",
+              "t=543000 w3 ack grade-0114#1 ok",
+              "t=543000 w3 received grade-0127#1 (receive count 1)",
+              "t=544000 w7 ack grade-0126#1 ok",
+              "t=544000 w7 received grade-0128#1 (receive count 1)",
+              "t=552000 w6 ack grade-0124#1 ok",
+              "t=552000 w6 received grade-0129#1 (receive count 1)",
+              "t=558000 w2 ack grade-0122#1 ok",
+              "t=558000 w2 received grade-0130#1 (receive count 1)",
+              "t=560000 w5 ack grade-0118#1 ok",
+              "t=560000 w5 received grade-0131#1 (receive count 1)",
+              "t=561000 w4 ack grade-0120#1 ok",
+              "t=561000 w4 received grade-0132#1 (receive count 1)",
+              "t=562000 w8 ack grade-0101#2 ok",
+              "t=562000 w8 received grade-0133#1 (receive count 1)",
+              "t=564000 w7 ack grade-0128#1 ok",
+              "t=564000 w7 received grade-0134#1 (receive count 1)",
+              "t=566000 w4 ack grade-0132#1 ok",
+              "t=566000 w4 received grade-0135#1 (receive count 1)",
+              "t=568000 w1 ack grade-0125#1 ok",
+              "t=568000 w1 received grade-0136#1 (receive count 1)",
+              "t=570000 w5 ack grade-0131#1 ok",
+              "t=570000 w5 received grade-0137#1 (receive count 1)",
+              "t=572000 w6 ack grade-0129#1 ok",
+              "t=572000 w6 received grade-0138#1 (receive count 1)",
+              "t=578000 w1 ack grade-0136#1 ok",
+              "t=578000 w1 received grade-0139#1 (receive count 1)",
+              "t=582000 w8 ack grade-0133#1 ok",
+              "t=582000 w8 received grade-0140#1 (receive count 1)",
+              "t=585000 w5 ack grade-0137#1 ok",
+              "t=585000 w5 received grade-0141#1 (receive count 1)",
+              "t=597000 w8 ack grade-0140#1 ok",
+              "t=597000 w8 received grade-0142#1 (receive count 1)",
+              "t=598000 w1 ack grade-0139#1 ok",
+              "t=598000 w4 crashed working on grade-0135#1",
+              "t=598000 w1 received grade-0121#2 (receive count 2)",
+              "t=601000 w4 received grade-0143#1 (receive count 1)",
+              "t=603000 w2 ack grade-0130#1 ok",
+              "t=603000 w2 received grade-0144#1 (receive count 1)",
+              "t=609000 w7 ack grade-0134#1 ok",
+              "t=609000 w7 received grade-0145#1 (receive count 1)",
+              "t=611000 w4 ack grade-0143#1 ok",
+              "t=611000 w4 received grade-0146#1 (receive count 1)",
+              "t=618000 w3 ack grade-0127#1 ok",
+              "t=618000 w3 received grade-0147#1 (receive count 1)",
+              "t=622000 w6 ack grade-0138#1 ok",
+              "t=622000 w6 received grade-0148#1 (receive count 1)",
+              "t=627000 w8 ack grade-0142#1 ok",
+              "t=627000 w8 received grade-0149#1 (receive count 1)",
+              "t=629000 w7 ack grade-0145#1 ok",
+              "t=629000 w7 received grade-0150#1 (receive count 1)",
+              "t=630000 w3 crashed working on grade-0147#1",
+              "t=632000 w8 ack grade-0149#1 ok",
+              "t=632000 w8 received grade-0151#1 (receive count 1)",
+              "t=633000 w3 received grade-0152#1 (receive count 1)",
+              "t=634000 w7 ack grade-0150#1 ok",
+              "t=634000 w7 received grade-0153#1 (receive count 1)",
+              "t=642000 w6 ack grade-0148#1 ok",
+              "t=642000 w6 received grade-0154#1 (receive count 1)",
+              "t=650000 w5 ack grade-0141#1 ok",
+              "t=650000 w5 received grade-0155#1 (receive count 1)",
+              "t=662000 w8 ack grade-0151#1 ok",
+              "t=662000 w8 received grade-0156#1 (receive count 1)",
+              "t=668000 w1 ack grade-0121#2 ok",
+              "t=668000 w1 received grade-0157#1 (receive count 1)",
+              "t=672000 w8 ack grade-0156#1 ok",
+              "t=672000 w8 received grade-0158#1 (receive count 1)",
+              "t=674000 w7 ack grade-0153#1 ok",
+              "t=674000 w7 received grade-0135#2 (receive count 2)",
+              "t=676000 w4 ack grade-0146#1 ok",
+              "t=676000 w4 received grade-0159#1 (receive count 1)",
+              "t=677000 w8 ack grade-0158#1 ok",
+              "t=677000 w8 received grade-0160#1 (receive count 1)",
+              "t=682000 w6 ack grade-0154#1 ok",
+              "t=682000 w6 received grade-0161#1 (receive count 1)",
+              "t=683000 w3 ack grade-0152#1 ok",
+              "t=683000 w3 received grade-0162#1 (receive count 1)",
+              "t=688000 w1 ack grade-0157#1 ok",
+              "t=688000 w2 ack grade-0144#1 ok",
+              "t=688000 w1 received grade-0163#1 (receive count 1)",
+              "t=688000 w2 received grade-0164#1 (receive count 1)",
+              "t=690000 w5 ack grade-0155#1 ok",
+              "t=690000 w5 received grade-0165#1 (receive count 1)",
+              "t=693000 w2 ack grade-0164#1 ok",
+              "t=693000 w2 received grade-0166#1 (receive count 1)",
+              "t=697000 w8 ack grade-0160#1 ok",
+              "t=697000 w8 received grade-0167#1 (receive count 1)",
+              "t=698000 w2 ack grade-0166#1 ok",
+              "t=698000 w2 received grade-0168#1 (receive count 1)",
+              "t=702000 w6 ack grade-0161#1 ok",
+              "t=702000 w6 received grade-0169#1 (receive count 1)",
+              "t=711000 w1 crashed working on grade-0163#1",
+              "t=712000 w8 ack grade-0167#1 ok",
+              "t=712000 w8 received grade-0147#2 (receive count 2)",
+              "t=713000 w1 received grade-0170#1 (receive count 1)",
+              "t=721000 w4 ack grade-0159#1 ok",
+              "t=721000 w4 received grade-0171#1 (receive count 1)",
+              "t=722000 w6 ack grade-0169#1 ok",
+              "t=722000 w6 received grade-0172#1 (receive count 1)",
+              "t=724000 w7 ack grade-0135#2 ok",
+              "t=724000 w7 received grade-0173#1 (receive count 1)",
+              "t=725000 w6 crashed working on grade-0172#1",
+              "t=726000 w6 received grade-0174#1 (receive count 1)",
+              "t=731000 w6 ack grade-0174#1 ok",
+              "t=731000 w6 received grade-0175#1 (receive count 1)",
+              "t=733000 w3 ack grade-0162#1 ok",
+              "t=733000 w3 received grade-0176#1 (receive count 1)",
+              "t=735000 w5 ack grade-0165#1 ok",
+              "t=735000 w5 received grade-0177#1 (receive count 1)",
+              "t=738000 w2 ack grade-0168#1 ok",
+              "t=738000 w2 received grade-0178#1 (receive count 1)",
+              "t=739000 w6 crashed working on grade-0175#1",
+              "t=740000 w6 received grade-0179#1 (receive count 1)",
+              "t=762000 w8 ack grade-0147#2 ok",
+              "t=762000 w8 received grade-0180#1 (receive count 1)",
+              "t=766000 w4 ack grade-0171#1 ok",
+              "t=766000 w4 received grade-0181#1 (receive count 1)",
+              "t=768000 w2 ack grade-0178#1 ok",
+              "t=768000 w2 received grade-0182#1 (receive count 1)",
+              "t=780000 w5 ack grade-0177#1 ok",
+              "t=780000 w5 received grade-0183#1 (receive count 1)",
+              "t=782000 w8 ack grade-0180#1 ok",
+              "t=782000 w8 received grade-0184#1 (receive count 1)",
+              "t=783000 w1 ack grade-0170#1 ok",
+              "t=783000 w1 received grade-0185#1 (receive count 1)",
+              "t=787000 w8 ack grade-0184#1 ok",
+              "t=787000 w8 received grade-0186#1 (receive count 1)",
+              "t=794000 w7 ack grade-0173#1 ok",
+              "t=794000 w7 received grade-0163#2 (receive count 2)",
+              "t=797000 w8 ack grade-0186#1 ok",
+              "t=797000 w8 received grade-0187#1 (receive count 1)",
+              "t=798000 w1 ack grade-0185#1 ok",
+              "t=798000 w1 received grade-0188#1 (receive count 1)",
+              "t=803000 w2 ack grade-0182#1 ok",
+              "t=803000 w3 ack grade-0176#1 ok",
+              "t=803000 w2 received grade-0189#1 (receive count 1)",
+              "t=803000 w3 received grade-0190#1 (receive count 1)",
+              "t=805000 w6 ack grade-0179#1 ok",
+              "t=805000 w6 received grade-0191#1 (receive count 1)",
+              "t=806000 w4 ack grade-0181#1 ok",
+              "t=806000 w4 received grade-0192#1 (receive count 1)",
+              "t=807000 w8 ack grade-0187#1 ok",
+              "t=807000 w8 received grade-0193#1 (receive count 1)",
+              "t=813000 w3 ack grade-0190#1 ok",
+              "t=813000 w3 received grade-0194#1 (receive count 1)",
+              "t=815000 w5 ack grade-0183#1 ok",
+              "t=815000 w5 received grade-0195#1 (receive count 1)",
+              "t=818000 w1 ack grade-0188#1 ok",
+              "t=818000 w1 received grade-0172#2 (receive count 2)",
+              "t=828000 w2 ack grade-0189#1 ok",
+              "t=828000 w2 received grade-0196#1 (receive count 1)",
+              "t=830000 w6 ack grade-0191#1 ok",
+              "t=830000 w6 received grade-0197#1 (receive count 1)",
+              "t=831000 w4 ack grade-0192#1 ok",
+              "t=831000 w4 received grade-0175#2 (receive count 2)",
+              "t=834000 w4 crashed working on grade-0175#2",
+              "t=837000 w4 received grade-0198#1 (receive count 1)",
+              "t=842000 w8 ack grade-0193#1 ok",
+              "t=842000 w8 received grade-0199#1 (receive count 1)",
+              "t=843000 w3 ack grade-0194#1 ok",
+              "t=843000 w3 received grade-0200#1 (receive count 1)",
+              "t=844000 w7 ack grade-0163#2 ok",
+              "t=844000 w7 received grade-0201#1 (receive count 1)",
+              "t=850000 w5 ack grade-0195#1 ok",
+              "t=850000 w5 received grade-0202#1 (receive count 1)",
+              "t=853000 w1 ack grade-0172#2 ok",
+              "t=853000 w1 received grade-0203#1 (receive count 1)",
+              "t=855000 w6 ack grade-0197#1 ok",
+              "t=855000 w6 received grade-0204#1 (receive count 1)",
+              "t=857000 w4 ack grade-0198#1 ok",
+              "t=857000 w4 received grade-0205#1 (receive count 1)",
+              "t=860000 w5 ack grade-0202#1 ok",
+              "t=860000 w5 received grade-0206#1 (receive count 1)",
+              "t=862000 w8 ack grade-0199#1 ok",
+              "t=862000 w8 received grade-0207#1 (receive count 1)",
+              "t=863000 w3 ack grade-0200#1 ok",
+              "t=863000 w3 received grade-0208#1 (receive count 1)",
+              "t=865000 w5 ack grade-0206#1 ok",
+              "t=865000 w5 received grade-0209#1 (receive count 1)",
+              "t=867000 w4 ack grade-0205#1 ok",
+              "t=867000 w4 received grade-0210#1 (receive count 1)",
+              "t=868000 w2 ack grade-0196#1 ok",
+              "t=868000 w2 received grade-0211#1 (receive count 1)",
+              "t=870000 w6 ack grade-0204#1 ok",
+              "t=870000 w6 received grade-0212#1 (receive count 1)",
+              "t=880000 w6 ack grade-0212#1 ok",
+              "t=880000 w6 received grade-0213#1 (receive count 1)",
+              "t=883000 w2 ack grade-0211#1 ok",
+              "t=883000 w2 received grade-0214#1 (receive count 1)",
+              "t=892000 w4 ack grade-0210#1 ok",
+              "t=892000 w4 received grade-0215#1 (receive count 1)",
+              "t=893000 w1 ack grade-0203#1 ok",
+              "t=893000 w1 received grade-0216#1 (receive count 1)",
+              "t=902000 w4 ack grade-0215#1 ok",
+              "t=902000 w4 received grade-0217#1 (receive count 1)",
+              "t=903000 w1 ack grade-0216#1 ok",
+              "t=903000 w1 received grade-0218#1 (receive count 1)",
+              "t=907000 w8 ack grade-0207#1 ok",
+              "t=907000 w8 received grade-0219#1 (receive count 1)",
+              "t=913000 w2 ack grade-0214#1 ok",
+              "t=913000 w2 received grade-0220#1 (receive count 1)",
+              "t=918000 w1 ack grade-0218#1 ok",
+              "t=918000 w2 ack grade-0220#1 ok",
+              "t=918000 w1 received grade-0221#1 (receive count 1)",
+              "t=918000 w2 received grade-0222#1 (receive count 1)",
+              "t=920000 w6 ack grade-0213#1 ok",
+              "t=920000 w6 received grade-0175#3 (receive count 3)",
+              "t=924000 w7 ack grade-0201#1 ok",
+              "t=924000 w7 received grade-0223#1 (receive count 1)",
+              "t=928000 w2 ack grade-0222#1 ok",
+              "t=928000 w3 ack grade-0208#1 ok",
+              "t=928000 w2 received grade-0224#1 (receive count 1)",
+              "t=928000 w3 received grade-0225#1 (receive count 1)",
+              "t=938000 w3 ack grade-0225#1 ok",
+              "t=938000 w3 received grade-0226#1 (receive count 1)",
+              "t=944000 w7 ack grade-0223#1 ok",
+              "t=944000 w7 received grade-0227#1 (receive count 1)",
+              "t=947000 w4 ack grade-0217#1 ok",
+              "t=947000 w4 received grade-0228#1 (receive count 1)",
+              "t=949000 w7 ack grade-0227#1 ok",
+              "t=949000 w7 received grade-0229#1 (receive count 1)",
+              "t=950000 w5 ack grade-0209#1 ok",
+              "t=950000 w5 received grade-0230#1 (receive count 1)",
+              "t=952000 w8 ack grade-0219#1 ok",
+              "t=952000 w8 received grade-0231#1 (receive count 1)",
+              "t=955000 w6 ack grade-0175#3 ok",
+              "t=955000 w6 received grade-0232#1 (receive count 1)",
+              "t=963000 w2 ack grade-0224#1 ok",
+              "t=963000 w2 received grade-0233#1 (receive count 1)",
+              "t=968000 w1 ack grade-0221#1 ok",
+              "t=968000 w1 received grade-0234#1 (receive count 1)",
+              "t=970000 w5 ack grade-0230#1 ok",
+              "t=970000 w5 received grade-0235#1 (receive count 1)",
+              "t=973000 w2 ack grade-0233#1 ok",
+              "t=973000 w2 received grade-0236#1 (receive count 1)",
+              "t=978000 w1 ack grade-0234#1 ok",
+              "t=978000 w1 received grade-0237#1 (receive count 1)",
+              "t=983000 w3 ack grade-0226#1 ok",
+              "t=983000 w3 received grade-0238#1 (receive count 1)",
+              "t=984000 w7 ack grade-0229#1 ok",
+              "t=984000 w7 received grade-0239#1 (receive count 1)",
+              "t=992000 w8 ack grade-0231#1 ok",
+              "t=992000 w8 received grade-0240#1 (receive count 1)",
+              "t=993000 w2 ack grade-0236#1 ok",
+              "t=993000 w2 received grade-0241#1 (receive count 1)",
+              "t=1003000 w2 ack grade-0241#1 ok",
+              "t=1003000 w2 received grade-0242#1 (receive count 1)",
+              "t=1005000 w6 ack grade-0232#1 ok",
+              "t=1005000 w6 received grade-0243#1 (receive count 1)",
+              "t=1007000 w8 ack grade-0240#1 ok",
+              "t=1007000 w8 received grade-0244#1 (receive count 1)",
+              "t=1015000 w6 ack grade-0243#1 ok",
+              "t=1015000 w6 received grade-0245#1 (receive count 1)",
+              "t=1019000 w7 ack grade-0239#1 ok",
+              "t=1019000 w7 received grade-0246#1 (receive count 1)",
+              "t=1020000 w5 ack grade-0235#1 ok",
+              "t=1020000 w5 received grade-0247#1 (receive count 1)",
+              "t=1023000 w3 ack grade-0238#1 ok",
+              "t=1023000 w3 received grade-0248#1 (receive count 1)",
+              "t=1024000 w7 ack grade-0246#1 ok",
+              "t=1024000 w7 received grade-0249#1 (receive count 1)",
+              "t=1028000 w1 ack grade-0237#1 ok",
+              "t=1028000 w1 received grade-0250#1 (receive count 1)",
+              "t=1032000 w4 ack grade-0228#1 ok",
+              "t=1032000 w4 received grade-0251#1 (receive count 1)",
+              "t=1042000 w8 ack grade-0244#1 ok",
+              "t=1042000 w8 received grade-0252#1 (receive count 1)",
+              "t=1043000 w1 ack grade-0250#1 ok",
+              "t=1043000 w2 ack grade-0242#1 ok",
+              "t=1043000 w1 received grade-0253#1 (receive count 1)",
+              "t=1043000 w2 received grade-0254#1 (receive count 1)",
+              "t=1045000 w6 ack grade-0245#1 ok",
+              "t=1045000 w6 received grade-0255#1 (receive count 1)",
+              "t=1047000 w4 ack grade-0251#1 ok",
+              "t=1047000 w4 received grade-0256#1 (receive count 1)",
+              "t=1053000 w3 ack grade-0248#1 ok",
+              "t=1053000 w3 received grade-0257#1 (receive count 1)",
+              "t=1054000 w7 ack grade-0249#1 ok",
+              "t=1054000 w7 received grade-0258#1 (receive count 1)",
+              "t=1062000 w8 ack grade-0252#1 ok",
+              "t=1062000 w8 received grade-0259#1 (receive count 1)",
+              "t=1063000 w1 ack grade-0253#1 ok",
+              "t=1063000 w1 received grade-0260#1 (receive count 1)",
+              "t=1065000 w5 ack grade-0247#1 ok",
+              "t=1065000 w5 received grade-0261#1 (receive count 1)",
+              "t=1067000 w4 ack grade-0256#1 ok",
+              "t=1067000 w4 received grade-0262#1 (receive count 1)",
+              "t=1074000 w7 ack grade-0258#1 ok",
+              "t=1074000 w7 received grade-0263#1 (receive count 1)",
+              "t=1080000 w6 ack grade-0255#1 ok",
+              "t=1080000 w6 received grade-0264#1 (receive count 1)",
+              "t=1083000 w2 ack grade-0254#1 ok",
+              "t=1083000 w2 received grade-0265#1 (receive count 1)",
+              "t=1085000 w5 ack grade-0261#1 ok",
+              "t=1085000 w6 ack grade-0264#1 ok",
+              "t=1085000 w5 received grade-0266#1 (receive count 1)",
+              "t=1085000 w6 received grade-0267#1 (receive count 1)",
+              "t=1086000 w2 crashed working on grade-0265#1",
+              "t=1088000 w2 received grade-0268#1 (receive count 1)",
+              "t=1088000 w3 ack grade-0257#1 ok",
+              "t=1088000 w3 received grade-0269#1 (receive count 1)",
+              "t=1097000 w8 ack grade-0259#1 ok",
+              "t=1097000 w8 received grade-0270#1 (receive count 1)",
+              "t=1098000 w1 ack grade-0260#1 ok",
+              "t=1098000 w1 received grade-0271#1 (receive count 1)",
+              "t=1099000 w7 ack grade-0263#1 ok",
+              "t=1099000 w7 received grade-0272#1 (receive count 1)",
+              "t=1108000 w3 ack grade-0269#1 ok",
+              "t=1108000 w3 received grade-0273#1 (receive count 1)",
+              "t=1112000 w4 ack grade-0262#1 ok",
+              "t=1112000 w4 received grade-0274#1 (receive count 1)",
+              "t=1118000 w3 ack grade-0273#1 ok",
+              "t=1118000 w3 received grade-0275#1 (receive count 1)",
+              "t=1120000 w5 ack grade-0266#1 ok",
+              "t=1120000 w6 ack grade-0267#1 ok",
+              "t=1120000 w5 received grade-0276#1 (receive count 1)",
+              "t=1120000 w6 received grade-0277#1 (receive count 1)",
+              "t=1129000 w7 ack grade-0272#1 ok",
+              "t=1129000 w7 received grade-0278#1 (receive count 1)",
+              "t=1130000 w6 ack grade-0277#1 ok",
+              "t=1130000 w6 received grade-0279#1 (receive count 1)",
+              "t=1138000 w2 ack grade-0268#1 ok",
+              "t=1138000 w2 received grade-0280#1 (receive count 1)",
+              "t=1145000 w6 ack grade-0279#1 ok",
+              "t=1145000 w6 received grade-0281#1 (receive count 1)",
+              "t=1147000 w4 ack grade-0274#1 ok",
+              "t=1147000 w4 received grade-0282#1 (receive count 1)",
+              "t=1153000 w3 ack grade-0275#1 ok",
+              "t=1153000 w3 received grade-0283#1 (receive count 1)",
+              "t=1155000 w5 ack grade-0276#1 ok",
+              "t=1155000 w5 received grade-0284#1 (receive count 1)",
+              "t=1158000 w2 ack grade-0280#1 ok",
+              "t=1158000 w2 received grade-0285#1 (receive count 1)",
+              "t=1159000 w7 ack grade-0278#1 ok",
+              "t=1159000 w7 received grade-0265#2 (receive count 2)",
+              "t=1168000 w1 ack grade-0271#1 ok",
+              "t=1168000 w1 received grade-0286#1 (receive count 1)",
+              "t=1182000 w8 ack grade-0270#1 ok",
+              "t=1182000 w8 received grade-0287#1 (receive count 1)",
+              "t=1183000 w1 ack grade-0286#1 ok",
+              "t=1183000 w1 received grade-0288#1 (receive count 1)",
+              "t=1185000 w6 ack grade-0281#1 ok",
+              "t=1185000 w6 received grade-0289#1 (receive count 1)",
+              "t=1188000 w3 ack grade-0283#1 ok",
+              "t=1188000 w3 received grade-0290#1 (receive count 1)",
+              "t=1190000 w6 ack grade-0289#1 ok",
+              "t=1190000 w6 received grade-0291#1 (receive count 1)",
+              "t=1195000 w6 ack grade-0291#1 ok",
+              "t=1195000 w6 received grade-0292#1 (receive count 1)",
+              "t=1200000 w5 ack grade-0284#1 ok",
+              "t=1200000 w5 received grade-0293#1 (receive count 1)",
+              "t=1203000 w2 ack grade-0285#1 ok",
+              "t=1203000 w3 ack grade-0290#1 ok",
+              "t=1203000 w2 received grade-0294#1 (receive count 1)",
+              "t=1203000 w3 received grade-0295#1 (receive count 1)",
+              "t=1209000 w7 ack grade-0265#2 ok",
+              "t=1209000 w7 received grade-0296#1 (receive count 1)",
+              "t=1212000 w8 ack grade-0287#1 ok",
+              "t=1212000 w8 received grade-0297#1 (receive count 1)",
+              "t=1222000 w4 ack grade-0282#1 ok",
+              "t=1222000 w4 received grade-0298#1 (receive count 1)",
+              "t=1223000 w2 ack grade-0294#1 ok",
+              "t=1223000 w3 ack grade-0295#1 ok",
+              "t=1223000 w2 received grade-0299#1 (receive count 1)",
+              "t=1223000 w3 received grade-0300#1 (receive count 1)",
+              "t=1224000 w7 ack grade-0296#1 ok",
+              "t=1224000 w7 received grade-0301#1 (receive count 1)",
+              "t=1232000 w4 ack grade-0298#1 ok",
+              "t=1232000 w4 received grade-0302#1 (receive count 1)",
+              "t=1233000 w1 ack grade-0288#1 ok",
+              "t=1233000 w1 received grade-0303#1 (receive count 1)",
+              "t=1235000 w6 ack grade-0292#1 ok",
+              "t=1235000 w6 received grade-0304#1 (receive count 1)",
+              "t=1240000 w5 ack grade-0293#1 ok",
+              "t=1240000 w6 ack grade-0304#1 ok",
+              "t=1240000 w5 received grade-0305#1 (receive count 1)",
+              "t=1240000 w6 received grade-0306#1 (receive count 1)",
+              "t=1243000 w3 ack grade-0300#1 ok",
+              "t=1243000 w3 received grade-0307#1 (receive count 1)",
+              "t=1245000 w5 ack grade-0305#1 ok",
+              "t=1245000 w5 received grade-0308#1 (receive count 1)",
+              "t=1255000 w6 ack grade-0306#1 ok",
+              "t=1255000 w6 received grade-0309#1 (receive count 1)",
+              "t=1257000 w4 ack grade-0302#1 ok",
+              "t=1257000 w4 received grade-0310#1 (receive count 1)",
+              "t=1259000 w7 ack grade-0301#1 ok",
+              "t=1259000 w7 received grade-0311#1 (receive count 1)",
+              "t=1263000 w3 ack grade-0307#1 ok",
+              "t=1263000 w3 received grade-0312#1 (receive count 1)",
+              "t=1264000 w7 ack grade-0311#1 ok",
+              "t=1264000 w7 received grade-0313#1 (receive count 1)",
+              "t=1268000 w2 ack grade-0299#1 ok",
+              "t=1268000 w2 received grade-0314#1 (receive count 1)",
+              "t=1275000 w5 ack grade-0308#1 ok",
+              "t=1275000 w5 received grade-0315#1 (receive count 1)",
+              "t=1282000 w4 crashed working on grade-0310#1",
+              "t=1283000 w1 ack grade-0303#1 ok",
+              "t=1283000 w1 received grade-0316#1 (receive count 1)",
+              "t=1284000 w7 ack grade-0313#1 ok",
+              "t=1284000 w7 received grade-0317#1 (receive count 1)",
+              "t=1285000 w4 received grade-0297#2 (receive count 2)",
+              "t=1287000 w8 ack grade-0297#1 rejected",
+              "t=1287000 w8 received grade-0318#1 (receive count 1)",
+              "t=1295000 w6 ack grade-0309#1 ok",
+              "t=1295000 w6 received grade-0319#1 (receive count 1)",
+              "t=1300000 w6 ack grade-0319#1 ok",
+              "t=1300000 w6 received grade-0320#1 (receive count 1)",
+              "t=1304000 w7 ack grade-0317#1 ok",
+              "t=1304000 w7 received grade-0321#1 (receive count 1)",
+              "t=1307000 w8 ack grade-0318#1 ok",
+              "t=1307000 w8 received grade-0322#1 (receive count 1)",
+              "t=1310000 w5 ack grade-0315#1 ok",
+              "t=1310000 w5 received grade-0323#1 (receive count 1)",
+              "t=1313000 w3 ack grade-0312#1 ok",
+              "t=1313000 w3 received grade-0324#1 (receive count 1)",
+              "t=1328000 w1 ack grade-0316#1 ok",
+              "t=1328000 w1 received grade-0325#1 (receive count 1)",
+              "t=1333000 w6 crashed working on grade-0320#1",
+              "t=1334000 w6 received grade-0326#1 (receive count 1)",
+              "t=1338000 w2 ack grade-0314#1 ok",
+              "t=1338000 w2 received grade-0327#1 (receive count 1)",
+              "t=1343000 w3 ack grade-0324#1 ok",
+              "t=1343000 w3 received grade-0328#1 (receive count 1)",
+              "t=1352000 w8 ack grade-0322#1 ok",
+              "t=1352000 w8 received grade-0310#2 (receive count 2)",
+              "t=1354000 w7 ack grade-0321#1 ok",
+              "t=1354000 w7 received grade-0329#1 (receive count 1)",
+              "t=1359000 w7 ack grade-0329#1 ok",
+              "t=1359000 w7 received grade-0330#1 (receive count 1)",
+              "t=1360000 w4 ack grade-0297#2 ok",
+              "t=1360000 w5 ack grade-0323#1 ok",
+              "t=1360000 w4 received grade-0331#1 (receive count 1)",
+              "t=1360000 w5 received grade-0332#1 (receive count 1)",
+              "t=1364000 w6 ack grade-0326#1 ok",
+              "t=1364000 w6 received grade-0333#1 (receive count 1)",
+              "t=1373000 w1 ack grade-0325#1 ok",
+              "t=1373000 w1 received grade-0334#1 (receive count 1)",
+              "t=1383000 w2 ack grade-0327#1 ok",
+              "t=1383000 w2 received grade-0335#1 (receive count 1)",
+              "t=1388000 w3 ack grade-0328#1 ok",
+              "t=1388000 w3 received grade-0336#1 (receive count 1)",
+              "t=1389000 w6 ack grade-0333#1 ok",
+              "t=1389000 w6 received grade-0337#1 (receive count 1)",
+              "t=1397000 w8 ack grade-0310#2 ok",
+              "t=1397000 w8 received grade-0338#1 (receive count 1)",
+              "t=1399000 w7 ack grade-0330#1 ok",
+              "t=1399000 w7 received grade-0339#1 (receive count 1)",
+              "t=1408000 w2 ack grade-0335#1 ok",
+              "t=1408000 w2 received grade-0320#2 (receive count 2)",
+              "t=1410000 w4 ack grade-0331#1 ok",
+              "t=1410000 w4 received grade-0340#1 (receive count 1)",
+              "t=1413000 w1 ack grade-0334#1 ok",
+              "t=1413000 w1 received grade-0341#1 (receive count 1)",
+              "t=1419000 w7 ack grade-0339#1 ok",
+              "t=1419000 w7 received grade-0342#1 (receive count 1)",
+              "t=1424000 w6 ack grade-0337#1 ok",
+              "t=1424000 w6 received grade-0343#1 (receive count 1)",
+              "t=1430000 w5 ack grade-0332#1 ok",
+              "t=1430000 w5 received grade-0344#1 (receive count 1)",
+              "t=1432000 w8 ack grade-0338#1 ok",
+              "t=1432000 w8 received grade-0345#1 (receive count 1)",
+              "t=1434000 w6 ack grade-0343#1 ok",
+              "t=1434000 w6 received grade-0346#1 (receive count 1)",
+              "t=1435000 w5 ack grade-0344#1 ok",
+              "t=1435000 w5 received grade-0347#1 (receive count 1)",
+              "t=1438000 w3 ack grade-0336#1 ok",
+              "t=1438000 w3 received grade-0348#1 (receive count 1)",
+              "t=1443000 w1 ack grade-0341#1 ok",
+              "t=1443000 w1 received grade-0349#1 (receive count 1)",
+              "t=1445000 w8 crashed working on grade-0345#1",
+              "t=1448000 w1 ack grade-0349#1 ok",
+              "t=1448000 w2 ack grade-0320#2 ok",
+              "t=1448000 w1 received grade-0350#1 (receive count 1)",
+              "t=1448000 w2 received grade-0351#1 (receive count 1)",
+              "t=1449000 w7 ack grade-0342#1 ok",
+              "t=1449000 w8 received grade-0352#1 (receive count 1)",
+              "t=1449000 w7 received grade-0353#1 (receive count 1)",
+              "t=1450000 w4 ack grade-0340#1 ok",
+              "t=1450000 w4 received grade-0354#1 (receive count 1)",
+              "t=1459000 w8 ack grade-0352#1 ok",
+              "t=1459000 w8 received grade-0355#1 (receive count 1)",
+              "t=1463000 w2 ack grade-0351#1 ok",
+              "t=1463000 w2 received grade-0356#1 (receive count 1)",
+              "t=1468000 w2 ack grade-0356#1 ok",
+              "t=1468000 w2 received grade-0357#1 (receive count 1)",
+              "t=1469000 w8 ack grade-0355#1 ok",
+              "t=1469000 w8 received grade-0358#1 (receive count 1)",
+              "t=1470000 w5 ack grade-0347#1 ok",
+              "t=1470000 w5 received grade-0359#1 (receive count 1)",
+              "t=1480000 w4 ack grade-0354#1 ok",
+              "t=1483000 w1 ack grade-0350#1 ok",
+              "t=1484000 w6 ack grade-0346#1 ok",
+              "t=1484000 w7 ack grade-0353#1 ok",
+              "t=1490000 w5 ack grade-0359#1 ok",
+              "t=1492000 w4 received grade-0345#2 (receive count 2)",
+              "t=1498000 w5 received grade-0348#2 (receive count 2)",
+              "t=1508000 w3 ack grade-0348#1 rejected",
+              "t=1513000 w2 ack grade-0357#1 ok",
+              "t=1514000 w8 ack grade-0358#1 ok",
+              "t=1558000 w6 received grade-0348#3 (receive count 3)",
+              "t=1567000 w4 ack grade-0345#2 ok",
+              "t=1568000 w5 ack grade-0348#2 rejected",
+              "t=1628000 w6 ack grade-0348#3 ok"
+            ]
+          },
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

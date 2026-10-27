@@ -1,0 +1,3779 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_bjm_311",
+      "name": "poison-message-evidence",
+      "type": "quiz",
+      "title": "Poison Message & Growing Queue: read the evidence",
+      "description": "Since 09:02 the grade-submissions queue has grown from 200 to 80,000 waiting submissions and no grade has been published. Six statements on one evidence pack - the queue dashboard (A), the worker logs (B), the queue config (C) and the message and grader details (D) - take you from reading the evidence to a hypothesis, past two wrong explanations, to the fix and how to verify it.",
+      "difficulty": "medium",
+      "outcomes": [
+        "failure-handling"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence A - queue dashboard, grade-submissions (FIFO, one message group \"grading\"):\ntime    waiting   graded/min  oldest message age\n09:00       200          598     3 s\n09:05     1,535            0     3 min 07 s\n09:30    12,660            0    28 min 16 s\n10:00    26,010            0    58 min 02 s\n10:15    autoscaler: grader-worker replicas 2 -> 6\n10:30    39,360            0     1 h 28 min\n11:00    52,710            0     1 h 58 min\n12:02    80,300            0     3 h 00 min\nsubmissions received: about 445 per minute all morning\n\nEvidence B - worker logs (grader-worker, all replicas):\n09:02:14.031 grader-worker-7c9f job=sub_8812 attempt=1 ERROR ParseError: Unexpected token '\\u0000' in JSON at position 4096\n09:02:14.033 grader-worker-7c9f job=sub_8812 requeued at head of group \"grading\", next attempt in 30s (attempts: 1 of unlimited)\n09:02:44.040 grader-worker-7c9f job=sub_8812 attempt=2 ERROR ParseError: Unexpected token '\\u0000' in JSON at position 4096\n09:02:44.041 grader-worker-7c9f job=sub_8812 requeued at head of group \"grading\", next attempt in 30s (attempts: 2 of unlimited)\n... the same two lines every 30 s ...\n10:15:52.310 grader-worker-2d11 idle: message group \"grading\" is locked by an in-flight message\n12:01:44.102 grader-worker-7c9f job=sub_8812 attempt=360 ERROR ParseError: Unexpected token '\\u0000' in JSON at position 4096\n\nStatement: \"Since 09:02 no submission other than sub_8812 has been attempted: every attempt in the logs is for the same job id, and nothing has been graded since then.\"",
+          "explanation": "True. Every attempt line in B names job=sub_8812, with the attempt counter going from 1 to 360 at one attempt every 30 s (3 hours = 10,800 s / 30 s = 360), and A shows 0 graded per minute from 09:05 while the waiting count rises. The other replicas only log that the group is locked. Reading the evidence means noticing what is absent too: no other job id appears at all. The common mistake is to read \"80,000 waiting\" as \"the workers are busy with 80,000 jobs\" when they are stuck on one.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence B - worker logs (grader-worker, all replicas):\n09:02:14.031 grader-worker-7c9f job=sub_8812 attempt=1 ERROR ParseError: Unexpected token '\\u0000' in JSON at position 4096\n09:02:14.033 grader-worker-7c9f job=sub_8812 requeued at head of group \"grading\", next attempt in 30s (attempts: 1 of unlimited)\n09:02:44.040 grader-worker-7c9f job=sub_8812 attempt=2 ERROR ParseError: Unexpected token '\\u0000' in JSON at position 4096\n09:02:44.041 grader-worker-7c9f job=sub_8812 requeued at head of group \"grading\", next attempt in 30s (attempts: 2 of unlimited)\n... the same two lines every 30 s ...\n10:15:52.310 grader-worker-2d11 idle: message group \"grading\" is locked by an in-flight message\n12:01:44.102 grader-worker-7c9f job=sub_8812 attempt=360 ERROR ParseError: Unexpected token '\\u0000' in JSON at position 4096\n\nEvidence C - queue and consumer config, as deployed:\nqueue: grade-submissions\ntype: fifo\nmessageGroupId: \"grading\"      # one group: results are published in submission order\nconsumer:\n  concurrency: 1               # per message group\nretry:\n  attempts: 0                  # 0 = unlimited\n  backoff: { type: fixed, delay: 30s }\n  onFailure: requeue-head\ndeadLetterQueue: none\nalerts: none on queue depth or message age\n\nStatement: \"sub_8812 fails, goes back to the head of the only message group, and with concurrency 1 and unlimited attempts nothing behind it can start, so the queue grows by the arrival rate.\"",
+          "explanation": "True. This hypothesis explains all of the evidence. C allows one in-flight message per group, puts every submission in one group, requeues a failure at the head and never gives up (attempts: 0). B shows the result: the same message every 30 s. A shows the consequence: waiting grows by about 445 per minute, exactly the arrival rate, and the oldest message age grows with the clock. One message that can never succeed (a poison message) plus unlimited retries plus strict ordering is head-of-line blocking. Remove any one of the three and the incident does not happen: the message would be parked, or would block only its own group, or would be retried a few times and given up.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence A - queue dashboard, grade-submissions (FIFO, one message group \"grading\"):\ntime    waiting   graded/min  oldest message age\n09:00       200          598     3 s\n09:05     1,535            0     3 min 07 s\n09:30    12,660            0    28 min 16 s\n10:00    26,010            0    58 min 02 s\n10:15    autoscaler: grader-worker replicas 2 -> 6\n10:30    39,360            0     1 h 28 min\n11:00    52,710            0     1 h 58 min\n12:02    80,300            0     3 h 00 min\nsubmissions received: about 445 per minute all morning\n\nEvidence B - worker logs (grader-worker, all replicas):\n09:02:14.031 grader-worker-7c9f job=sub_8812 attempt=1 ERROR ParseError: Unexpected token '\\u0000' in JSON at position 4096\n09:02:14.033 grader-worker-7c9f job=sub_8812 requeued at head of group \"grading\", next attempt in 30s (attempts: 1 of unlimited)\n09:02:44.040 grader-worker-7c9f job=sub_8812 attempt=2 ERROR ParseError: Unexpected token '\\u0000' in JSON at position 4096\n09:02:44.041 grader-worker-7c9f job=sub_8812 requeued at head of group \"grading\", next attempt in 30s (attempts: 2 of unlimited)\n... the same two lines every 30 s ...\n10:15:52.310 grader-worker-2d11 idle: message group \"grading\" is locked by an in-flight message\n12:01:44.102 grader-worker-7c9f job=sub_8812 attempt=360 ERROR ParseError: Unexpected token '\\u0000' in JSON at position 4096\n\nStatement: \"The step from 2 to 6 grader workers at 10:15 was too small: the queue keeps growing because 6 workers cannot keep up with 445 submissions a minute.\"",
+          "explanation": "False. A shows no change at all after 10:15: graded/min stays at 0 and waiting keeps growing by the same amount every half hour. B says why: grader-worker-2d11 is idle because the message group \"grading\" is locked by an in-flight message. With one group and concurrency 1 per group, only one message can be in flight at a time however many workers run, and that message is sub_8812. Before 09:02 two workers graded about 600 per minute, more than the arrival rate. The misconception is that a growing queue always means too little capacity; here the capacity is idle.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence A - queue dashboard, grade-submissions (FIFO, one message group \"grading\"):\ntime    waiting   graded/min  oldest message age\n09:00       200          598     3 s\n09:05     1,535            0     3 min 07 s\n09:30    12,660            0    28 min 16 s\n10:00    26,010            0    58 min 02 s\n10:15    autoscaler: grader-worker replicas 2 -> 6\n10:30    39,360            0     1 h 28 min\n11:00    52,710            0     1 h 58 min\n12:02    80,300            0     3 h 00 min\nsubmissions received: about 445 per minute all morning\n\nEvidence D - the message and the grader:\nsub_8812: learner u_4471, lesson ts-generics, enqueued 09:01:58, body 9.8 MB\nreport.json: cut at 4,096 bytes and padded with NUL bytes (sandbox log writer, output over 4 MB)\ntime to fail one attempt: 38 ms\ngrader duration p50 before 09:02: 1.1 s; sandbox CPU since 09:02: 2%\n\nStatement: \"The grader became slow at 09:02: grading now takes longer than the time between arrivals, which is why the backlog builds up.\"",
+          "explanation": "False. D shows one attempt failing in 38 ms, the grader's p50 before the incident at 1.1 s and the sandbox CPU at 2% since 09:02: the grader is idle, not slow. A slow grader would show a lower graded/min, not zero, and a backlog growing by the difference between arrivals and completions; A shows zero completions and growth equal to the full arrival rate. The misconception is to blame throughput when the evidence says nothing is being completed at all.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence C - queue and consumer config, as deployed:\nqueue: grade-submissions\ntype: fifo\nmessageGroupId: \"grading\"      # one group: results are published in submission order\nconsumer:\n  concurrency: 1               # per message group\nretry:\n  attempts: 0                  # 0 = unlimited\n  backoff: { type: fixed, delay: 30s }\n  onFailure: requeue-head\ndeadLetterQueue: none\nalerts: none on queue depth or message age\n\nProposed change:\nretry:\n  attempts: 0                  # 0 = unlimited\n  backoff: { type: exponential, delay: 30s, max: 1h }\n  onFailure: requeue-head\n\nStatement: \"This change fixes the incident: sub_8812 is retried less and less often, so the submissions behind it get graded.\"",
+          "explanation": "False. With onFailure: requeue-head in a FIFO group with concurrency 1, the message keeps its place at the head while it waits for the next attempt, and the group stays locked during the wait. A longer delay makes the block longer, not shorter, and attempts: 0 still means it never leaves. Backoff helps with failures that go away on their own (a timeout, a 503); a truncated report fails the same way on every attempt. The fix is a bounded number of attempts, then moving the message to a dead-letter queue with its last error, an alert on the dead-letter queue, and going on with the next message.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence B - worker logs (grader-worker, all replicas):\n09:02:14.031 grader-worker-7c9f job=sub_8812 attempt=1 ERROR ParseError: Unexpected token '\\u0000' in JSON at position 4096\n09:02:14.033 grader-worker-7c9f job=sub_8812 requeued at head of group \"grading\", next attempt in 30s (attempts: 1 of unlimited)\n09:02:44.040 grader-worker-7c9f job=sub_8812 attempt=2 ERROR ParseError: Unexpected token '\\u0000' in JSON at position 4096\n09:02:44.041 grader-worker-7c9f job=sub_8812 requeued at head of group \"grading\", next attempt in 30s (attempts: 2 of unlimited)\n... the same two lines every 30 s ...\n10:15:52.310 grader-worker-2d11 idle: message group \"grading\" is locked by an in-flight message\n12:01:44.102 grader-worker-7c9f job=sub_8812 attempt=360 ERROR ParseError: Unexpected token '\\u0000' in JSON at position 4096\n\nEvidence D - the message and the grader:\nsub_8812: learner u_4471, lesson ts-generics, enqueued 09:01:58, body 9.8 MB\nreport.json: cut at 4,096 bytes and padded with NUL bytes (sandbox log writer, output over 4 MB)\ntime to fail one attempt: 38 ms\ngrader duration p50 before 09:02: 1.1 s; sandbox CPU since 09:02: 2%\n\nPlanned verification on staging, after setting attempts: 3 and a dead-letter queue: replay sub_8812's body, then 1,000 normal submissions, and watch the queue.\n\nStatement: \"With the fix, sub_8812 should be in the dead-letter queue about 60 s after its first attempt, with its ParseError as the last error, the 1,000 submissions should all be graded in order after it, and the alert on dead-letter depth should fire.\"",
+          "explanation": "True. Three attempts 30 s apart take about 60 s (first attempt, +30 s, +60 s), then the message leaves the group with its evidence (attempts, last error, time) and the next message starts. Replaying the real poison payload is what makes this a verification of this incident and not a generic test: it proves the parser error is now bounded. The checks to read: the dead-letter entry, the processed order, the waiting count back near zero and the alert. The alert matters because a dead-letter queue nobody watches turns a loud outage into silent data loss.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_bjm_312",
+      "name": "poison-message-growing-queue",
+      "type": "fix_bug",
+      "title": "Poison Message & Growing Queue",
+      "description": "Since 09:02 the CodeDev grade-submissions queue has grown from 200 to 80,000 waiting submissions. The logs show the same job failing with a parser error every 30 seconds and going back to the head of the queue; nothing behind it is graded. The queue is FIFO with concurrency 1: workOnce(worker, now) is called once per second and may only attempt the message at the head; while the head waits for its retry (notBefore > now) nothing behind it may start. Fix workOnce so it follows the team's new retry policy: at most 3 attempts per message in total, whatever the error; after a failed attempt that is not the 3rd, the message stays at the head and is retried 30 s later; when the 3rd attempt fails, the message leaves the queue and is added to the dead-letter list with its id, its attempt count, its last error message and the current second, and the next message can be attempted from the next second on. A message that succeeds on any attempt is graded normally. Input (one JSON object on stdin): { until, sampleEvery, messages: [{ id, at, body }] }; each second from 0 to until, messages arriving at that second join the tail, then workOnce runs once. Output (printed by the runner): the graded submissions in order as \"id@second\", the dead-letter list as \"id after N attempts at T: error\", the queue depth sampled every sampleEvery seconds, and the message left at the head. Do not change the grader or the test runner.",
+      "difficulty": "medium",
+      "outcomes": [
+        "failure-handling"
+      ],
+      "points": 30,
+      "hints": [
+        "The starter retries every failure, forever, at the head. What should happen differently on the 3rd failed attempt of the same message, and which list should it end up in?",
+        "Look at the catch block of workOnce and at MAX_ATTEMPTS. head.attempts already counts the attempt that just failed. Only one branch should keep the message at the head; the other must remove it from the queue so the next message becomes the head.",
+        "A similar case with a limit of 2 attempts and a 10 s delay: a message fails at second 4 (attempt 1) and at second 14 (attempt 2). Attempt 2 is the last one, so at second 14 the message is parked with \"after 2 attempts at 14\" and its error, and the message behind it is attempted at second 15."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A malformed report among five submissions is dead-lettered after 3 attempts",
+          "input": {
+            "until": 90,
+            "sampleEvery": 15,
+            "messages": [
+              {
+                "id": "sub_1",
+                "at": 0,
+                "body": "{\"learner\":\"u_1001\",\"score\":90}"
+              },
+              {
+                "id": "sub_2",
+                "at": 0,
+                "body": "{\"learner\":\"u_4471\",\"score\":87,\"report\":\"\u0000\u0000\u0000"
+              },
+              {
+                "id": "sub_3",
+                "at": 0,
+                "body": "{\"learner\":\"u_1003\",\"score\":75}"
+              },
+              {
+                "id": "sub_4",
+                "at": 0,
+                "body": "{\"learner\":\"u_1004\",\"score\":60}"
+              },
+              {
+                "id": "sub_5",
+                "at": 0,
+                "body": "{\"learner\":\"u_1005\",\"score\":100}"
+              }
+            ]
+          },
+          "hidden": false,
+          "score": 3,
+          "expected": {
+            "processed": "sub_1@0 sub_3@62 sub_4@63 sub_5@64",
+            "deadLetters": [
+              "sub_2 after 3 attempts at 61: ParseError: test report is not valid JSON"
+            ],
+            "depth": [
+              4,
+              4,
+              4,
+              4,
+              4,
+              0,
+              0
+            ],
+            "head": "empty"
+          }
+        },
+        {
+          "name": "Steady arrivals behind a poison message: depth rises, then drains",
+          "input": {
+            "until": 240,
+            "sampleEvery": 20,
+            "messages": [
+              {
+                "id": "s01",
+                "at": 0,
+                "body": "{\"learner\":\"u0\",\"score\":0}"
+              },
+              {
+                "id": "s02",
+                "at": 2,
+                "body": "{\"learner\":\"u1\",\"score\":1}"
+              },
+              {
+                "id": "s03",
+                "at": 4,
+                "body": "{\"learner\":\"u_4471\",\"score\":87,\"report\":\"\u0000\u0000\u0000"
+              },
+              {
+                "id": "s04",
+                "at": 6,
+                "body": "{\"learner\":\"u3\",\"score\":3}"
+              },
+              {
+                "id": "s05",
+                "at": 8,
+                "body": "{\"learner\":\"u4\",\"score\":4}"
+              },
+              {
+                "id": "s06",
+                "at": 10,
+                "body": "{\"learner\":\"u5\",\"score\":5}"
+              },
+              {
+                "id": "s07",
+                "at": 12,
+                "body": "{\"learner\":\"u6\",\"score\":6}"
+              },
+              {
+                "id": "s08",
+                "at": 14,
+                "body": "{\"learner\":\"u7\",\"score\":7}"
+              },
+              {
+                "id": "s09",
+                "at": 16,
+                "body": "{\"learner\":\"u8\",\"score\":8}"
+              },
+              {
+                "id": "s10",
+                "at": 18,
+                "body": "{\"learner\":\"u9\",\"score\":9}"
+              },
+              {
+                "id": "s11",
+                "at": 20,
+                "body": "{\"learner\":\"u10\",\"score\":10}"
+              },
+              {
+                "id": "s12",
+                "at": 22,
+                "body": "{\"learner\":\"u11\",\"score\":11}"
+              },
+              {
+                "id": "s13",
+                "at": 24,
+                "body": "{\"learner\":\"u12\",\"score\":12}"
+              },
+              {
+                "id": "s14",
+                "at": 26,
+                "body": "{\"learner\":\"u13\",\"score\":13}"
+              },
+              {
+                "id": "s15",
+                "at": 28,
+                "body": "{\"learner\":\"u14\",\"score\":14}"
+              },
+              {
+                "id": "s16",
+                "at": 30,
+                "body": "{\"learner\":\"u15\",\"score\":15}"
+              },
+              {
+                "id": "s17",
+                "at": 32,
+                "body": "{\"learner\":\"u16\",\"score\":16}"
+              },
+              {
+                "id": "s18",
+                "at": 34,
+                "body": "{\"learner\":\"u17\",\"score\":17}"
+              },
+              {
+                "id": "s19",
+                "at": 36,
+                "body": "{\"learner\":\"u18\",\"score\":18}"
+              },
+              {
+                "id": "s20",
+                "at": 38,
+                "body": "{\"learner\":\"u19\",\"score\":19}"
+              },
+              {
+                "id": "s21",
+                "at": 40,
+                "body": "{\"learner\":\"u20\",\"score\":20}"
+              },
+              {
+                "id": "s22",
+                "at": 42,
+                "body": "{\"learner\":\"u21\",\"score\":21}"
+              },
+              {
+                "id": "s23",
+                "at": 44,
+                "body": "{\"learner\":\"u22\",\"score\":22}"
+              },
+              {
+                "id": "s24",
+                "at": 46,
+                "body": "{\"learner\":\"u23\",\"score\":23}"
+              },
+              {
+                "id": "s25",
+                "at": 48,
+                "body": "{\"learner\":\"u24\",\"score\":24}"
+              },
+              {
+                "id": "s26",
+                "at": 50,
+                "body": "{\"learner\":\"u25\",\"score\":25}"
+              },
+              {
+                "id": "s27",
+                "at": 52,
+                "body": "{\"learner\":\"u26\",\"score\":26}"
+              },
+              {
+                "id": "s28",
+                "at": 54,
+                "body": "{\"learner\":\"u27\",\"score\":27}"
+              },
+              {
+                "id": "s29",
+                "at": 56,
+                "body": "{\"learner\":\"u28\",\"score\":28}"
+              },
+              {
+                "id": "s30",
+                "at": 58,
+                "body": "{\"learner\":\"u29\",\"score\":29}"
+              },
+              {
+                "id": "s31",
+                "at": 60,
+                "body": "{\"learner\":\"u30\",\"score\":30}"
+              },
+              {
+                "id": "s32",
+                "at": 62,
+                "body": "{\"learner\":\"u31\",\"score\":31}"
+              },
+              {
+                "id": "s33",
+                "at": 64,
+                "body": "{\"learner\":\"u32\",\"score\":32}"
+              },
+              {
+                "id": "s34",
+                "at": 66,
+                "body": "{\"learner\":\"u33\",\"score\":33}"
+              },
+              {
+                "id": "s35",
+                "at": 68,
+                "body": "{\"learner\":\"u34\",\"score\":34}"
+              },
+              {
+                "id": "s36",
+                "at": 70,
+                "body": "{\"learner\":\"u35\",\"score\":35}"
+              },
+              {
+                "id": "s37",
+                "at": 72,
+                "body": "{\"learner\":\"u36\",\"score\":36}"
+              },
+              {
+                "id": "s38",
+                "at": 74,
+                "body": "{\"learner\":\"u37\",\"score\":37}"
+              },
+              {
+                "id": "s39",
+                "at": 76,
+                "body": "{\"learner\":\"u38\",\"score\":38}"
+              },
+              {
+                "id": "s40",
+                "at": 78,
+                "body": "{\"learner\":\"u39\",\"score\":39}"
+              },
+              {
+                "id": "s41",
+                "at": 80,
+                "body": "{\"learner\":\"u40\",\"score\":40}"
+              },
+              {
+                "id": "s42",
+                "at": 82,
+                "body": "{\"learner\":\"u41\",\"score\":41}"
+              },
+              {
+                "id": "s43",
+                "at": 84,
+                "body": "{\"learner\":\"u42\",\"score\":42}"
+              },
+              {
+                "id": "s44",
+                "at": 86,
+                "body": "{\"learner\":\"u43\",\"score\":43}"
+              },
+              {
+                "id": "s45",
+                "at": 88,
+                "body": "{\"learner\":\"u44\",\"score\":44}"
+              },
+              {
+                "id": "s46",
+                "at": 90,
+                "body": "{\"learner\":\"u45\",\"score\":45}"
+              },
+              {
+                "id": "s47",
+                "at": 92,
+                "body": "{\"learner\":\"u46\",\"score\":46}"
+              },
+              {
+                "id": "s48",
+                "at": 94,
+                "body": "{\"learner\":\"u47\",\"score\":47}"
+              },
+              {
+                "id": "s49",
+                "at": 96,
+                "body": "{\"learner\":\"u48\",\"score\":48}"
+              },
+              {
+                "id": "s50",
+                "at": 98,
+                "body": "{\"learner\":\"u49\",\"score\":49}"
+              },
+              {
+                "id": "s51",
+                "at": 100,
+                "body": "{\"learner\":\"u50\",\"score\":50}"
+              },
+              {
+                "id": "s52",
+                "at": 102,
+                "body": "{\"learner\":\"u51\",\"score\":51}"
+              },
+              {
+                "id": "s53",
+                "at": 104,
+                "body": "{\"learner\":\"u52\",\"score\":52}"
+              },
+              {
+                "id": "s54",
+                "at": 106,
+                "body": "{\"learner\":\"u53\",\"score\":53}"
+              },
+              {
+                "id": "s55",
+                "at": 108,
+                "body": "{\"learner\":\"u54\",\"score\":54}"
+              },
+              {
+                "id": "s56",
+                "at": 110,
+                "body": "{\"learner\":\"u55\",\"score\":55}"
+              },
+              {
+                "id": "s57",
+                "at": 112,
+                "body": "{\"learner\":\"u56\",\"score\":56}"
+              },
+              {
+                "id": "s58",
+                "at": 114,
+                "body": "{\"learner\":\"u57\",\"score\":57}"
+              },
+              {
+                "id": "s59",
+                "at": 116,
+                "body": "{\"learner\":\"u58\",\"score\":58}"
+              },
+              {
+                "id": "s60",
+                "at": 118,
+                "body": "{\"learner\":\"u59\",\"score\":59}"
+              }
+            ]
+          },
+          "hidden": false,
+          "score": 3,
+          "expected": {
+            "processed": "s01@0 s02@2 s04@65 s05@66 s06@67 s07@68 s08@69 s09@70 s10@71 s11@72 s12@73 s13@74 s14@75 s15@76 s16@77 s17@78 s18@79 s19@80 s20@81 s21@82 s22@83 s23@84 s24@85 s25@86 s26@87 s27@88 s28@89 s29@90 s30@91 s31@92 s32@93 s33@94 s34@95 s35@96 s36@97 s37@98 s38@99 s39@100 s40@101 s41@102 s42@103 s43@104 s44@105 s45@106 s46@107 s47@108 s48@109 s49@110 s50@111 s51@112 s52@113 s53@114 s54@115 s55@116 s56@117 s57@118 s58@119 s59@120 s60@121",
+            "deadLetters": [
+              "s03 after 3 attempts at 64: ParseError: test report is not valid JSON"
+            ],
+            "depth": [
+              0,
+              9,
+              19,
+              29,
+              22,
+              12,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "head": "empty"
+          }
+        },
+        {
+          "name": "Two sandbox timeouts, then a pass: graded on attempt 3, not dead-lettered",
+          "input": {
+            "until": 100,
+            "sampleEvery": 25,
+            "messages": [
+              {
+                "id": "sub_a",
+                "at": 0,
+                "body": "{\"learner\":\"u_2001\",\"score\":80,\"timeouts\":2}"
+              },
+              {
+                "id": "sub_b",
+                "at": 1,
+                "body": "{\"learner\":\"u_2002\",\"score\":70}"
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 3,
+          "expected": {
+            "processed": "sub_a@60 sub_b@61",
+            "deadLetters": [],
+            "depth": [
+              1,
+              2,
+              2,
+              0,
+              0
+            ],
+            "head": "empty"
+          }
+        },
+        {
+          "name": "Three sandbox timeouts: dead-lettered with GraderTimeout as the last error",
+          "input": {
+            "until": 100,
+            "sampleEvery": 25,
+            "messages": [
+              {
+                "id": "sub_a",
+                "at": 0,
+                "body": "{\"learner\":\"u_2001\",\"score\":80,\"timeouts\":3}"
+              },
+              {
+                "id": "sub_b",
+                "at": 1,
+                "body": "{\"learner\":\"u_2002\",\"score\":70}"
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 3,
+          "expected": {
+            "processed": "sub_b@61",
+            "deadLetters": [
+              "sub_a after 3 attempts at 60: GraderTimeout: sandbox did not answer in 10 s"
+            ],
+            "depth": [
+              1,
+              2,
+              2,
+              0,
+              0
+            ],
+            "head": "empty"
+          }
+        },
+        {
+          "name": "A timeout first, then a validation error: the DLQ keeps the last error",
+          "input": {
+            "until": 100,
+            "sampleEvery": 50,
+            "messages": [
+              {
+                "id": "sub_x",
+                "at": 5,
+                "body": "{\"learner\":\"u_3001\",\"score\":\"85\",\"timeouts\":1}"
+              },
+              {
+                "id": "sub_y",
+                "at": 6,
+                "body": "{\"learner\":\"u_3002\",\"score\":55}"
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 3,
+          "expected": {
+            "processed": "sub_y@66",
+            "deadLetters": [
+              "sub_x after 3 attempts at 65: ValidationError: score must be a number"
+            ],
+            "depth": [
+              0,
+              2,
+              0
+            ],
+            "head": "empty"
+          }
+        },
+        {
+          "name": "Invalid reports back to back (empty, null, array, missing learner, NaN score) are all parked",
+          "input": {
+            "until": 400,
+            "sampleEvery": 50,
+            "messages": [
+              {
+                "id": "bad_empty",
+                "at": 0,
+                "body": ""
+              },
+              {
+                "id": "bad_null",
+                "at": 0,
+                "body": "null"
+              },
+              {
+                "id": "bad_array",
+                "at": 0,
+                "body": "[1,2,3]"
+              },
+              {
+                "id": "bad_learner",
+                "at": 0,
+                "body": "{\"score\":40}"
+              },
+              {
+                "id": "bad_score",
+                "at": 0,
+                "body": "{\"learner\":\"u_9\",\"score\":\"NaN\"}"
+              },
+              {
+                "id": "good_after",
+                "at": 0,
+                "body": "{\"learner\":\"u_10\",\"score\":99}"
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 2,
+          "expected": {
+            "processed": "good_after@305",
+            "deadLetters": [
+              "bad_empty after 3 attempts at 60: ParseError: test report is not valid JSON",
+              "bad_null after 3 attempts at 121: ParseError: test report is not an object",
+              "bad_array after 3 attempts at 182: ParseError: test report is not an object",
+              "bad_learner after 3 attempts at 243: ValidationError: learner is missing",
+              "bad_score after 3 attempts at 304: ValidationError: score must be a number"
+            ],
+            "depth": [
+              6,
+              6,
+              5,
+              4,
+              3,
+              2,
+              2,
+              0,
+              0
+            ],
+            "head": "empty"
+          }
+        },
+        {
+          "name": "Large input: 600 submissions, 2 per second, 6 poison and some slow sandboxes",
+          "input": {
+            "until": 1200,
+            "sampleEvery": 100,
+            "messages": [
+              {
+                "id": "g0",
+                "at": 0,
+                "body": "{\"learner\":\"u0\",\"score\":0}"
+              },
+              {
+                "id": "g1",
+                "at": 0,
+                "body": "{\"learner\":\"u1\",\"score\":1}"
+              },
+              {
+                "id": "g2",
+                "at": 1,
+                "body": "{\"learner\":\"u2\",\"score\":2}"
+              },
+              {
+                "id": "g3",
+                "at": 1,
+                "body": "{\"learner\":\"u3\",\"score\":3}"
+              },
+              {
+                "id": "g4",
+                "at": 2,
+                "body": "{\"learner\":\"u4\",\"score\":4}"
+              },
+              {
+                "id": "g5",
+                "at": 2,
+                "body": "{\"learner\":\"u5\",\"score\":5}"
+              },
+              {
+                "id": "g6",
+                "at": 3,
+                "body": "{\"learner\":\"u6\",\"score\":6}"
+              },
+              {
+                "id": "g7",
+                "at": 3,
+                "body": "{\"learner\":\"u7\",\"score\":"
+              },
+              {
+                "id": "g8",
+                "at": 4,
+                "body": "{\"learner\":\"u8\",\"score\":8}"
+              },
+              {
+                "id": "g9",
+                "at": 4,
+                "body": "{\"learner\":\"u9\",\"score\":9}"
+              },
+              {
+                "id": "g10",
+                "at": 5,
+                "body": "{\"learner\":\"u10\",\"score\":10}"
+              },
+              {
+                "id": "g11",
+                "at": 5,
+                "body": "{\"learner\":\"u11\",\"score\":11}"
+              },
+              {
+                "id": "g12",
+                "at": 6,
+                "body": "{\"learner\":\"u12\",\"score\":12}"
+              },
+              {
+                "id": "g13",
+                "at": 6,
+                "body": "{\"learner\":\"u13\",\"score\":50,\"timeouts\":1}"
+              },
+              {
+                "id": "g14",
+                "at": 7,
+                "body": "{\"learner\":\"u14\",\"score\":14}"
+              },
+              {
+                "id": "g15",
+                "at": 7,
+                "body": "{\"learner\":\"u15\",\"score\":15}"
+              },
+              {
+                "id": "g16",
+                "at": 8,
+                "body": "{\"learner\":\"u16\",\"score\":16}"
+              },
+              {
+                "id": "g17",
+                "at": 8,
+                "body": "{\"learner\":\"u17\",\"score\":17}"
+              },
+              {
+                "id": "g18",
+                "at": 9,
+                "body": "{\"learner\":\"u18\",\"score\":18}"
+              },
+              {
+                "id": "g19",
+                "at": 9,
+                "body": "{\"learner\":\"u19\",\"score\":19}"
+              },
+              {
+                "id": "g20",
+                "at": 10,
+                "body": "{\"learner\":\"u20\",\"score\":20}"
+              },
+              {
+                "id": "g21",
+                "at": 10,
+                "body": "{\"learner\":\"u21\",\"score\":21}"
+              },
+              {
+                "id": "g22",
+                "at": 11,
+                "body": "{\"learner\":\"u22\",\"score\":22}"
+              },
+              {
+                "id": "g23",
+                "at": 11,
+                "body": "{\"learner\":\"u23\",\"score\":23}"
+              },
+              {
+                "id": "g24",
+                "at": 12,
+                "body": "{\"learner\":\"u24\",\"score\":24}"
+              },
+              {
+                "id": "g25",
+                "at": 12,
+                "body": "{\"learner\":\"u25\",\"score\":25}"
+              },
+              {
+                "id": "g26",
+                "at": 13,
+                "body": "{\"learner\":\"u26\",\"score\":26}"
+              },
+              {
+                "id": "g27",
+                "at": 13,
+                "body": "{\"learner\":\"u27\",\"score\":27}"
+              },
+              {
+                "id": "g28",
+                "at": 14,
+                "body": "{\"learner\":\"u28\",\"score\":28}"
+              },
+              {
+                "id": "g29",
+                "at": 14,
+                "body": "{\"learner\":\"u29\",\"score\":29}"
+              },
+              {
+                "id": "g30",
+                "at": 15,
+                "body": "{\"learner\":\"u30\",\"score\":30}"
+              },
+              {
+                "id": "g31",
+                "at": 15,
+                "body": "{\"learner\":\"u31\",\"score\":31}"
+              },
+              {
+                "id": "g32",
+                "at": 16,
+                "body": "{\"learner\":\"u32\",\"score\":32}"
+              },
+              {
+                "id": "g33",
+                "at": 16,
+                "body": "{\"learner\":\"u33\",\"score\":33}"
+              },
+              {
+                "id": "g34",
+                "at": 17,
+                "body": "{\"learner\":\"u34\",\"score\":34}"
+              },
+              {
+                "id": "g35",
+                "at": 17,
+                "body": "{\"learner\":\"u35\",\"score\":35}"
+              },
+              {
+                "id": "g36",
+                "at": 18,
+                "body": "{\"learner\":\"u36\",\"score\":36}"
+              },
+              {
+                "id": "g37",
+                "at": 18,
+                "body": "{\"learner\":\"u37\",\"score\":37}"
+              },
+              {
+                "id": "g38",
+                "at": 19,
+                "body": "{\"learner\":\"u38\",\"score\":38}"
+              },
+              {
+                "id": "g39",
+                "at": 19,
+                "body": "{\"learner\":\"u39\",\"score\":39}"
+              },
+              {
+                "id": "g40",
+                "at": 20,
+                "body": "{\"learner\":\"u40\",\"score\":40}"
+              },
+              {
+                "id": "g41",
+                "at": 20,
+                "body": "{\"learner\":\"u41\",\"score\":41}"
+              },
+              {
+                "id": "g42",
+                "at": 21,
+                "body": "{\"learner\":\"u42\",\"score\":42}"
+              },
+              {
+                "id": "g43",
+                "at": 21,
+                "body": "{\"learner\":\"u43\",\"score\":43}"
+              },
+              {
+                "id": "g44",
+                "at": 22,
+                "body": "{\"learner\":\"u44\",\"score\":44}"
+              },
+              {
+                "id": "g45",
+                "at": 22,
+                "body": "{\"learner\":\"u45\",\"score\":45}"
+              },
+              {
+                "id": "g46",
+                "at": 23,
+                "body": "{\"learner\":\"u46\",\"score\":46}"
+              },
+              {
+                "id": "g47",
+                "at": 23,
+                "body": "{\"learner\":\"u47\",\"score\":47}"
+              },
+              {
+                "id": "g48",
+                "at": 24,
+                "body": "{\"learner\":\"u48\",\"score\":48}"
+              },
+              {
+                "id": "g49",
+                "at": 24,
+                "body": "{\"learner\":\"u49\",\"score\":49}"
+              },
+              {
+                "id": "g50",
+                "at": 25,
+                "body": "{\"learner\":\"u50\",\"score\":50}"
+              },
+              {
+                "id": "g51",
+                "at": 25,
+                "body": "{\"learner\":\"u51\",\"score\":51}"
+              },
+              {
+                "id": "g52",
+                "at": 26,
+                "body": "{\"learner\":\"u52\",\"score\":52}"
+              },
+              {
+                "id": "g53",
+                "at": 26,
+                "body": "{\"learner\":\"u53\",\"score\":53}"
+              },
+              {
+                "id": "g54",
+                "at": 27,
+                "body": "{\"learner\":\"u54\",\"score\":54}"
+              },
+              {
+                "id": "g55",
+                "at": 27,
+                "body": "{\"learner\":\"u55\",\"score\":55}"
+              },
+              {
+                "id": "g56",
+                "at": 28,
+                "body": "{\"learner\":\"u56\",\"score\":56}"
+              },
+              {
+                "id": "g57",
+                "at": 28,
+                "body": "{\"learner\":\"u57\",\"score\":57}"
+              },
+              {
+                "id": "g58",
+                "at": 29,
+                "body": "{\"learner\":\"u58\",\"score\":58}"
+              },
+              {
+                "id": "g59",
+                "at": 29,
+                "body": "{\"learner\":\"u59\",\"score\":59}"
+              },
+              {
+                "id": "g60",
+                "at": 30,
+                "body": "{\"learner\":\"u60\",\"score\":60}"
+              },
+              {
+                "id": "g61",
+                "at": 30,
+                "body": "{\"learner\":\"u61\",\"score\":61}"
+              },
+              {
+                "id": "g62",
+                "at": 31,
+                "body": "{\"learner\":\"u62\",\"score\":62}"
+              },
+              {
+                "id": "g63",
+                "at": 31,
+                "body": "{\"learner\":\"u63\",\"score\":63}"
+              },
+              {
+                "id": "g64",
+                "at": 32,
+                "body": "{\"learner\":\"u64\",\"score\":64}"
+              },
+              {
+                "id": "g65",
+                "at": 32,
+                "body": "{\"learner\":\"u65\",\"score\":65}"
+              },
+              {
+                "id": "g66",
+                "at": 33,
+                "body": "{\"learner\":\"u66\",\"score\":66}"
+              },
+              {
+                "id": "g67",
+                "at": 33,
+                "body": "{\"learner\":\"u67\",\"score\":67}"
+              },
+              {
+                "id": "g68",
+                "at": 34,
+                "body": "{\"learner\":\"u68\",\"score\":68}"
+              },
+              {
+                "id": "g69",
+                "at": 34,
+                "body": "{\"learner\":\"u69\",\"score\":69}"
+              },
+              {
+                "id": "g70",
+                "at": 35,
+                "body": "{\"learner\":\"u70\",\"score\":70}"
+              },
+              {
+                "id": "g71",
+                "at": 35,
+                "body": "{\"learner\":\"u71\",\"score\":71}"
+              },
+              {
+                "id": "g72",
+                "at": 36,
+                "body": "{\"learner\":\"u72\",\"score\":72}"
+              },
+              {
+                "id": "g73",
+                "at": 36,
+                "body": "{\"learner\":\"u73\",\"score\":73}"
+              },
+              {
+                "id": "g74",
+                "at": 37,
+                "body": "{\"learner\":\"u74\",\"score\":74}"
+              },
+              {
+                "id": "g75",
+                "at": 37,
+                "body": "{\"learner\":\"u75\",\"score\":75}"
+              },
+              {
+                "id": "g76",
+                "at": 38,
+                "body": "{\"learner\":\"u76\",\"score\":76}"
+              },
+              {
+                "id": "g77",
+                "at": 38,
+                "body": "{\"learner\":\"u77\",\"score\":77}"
+              },
+              {
+                "id": "g78",
+                "at": 39,
+                "body": "{\"learner\":\"u78\",\"score\":78}"
+              },
+              {
+                "id": "g79",
+                "at": 39,
+                "body": "{\"learner\":\"u79\",\"score\":79}"
+              },
+              {
+                "id": "g80",
+                "at": 40,
+                "body": "{\"learner\":\"u80\",\"score\":80}"
+              },
+              {
+                "id": "g81",
+                "at": 40,
+                "body": "{\"learner\":\"u81\",\"score\":81}"
+              },
+              {
+                "id": "g82",
+                "at": 41,
+                "body": "{\"learner\":\"u82\",\"score\":82}"
+              },
+              {
+                "id": "g83",
+                "at": 41,
+                "body": "{\"learner\":\"u83\",\"score\":83}"
+              },
+              {
+                "id": "g84",
+                "at": 42,
+                "body": "{\"learner\":\"u84\",\"score\":84}"
+              },
+              {
+                "id": "g85",
+                "at": 42,
+                "body": "{\"learner\":\"u85\",\"score\":85}"
+              },
+              {
+                "id": "g86",
+                "at": 43,
+                "body": "{\"learner\":\"u86\",\"score\":86}"
+              },
+              {
+                "id": "g87",
+                "at": 43,
+                "body": "{\"learner\":\"u87\",\"score\":87}"
+              },
+              {
+                "id": "g88",
+                "at": 44,
+                "body": "{\"learner\":\"u88\",\"score\":88}"
+              },
+              {
+                "id": "g89",
+                "at": 44,
+                "body": "{\"learner\":\"u89\",\"score\":89}"
+              },
+              {
+                "id": "g90",
+                "at": 45,
+                "body": "{\"learner\":\"u90\",\"score\":90}"
+              },
+              {
+                "id": "g91",
+                "at": 45,
+                "body": "{\"learner\":\"u91\",\"score\":91}"
+              },
+              {
+                "id": "g92",
+                "at": 46,
+                "body": "{\"learner\":\"u92\",\"score\":92}"
+              },
+              {
+                "id": "g93",
+                "at": 46,
+                "body": "{\"learner\":\"u93\",\"score\":93}"
+              },
+              {
+                "id": "g94",
+                "at": 47,
+                "body": "{\"learner\":\"u94\",\"score\":94}"
+              },
+              {
+                "id": "g95",
+                "at": 47,
+                "body": "{\"learner\":\"u95\",\"score\":"
+              },
+              {
+                "id": "g96",
+                "at": 48,
+                "body": "{\"learner\":\"u96\",\"score\":\"96\"}"
+              },
+              {
+                "id": "g97",
+                "at": 48,
+                "body": "{\"learner\":\"u97\",\"score\":97}"
+              },
+              {
+                "id": "g98",
+                "at": 49,
+                "body": "{\"learner\":\"u98\",\"score\":98}"
+              },
+              {
+                "id": "g99",
+                "at": 49,
+                "body": "{\"learner\":\"u99\",\"score\":99}"
+              },
+              {
+                "id": "g100",
+                "at": 50,
+                "body": "{\"learner\":\"u100\",\"score\":100}"
+              },
+              {
+                "id": "g101",
+                "at": 50,
+                "body": "{\"learner\":\"u101\",\"score\":0}"
+              },
+              {
+                "id": "g102",
+                "at": 51,
+                "body": "{\"learner\":\"u102\",\"score\":1}"
+              },
+              {
+                "id": "g103",
+                "at": 51,
+                "body": "{\"learner\":\"u103\",\"score\":2}"
+              },
+              {
+                "id": "g104",
+                "at": 52,
+                "body": "{\"learner\":\"u104\",\"score\":3}"
+              },
+              {
+                "id": "g105",
+                "at": 52,
+                "body": "{\"learner\":\"u105\",\"score\":4}"
+              },
+              {
+                "id": "g106",
+                "at": 53,
+                "body": "{\"learner\":\"u106\",\"score\":5}"
+              },
+              {
+                "id": "g107",
+                "at": 53,
+                "body": "{\"learner\":\"u107\",\"score\":6}"
+              },
+              {
+                "id": "g108",
+                "at": 54,
+                "body": "{\"learner\":\"u108\",\"score\":7}"
+              },
+              {
+                "id": "g109",
+                "at": 54,
+                "body": "{\"learner\":\"u109\",\"score\":8}"
+              },
+              {
+                "id": "g110",
+                "at": 55,
+                "body": "{\"learner\":\"u110\",\"score\":50,\"timeouts\":1}"
+              },
+              {
+                "id": "g111",
+                "at": 55,
+                "body": "{\"learner\":\"u111\",\"score\":10}"
+              },
+              {
+                "id": "g112",
+                "at": 56,
+                "body": "{\"learner\":\"u112\",\"score\":11}"
+              },
+              {
+                "id": "g113",
+                "at": 56,
+                "body": "{\"learner\":\"u113\",\"score\":12}"
+              },
+              {
+                "id": "g114",
+                "at": 57,
+                "body": "{\"learner\":\"u114\",\"score\":13}"
+              },
+              {
+                "id": "g115",
+                "at": 57,
+                "body": "{\"learner\":\"u115\",\"score\":14}"
+              },
+              {
+                "id": "g116",
+                "at": 58,
+                "body": "{\"learner\":\"u116\",\"score\":15}"
+              },
+              {
+                "id": "g117",
+                "at": 58,
+                "body": "{\"learner\":\"u117\",\"score\":16}"
+              },
+              {
+                "id": "g118",
+                "at": 59,
+                "body": "{\"learner\":\"u118\",\"score\":17}"
+              },
+              {
+                "id": "g119",
+                "at": 59,
+                "body": "{\"learner\":\"u119\",\"score\":18}"
+              },
+              {
+                "id": "g120",
+                "at": 60,
+                "body": "{\"learner\":\"u120\",\"score\":19}"
+              },
+              {
+                "id": "g121",
+                "at": 60,
+                "body": "{\"learner\":\"u121\",\"score\":20}"
+              },
+              {
+                "id": "g122",
+                "at": 61,
+                "body": "{\"learner\":\"u122\",\"score\":21}"
+              },
+              {
+                "id": "g123",
+                "at": 61,
+                "body": "{\"learner\":\"u123\",\"score\":22}"
+              },
+              {
+                "id": "g124",
+                "at": 62,
+                "body": "{\"learner\":\"u124\",\"score\":23}"
+              },
+              {
+                "id": "g125",
+                "at": 62,
+                "body": "{\"learner\":\"u125\",\"score\":24}"
+              },
+              {
+                "id": "g126",
+                "at": 63,
+                "body": "{\"learner\":\"u126\",\"score\":25}"
+              },
+              {
+                "id": "g127",
+                "at": 63,
+                "body": "{\"learner\":\"u127\",\"score\":26}"
+              },
+              {
+                "id": "g128",
+                "at": 64,
+                "body": "{\"learner\":\"u128\",\"score\":27}"
+              },
+              {
+                "id": "g129",
+                "at": 64,
+                "body": "{\"learner\":\"u129\",\"score\":28}"
+              },
+              {
+                "id": "g130",
+                "at": 65,
+                "body": "{\"learner\":\"u130\",\"score\":29}"
+              },
+              {
+                "id": "g131",
+                "at": 65,
+                "body": "{\"learner\":\"u131\",\"score\":30}"
+              },
+              {
+                "id": "g132",
+                "at": 66,
+                "body": "{\"learner\":\"u132\",\"score\":31}"
+              },
+              {
+                "id": "g133",
+                "at": 66,
+                "body": "{\"learner\":\"u133\",\"score\":32}"
+              },
+              {
+                "id": "g134",
+                "at": 67,
+                "body": "{\"learner\":\"u134\",\"score\":33}"
+              },
+              {
+                "id": "g135",
+                "at": 67,
+                "body": "{\"learner\":\"u135\",\"score\":34}"
+              },
+              {
+                "id": "g136",
+                "at": 68,
+                "body": "{\"learner\":\"u136\",\"score\":35}"
+              },
+              {
+                "id": "g137",
+                "at": 68,
+                "body": "{\"learner\":\"u137\",\"score\":36}"
+              },
+              {
+                "id": "g138",
+                "at": 69,
+                "body": "{\"learner\":\"u138\",\"score\":37}"
+              },
+              {
+                "id": "g139",
+                "at": 69,
+                "body": "{\"learner\":\"u139\",\"score\":38}"
+              },
+              {
+                "id": "g140",
+                "at": 70,
+                "body": "{\"learner\":\"u140\",\"score\":39}"
+              },
+              {
+                "id": "g141",
+                "at": 70,
+                "body": "{\"learner\":\"u141\",\"score\":40}"
+              },
+              {
+                "id": "g142",
+                "at": 71,
+                "body": "{\"learner\":\"u142\",\"score\":41}"
+              },
+              {
+                "id": "g143",
+                "at": 71,
+                "body": "{\"learner\":\"u143\",\"score\":42}"
+              },
+              {
+                "id": "g144",
+                "at": 72,
+                "body": "{\"learner\":\"u144\",\"score\":43}"
+              },
+              {
+                "id": "g145",
+                "at": 72,
+                "body": "{\"learner\":\"u145\",\"score\":44}"
+              },
+              {
+                "id": "g146",
+                "at": 73,
+                "body": "{\"learner\":\"u146\",\"score\":45}"
+              },
+              {
+                "id": "g147",
+                "at": 73,
+                "body": "{\"learner\":\"u147\",\"score\":46}"
+              },
+              {
+                "id": "g148",
+                "at": 74,
+                "body": "{\"learner\":\"u148\",\"score\":47}"
+              },
+              {
+                "id": "g149",
+                "at": 74,
+                "body": "{\"learner\":\"u149\",\"score\":48}"
+              },
+              {
+                "id": "g150",
+                "at": 75,
+                "body": "{\"learner\":\"u150\",\"score\":49}"
+              },
+              {
+                "id": "g151",
+                "at": 75,
+                "body": "{\"learner\":\"u151\",\"score\":50}"
+              },
+              {
+                "id": "g152",
+                "at": 76,
+                "body": "{\"learner\":\"u152\",\"score\":51}"
+              },
+              {
+                "id": "g153",
+                "at": 76,
+                "body": "{\"learner\":\"u153\",\"score\":52}"
+              },
+              {
+                "id": "g154",
+                "at": 77,
+                "body": "{\"learner\":\"u154\",\"score\":53}"
+              },
+              {
+                "id": "g155",
+                "at": 77,
+                "body": "{\"learner\":\"u155\",\"score\":54}"
+              },
+              {
+                "id": "g156",
+                "at": 78,
+                "body": "{\"learner\":\"u156\",\"score\":55}"
+              },
+              {
+                "id": "g157",
+                "at": 78,
+                "body": "{\"learner\":\"u157\",\"score\":56}"
+              },
+              {
+                "id": "g158",
+                "at": 79,
+                "body": "{\"learner\":\"u158\",\"score\":57}"
+              },
+              {
+                "id": "g159",
+                "at": 79,
+                "body": "{\"learner\":\"u159\",\"score\":58}"
+              },
+              {
+                "id": "g160",
+                "at": 80,
+                "body": "{\"learner\":\"u160\",\"score\":59}"
+              },
+              {
+                "id": "g161",
+                "at": 80,
+                "body": "{\"learner\":\"u161\",\"score\":60}"
+              },
+              {
+                "id": "g162",
+                "at": 81,
+                "body": "{\"learner\":\"u162\",\"score\":61}"
+              },
+              {
+                "id": "g163",
+                "at": 81,
+                "body": "{\"learner\":\"u163\",\"score\":62}"
+              },
+              {
+                "id": "g164",
+                "at": 82,
+                "body": "{\"learner\":\"u164\",\"score\":63}"
+              },
+              {
+                "id": "g165",
+                "at": 82,
+                "body": "{\"learner\":\"u165\",\"score\":64}"
+              },
+              {
+                "id": "g166",
+                "at": 83,
+                "body": "{\"learner\":\"u166\",\"score\":65}"
+              },
+              {
+                "id": "g167",
+                "at": 83,
+                "body": "{\"learner\":\"u167\",\"score\":66}"
+              },
+              {
+                "id": "g168",
+                "at": 84,
+                "body": "{\"learner\":\"u168\",\"score\":67}"
+              },
+              {
+                "id": "g169",
+                "at": 84,
+                "body": "{\"learner\":\"u169\",\"score\":68}"
+              },
+              {
+                "id": "g170",
+                "at": 85,
+                "body": "{\"learner\":\"u170\",\"score\":69}"
+              },
+              {
+                "id": "g171",
+                "at": 85,
+                "body": "{\"learner\":\"u171\",\"score\":70}"
+              },
+              {
+                "id": "g172",
+                "at": 86,
+                "body": "{\"learner\":\"u172\",\"score\":71}"
+              },
+              {
+                "id": "g173",
+                "at": 86,
+                "body": "{\"learner\":\"u173\",\"score\":72}"
+              },
+              {
+                "id": "g174",
+                "at": 87,
+                "body": "{\"learner\":\"u174\",\"score\":73}"
+              },
+              {
+                "id": "g175",
+                "at": 87,
+                "body": "{\"learner\":\"u175\",\"score\":74}"
+              },
+              {
+                "id": "g176",
+                "at": 88,
+                "body": "{\"learner\":\"u176\",\"score\":75}"
+              },
+              {
+                "id": "g177",
+                "at": 88,
+                "body": "{\"learner\":\"u177\",\"score\":76}"
+              },
+              {
+                "id": "g178",
+                "at": 89,
+                "body": "{\"learner\":\"u178\",\"score\":77}"
+              },
+              {
+                "id": "g179",
+                "at": 89,
+                "body": "{\"learner\":\"u179\",\"score\":78}"
+              },
+              {
+                "id": "g180",
+                "at": 90,
+                "body": "{\"learner\":\"u180\",\"score\":79}"
+              },
+              {
+                "id": "g181",
+                "at": 90,
+                "body": "{\"learner\":\"u181\",\"score\":80}"
+              },
+              {
+                "id": "g182",
+                "at": 91,
+                "body": "{\"learner\":\"u182\",\"score\":81}"
+              },
+              {
+                "id": "g183",
+                "at": 91,
+                "body": "{\"learner\":\"u183\",\"score\":82}"
+              },
+              {
+                "id": "g184",
+                "at": 92,
+                "body": "{\"learner\":\"u184\",\"score\":83}"
+              },
+              {
+                "id": "g185",
+                "at": 92,
+                "body": "{\"learner\":\"u185\",\"score\":84}"
+              },
+              {
+                "id": "g186",
+                "at": 93,
+                "body": "{\"learner\":\"u186\",\"score\":85}"
+              },
+              {
+                "id": "g187",
+                "at": 93,
+                "body": "{\"learner\":\"u187\",\"score\":86}"
+              },
+              {
+                "id": "g188",
+                "at": 94,
+                "body": "{\"learner\":\"u188\",\"score\":87}"
+              },
+              {
+                "id": "g189",
+                "at": 94,
+                "body": "{\"learner\":\"u189\",\"score\":88}"
+              },
+              {
+                "id": "g190",
+                "at": 95,
+                "body": "{\"learner\":\"u190\",\"score\":89}"
+              },
+              {
+                "id": "g191",
+                "at": 95,
+                "body": "{\"learner\":\"u191\",\"score\":90}"
+              },
+              {
+                "id": "g192",
+                "at": 96,
+                "body": "{\"learner\":\"u192\",\"score\":91}"
+              },
+              {
+                "id": "g193",
+                "at": 96,
+                "body": "{\"learner\":\"u193\",\"score\":92}"
+              },
+              {
+                "id": "g194",
+                "at": 97,
+                "body": "{\"learner\":\"u194\",\"score\":93}"
+              },
+              {
+                "id": "g195",
+                "at": 97,
+                "body": "{\"learner\":\"u195\",\"score\":94}"
+              },
+              {
+                "id": "g196",
+                "at": 98,
+                "body": "{\"learner\":\"u196\",\"score\":95}"
+              },
+              {
+                "id": "g197",
+                "at": 98,
+                "body": "{\"learner\":\"u197\",\"score\":96}"
+              },
+              {
+                "id": "g198",
+                "at": 99,
+                "body": "{\"learner\":\"u198\",\"score\":97}"
+              },
+              {
+                "id": "g199",
+                "at": 99,
+                "body": "{\"learner\":\"u199\",\"score\":98}"
+              },
+              {
+                "id": "g200",
+                "at": 100,
+                "body": "{\"learner\":\"u200\",\"score\":99}"
+              },
+              {
+                "id": "g201",
+                "at": 100,
+                "body": "{\"learner\":\"u201\",\"score\":100}"
+              },
+              {
+                "id": "g202",
+                "at": 101,
+                "body": "{\"learner\":\"u202\",\"score\":0}"
+              },
+              {
+                "id": "g203",
+                "at": 101,
+                "body": "{\"learner\":\"u203\",\"score\":1}"
+              },
+              {
+                "id": "g204",
+                "at": 102,
+                "body": "{\"learner\":\"u204\",\"score\":2}"
+              },
+              {
+                "id": "g205",
+                "at": 102,
+                "body": "{\"learner\":\"u205\",\"score\":3}"
+              },
+              {
+                "id": "g206",
+                "at": 103,
+                "body": "{\"learner\":\"u206\",\"score\":4}"
+              },
+              {
+                "id": "g207",
+                "at": 103,
+                "body": "{\"learner\":\"u207\",\"score\":50,\"timeouts\":1}"
+              },
+              {
+                "id": "g208",
+                "at": 104,
+                "body": "{\"learner\":\"u208\",\"score\":6}"
+              },
+              {
+                "id": "g209",
+                "at": 104,
+                "body": "{\"learner\":\"u209\",\"score\":7}"
+              },
+              {
+                "id": "g210",
+                "at": 105,
+                "body": "{\"learner\":\"u210\",\"score\":8}"
+              },
+              {
+                "id": "g211",
+                "at": 105,
+                "body": "{\"learner\":\"u211\",\"score\":9}"
+              },
+              {
+                "id": "g212",
+                "at": 106,
+                "body": "{\"learner\":\"u212\",\"score\":10}"
+              },
+              {
+                "id": "g213",
+                "at": 106,
+                "body": "{\"learner\":\"u213\",\"score\":11}"
+              },
+              {
+                "id": "g214",
+                "at": 107,
+                "body": "{\"learner\":\"u214\",\"score\":12}"
+              },
+              {
+                "id": "g215",
+                "at": 107,
+                "body": "{\"learner\":\"u215\",\"score\":13}"
+              },
+              {
+                "id": "g216",
+                "at": 108,
+                "body": "{\"learner\":\"u216\",\"score\":14}"
+              },
+              {
+                "id": "g217",
+                "at": 108,
+                "body": "{\"learner\":\"u217\",\"score\":15}"
+              },
+              {
+                "id": "g218",
+                "at": 109,
+                "body": "{\"learner\":\"u218\",\"score\":16}"
+              },
+              {
+                "id": "g219",
+                "at": 109,
+                "body": "{\"learner\":\"u219\",\"score\":17}"
+              },
+              {
+                "id": "g220",
+                "at": 110,
+                "body": "{\"learner\":\"u220\",\"score\":18}"
+              },
+              {
+                "id": "g221",
+                "at": 110,
+                "body": "{\"learner\":\"u221\",\"score\":19}"
+              },
+              {
+                "id": "g222",
+                "at": 111,
+                "body": "{\"learner\":\"u222\",\"score\":20}"
+              },
+              {
+                "id": "g223",
+                "at": 111,
+                "body": "{\"learner\":\"u223\",\"score\":21}"
+              },
+              {
+                "id": "g224",
+                "at": 112,
+                "body": "{\"learner\":\"u224\",\"score\":22}"
+              },
+              {
+                "id": "g225",
+                "at": 112,
+                "body": "{\"learner\":\"u225\",\"score\":23}"
+              },
+              {
+                "id": "g226",
+                "at": 113,
+                "body": "{\"learner\":\"u226\",\"score\":24}"
+              },
+              {
+                "id": "g227",
+                "at": 113,
+                "body": "{\"learner\":\"u227\",\"score\":25}"
+              },
+              {
+                "id": "g228",
+                "at": 114,
+                "body": "{\"learner\":\"u228\",\"score\":26}"
+              },
+              {
+                "id": "g229",
+                "at": 114,
+                "body": "{\"learner\":\"u229\",\"score\":27}"
+              },
+              {
+                "id": "g230",
+                "at": 115,
+                "body": "{\"learner\":\"u230\",\"score\":28}"
+              },
+              {
+                "id": "g231",
+                "at": 115,
+                "body": "{\"learner\":\"u231\",\"score\":29}"
+              },
+              {
+                "id": "g232",
+                "at": 116,
+                "body": "{\"learner\":\"u232\",\"score\":30}"
+              },
+              {
+                "id": "g233",
+                "at": 116,
+                "body": "{\"learner\":\"u233\",\"score\":31}"
+              },
+              {
+                "id": "g234",
+                "at": 117,
+                "body": "{\"learner\":\"u234\",\"score\":32}"
+              },
+              {
+                "id": "g235",
+                "at": 117,
+                "body": "{\"learner\":\"u235\",\"score\":33}"
+              },
+              {
+                "id": "g236",
+                "at": 118,
+                "body": "{\"learner\":\"u236\",\"score\":34}"
+              },
+              {
+                "id": "g237",
+                "at": 118,
+                "body": "{\"learner\":\"u237\",\"score\":35}"
+              },
+              {
+                "id": "g238",
+                "at": 119,
+                "body": "{\"learner\":\"u238\",\"score\":36}"
+              },
+              {
+                "id": "g239",
+                "at": 119,
+                "body": "{\"learner\":\"u239\",\"score\":37}"
+              },
+              {
+                "id": "g240",
+                "at": 120,
+                "body": "{\"learner\":\"u240\",\"score\":38}"
+              },
+              {
+                "id": "g241",
+                "at": 120,
+                "body": "{\"learner\":\"u241\",\"score\":39}"
+              },
+              {
+                "id": "g242",
+                "at": 121,
+                "body": "{\"learner\":\"u242\",\"score\":40}"
+              },
+              {
+                "id": "g243",
+                "at": 121,
+                "body": "{\"learner\":\"u243\",\"score\":41}"
+              },
+              {
+                "id": "g244",
+                "at": 122,
+                "body": "{\"learner\":\"u244\",\"score\":42}"
+              },
+              {
+                "id": "g245",
+                "at": 122,
+                "body": "{\"learner\":\"u245\",\"score\":43}"
+              },
+              {
+                "id": "g246",
+                "at": 123,
+                "body": "{\"learner\":\"u246\",\"score\":44}"
+              },
+              {
+                "id": "g247",
+                "at": 123,
+                "body": "{\"learner\":\"u247\",\"score\":45}"
+              },
+              {
+                "id": "g248",
+                "at": 124,
+                "body": "{\"learner\":\"u248\",\"score\":46}"
+              },
+              {
+                "id": "g249",
+                "at": 124,
+                "body": "{\"learner\":\"u249\",\"score\":47}"
+              },
+              {
+                "id": "g250",
+                "at": 125,
+                "body": "{\"learner\":\"u250\",\"score\":\"250\"}"
+              },
+              {
+                "id": "g251",
+                "at": 125,
+                "body": "{\"learner\":\"u251\",\"score\":49}"
+              },
+              {
+                "id": "g252",
+                "at": 126,
+                "body": "{\"learner\":\"u252\",\"score\":50}"
+              },
+              {
+                "id": "g253",
+                "at": 126,
+                "body": "{\"learner\":\"u253\",\"score\":51}"
+              },
+              {
+                "id": "g254",
+                "at": 127,
+                "body": "{\"learner\":\"u254\",\"score\":52}"
+              },
+              {
+                "id": "g255",
+                "at": 127,
+                "body": "{\"learner\":\"u255\",\"score\":53}"
+              },
+              {
+                "id": "g256",
+                "at": 128,
+                "body": "{\"learner\":\"u256\",\"score\":54}"
+              },
+              {
+                "id": "g257",
+                "at": 128,
+                "body": "{\"learner\":\"u257\",\"score\":55}"
+              },
+              {
+                "id": "g258",
+                "at": 129,
+                "body": "{\"learner\":\"u258\",\"score\":56}"
+              },
+              {
+                "id": "g259",
+                "at": 129,
+                "body": "{\"learner\":\"u259\",\"score\":57}"
+              },
+              {
+                "id": "g260",
+                "at": 130,
+                "body": "{\"learner\":\"u260\",\"score\":58}"
+              },
+              {
+                "id": "g261",
+                "at": 130,
+                "body": "{\"learner\":\"u261\",\"score\":59}"
+              },
+              {
+                "id": "g262",
+                "at": 131,
+                "body": "{\"learner\":\"u262\",\"score\":60}"
+              },
+              {
+                "id": "g263",
+                "at": 131,
+                "body": "{\"learner\":\"u263\",\"score\":61}"
+              },
+              {
+                "id": "g264",
+                "at": 132,
+                "body": "{\"learner\":\"u264\",\"score\":62}"
+              },
+              {
+                "id": "g265",
+                "at": 132,
+                "body": "{\"learner\":\"u265\",\"score\":63}"
+              },
+              {
+                "id": "g266",
+                "at": 133,
+                "body": "{\"learner\":\"u266\",\"score\":64}"
+              },
+              {
+                "id": "g267",
+                "at": 133,
+                "body": "{\"learner\":\"u267\",\"score\":65}"
+              },
+              {
+                "id": "g268",
+                "at": 134,
+                "body": "{\"learner\":\"u268\",\"score\":66}"
+              },
+              {
+                "id": "g269",
+                "at": 134,
+                "body": "{\"learner\":\"u269\",\"score\":67}"
+              },
+              {
+                "id": "g270",
+                "at": 135,
+                "body": "{\"learner\":\"u270\",\"score\":68}"
+              },
+              {
+                "id": "g271",
+                "at": 135,
+                "body": "{\"learner\":\"u271\",\"score\":69}"
+              },
+              {
+                "id": "g272",
+                "at": 136,
+                "body": "{\"learner\":\"u272\",\"score\":70}"
+              },
+              {
+                "id": "g273",
+                "at": 136,
+                "body": "{\"learner\":\"u273\",\"score\":71}"
+              },
+              {
+                "id": "g274",
+                "at": 137,
+                "body": "{\"learner\":\"u274\",\"score\":72}"
+              },
+              {
+                "id": "g275",
+                "at": 137,
+                "body": "{\"learner\":\"u275\",\"score\":73}"
+              },
+              {
+                "id": "g276",
+                "at": 138,
+                "body": "{\"learner\":\"u276\",\"score\":74}"
+              },
+              {
+                "id": "g277",
+                "at": 138,
+                "body": "{\"learner\":\"u277\",\"score\":75}"
+              },
+              {
+                "id": "g278",
+                "at": 139,
+                "body": "{\"learner\":\"u278\",\"score\":76}"
+              },
+              {
+                "id": "g279",
+                "at": 139,
+                "body": "{\"learner\":\"u279\",\"score\":77}"
+              },
+              {
+                "id": "g280",
+                "at": 140,
+                "body": "{\"learner\":\"u280\",\"score\":78}"
+              },
+              {
+                "id": "g281",
+                "at": 140,
+                "body": "{\"learner\":\"u281\",\"score\":79}"
+              },
+              {
+                "id": "g282",
+                "at": 141,
+                "body": "{\"learner\":\"u282\",\"score\":80}"
+              },
+              {
+                "id": "g283",
+                "at": 141,
+                "body": "{\"learner\":\"u283\",\"score\":81}"
+              },
+              {
+                "id": "g284",
+                "at": 142,
+                "body": "{\"learner\":\"u284\",\"score\":82}"
+              },
+              {
+                "id": "g285",
+                "at": 142,
+                "body": "{\"learner\":\"u285\",\"score\":83}"
+              },
+              {
+                "id": "g286",
+                "at": 143,
+                "body": "{\"learner\":\"u286\",\"score\":84}"
+              },
+              {
+                "id": "g287",
+                "at": 143,
+                "body": "{\"learner\":\"u287\",\"score\":85}"
+              },
+              {
+                "id": "g288",
+                "at": 144,
+                "body": "{\"learner\":\"u288\",\"score\":86}"
+              },
+              {
+                "id": "g289",
+                "at": 144,
+                "body": "{\"learner\":\"u289\",\"score\":87}"
+              },
+              {
+                "id": "g290",
+                "at": 145,
+                "body": "{\"learner\":\"u290\",\"score\":88}"
+              },
+              {
+                "id": "g291",
+                "at": 145,
+                "body": "{\"learner\":\"u291\",\"score\":89}"
+              },
+              {
+                "id": "g292",
+                "at": 146,
+                "body": "{\"learner\":\"u292\",\"score\":90}"
+              },
+              {
+                "id": "g293",
+                "at": 146,
+                "body": "{\"learner\":\"u293\",\"score\":91}"
+              },
+              {
+                "id": "g294",
+                "at": 147,
+                "body": "{\"learner\":\"u294\",\"score\":92}"
+              },
+              {
+                "id": "g295",
+                "at": 147,
+                "body": "{\"learner\":\"u295\",\"score\":93}"
+              },
+              {
+                "id": "g296",
+                "at": 148,
+                "body": "{\"learner\":\"u296\",\"score\":94}"
+              },
+              {
+                "id": "g297",
+                "at": 148,
+                "body": "{\"learner\":\"u297\",\"score\":95}"
+              },
+              {
+                "id": "g298",
+                "at": 149,
+                "body": "{\"learner\":\"u298\",\"score\":96}"
+              },
+              {
+                "id": "g299",
+                "at": 149,
+                "body": "{\"learner\":\"u299\",\"score\":97}"
+              },
+              {
+                "id": "g300",
+                "at": 150,
+                "body": "{\"learner\":\"u300\",\"score\":98}"
+              },
+              {
+                "id": "g301",
+                "at": 150,
+                "body": "{\"learner\":\"u301\",\"score\":99}"
+              },
+              {
+                "id": "g302",
+                "at": 151,
+                "body": "{\"learner\":\"u302\",\"score\":100}"
+              },
+              {
+                "id": "g303",
+                "at": 151,
+                "body": "{\"learner\":\"u303\",\"score\":0}"
+              },
+              {
+                "id": "g304",
+                "at": 152,
+                "body": "{\"learner\":\"u304\",\"score\":50,\"timeouts\":1}"
+              },
+              {
+                "id": "g305",
+                "at": 152,
+                "body": "{\"learner\":\"u305\",\"score\":2}"
+              },
+              {
+                "id": "g306",
+                "at": 153,
+                "body": "{\"learner\":\"u306\",\"score\":3}"
+              },
+              {
+                "id": "g307",
+                "at": 153,
+                "body": "{\"learner\":\"u307\",\"score\":4}"
+              },
+              {
+                "id": "g308",
+                "at": 154,
+                "body": "{\"learner\":\"u308\",\"score\":5}"
+              },
+              {
+                "id": "g309",
+                "at": 154,
+                "body": "{\"learner\":\"u309\",\"score\":6}"
+              },
+              {
+                "id": "g310",
+                "at": 155,
+                "body": "{\"learner\":\"u310\",\"score\":7}"
+              },
+              {
+                "id": "g311",
+                "at": 155,
+                "body": "{\"learner\":\"u311\",\"score\":8}"
+              },
+              {
+                "id": "g312",
+                "at": 156,
+                "body": "{\"learner\":\"u312\",\"score\":9}"
+              },
+              {
+                "id": "g313",
+                "at": 156,
+                "body": "{\"learner\":\"u313\",\"score\":10}"
+              },
+              {
+                "id": "g314",
+                "at": 157,
+                "body": "{\"learner\":\"u314\",\"score\":11}"
+              },
+              {
+                "id": "g315",
+                "at": 157,
+                "body": "{\"learner\":\"u315\",\"score\":12}"
+              },
+              {
+                "id": "g316",
+                "at": 158,
+                "body": "{\"learner\":\"u316\",\"score\":13}"
+              },
+              {
+                "id": "g317",
+                "at": 158,
+                "body": "{\"learner\":\"u317\",\"score\":14}"
+              },
+              {
+                "id": "g318",
+                "at": 159,
+                "body": "{\"learner\":\"u318\",\"score\":15}"
+              },
+              {
+                "id": "g319",
+                "at": 159,
+                "body": "{\"learner\":\"u319\",\"score\":16}"
+              },
+              {
+                "id": "g320",
+                "at": 160,
+                "body": "{\"learner\":\"u320\",\"score\":17}"
+              },
+              {
+                "id": "g321",
+                "at": 160,
+                "body": "{\"learner\":\"u321\",\"score\":18}"
+              },
+              {
+                "id": "g322",
+                "at": 161,
+                "body": "{\"learner\":\"u322\",\"score\":19}"
+              },
+              {
+                "id": "g323",
+                "at": 161,
+                "body": "{\"learner\":\"u323\",\"score\":20}"
+              },
+              {
+                "id": "g324",
+                "at": 162,
+                "body": "{\"learner\":\"u324\",\"score\":21}"
+              },
+              {
+                "id": "g325",
+                "at": 162,
+                "body": "{\"learner\":\"u325\",\"score\":22}"
+              },
+              {
+                "id": "g326",
+                "at": 163,
+                "body": "{\"learner\":\"u326\",\"score\":23}"
+              },
+              {
+                "id": "g327",
+                "at": 163,
+                "body": "{\"learner\":\"u327\",\"score\":24}"
+              },
+              {
+                "id": "g328",
+                "at": 164,
+                "body": "{\"learner\":\"u328\",\"score\":25}"
+              },
+              {
+                "id": "g329",
+                "at": 164,
+                "body": "{\"learner\":\"u329\",\"score\":26}"
+              },
+              {
+                "id": "g330",
+                "at": 165,
+                "body": "{\"learner\":\"u330\",\"score\":27}"
+              },
+              {
+                "id": "g331",
+                "at": 165,
+                "body": "{\"learner\":\"u331\",\"score\":28}"
+              },
+              {
+                "id": "g332",
+                "at": 166,
+                "body": "{\"learner\":\"u332\",\"score\":29}"
+              },
+              {
+                "id": "g333",
+                "at": 166,
+                "body": "{\"learner\":\"u333\",\"score\":30}"
+              },
+              {
+                "id": "g334",
+                "at": 167,
+                "body": "{\"learner\":\"u334\",\"score\":31}"
+              },
+              {
+                "id": "g335",
+                "at": 167,
+                "body": "{\"learner\":\"u335\",\"score\":32}"
+              },
+              {
+                "id": "g336",
+                "at": 168,
+                "body": "{\"learner\":\"u336\",\"score\":33}"
+              },
+              {
+                "id": "g337",
+                "at": 168,
+                "body": "{\"learner\":\"u337\",\"score\":34}"
+              },
+              {
+                "id": "g338",
+                "at": 169,
+                "body": "{\"learner\":\"u338\",\"score\":35}"
+              },
+              {
+                "id": "g339",
+                "at": 169,
+                "body": "{\"learner\":\"u339\",\"score\":36}"
+              },
+              {
+                "id": "g340",
+                "at": 170,
+                "body": "{\"learner\":\"u340\",\"score\":37}"
+              },
+              {
+                "id": "g341",
+                "at": 170,
+                "body": "{\"learner\":\"u341\",\"score\":38}"
+              },
+              {
+                "id": "g342",
+                "at": 171,
+                "body": "{\"learner\":\"u342\",\"score\":39}"
+              },
+              {
+                "id": "g343",
+                "at": 171,
+                "body": "{\"learner\":\"u343\",\"score\":40}"
+              },
+              {
+                "id": "g344",
+                "at": 172,
+                "body": "{\"learner\":\"u344\",\"score\":41}"
+              },
+              {
+                "id": "g345",
+                "at": 172,
+                "body": "{\"learner\":\"u345\",\"score\":42}"
+              },
+              {
+                "id": "g346",
+                "at": 173,
+                "body": "{\"learner\":\"u346\",\"score\":43}"
+              },
+              {
+                "id": "g347",
+                "at": 173,
+                "body": "{\"learner\":\"u347\",\"score\":44}"
+              },
+              {
+                "id": "g348",
+                "at": 174,
+                "body": "{\"learner\":\"u348\",\"score\":45}"
+              },
+              {
+                "id": "g349",
+                "at": 174,
+                "body": "{\"learner\":\"u349\",\"score\":46}"
+              },
+              {
+                "id": "g350",
+                "at": 175,
+                "body": "{\"learner\":\"u350\",\"score\":47}"
+              },
+              {
+                "id": "g351",
+                "at": 175,
+                "body": "{\"learner\":\"u351\",\"score\":48}"
+              },
+              {
+                "id": "g352",
+                "at": 176,
+                "body": "{\"learner\":\"u352\",\"score\":49}"
+              },
+              {
+                "id": "g353",
+                "at": 176,
+                "body": "{\"learner\":\"u353\",\"score\":50}"
+              },
+              {
+                "id": "g354",
+                "at": 177,
+                "body": "{\"learner\":\"u354\",\"score\":51}"
+              },
+              {
+                "id": "g355",
+                "at": 177,
+                "body": "{\"learner\":\"u355\",\"score\":52}"
+              },
+              {
+                "id": "g356",
+                "at": 178,
+                "body": "{\"learner\":\"u356\",\"score\":53}"
+              },
+              {
+                "id": "g357",
+                "at": 178,
+                "body": "{\"learner\":\"u357\",\"score\":54}"
+              },
+              {
+                "id": "g358",
+                "at": 179,
+                "body": "{\"learner\":\"u358\",\"score\":55}"
+              },
+              {
+                "id": "g359",
+                "at": 179,
+                "body": "{\"learner\":\"u359\",\"score\":56}"
+              },
+              {
+                "id": "g360",
+                "at": 180,
+                "body": "{\"learner\":\"u360\",\"score\":57}"
+              },
+              {
+                "id": "g361",
+                "at": 180,
+                "body": "{\"learner\":\"u361\",\"score\":58}"
+              },
+              {
+                "id": "g362",
+                "at": 181,
+                "body": "{\"learner\":\"u362\",\"score\":59}"
+              },
+              {
+                "id": "g363",
+                "at": 181,
+                "body": "{\"learner\":\"u363\",\"score\":60}"
+              },
+              {
+                "id": "g364",
+                "at": 182,
+                "body": "{\"learner\":\"u364\",\"score\":61}"
+              },
+              {
+                "id": "g365",
+                "at": 182,
+                "body": "{\"learner\":\"u365\",\"score\":62}"
+              },
+              {
+                "id": "g366",
+                "at": 183,
+                "body": "{\"learner\":\"u366\",\"score\":63}"
+              },
+              {
+                "id": "g367",
+                "at": 183,
+                "body": "{\"learner\":\"u367\",\"score\":64}"
+              },
+              {
+                "id": "g368",
+                "at": 184,
+                "body": "{\"learner\":\"u368\",\"score\":65}"
+              },
+              {
+                "id": "g369",
+                "at": 184,
+                "body": "{\"learner\":\"u369\",\"score\":66}"
+              },
+              {
+                "id": "g370",
+                "at": 185,
+                "body": "{\"learner\":\"u370\",\"score\":67}"
+              },
+              {
+                "id": "g371",
+                "at": 185,
+                "body": "{\"learner\":\"u371\",\"score\":68}"
+              },
+              {
+                "id": "g372",
+                "at": 186,
+                "body": "{\"learner\":\"u372\",\"score\":69}"
+              },
+              {
+                "id": "g373",
+                "at": 186,
+                "body": "{\"learner\":\"u373\",\"score\":70}"
+              },
+              {
+                "id": "g374",
+                "at": 187,
+                "body": "{\"learner\":\"u374\",\"score\":71}"
+              },
+              {
+                "id": "g375",
+                "at": 187,
+                "body": "{\"learner\":\"u375\",\"score\":72}"
+              },
+              {
+                "id": "g376",
+                "at": 188,
+                "body": "{\"learner\":\"u376\",\"score\":73}"
+              },
+              {
+                "id": "g377",
+                "at": 188,
+                "body": "{\"learner\":\"u377\",\"score\":74}"
+              },
+              {
+                "id": "g378",
+                "at": 189,
+                "body": "{\"learner\":\"u378\",\"score\":75}"
+              },
+              {
+                "id": "g379",
+                "at": 189,
+                "body": "{\"learner\":\"u379\",\"score\":76}"
+              },
+              {
+                "id": "g380",
+                "at": 190,
+                "body": "{\"learner\":\"u380\",\"score\":77}"
+              },
+              {
+                "id": "g381",
+                "at": 190,
+                "body": "{\"learner\":\"u381\",\"score\":78}"
+              },
+              {
+                "id": "g382",
+                "at": 191,
+                "body": "{\"learner\":\"u382\",\"score\":79}"
+              },
+              {
+                "id": "g383",
+                "at": 191,
+                "body": "{\"learner\":\"u383\",\"score\":80}"
+              },
+              {
+                "id": "g384",
+                "at": 192,
+                "body": "{\"learner\":\"u384\",\"score\":81}"
+              },
+              {
+                "id": "g385",
+                "at": 192,
+                "body": "{\"learner\":\"u385\",\"score\":82}"
+              },
+              {
+                "id": "g386",
+                "at": 193,
+                "body": "{\"learner\":\"u386\",\"score\":83}"
+              },
+              {
+                "id": "g387",
+                "at": 193,
+                "body": "{\"learner\":\"u387\",\"score\":84}"
+              },
+              {
+                "id": "g388",
+                "at": 194,
+                "body": "{\"learner\":\"u388\",\"score\":85}"
+              },
+              {
+                "id": "g389",
+                "at": 194,
+                "body": "{\"learner\":\"u389\",\"score\":86}"
+              },
+              {
+                "id": "g390",
+                "at": 195,
+                "body": "{\"learner\":\"u390\",\"score\":87}"
+              },
+              {
+                "id": "g391",
+                "at": 195,
+                "body": "{\"learner\":\"u391\",\"score\":88}"
+              },
+              {
+                "id": "g392",
+                "at": 196,
+                "body": "{\"learner\":\"u392\",\"score\":89}"
+              },
+              {
+                "id": "g393",
+                "at": 196,
+                "body": "{\"learner\":\"u393\",\"score\":90}"
+              },
+              {
+                "id": "g394",
+                "at": 197,
+                "body": "{\"learner\":\"u394\",\"score\":91}"
+              },
+              {
+                "id": "g395",
+                "at": 197,
+                "body": "{\"learner\":\"u395\",\"score\":92}"
+              },
+              {
+                "id": "g396",
+                "at": 198,
+                "body": "{\"learner\":\"u396\",\"score\":93}"
+              },
+              {
+                "id": "g397",
+                "at": 198,
+                "body": "{\"learner\":\"u397\",\"score\":94}"
+              },
+              {
+                "id": "g398",
+                "at": 199,
+                "body": "{\"learner\":\"u398\",\"score\":95}"
+              },
+              {
+                "id": "g399",
+                "at": 199,
+                "body": "{\"learner\":\"u399\",\"score\":96}"
+              },
+              {
+                "id": "g400",
+                "at": 200,
+                "body": "{\"learner\":\"u400\",\"score\":97}"
+              },
+              {
+                "id": "g401",
+                "at": 200,
+                "body": "{\"learner\":\"u401\",\"score\":50,\"timeouts\":1}"
+              },
+              {
+                "id": "g402",
+                "at": 201,
+                "body": "{\"learner\":\"u402\",\"score\":99}"
+              },
+              {
+                "id": "g403",
+                "at": 201,
+                "body": "{\"learner\":\"u403\",\"score\":100}"
+              },
+              {
+                "id": "g404",
+                "at": 202,
+                "body": "{\"learner\":\"u404\",\"score\":0}"
+              },
+              {
+                "id": "g405",
+                "at": 202,
+                "body": "{\"learner\":\"u405\",\"score\":1}"
+              },
+              {
+                "id": "g406",
+                "at": 203,
+                "body": "{\"learner\":\"u406\",\"score\":2}"
+              },
+              {
+                "id": "g407",
+                "at": 203,
+                "body": "{\"learner\":\"u407\",\"score\":3}"
+              },
+              {
+                "id": "g408",
+                "at": 204,
+                "body": "{\"learner\":\"u408\",\"score\":4}"
+              },
+              {
+                "id": "g409",
+                "at": 204,
+                "body": "{\"learner\":\"u409\",\"score\":5}"
+              },
+              {
+                "id": "g410",
+                "at": 205,
+                "body": "{\"learner\":\"u410\",\"score\":6}"
+              },
+              {
+                "id": "g411",
+                "at": 205,
+                "body": "{\"learner\":\"u411\",\"score\":7}"
+              },
+              {
+                "id": "g412",
+                "at": 206,
+                "body": "{\"learner\":\"u412\",\"score\":8}"
+              },
+              {
+                "id": "g413",
+                "at": 206,
+                "body": "{\"learner\":\"u413\",\"score\":9}"
+              },
+              {
+                "id": "g414",
+                "at": 207,
+                "body": "{\"learner\":\"u414\",\"score\":10}"
+              },
+              {
+                "id": "g415",
+                "at": 207,
+                "body": "{\"learner\":\"u415\",\"score\":11}"
+              },
+              {
+                "id": "g416",
+                "at": 208,
+                "body": "{\"learner\":\"u416\",\"score\":12}"
+              },
+              {
+                "id": "g417",
+                "at": 208,
+                "body": "{\"learner\":\"u417\",\"score\":13}"
+              },
+              {
+                "id": "g418",
+                "at": 209,
+                "body": "{\"learner\":\"u418\",\"score\":14}"
+              },
+              {
+                "id": "g419",
+                "at": 209,
+                "body": "{\"learner\":\"u419\",\"score\":15}"
+              },
+              {
+                "id": "g420",
+                "at": 210,
+                "body": "{\"learner\":\"u420\",\"score\":16}"
+              },
+              {
+                "id": "g421",
+                "at": 210,
+                "body": "{\"learner\":\"u421\",\"score\":17}"
+              },
+              {
+                "id": "g422",
+                "at": 211,
+                "body": "{\"learner\":\"u422\",\"score\":18}"
+              },
+              {
+                "id": "g423",
+                "at": 211,
+                "body": "{\"learner\":\"u423\",\"score\":19}"
+              },
+              {
+                "id": "g424",
+                "at": 212,
+                "body": "{\"learner\":\"u424\",\"score\":20}"
+              },
+              {
+                "id": "g425",
+                "at": 212,
+                "body": "{\"learner\":\"u425\",\"score\":21}"
+              },
+              {
+                "id": "g426",
+                "at": 213,
+                "body": "{\"learner\":\"u426\",\"score\":22}"
+              },
+              {
+                "id": "g427",
+                "at": 213,
+                "body": "{\"learner\":\"u427\",\"score\":23}"
+              },
+              {
+                "id": "g428",
+                "at": 214,
+                "body": "{\"learner\":\"u428\",\"score\":24}"
+              },
+              {
+                "id": "g429",
+                "at": 214,
+                "body": "{\"learner\":\"u429\",\"score\":25}"
+              },
+              {
+                "id": "g430",
+                "at": 215,
+                "body": "{\"learner\":\"u430\",\"score\":26}"
+              },
+              {
+                "id": "g431",
+                "at": 215,
+                "body": "{\"learner\":\"u431\",\"score\":27}"
+              },
+              {
+                "id": "g432",
+                "at": 216,
+                "body": "{\"learner\":\"u432\",\"score\":28}"
+              },
+              {
+                "id": "g433",
+                "at": 216,
+                "body": "{\"learner\":\"u433\",\"score\":29}"
+              },
+              {
+                "id": "g434",
+                "at": 217,
+                "body": "{\"learner\":\"u434\",\"score\":30}"
+              },
+              {
+                "id": "g435",
+                "at": 217,
+                "body": "{\"learner\":\"u435\",\"score\":31}"
+              },
+              {
+                "id": "g436",
+                "at": 218,
+                "body": "{\"learner\":\"u436\",\"score\":32}"
+              },
+              {
+                "id": "g437",
+                "at": 218,
+                "body": "{\"learner\":\"u437\",\"score\":33}"
+              },
+              {
+                "id": "g438",
+                "at": 219,
+                "body": "{\"learner\":\"u438\",\"score\":34}"
+              },
+              {
+                "id": "g439",
+                "at": 219,
+                "body": "{\"learner\":\"u439\",\"score\":35}"
+              },
+              {
+                "id": "g440",
+                "at": 220,
+                "body": "{\"learner\":\"u440\",\"score\":36}"
+              },
+              {
+                "id": "g441",
+                "at": 220,
+                "body": "{\"learner\":\"u441\",\"score\":37}"
+              },
+              {
+                "id": "g442",
+                "at": 221,
+                "body": "{\"learner\":\"u442\",\"score\":38}"
+              },
+              {
+                "id": "g443",
+                "at": 221,
+                "body": "{\"learner\":\"u443\",\"score\":39}"
+              },
+              {
+                "id": "g444",
+                "at": 222,
+                "body": "{\"learner\":\"u444\",\"score\":40}"
+              },
+              {
+                "id": "g445",
+                "at": 222,
+                "body": "{\"learner\":\"u445\",\"score\":41}"
+              },
+              {
+                "id": "g446",
+                "at": 223,
+                "body": "{\"learner\":\"u446\",\"score\":42}"
+              },
+              {
+                "id": "g447",
+                "at": 223,
+                "body": "{\"learner\":\"u447\",\"score\":43}"
+              },
+              {
+                "id": "g448",
+                "at": 224,
+                "body": "{\"learner\":\"u448\",\"score\":44}"
+              },
+              {
+                "id": "g449",
+                "at": 224,
+                "body": "{\"learner\":\"u449\",\"score\":45}"
+              },
+              {
+                "id": "g450",
+                "at": 225,
+                "body": "{\"learner\":\"u450\",\"score\":46}"
+              },
+              {
+                "id": "g451",
+                "at": 225,
+                "body": "{\"learner\":\"u451\",\"score\":47}"
+              },
+              {
+                "id": "g452",
+                "at": 226,
+                "body": "{\"learner\":\"u452\",\"score\":48}"
+              },
+              {
+                "id": "g453",
+                "at": 226,
+                "body": "{\"learner\":\"u453\",\"score\":49}"
+              },
+              {
+                "id": "g454",
+                "at": 227,
+                "body": "{\"learner\":\"u454\",\"score\":50}"
+              },
+              {
+                "id": "g455",
+                "at": 227,
+                "body": "{\"learner\":\"u455\",\"score\":51}"
+              },
+              {
+                "id": "g456",
+                "at": 228,
+                "body": "{\"learner\":\"u456\",\"score\":52}"
+              },
+              {
+                "id": "g457",
+                "at": 228,
+                "body": "{\"learner\":\"u457\",\"score\":53}"
+              },
+              {
+                "id": "g458",
+                "at": 229,
+                "body": "{\"learner\":\"u458\",\"score\":54}"
+              },
+              {
+                "id": "g459",
+                "at": 229,
+                "body": "{\"learner\":\"u459\",\"score\":55}"
+              },
+              {
+                "id": "g460",
+                "at": 230,
+                "body": "{\"learner\":\"u460\",\"score\":56}"
+              },
+              {
+                "id": "g461",
+                "at": 230,
+                "body": "{\"learner\":\"u461\",\"score\":57}"
+              },
+              {
+                "id": "g462",
+                "at": 231,
+                "body": "{\"learner\":\"u462\",\"score\":58}"
+              },
+              {
+                "id": "g463",
+                "at": 231,
+                "body": "{\"learner\":\"u463\",\"score\":59}"
+              },
+              {
+                "id": "g464",
+                "at": 232,
+                "body": "{\"learner\":\"u464\",\"score\":60}"
+              },
+              {
+                "id": "g465",
+                "at": 232,
+                "body": "{\"learner\":\"u465\",\"score\":61}"
+              },
+              {
+                "id": "g466",
+                "at": 233,
+                "body": "{\"learner\":\"u466\",\"score\":62}"
+              },
+              {
+                "id": "g467",
+                "at": 233,
+                "body": "{\"learner\":\"u467\",\"score\":63}"
+              },
+              {
+                "id": "g468",
+                "at": 234,
+                "body": "{\"learner\":\"u468\",\"score\":64}"
+              },
+              {
+                "id": "g469",
+                "at": 234,
+                "body": "{\"learner\":\"u469\",\"score\":65}"
+              },
+              {
+                "id": "g470",
+                "at": 235,
+                "body": "{\"learner\":\"u470\",\"score\":66}"
+              },
+              {
+                "id": "g471",
+                "at": 235,
+                "body": "{\"learner\":\"u471\",\"score\":67}"
+              },
+              {
+                "id": "g472",
+                "at": 236,
+                "body": "{\"learner\":\"u472\",\"score\":68}"
+              },
+              {
+                "id": "g473",
+                "at": 236,
+                "body": "{\"learner\":\"u473\",\"score\":69}"
+              },
+              {
+                "id": "g474",
+                "at": 237,
+                "body": "{\"learner\":\"u474\",\"score\":70}"
+              },
+              {
+                "id": "g475",
+                "at": 237,
+                "body": "{\"learner\":\"u475\",\"score\":71}"
+              },
+              {
+                "id": "g476",
+                "at": 238,
+                "body": "{\"learner\":\"u476\",\"score\":72}"
+              },
+              {
+                "id": "g477",
+                "at": 238,
+                "body": "{\"learner\":\"u477\",\"score\":73}"
+              },
+              {
+                "id": "g478",
+                "at": 239,
+                "body": "{\"learner\":\"u478\",\"score\":74}"
+              },
+              {
+                "id": "g479",
+                "at": 239,
+                "body": "{\"learner\":\"u479\",\"score\":75}"
+              },
+              {
+                "id": "g480",
+                "at": 240,
+                "body": "{\"learner\":\"u480\",\"score\":76}"
+              },
+              {
+                "id": "g481",
+                "at": 240,
+                "body": "{\"learner\":\"u481\",\"score\":77}"
+              },
+              {
+                "id": "g482",
+                "at": 241,
+                "body": "{\"learner\":\"u482\",\"score\":78}"
+              },
+              {
+                "id": "g483",
+                "at": 241,
+                "body": "{\"learner\":\"u483\",\"score\":79}"
+              },
+              {
+                "id": "g484",
+                "at": 242,
+                "body": "{\"learner\":\"u484\",\"score\":80}"
+              },
+              {
+                "id": "g485",
+                "at": 242,
+                "body": "{\"learner\":\"u485\",\"score\":81}"
+              },
+              {
+                "id": "g486",
+                "at": 243,
+                "body": "{\"learner\":\"u486\",\"score\":82}"
+              },
+              {
+                "id": "g487",
+                "at": 243,
+                "body": "{\"learner\":\"u487\",\"score\":83}"
+              },
+              {
+                "id": "g488",
+                "at": 244,
+                "body": "{\"learner\":\"u488\",\"score\":84}"
+              },
+              {
+                "id": "g489",
+                "at": 244,
+                "body": "{\"learner\":\"u489\",\"score\":85}"
+              },
+              {
+                "id": "g490",
+                "at": 245,
+                "body": "{\"learner\":\"u490\",\"score\":86}"
+              },
+              {
+                "id": "g491",
+                "at": 245,
+                "body": "{\"learner\":\"u491\",\"score\":87}"
+              },
+              {
+                "id": "g492",
+                "at": 246,
+                "body": "{\"learner\":\"u492\",\"score\":88}"
+              },
+              {
+                "id": "g493",
+                "at": 246,
+                "body": "{\"learner\":\"u493\",\"score\":89}"
+              },
+              {
+                "id": "g494",
+                "at": 247,
+                "body": "{\"learner\":\"u494\",\"score\":90}"
+              },
+              {
+                "id": "g495",
+                "at": 247,
+                "body": "{\"learner\":\"u495\",\"score\":91}"
+              },
+              {
+                "id": "g496",
+                "at": 248,
+                "body": "{\"learner\":\"u496\",\"score\":92}"
+              },
+              {
+                "id": "g497",
+                "at": 248,
+                "body": "{\"learner\":\"u497\",\"score\":93}"
+              },
+              {
+                "id": "g498",
+                "at": 249,
+                "body": "{\"learner\":\"u498\",\"score\":50,\"timeouts\":1}"
+              },
+              {
+                "id": "g499",
+                "at": 249,
+                "body": "{\"learner\":\"u499\",\"score\":95}"
+              },
+              {
+                "id": "g500",
+                "at": 250,
+                "body": "{\"learner\":\"u500\",\"score\":96}"
+              },
+              {
+                "id": "g501",
+                "at": 250,
+                "body": "{\"learner\":\"u501\",\"score\":97}"
+              },
+              {
+                "id": "g502",
+                "at": 251,
+                "body": "{\"learner\":\"u502\",\"score\":98}"
+              },
+              {
+                "id": "g503",
+                "at": 251,
+                "body": "{\"learner\":\"u503\",\"score\":99}"
+              },
+              {
+                "id": "g504",
+                "at": 252,
+                "body": "{\"learner\":\"u504\",\"score\":100}"
+              },
+              {
+                "id": "g505",
+                "at": 252,
+                "body": "{\"learner\":\"u505\",\"score\":0}"
+              },
+              {
+                "id": "g506",
+                "at": 253,
+                "body": "{\"learner\":\"u506\",\"score\":1}"
+              },
+              {
+                "id": "g507",
+                "at": 253,
+                "body": "{\"learner\":\"u507\",\"score\":2}"
+              },
+              {
+                "id": "g508",
+                "at": 254,
+                "body": "{\"learner\":\"u508\",\"score\":3}"
+              },
+              {
+                "id": "g509",
+                "at": 254,
+                "body": "{\"learner\":\"u509\",\"score\":4}"
+              },
+              {
+                "id": "g510",
+                "at": 255,
+                "body": "{\"learner\":\"u510\",\"score\":5}"
+              },
+              {
+                "id": "g511",
+                "at": 255,
+                "body": "{\"learner\":\"u511\",\"score\":6}"
+              },
+              {
+                "id": "g512",
+                "at": 256,
+                "body": "{\"learner\":\"u512\",\"score\":7}"
+              },
+              {
+                "id": "g513",
+                "at": 256,
+                "body": "{\"learner\":\"u513\",\"score\":8}"
+              },
+              {
+                "id": "g514",
+                "at": 257,
+                "body": "{\"learner\":\"u514\",\"score\":9}"
+              },
+              {
+                "id": "g515",
+                "at": 257,
+                "body": "{\"learner\":\"u515\",\"score\":10}"
+              },
+              {
+                "id": "g516",
+                "at": 258,
+                "body": "{\"learner\":\"u516\",\"score\":11}"
+              },
+              {
+                "id": "g517",
+                "at": 258,
+                "body": "{\"learner\":\"u517\",\"score\":12}"
+              },
+              {
+                "id": "g518",
+                "at": 259,
+                "body": "{\"learner\":\"u518\",\"score\":13}"
+              },
+              {
+                "id": "g519",
+                "at": 259,
+                "body": "{\"learner\":\"u519\",\"score\":14}"
+              },
+              {
+                "id": "g520",
+                "at": 260,
+                "body": "{\"learner\":\"u520\",\"score\":15}"
+              },
+              {
+                "id": "g521",
+                "at": 260,
+                "body": "{\"learner\":\"u521\",\"score\":16}"
+              },
+              {
+                "id": "g522",
+                "at": 261,
+                "body": "{\"learner\":\"u522\",\"score\":17}"
+              },
+              {
+                "id": "g523",
+                "at": 261,
+                "body": "{\"learner\":\"u523\",\"score\":18}"
+              },
+              {
+                "id": "g524",
+                "at": 262,
+                "body": "{\"learner\":\"u524\",\"score\":19}"
+              },
+              {
+                "id": "g525",
+                "at": 262,
+                "body": "{\"learner\":\"u525\",\"score\":20}"
+              },
+              {
+                "id": "g526",
+                "at": 263,
+                "body": "{\"learner\":\"u526\",\"score\":21}"
+              },
+              {
+                "id": "g527",
+                "at": 263,
+                "body": "{\"learner\":\"u527\",\"score\":22}"
+              },
+              {
+                "id": "g528",
+                "at": 264,
+                "body": "{\"learner\":\"u528\",\"score\":23}"
+              },
+              {
+                "id": "g529",
+                "at": 264,
+                "body": "{\"learner\":\"u529\",\"score\":24}"
+              },
+              {
+                "id": "g530",
+                "at": 265,
+                "body": "{\"learner\":\"u530\",\"score\":25}"
+              },
+              {
+                "id": "g531",
+                "at": 265,
+                "body": "{\"learner\":\"u531\",\"score\":26}"
+              },
+              {
+                "id": "g532",
+                "at": 266,
+                "body": "{\"learner\":\"u532\",\"score\":27}"
+              },
+              {
+                "id": "g533",
+                "at": 266,
+                "body": "{\"learner\":\"u533\",\"score\":28}"
+              },
+              {
+                "id": "g534",
+                "at": 267,
+                "body": "{\"learner\":\"u534\",\"score\":29}"
+              },
+              {
+                "id": "g535",
+                "at": 267,
+                "body": "{\"learner\":\"u535\",\"score\":30}"
+              },
+              {
+                "id": "g536",
+                "at": 268,
+                "body": "{\"learner\":\"u536\",\"score\":31}"
+              },
+              {
+                "id": "g537",
+                "at": 268,
+                "body": "{\"learner\":\"u537\",\"score\":32}"
+              },
+              {
+                "id": "g538",
+                "at": 269,
+                "body": "{\"learner\":\"u538\",\"score\":33}"
+              },
+              {
+                "id": "g539",
+                "at": 269,
+                "body": "{\"learner\":\"u539\",\"score\":34}"
+              },
+              {
+                "id": "g540",
+                "at": 270,
+                "body": "{\"learner\":\"u540\",\"score\":35}"
+              },
+              {
+                "id": "g541",
+                "at": 270,
+                "body": "{\"learner\":\"u541\",\"score\":36}"
+              },
+              {
+                "id": "g542",
+                "at": 271,
+                "body": "{\"learner\":\"u542\",\"score\":37}"
+              },
+              {
+                "id": "g543",
+                "at": 271,
+                "body": "{\"learner\":\"u543\",\"score\":38}"
+              },
+              {
+                "id": "g544",
+                "at": 272,
+                "body": "{\"learner\":\"u544\",\"score\":39}"
+              },
+              {
+                "id": "g545",
+                "at": 272,
+                "body": "{\"learner\":\"u545\",\"score\":40}"
+              },
+              {
+                "id": "g546",
+                "at": 273,
+                "body": "{\"learner\":\"u546\",\"score\":41}"
+              },
+              {
+                "id": "g547",
+                "at": 273,
+                "body": "{\"learner\":\"u547\",\"score\":42}"
+              },
+              {
+                "id": "g548",
+                "at": 274,
+                "body": "{\"learner\":\"u548\",\"score\":43}"
+              },
+              {
+                "id": "g549",
+                "at": 274,
+                "body": "{\"learner\":\"u549\",\"score\":44}"
+              },
+              {
+                "id": "g550",
+                "at": 275,
+                "body": "{\"learner\":\"u550\",\"score\":45}"
+              },
+              {
+                "id": "g551",
+                "at": 275,
+                "body": "{\"learner\":\"u551\",\"score\":46}"
+              },
+              {
+                "id": "g552",
+                "at": 276,
+                "body": "{\"learner\":\"u552\",\"score\":47}"
+              },
+              {
+                "id": "g553",
+                "at": 276,
+                "body": "{\"learner\":\"u553\",\"score\":48}"
+              },
+              {
+                "id": "g554",
+                "at": 277,
+                "body": "{\"learner\":\"u554\",\"score\":49}"
+              },
+              {
+                "id": "g555",
+                "at": 277,
+                "body": "{\"learner\":\"u555\",\"score\":50}"
+              },
+              {
+                "id": "g556",
+                "at": 278,
+                "body": "{\"learner\":\"u556\",\"score\":51}"
+              },
+              {
+                "id": "g557",
+                "at": 278,
+                "body": "{\"learner\":\"u557\",\"score\":52}"
+              },
+              {
+                "id": "g558",
+                "at": 279,
+                "body": "{\"learner\":\"u558\",\"score\":53}"
+              },
+              {
+                "id": "g559",
+                "at": 279,
+                "body": "{\"learner\":\"u559\",\"score\":54}"
+              },
+              {
+                "id": "g560",
+                "at": 280,
+                "body": "{\"learner\":\"u560\",\"score\":55}"
+              },
+              {
+                "id": "g561",
+                "at": 280,
+                "body": "{\"learner\":\"u561\",\"score\":56}"
+              },
+              {
+                "id": "g562",
+                "at": 281,
+                "body": "{\"learner\":\"u562\",\"score\":57}"
+              },
+              {
+                "id": "g563",
+                "at": 281,
+                "body": "{\"learner\":\"u563\",\"score\":58}"
+              },
+              {
+                "id": "g564",
+                "at": 282,
+                "body": "{\"learner\":\"u564\",\"score\":59}"
+              },
+              {
+                "id": "g565",
+                "at": 282,
+                "body": "{\"learner\":\"u565\",\"score\":60}"
+              },
+              {
+                "id": "g566",
+                "at": 283,
+                "body": "{\"learner\":\"u566\",\"score\":61}"
+              },
+              {
+                "id": "g567",
+                "at": 283,
+                "body": "{\"learner\":\"u567\",\"score\":62}"
+              },
+              {
+                "id": "g568",
+                "at": 284,
+                "body": "{\"learner\":\"u568\",\"score\":63}"
+              },
+              {
+                "id": "g569",
+                "at": 284,
+                "body": "{\"learner\":\"u569\",\"score\":64}"
+              },
+              {
+                "id": "g570",
+                "at": 285,
+                "body": "{\"learner\":\"u570\",\"score\":65}"
+              },
+              {
+                "id": "g571",
+                "at": 285,
+                "body": "{\"learner\":\"u571\",\"score\":66}"
+              },
+              {
+                "id": "g572",
+                "at": 286,
+                "body": "{\"learner\":\"u572\",\"score\":67}"
+              },
+              {
+                "id": "g573",
+                "at": 286,
+                "body": "{\"learner\":\"u573\",\"score\":68}"
+              },
+              {
+                "id": "g574",
+                "at": 287,
+                "body": "{\"learner\":\"u574\",\"score\":69}"
+              },
+              {
+                "id": "g575",
+                "at": 287,
+                "body": "{\"learner\":\"u575\",\"score\":70}"
+              },
+              {
+                "id": "g576",
+                "at": 288,
+                "body": "{\"learner\":\"u576\",\"score\":71}"
+              },
+              {
+                "id": "g577",
+                "at": 288,
+                "body": "{\"learner\":\"u577\",\"score\":72}"
+              },
+              {
+                "id": "g578",
+                "at": 289,
+                "body": "{\"learner\":\"u578\",\"score\":73}"
+              },
+              {
+                "id": "g579",
+                "at": 289,
+                "body": "{\"learner\":\"u579\",\"score\":74}"
+              },
+              {
+                "id": "g580",
+                "at": 290,
+                "body": "{\"learner\":\"u580\",\"score\":75}"
+              },
+              {
+                "id": "g581",
+                "at": 290,
+                "body": "{\"learner\":\"u581\",\"score\":76}"
+              },
+              {
+                "id": "g582",
+                "at": 291,
+                "body": "{\"learner\":\"u582\",\"score\":77}"
+              },
+              {
+                "id": "g583",
+                "at": 291,
+                "body": "{\"learner\":\"u583\",\"score\":78}"
+              },
+              {
+                "id": "g584",
+                "at": 292,
+                "body": "{\"learner\":\"u584\",\"score\":79}"
+              },
+              {
+                "id": "g585",
+                "at": 292,
+                "body": "{\"learner\":\"u585\",\"score\":80}"
+              },
+              {
+                "id": "g586",
+                "at": 293,
+                "body": "{\"learner\":\"u586\",\"score\":81}"
+              },
+              {
+                "id": "g587",
+                "at": 293,
+                "body": "{\"learner\":\"u587\",\"score\":82}"
+              },
+              {
+                "id": "g588",
+                "at": 294,
+                "body": "{\"learner\":\"u588\",\"score\":83}"
+              },
+              {
+                "id": "g589",
+                "at": 294,
+                "body": "{\"learner\":\"u589\",\"score\":84}"
+              },
+              {
+                "id": "g590",
+                "at": 295,
+                "body": "{\"learner\":\"u590\",\"score\":\"590\"}"
+              },
+              {
+                "id": "g591",
+                "at": 295,
+                "body": "{\"learner\":\"u591\",\"score\":86}"
+              },
+              {
+                "id": "g592",
+                "at": 296,
+                "body": "{\"learner\":\"u592\",\"score\":87}"
+              },
+              {
+                "id": "g593",
+                "at": 296,
+                "body": "{\"learner\":\"u593\",\"score\":88}"
+              },
+              {
+                "id": "g594",
+                "at": 297,
+                "body": "{\"learner\":\"u594\",\"score\":89}"
+              },
+              {
+                "id": "g595",
+                "at": 297,
+                "body": "{\"learner\":\"u595\",\"score\":50,\"timeouts\":1}"
+              },
+              {
+                "id": "g596",
+                "at": 298,
+                "body": "{\"learner\":\"u596\",\"score\":91}"
+              },
+              {
+                "id": "g597",
+                "at": 298,
+                "body": "{\"learner\":\"u597\",\"score\":92}"
+              },
+              {
+                "id": "g598",
+                "at": 299,
+                "body": "{\"learner\":\"u598\",\"score\":93}"
+              },
+              {
+                "id": "g599",
+                "at": 299,
+                "body": "{\"learner\":\"u599\",\"score\":94}"
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 2,
+          "expected": {
+            "processed": "g0@0 g1@1 g2@2 g3@3 g4@4 g5@5 g6@6 g8@68 g9@69 g10@70 g11@71 g12@72 g13@103 g14@104 g15@105 g16@106 g17@107 g18@108 g19@109 g20@110 g21@111 g22@112 g23@113 g24@114 g25@115 g26@116 g27@117 g28@118 g29@119 g30@120 g31@121 g32@122 g33@123 g34@124 g35@125 g36@126 g37@127 g38@128 g39@129 g40@130 g41@131 g42@132 g43@133 g44@134 g45@135 g46@136 g47@137 g48@138 g49@139 g50@140 g51@141 g52@142 g53@143 g54@144 g55@145 g56@146 g57@147 g58@148 g59@149 g60@150 g61@151 g62@152 g63@153 g64@154 g65@155 g66@156 g67@157 g68@158 g69@159 g70@160 g71@161 g72@162 g73@163 g74@164 g75@165 g76@166 g77@167 g78@168 g79@169 g80@170 g81@171 g82@172 g83@173 g84@174 g85@175 g86@176 g87@177 g88@178 g89@179 g90@180 g91@181 g92@182 g93@183 g94@184 g97@307 g98@308 g99@309 g100@310 g101@311 g102@312 g103@313 g104@314 g105@315 g106@316 g107@317 g108@318 g109@319 g110@350 g111@351 g112@352 g113@353 g114@354 g115@355 g116@356 g117@357 g118@358 g119@359 g120@360 g121@361 g122@362 g123@363 g124@364 g125@365 g126@366 g127@367 g128@368 g129@369 g130@370 g131@371 g132@372 g133@373 g134@374 g135@375 g136@376 g137@377 g138@378 g139@379 g140@380 g141@381 g142@382 g143@383 g144@384 g145@385 g146@386 g147@387 g148@388 g149@389 g150@390 g151@391 g152@392 g153@393 g154@394 g155@395 g156@396 g157@397 g158@398 g159@399 g160@400 g161@401 g162@402 g163@403 g164@404 g165@405 g166@406 g167@407 g168@408 g169@409 g170@410 g171@411 g172@412 g173@413 g174@414 g175@415 g176@416 g177@417 g178@418 g179@419 g180@420 g181@421 g182@422 g183@423 g184@424 g185@425 g186@426 g187@427 g188@428 g189@429 g190@430 g191@431 g192@432 g193@433 g194@434 g195@435 g196@436 g197@437 g198@438 g199@439 g200@440 g201@441 g202@442 g203@443 g204@444 g205@445 g206@446 g207@477 g208@478 g209@479 g210@480 g211@481 g212@482 g213@483 g214@484 g215@485 g216@486 g217@487 g218@488 g219@489 g220@490 g221@491 g222@492 g223@493 g224@494 g225@495 g226@496 g227@497 g228@498 g229@499 g230@500 g231@501 g232@502 g233@503 g234@504 g235@505 g236@506 g237@507 g238@508 g239@509 g240@510 g241@511 g242@512 g243@513 g244@514 g245@515 g246@516 g247@517 g248@518 g249@519 g251@581 g252@582 g253@583 g254@584 g255@585 g256@586 g257@587 g258@588 g259@589 g260@590 g261@591 g262@592 g263@593 g264@594 g265@595 g266@596 g267@597 g268@598 g269@599 g270@600 g271@601 g272@602 g273@603 g274@604 g275@605 g276@606 g277@607 g278@608 g279@609 g280@610 g281@611 g282@612 g283@613 g284@614 g285@615 g286@616 g287@617 g288@618 g289@619 g290@620 g291@621 g292@622 g293@623 g294@624 g295@625 g296@626 g297@627 g298@628 g299@629 g300@630 g301@631 g302@632 g303@633 g304@664 g305@665 g306@666 g307@667 g308@668 g309@669 g310@670 g311@671 g312@672 g313@673 g314@674 g315@675 g316@676 g317@677 g318@678 g319@679 g320@680 g321@681 g322@682 g323@683 g324@684 g325@685 g326@686 g327@687 g328@688 g329@689 g330@690 g331@691 g332@692 g333@693 g334@694 g335@695 g336@696 g337@697 g338@698 g339@699 g340@700 g341@701 g342@702 g343@703 g344@704 g345@705 g346@706 g347@707 g348@708 g349@709 g350@710 g351@711 g352@712 g353@713 g354@714 g355@715 g356@716 g357@717 g358@718 g359@719 g360@720 g361@721 g362@722 g363@723 g364@724 g365@725 g366@726 g367@727 g368@728 g369@729 g370@730 g371@731 g372@732 g373@733 g374@734 g375@735 g376@736 g377@737 g378@738 g379@739 g380@740 g381@741 g382@742 g383@743 g384@744 g385@745 g386@746 g387@747 g388@748 g389@749 g390@750 g391@751 g392@752 g393@753 g394@754 g395@755 g396@756 g397@757 g398@758 g399@759 g400@760 g401@791 g402@792 g403@793 g404@794 g405@795 g406@796 g407@797 g408@798 g409@799 g410@800 g411@801 g412@802 g413@803 g414@804 g415@805 g416@806 g417@807 g418@808 g419@809 g420@810 g421@811 g422@812 g423@813 g424@814 g425@815 g426@816 g427@817 g428@818 g429@819 g430@820 g431@821 g432@822 g433@823 g434@824 g435@825 g436@826 g437@827 g438@828 g439@829 g440@830 g441@831 g442@832 g443@833 g444@834 g445@835 g446@836 g447@837 g448@838 g449@839 g450@840 g451@841 g452@842 g453@843 g454@844 g455@845 g456@846 g457@847 g458@848 g459@849 g460@850 g461@851 g462@852 g463@853 g464@854 g465@855 g466@856 g467@857 g468@858 g469@859 g470@860 g471@861 g472@862 g473@863 g474@864 g475@865 g476@866 g477@867 g478@868 g479@869 g480@870 g481@871 g482@872 g483@873 g484@874 g485@875 g486@876 g487@877 g488@878 g489@879 g490@880 g491@881 g492@882 g493@883 g494@884 g495@885 g496@886 g497@887 g498@918 g499@919 g500@920 g501@921 g502@922 g503@923 g504@924 g505@925 g506@926 g507@927 g508@928 g509@929 g510@930 g511@931 g512@932 g513@933 g514@934 g515@935 g516@936 g517@937 g518@938 g519@939 g520@940 g521@941 g522@942 g523@943 g524@944 g525@945 g526@946 g527@947 g528@948 g529@949 g530@950 g531@951 g532@952 g533@953 g534@954 g535@955 g536@956 g537@957 g538@958 g539@959 g540@960 g541@961 g542@962 g543@963 g544@964 g545@965 g546@966 g547@967 g548@968 g549@969 g550@970 g551@971 g552@972 g553@973 g554@974 g555@975 g556@976 g557@977 g558@978 g559@979 g560@980 g561@981 g562@982 g563@983 g564@984 g565@985 g566@986 g567@987 g568@988 g569@989 g570@990 g571@991 g572@992 g573@993 g574@994 g575@995 g576@996 g577@997 g578@998 g579@999 g580@1000 g581@1001 g582@1002 g583@1003 g584@1004 g585@1005 g586@1006 g587@1007 g588@1008 g589@1009 g591@1071 g592@1072 g593@1073 g594@1074 g595@1105 g596@1106 g597@1107 g598@1108 g599@1109",
+            "deadLetters": [
+              "g7 after 3 attempts at 67: ParseError: test report is not valid JSON",
+              "g95 after 3 attempts at 245: ParseError: test report is not valid JSON",
+              "g96 after 3 attempts at 306: ValidationError: score must be a number",
+              "g250 after 3 attempts at 580: ValidationError: score must be a number",
+              "g590 after 3 attempts at 1070: ValidationError: score must be a number"
+            ],
+            "depth": [
+              1,
+              189,
+              307,
+              504,
+              439,
+              369,
+              329,
+              259,
+              189,
+              102,
+              19,
+              5,
+              0
+            ],
+            "head": "empty"
+          }
+        },
+        {
+          "name": "Poison at the end of the queue: later arrivals keep their order and the queue ends empty",
+          "input": {
+            "until": 200,
+            "sampleEvery": 40,
+            "messages": [
+              {
+                "id": "sub_1",
+                "at": 0,
+                "body": "{\"learner\":\"u_1\",\"score\":1}"
+              },
+              {
+                "id": "sub_2",
+                "at": 1,
+                "body": "{\"learner\":\"u_2\""
+              },
+              {
+                "id": "sub_3",
+                "at": 20,
+                "body": "{\"learner\":\"u_3\",\"score\":3}"
+              },
+              {
+                "id": "sub_4",
+                "at": 45,
+                "body": "{\"learner\":\"u_4\",\"score\":4}"
+              },
+              {
+                "id": "sub_5",
+                "at": 150,
+                "body": "{\"learner\":\"u_5\",\"score\":5,\"timeouts\":1}"
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 2,
+          "expected": {
+            "processed": "sub_1@0 sub_3@62 sub_4@63 sub_5@180",
+            "deadLetters": [
+              "sub_2 after 3 attempts at 61: ParseError: test report is not valid JSON"
+            ],
+            "depth": [
+              0,
+              2,
+              0,
+              0,
+              1,
+              0
+            ],
+            "head": "empty"
+          }
+        }
+      ]
+    }
+  ]
+}

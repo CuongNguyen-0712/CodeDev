@@ -1,0 +1,186 @@
+{
+  "publicId": "background-jobs-messaging",
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1793025120/codedev/courses/background-jobs-messaging/cover",
+  "title": "Background Jobs & Messaging: Retries, Idempotent Workers & Dead-Letter Queues",
+  "concept": "Move slow work out of the request without losing it or doing it twice: job states, retries with backoff and jitter, idempotent workers, visibility timeouts, dead-letter queues and redrive, queue lag you can alert on, and the poison message that blocks everything.",
+  "description": "An advanced course for backend developers who run workers behind their API. Every lesson starts from an incident on the CodeDev learning platform - a code-grading queue that grew to 80,000 jobs behind one malformed submission, certificate emails sent twice after a worker restart, an AI-written retry loop that retried validation errors forever, a job that ran twice because it took longer than its visibility timeout - and fixes it with a pattern you can test: what belongs in a job, job state machines, backoff and jitter, at-least-once delivery and idempotent workers, visibility timeouts, dead-letter queues and redrive, measuring queue lag, the Poison Message & Growing Queue scenario and duplicate side effects. 12 lessons with True/False quizzes on real logs and metrics, and TypeScript challenges graded by hidden tests on an in-memory queue.",
+  "level": "advanced",
+  "durationMinutes": 400,
+  "instructor": "CodeDev Engineering Team",
+  "language": "TypeScript",
+  "category": "Distributed Systems",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 150,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 600
+    },
+    {
+      "priceType": "money",
+      "amount": 249000,
+      "currency": "VND"
+    }
+  ],
+  "completionRules": {},
+  "domain": "data",
+  "learningOutcomes": [
+    {
+      "code": "async-design",
+      "text": "Decide what moves to a background job and model job states that cannot go wrong"
+    },
+    {
+      "code": "retries",
+      "text": "Retry only what can succeed, with bounded exponential backoff and jitter"
+    },
+    {
+      "code": "idempotency",
+      "text": "Make workers idempotent so duplicate deliveries never duplicate side effects"
+    },
+    {
+      "code": "failure-handling",
+      "text": "Handle poison messages with max attempts, dead-letter queues, redrive and visibility timeouts"
+    },
+    {
+      "code": "queue-observability",
+      "text": "Measure queue lag and age and alert before the queue becomes an incident"
+    }
+  ],
+  "testedVersions": {
+    "TypeScript": "5.9.3 (tsc --strict in the code runner)",
+    "Queues": "BullMQ / SQS / RabbitMQ concepts in lesson examples (check current docs)"
+  },
+  "lastReviewedAt": "2026-10-26",
+  "sourceLinks": [
+    "https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-visibility-timeout.html",
+    "https://docs.bullmq.io/",
+    "https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/"
+  ],
+  "owner": "CodeDev Engineering Team",
+  "knownIssues": [
+    "No message broker in the code runner: challenges use an in-memory queue with a fake clock that follows the delivery rules taught"
+  ],
+  "scenario": {
+    "title": "Poison Message & Growing Queue",
+    "quiz": "chal_quiz_bjm_311",
+    "fixBug": "chal_coding_bjm_312"
+  },
+  "careerRoles": [
+    "backend_developer",
+    "devops_engineer",
+    "data_engineer"
+  ],
+  "skills": {
+    "system_design": 4,
+    "async_programming": 4,
+    "typescript": 3
+  },
+  "goals": [
+    "grow_in_role",
+    "performance"
+  ],
+  "prerequisites": [
+    "nestjs-modular-monolith"
+  ],
+  "modules": [
+    {
+      "orderIndex": 1,
+      "title": "Jobs",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "01-what-goes-in-a-job",
+          "title": "What belongs in a background job, and what doesn't",
+          "sanityId": "lesson-bjm-1-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "02-job-state-machine",
+          "title": "Job states that can't go wrong: queued, running, succeeded, failed",
+          "sanityId": "lesson-bjm-1-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "03-backoff-jitter",
+          "title": "Retries with exponential backoff & jitter",
+          "sanityId": "lesson-bjm-1-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Delivery",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "04-at-least-once",
+          "title": "At-least-once delivery & idempotent workers",
+          "sanityId": "lesson-bjm-2-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "05-visibility-timeout",
+          "title": "Visibility timeouts: when a slow job runs twice",
+          "sanityId": "lesson-bjm-2-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "06-spot-retry-everything",
+          "title": "Spot the AI mistake: retrying errors that can never succeed",
+          "sanityId": "lesson-bjm-2-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Failures",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "07-poison-message",
+          "title": "Poison message & a growing queue: one bad job blocks 80,000",
+          "sanityId": "lesson-bjm-3-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "08-dead-letter-queue",
+          "title": "Dead-letter queues & redrive",
+          "sanityId": "lesson-bjm-3-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "09-duplicate-side-effects",
+          "title": "Fix it: certificate emails sent twice",
+          "sanityId": "lesson-bjm-3-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 4,
+      "title": "Operations",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "10-queue-lag",
+          "title": "Measuring queue lag & age",
+          "sanityId": "lesson-bjm-4-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "11-scaling-workers",
+          "title": "Scaling workers: concurrency, rate limits & fairness",
+          "sanityId": "lesson-bjm-4-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "12-operating-queues",
+          "title": "Operating queues: alerts, runbooks & backpressure",
+          "sanityId": "lesson-bjm-4-3"
+        }
+      ]
+    }
+  ]
+}

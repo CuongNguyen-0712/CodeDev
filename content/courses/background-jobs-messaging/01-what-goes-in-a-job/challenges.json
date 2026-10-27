@@ -1,0 +1,50 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_bjm_111",
+      "name": "what-goes-in-a-job-quiz",
+      "type": "quiz",
+      "title": "Request or background job?",
+      "description": "Two decisions from the contest-evening incident: the certificate email that turned a passed submission into a 500, and a proposal to move enrollment after a points payment into a job.",
+      "difficulty": "medium",
+      "outcomes": [
+        "async-design"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "API log for one POST /submissions (the handler grades, saves, then sends the certificate when the course is complete):\n\n21:14:07.311 INFO  submission s_88412 saved result=passed score=100\n21:14:07.402 INFO  course ts-foundations complete for u_2290, sending certificate\n21:14:37.405 ERROR MailTimeoutError: provider did not answer in 30000 ms\n21:14:37.406 ERROR POST /submissions 500 (u_2290)\n\nProposed change: the handler enqueues a send-certificate job (with the user and course id) after the result is saved, and no longer calls the mail provider itself.\n\nStatement: \"With this change, a mail provider outage delays the certificate but no longer turns this learner's passed submission into a 500.\"",
+          "explanation": "True. The learner's response depends on the grading result, which was saved at 21:14:07.311; it does not depend on the email. Once sending the certificate is a job, the request only needs the enqueue to succeed, and a provider timeout fails the job attempt in the worker, where it can be retried with backoff later (lesson 3). The email arrives late instead of the request failing. Two things still need care: the enqueue itself can fail (decide what the request does then, or record the work in the database so it can be enqueued again), and the job must not send the certificate twice when it is retried (lessons 4 and 9). The misconception is that a slow dependency only costs time; here it also cost correctness, because a failure in work the response did not need was reported as a failure of the whole request.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Pull request \"enroll in the background to speed up checkout\":\n\n  @Post(\":courseId/enroll\")\n- async enroll(...) {\n-   await this.enrollments.payWithPointsAndEnroll(user.id, courseId);   // one transaction, p99 45 ms\n-   return { enrolled: true };\n- }\n+ @HttpCode(HttpStatus.ACCEPTED)\n+ async enroll(...) {\n+   await this.enrollQueue.add(\"pay-and-enroll\", { userId: user.id, courseId });\n+   return { status: \"queued\" };\n+ }\n\nThe web app navigates to /learn/<courseId> as soon as the request returns. That page calls GET /courses/<courseId>/lessons, which answers 403 when no enrollment exists. Queue dashboard: jobs wait 0.2-1.5 s before a worker picks them up.\n\nStatement: \"Because the job runs within a second or two, this change is safe: the learner can open the course right after the 202.\"",
+          "explanation": "False. The very next request reads the enrollment: the browser opens /learn/<courseId> within milliseconds of the 202, while the job waits 0.2-1.5 s before it even starts, so the learner gets 403 on a course they just paid for, and under load the wait grows (lesson 10). The step is also fast (45 ms p99), local (one database transaction) and something the user must see succeed now, including the case where it fails because the balance is too low. That is exactly the kind of work that stays in the request. A background job fits work whose result the response does not need; here the response is the result. The misconception is that \"fast enough in the background\" equals \"done\": a job that usually runs soon is still not done when the response leaves.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

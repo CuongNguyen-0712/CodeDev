@@ -1,0 +1,46 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_bjm_421",
+      "name": "scaling-workers-quiz",
+      "type": "quiz",
+      "title": "Concurrency, downstream limits and the right scaling signal",
+      "description": "Three pieces of evidence from the afternoon a bulk regrade filled the grading queue: a scaling change, a capacity calculation and an autoscaler that never moved.",
+      "difficulty": "medium",
+      "outcomes": ["queue-observability", "async-design"],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Grading setup during the regrade:\n\ngrading worker   concurrency 1 per replica, replicas 8\ngrading job      processing time about 3.0 s, almost all of it waiting for the code runner\ncode runner      at most 16 concurrent executions; a request beyond that gets 429 Too Many Requests\n\nChange deployed at 14:20: replicas 8 -> 40\n\nStatement: \"After the change the grading workers will finish about 800 jobs per minute (40 workers x 20 jobs per minute each).\"",
+          "explanation": "False. Throughput is set by the narrowest stage, not by the number of workers. The code runner runs at most 16 jobs at once and each takes about 3 s, so the whole system finishes at most 16 / 3 = about 5.3 jobs per second, about 320 per minute, whatever the replica count. With 40 workers, 24 of them at any moment get 429 instead of a result; if those jobs are retried, the extra requests add load to the runner exactly when it is full, and the jobs take longer, not shorter. Before the change, 8 workers finished about 160 per minute, so the useful part of the change was going from 8 to 16 slots. The misconception is that worker throughput scales linearly: it does only until a shared downstream (code runner, database pool, a third-party API) is saturated.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Capacity sheet for the grading queue at the evening peak:\n\narrivals          300 submissions per minute (5 per second)\nprocessing time   2 s per job on average\nworker slots      8 (replicas x concurrency)\ncode runner       24 concurrent executions available\n\nStatement: \"Eight slots cannot keep up at this peak: on average about 10 jobs must be in progress at once, so the queue keeps growing for as long as the peak lasts.\"",
+          "explanation": "True. Little's Law says that the average number of jobs in progress equals the throughput times the time each job spends in progress: L = lambda x W = 5 per second x 2 s = 10. Eight slots can finish at most 8 / 2 s = 4 jobs per second, so at 5 arrivals per second one job per second is added to the queue, and the oldest age climbs for the whole peak. The code runner (24) is not the limit here, so adding slots up to about 12-13 (some headroom above 10) is the fix. The misconception is that a queue absorbs a peak by itself: a queue only buffers a peak when the workers can finish faster than jobs arrive on average; otherwise it grows until arrivals drop.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Autoscaler and metrics at 14:10, before anyone changed the replica count:\n\nautoscaler (grading workers)   target CPU 60%, min 8, max 16 replicas, current 8\ngrading workers                CPU 9%, active jobs 8 of 8 slots\ngrading queue                  oldest age 22 min, depth 11,400\ncode runner                    7 of 16 executions in use\n\nStatement: \"With worker CPU at 9%, the 22-minute oldest age cannot be caused by too few worker slots, so adding replicas would not help.\"",
+          "explanation": "False. A grading worker spends its time waiting for the code runner, which uses almost no CPU, so CPU says nothing about whether the workers are busy. The evidence that matters is the other two lines: every slot is busy (8 of 8) and the downstream has spare capacity (7 of 16 executions), so the workers are the bottleneck and more slots, up to the runner's limit, would drain the queue faster. The autoscaler never moved because it watched the wrong signal. The misconception is that low CPU means idle workers; for I/O-bound workers, scale on the queue (oldest age, or backlog per worker) and cap the maximum at what the downstream can take.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        }
+      ]
+    }
+  ]
+}

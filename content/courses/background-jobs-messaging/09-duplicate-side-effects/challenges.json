@@ -1,0 +1,3706 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_bjm_331",
+      "name": "duplicate-side-effects",
+      "type": "quiz",
+      "title": "Certificate emails sent twice: what stops the duplicate",
+      "description": "A learner received the same certificate email twice after a worker was stopped between sending the email and writing \"sent\". Two statements on the worker code and its logs ask which change actually prevents the second email.",
+      "difficulty": "medium",
+      "outcomes": [
+        "idempotency"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "// apps/worker/src/certificates/certificate-email.processor.ts\nasync process(job: Job<{ certId: string }>) {\n  const cert = await this.certificates.findById(job.data.certId);\n  if (!cert || cert.emailStatus !== \"pending\") return;\n  await this.mailer.send({ to: cert.email, template: \"certificate-issued\", data: { certId: cert.id } });\n  await this.certificates.setEmailStatus(cert.id, \"sent\");\n}\n\n10:14:02.118 cert-worker-a91 job=cj_5531 cert=cert_7781 receiveCount=1 email accepted by provider id=msg_01HZQ4A\n10:14:02.240 cert-worker-a91 SIGTERM: spot instance reclaimed, exiting\n10:14:32.507 cert-worker-c07 job=cj_5531 cert=cert_7781 receiveCount=2 email accepted by provider id=msg_01HZQ5K\n10:14:32.611 cert-worker-c07 job=cj_5531 cert=cert_7781 emailStatus pending -> sent\n(visibility timeout 30 s; email provider: an Idempotency-Key header is honoured for 24 h)\n\nStatement: \"Wrapping the send and setEmailStatus in one database transaction fixes this: if the worker dies before the commit, the transaction rolls back and nothing has happened.\"",
+          "explanation": "False. A database transaction can only roll back what the database did. The email left through the provider's API at 10:14:02.118, before the process died; rolling back the status update leaves it at pending, which is exactly the state that made worker c07 send again. Wrapping the send in a transaction even makes things slightly worse: the transaction stays open during a network call. The misconception is that a transaction makes any block of code atomic; side effects outside the database need their own protection: an idempotency key the provider honours, or a marker written before the side effect with a rule for what to do when the marker is found.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "// apps/worker/src/certificates/certificate-email.processor.ts\nasync process(job: Job<{ certId: string }>) {\n  const cert = await this.certificates.findById(job.data.certId);\n  if (!cert || cert.emailStatus !== \"pending\") return;\n  await this.mailer.send({ to: cert.email, template: \"certificate-issued\", data: { certId: cert.id } });\n  await this.certificates.setEmailStatus(cert.id, \"sent\");\n}\n\n10:14:02.118 cert-worker-a91 job=cj_5531 cert=cert_7781 receiveCount=1 email accepted by provider id=msg_01HZQ4A\n10:14:02.240 cert-worker-a91 SIGTERM: spot instance reclaimed, exiting\n10:14:32.507 cert-worker-c07 job=cj_5531 cert=cert_7781 receiveCount=2 email accepted by provider id=msg_01HZQ5K\n10:14:32.611 cert-worker-c07 job=cj_5531 cert=cert_7781 emailStatus pending -> sent\n(visibility timeout 30 s; email provider: an Idempotency-Key header is honoured for 24 h)\n\nStatement: \"Sending with an idempotency key built from the certificate id, such as certificate-email/cert_7781, would make the provider drop worker c07's send, because the redelivery comes 30 s later, well inside the 24 h window.\"",
+          "explanation": "True. The key names the side effect (\"the certificate email for cert_7781\"), so every delivery of the job uses the same key and the provider delivers once and answers the second call as a duplicate. The key must not include the job attempt, the receive count or a timestamp: then every redelivery has a new key and the provider sends again. The limit is the window: after 24 h the provider forgets the key, which is why the worker also writes a marker before sending and does not resend automatically when it finds an old claim.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_bjm_332",
+      "name": "certificate-emails-sent-twice",
+      "type": "fix_bug",
+      "title": "Certificate emails sent twice",
+      "description": "Since the CodeDev workers moved to spot instances, some learners get their certificate email two or three times. The queue delivers at least once: a worker that dies after sending the email but before writing \"sent\" leaves the job to be delivered again, and a worker slower than the visibility timeout sees a second worker pick up the same job while it is still running. Fix sendCertificateEmail(job, ctx) so each certificate email is delivered once, following this protocol. key = \"certificate-email/<certId>\", the same for every delivery of that certificate. 1) Read the certificate with ctx.db.get; if it is unknown (null), \"sent\" or \"needs-review\", do nothing. 2) If it is \"pending\", claim it with ctx.db.update(id, \"pending\", { status: \"sending\", claimedAt: ctx.now() }); update is a compare-and-set that returns false when the status is no longer \"pending\" - in either case read the certificate again and continue from step 1 with the new status. 3) If it is \"sending\" and ctx.now() - claimedAt < 86400 (24 h), send it with ctx.email.send({ to, template: \"certificate-issued\", certId, idempotencyKey: key }), then ctx.db.update(id, \"sending\", { status: \"sent\" }) (a false result is fine: another worker finished first). 4) If it is \"sending\" and ctx.now() - claimedAt >= 86400, do not send - the provider no longer remembers the key, so a resend could reach the learner twice; set ctx.db.update(id, \"sending\", { status: \"needs-review\" }) for a person to check the provider's log. The email provider fake delivers at most once per idempotencyKey within 24 h (a send whose key was delivered less than 86,400 s earlier returns \"duplicate\" and delivers nothing; without a key it always delivers). Input: { certificates, script }; the script plays the broker: { at, deliver, cert, crashAfter?, pauseAfter? } starts a worker on a delivery, { at, resume } lets a paused worker continue; crashAfter/pauseAfter name an operation (\"get\", \"update\", \"send\") after whose first call, once it has taken effect, the worker dies (never continues) or pauses. Output: emails delivered per learner, the final status of every certificate, and worker errors. Do not change the fakes or the test runner.",
+      "difficulty": "hard",
+      "outcomes": [
+        "idempotency"
+      ],
+      "points": 40,
+      "hints": [
+        "List every point where the worker can stop: after reading, after sending, after writing. For each one, what does the next delivery of the same job find in the database, and what does it do? Which of those points produces a second email today?",
+        "Two things must change in sendCertificateEmail: the database must say \"someone has started this\" before the email is sent (the claim, with the time), and the email must carry a key that is the same for every delivery of the certificate. Then decide, from the status and claimedAt you read, whether to claim, send, give up or flag.",
+        "A similar protocol for a different side effect - charging a course purchase: key = \"purchase-charge/ord_17\"; mark the order \"charging\" with chargingAt = now only if it is \"created\"; when you find it \"charging\" within the payment provider's dedupe window, charge again with the same key (the provider answers with the first charge) and mark it \"charged\"; outside the window, mark it \"needs-review\" instead of charging again."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "One delivery per certificate: one email per learner and status sent",
+          "input": {
+            "certificates": [
+              {
+                "id": "cert_101",
+                "learner": "u_101",
+                "email": "learner101@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_102",
+                "learner": "u_102",
+                "email": "learner102@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              }
+            ],
+            "script": [
+              {
+                "at": 0,
+                "deliver": "A",
+                "cert": "cert_101"
+              },
+              {
+                "at": 5,
+                "deliver": "B",
+                "cert": "cert_102"
+              }
+            ]
+          },
+          "hidden": false,
+          "score": 3,
+          "expected": {
+            "emailsPerLearner": {
+              "u_101": 1,
+              "u_102": 1
+            },
+            "certificates": {
+              "cert_101": "sent",
+              "cert_102": "sent"
+            },
+            "errors": []
+          }
+        },
+        {
+          "name": "Worker dies after the email, the job is delivered again 60 s later: still one email",
+          "input": {
+            "certificates": [
+              {
+                "id": "cert_201",
+                "learner": "u_201",
+                "email": "learner201@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              }
+            ],
+            "script": [
+              {
+                "at": 0,
+                "deliver": "A",
+                "cert": "cert_201",
+                "crashAfter": "send"
+              },
+              {
+                "at": 60,
+                "deliver": "B",
+                "cert": "cert_201"
+              }
+            ]
+          },
+          "hidden": false,
+          "score": 3,
+          "expected": {
+            "emailsPerLearner": {
+              "u_201": 1
+            },
+            "certificates": {
+              "cert_201": "sent"
+            },
+            "errors": []
+          }
+        },
+        {
+          "name": "Slower than the visibility timeout: B runs while A is paused after sending, then A resumes",
+          "input": {
+            "certificates": [
+              {
+                "id": "cert_301",
+                "learner": "u_301",
+                "email": "learner301@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              }
+            ],
+            "script": [
+              {
+                "at": 0,
+                "deliver": "A",
+                "cert": "cert_301",
+                "pauseAfter": "send"
+              },
+              {
+                "at": 30,
+                "deliver": "B",
+                "cert": "cert_301"
+              },
+              {
+                "at": 95,
+                "resume": "A"
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 3,
+          "expected": {
+            "emailsPerLearner": {
+              "u_301": 1
+            },
+            "certificates": {
+              "cert_301": "sent"
+            },
+            "errors": []
+          }
+        },
+        {
+          "name": "Two workers read the same pending certificate before either of them claims it",
+          "input": {
+            "certificates": [
+              {
+                "id": "cert_401",
+                "learner": "u_401",
+                "email": "learner401@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_402",
+                "learner": "u_402",
+                "email": "learner402@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              }
+            ],
+            "script": [
+              {
+                "at": 0,
+                "deliver": "A",
+                "cert": "cert_401",
+                "pauseAfter": "get"
+              },
+              {
+                "at": 30,
+                "deliver": "B",
+                "cert": "cert_401"
+              },
+              {
+                "at": 31,
+                "resume": "A"
+              },
+              {
+                "at": 40,
+                "deliver": "C",
+                "cert": "cert_402",
+                "pauseAfter": "get"
+              },
+              {
+                "at": 41,
+                "deliver": "D",
+                "cert": "cert_402",
+                "pauseAfter": "get"
+              },
+              {
+                "at": 42,
+                "resume": "C"
+              },
+              {
+                "at": 43,
+                "resume": "D"
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 3,
+          "expected": {
+            "emailsPerLearner": {
+              "u_401": 1,
+              "u_402": 1
+            },
+            "certificates": {
+              "cert_401": "sent",
+              "cert_402": "sent"
+            },
+            "errors": []
+          }
+        },
+        {
+          "name": "Worker dies after the claim, before the email: the redelivery sends it exactly once",
+          "input": {
+            "certificates": [
+              {
+                "id": "cert_501",
+                "learner": "u_501",
+                "email": "learner501@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              }
+            ],
+            "script": [
+              {
+                "at": 0,
+                "deliver": "A",
+                "cert": "cert_501",
+                "crashAfter": "update"
+              },
+              {
+                "at": 300,
+                "deliver": "B",
+                "cert": "cert_501"
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 3,
+          "expected": {
+            "emailsPerLearner": {
+              "u_501": 1
+            },
+            "certificates": {
+              "cert_501": "sent"
+            },
+            "errors": []
+          }
+        },
+        {
+          "name": "Redelivery 24 h or more after the claim is never resent: needs-review; just under 24 h is deduped",
+          "input": {
+            "certificates": [
+              {
+                "id": "cert_601",
+                "learner": "u_601",
+                "email": "learner601@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_602",
+                "learner": "u_602",
+                "email": "learner602@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_603",
+                "learner": "u_603",
+                "email": "learner603@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              }
+            ],
+            "script": [
+              {
+                "at": 0,
+                "deliver": "A",
+                "cert": "cert_601",
+                "crashAfter": "send"
+              },
+              {
+                "at": 100,
+                "deliver": "B",
+                "cert": "cert_602",
+                "crashAfter": "update"
+              },
+              {
+                "at": 200,
+                "deliver": "C",
+                "cert": "cert_603",
+                "crashAfter": "send"
+              },
+              {
+                "at": 86400,
+                "deliver": "D",
+                "cert": "cert_601"
+              },
+              {
+                "at": 86599,
+                "deliver": "F",
+                "cert": "cert_603"
+              },
+              {
+                "at": 90100,
+                "deliver": "E",
+                "cert": "cert_602"
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 3,
+          "expected": {
+            "emailsPerLearner": {
+              "u_601": 1,
+              "u_602": 0,
+              "u_603": 1
+            },
+            "certificates": {
+              "cert_601": "needs-review",
+              "cert_602": "needs-review",
+              "cert_603": "sent"
+            },
+            "errors": []
+          }
+        },
+        {
+          "name": "Unknown, already sent and needs-review certificates send nothing, even when delivered 3 times",
+          "input": {
+            "certificates": [
+              {
+                "id": "cert_701",
+                "learner": "u_701",
+                "email": "learner701@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "sent"
+              },
+              {
+                "id": "cert_702",
+                "learner": "u_702",
+                "email": "learner702@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "needs-review"
+              },
+              {
+                "id": "cert_703",
+                "learner": "u_703",
+                "email": "learner703@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              }
+            ],
+            "script": [
+              {
+                "at": 0,
+                "deliver": "A",
+                "cert": "cert_404"
+              },
+              {
+                "at": 1,
+                "deliver": "B",
+                "cert": "cert_701"
+              },
+              {
+                "at": 2,
+                "deliver": "C",
+                "cert": "cert_702"
+              },
+              {
+                "at": 3,
+                "deliver": "D",
+                "cert": "cert_703"
+              },
+              {
+                "at": 4,
+                "deliver": "E",
+                "cert": "cert_703"
+              },
+              {
+                "at": 5,
+                "deliver": "F",
+                "cert": "cert_703"
+              },
+              {
+                "at": 6,
+                "deliver": "G",
+                "cert": "cert_701"
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 2,
+          "expected": {
+            "emailsPerLearner": {
+              "u_701": 0,
+              "u_702": 0,
+              "u_703": 1
+            },
+            "certificates": {
+              "cert_701": "sent",
+              "cert_702": "needs-review",
+              "cert_703": "sent"
+            },
+            "errors": []
+          }
+        },
+        {
+          "name": "Large input: 150 certificates with crashes, pauses, races and late redeliveries",
+          "input": {
+            "certificates": [
+              {
+                "id": "cert_1000",
+                "learner": "u_1000",
+                "email": "learner1000@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "sent"
+              },
+              {
+                "id": "cert_1001",
+                "learner": "u_1001",
+                "email": "learner1001@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1002",
+                "learner": "u_1002",
+                "email": "learner1002@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1003",
+                "learner": "u_1003",
+                "email": "learner1003@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1004",
+                "learner": "u_1004",
+                "email": "learner1004@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1005",
+                "learner": "u_1005",
+                "email": "learner1005@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1006",
+                "learner": "u_1006",
+                "email": "learner1006@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1007",
+                "learner": "u_1007",
+                "email": "learner1007@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1008",
+                "learner": "u_1008",
+                "email": "learner1008@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1009",
+                "learner": "u_1009",
+                "email": "learner1009@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1010",
+                "learner": "u_1010",
+                "email": "learner1010@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1011",
+                "learner": "u_1011",
+                "email": "learner1011@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1012",
+                "learner": "u_1012",
+                "email": "learner1012@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1013",
+                "learner": "u_1013",
+                "email": "learner1013@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1014",
+                "learner": "u_1014",
+                "email": "learner1014@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1015",
+                "learner": "u_1015",
+                "email": "learner1015@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1016",
+                "learner": "u_1016",
+                "email": "learner1016@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1017",
+                "learner": "u_1017",
+                "email": "learner1017@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1018",
+                "learner": "u_1018",
+                "email": "learner1018@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1019",
+                "learner": "u_1019",
+                "email": "learner1019@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1020",
+                "learner": "u_1020",
+                "email": "learner1020@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1021",
+                "learner": "u_1021",
+                "email": "learner1021@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1022",
+                "learner": "u_1022",
+                "email": "learner1022@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1023",
+                "learner": "u_1023",
+                "email": "learner1023@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1024",
+                "learner": "u_1024",
+                "email": "learner1024@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1025",
+                "learner": "u_1025",
+                "email": "learner1025@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "sent"
+              },
+              {
+                "id": "cert_1026",
+                "learner": "u_1026",
+                "email": "learner1026@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1027",
+                "learner": "u_1027",
+                "email": "learner1027@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1028",
+                "learner": "u_1028",
+                "email": "learner1028@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1029",
+                "learner": "u_1029",
+                "email": "learner1029@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1030",
+                "learner": "u_1030",
+                "email": "learner1030@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1031",
+                "learner": "u_1031",
+                "email": "learner1031@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1032",
+                "learner": "u_1032",
+                "email": "learner1032@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1033",
+                "learner": "u_1033",
+                "email": "learner1033@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1034",
+                "learner": "u_1034",
+                "email": "learner1034@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1035",
+                "learner": "u_1035",
+                "email": "learner1035@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1036",
+                "learner": "u_1036",
+                "email": "learner1036@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1037",
+                "learner": "u_1037",
+                "email": "learner1037@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1038",
+                "learner": "u_1038",
+                "email": "learner1038@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1039",
+                "learner": "u_1039",
+                "email": "learner1039@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1040",
+                "learner": "u_1040",
+                "email": "learner1040@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1041",
+                "learner": "u_1041",
+                "email": "learner1041@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1042",
+                "learner": "u_1042",
+                "email": "learner1042@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1043",
+                "learner": "u_1043",
+                "email": "learner1043@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1044",
+                "learner": "u_1044",
+                "email": "learner1044@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1045",
+                "learner": "u_1045",
+                "email": "learner1045@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1046",
+                "learner": "u_1046",
+                "email": "learner1046@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1047",
+                "learner": "u_1047",
+                "email": "learner1047@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1048",
+                "learner": "u_1048",
+                "email": "learner1048@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1049",
+                "learner": "u_1049",
+                "email": "learner1049@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1050",
+                "learner": "u_1050",
+                "email": "learner1050@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "sent"
+              },
+              {
+                "id": "cert_1051",
+                "learner": "u_1051",
+                "email": "learner1051@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1052",
+                "learner": "u_1052",
+                "email": "learner1052@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1053",
+                "learner": "u_1053",
+                "email": "learner1053@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1054",
+                "learner": "u_1054",
+                "email": "learner1054@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1055",
+                "learner": "u_1055",
+                "email": "learner1055@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1056",
+                "learner": "u_1056",
+                "email": "learner1056@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1057",
+                "learner": "u_1057",
+                "email": "learner1057@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1058",
+                "learner": "u_1058",
+                "email": "learner1058@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1059",
+                "learner": "u_1059",
+                "email": "learner1059@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1060",
+                "learner": "u_1060",
+                "email": "learner1060@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1061",
+                "learner": "u_1061",
+                "email": "learner1061@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1062",
+                "learner": "u_1062",
+                "email": "learner1062@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1063",
+                "learner": "u_1063",
+                "email": "learner1063@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1064",
+                "learner": "u_1064",
+                "email": "learner1064@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1065",
+                "learner": "u_1065",
+                "email": "learner1065@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1066",
+                "learner": "u_1066",
+                "email": "learner1066@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1067",
+                "learner": "u_1067",
+                "email": "learner1067@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1068",
+                "learner": "u_1068",
+                "email": "learner1068@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1069",
+                "learner": "u_1069",
+                "email": "learner1069@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1070",
+                "learner": "u_1070",
+                "email": "learner1070@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1071",
+                "learner": "u_1071",
+                "email": "learner1071@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1072",
+                "learner": "u_1072",
+                "email": "learner1072@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1073",
+                "learner": "u_1073",
+                "email": "learner1073@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1074",
+                "learner": "u_1074",
+                "email": "learner1074@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1075",
+                "learner": "u_1075",
+                "email": "learner1075@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "sent"
+              },
+              {
+                "id": "cert_1076",
+                "learner": "u_1076",
+                "email": "learner1076@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1077",
+                "learner": "u_1077",
+                "email": "learner1077@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1078",
+                "learner": "u_1078",
+                "email": "learner1078@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1079",
+                "learner": "u_1079",
+                "email": "learner1079@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1080",
+                "learner": "u_1080",
+                "email": "learner1080@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1081",
+                "learner": "u_1081",
+                "email": "learner1081@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1082",
+                "learner": "u_1082",
+                "email": "learner1082@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1083",
+                "learner": "u_1083",
+                "email": "learner1083@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1084",
+                "learner": "u_1084",
+                "email": "learner1084@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1085",
+                "learner": "u_1085",
+                "email": "learner1085@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1086",
+                "learner": "u_1086",
+                "email": "learner1086@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1087",
+                "learner": "u_1087",
+                "email": "learner1087@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1088",
+                "learner": "u_1088",
+                "email": "learner1088@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1089",
+                "learner": "u_1089",
+                "email": "learner1089@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1090",
+                "learner": "u_1090",
+                "email": "learner1090@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1091",
+                "learner": "u_1091",
+                "email": "learner1091@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1092",
+                "learner": "u_1092",
+                "email": "learner1092@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1093",
+                "learner": "u_1093",
+                "email": "learner1093@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1094",
+                "learner": "u_1094",
+                "email": "learner1094@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1095",
+                "learner": "u_1095",
+                "email": "learner1095@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1096",
+                "learner": "u_1096",
+                "email": "learner1096@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1097",
+                "learner": "u_1097",
+                "email": "learner1097@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1098",
+                "learner": "u_1098",
+                "email": "learner1098@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1099",
+                "learner": "u_1099",
+                "email": "learner1099@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1100",
+                "learner": "u_1100",
+                "email": "learner1100@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "sent"
+              },
+              {
+                "id": "cert_1101",
+                "learner": "u_1101",
+                "email": "learner1101@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1102",
+                "learner": "u_1102",
+                "email": "learner1102@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1103",
+                "learner": "u_1103",
+                "email": "learner1103@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1104",
+                "learner": "u_1104",
+                "email": "learner1104@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1105",
+                "learner": "u_1105",
+                "email": "learner1105@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1106",
+                "learner": "u_1106",
+                "email": "learner1106@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1107",
+                "learner": "u_1107",
+                "email": "learner1107@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1108",
+                "learner": "u_1108",
+                "email": "learner1108@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1109",
+                "learner": "u_1109",
+                "email": "learner1109@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1110",
+                "learner": "u_1110",
+                "email": "learner1110@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1111",
+                "learner": "u_1111",
+                "email": "learner1111@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1112",
+                "learner": "u_1112",
+                "email": "learner1112@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1113",
+                "learner": "u_1113",
+                "email": "learner1113@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1114",
+                "learner": "u_1114",
+                "email": "learner1114@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1115",
+                "learner": "u_1115",
+                "email": "learner1115@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1116",
+                "learner": "u_1116",
+                "email": "learner1116@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1117",
+                "learner": "u_1117",
+                "email": "learner1117@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1118",
+                "learner": "u_1118",
+                "email": "learner1118@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1119",
+                "learner": "u_1119",
+                "email": "learner1119@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1120",
+                "learner": "u_1120",
+                "email": "learner1120@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1121",
+                "learner": "u_1121",
+                "email": "learner1121@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1122",
+                "learner": "u_1122",
+                "email": "learner1122@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1123",
+                "learner": "u_1123",
+                "email": "learner1123@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1124",
+                "learner": "u_1124",
+                "email": "learner1124@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1125",
+                "learner": "u_1125",
+                "email": "learner1125@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "sent"
+              },
+              {
+                "id": "cert_1126",
+                "learner": "u_1126",
+                "email": "learner1126@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1127",
+                "learner": "u_1127",
+                "email": "learner1127@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1128",
+                "learner": "u_1128",
+                "email": "learner1128@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1129",
+                "learner": "u_1129",
+                "email": "learner1129@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1130",
+                "learner": "u_1130",
+                "email": "learner1130@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1131",
+                "learner": "u_1131",
+                "email": "learner1131@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1132",
+                "learner": "u_1132",
+                "email": "learner1132@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1133",
+                "learner": "u_1133",
+                "email": "learner1133@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1134",
+                "learner": "u_1134",
+                "email": "learner1134@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1135",
+                "learner": "u_1135",
+                "email": "learner1135@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1136",
+                "learner": "u_1136",
+                "email": "learner1136@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1137",
+                "learner": "u_1137",
+                "email": "learner1137@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1138",
+                "learner": "u_1138",
+                "email": "learner1138@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1139",
+                "learner": "u_1139",
+                "email": "learner1139@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1140",
+                "learner": "u_1140",
+                "email": "learner1140@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1141",
+                "learner": "u_1141",
+                "email": "learner1141@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1142",
+                "learner": "u_1142",
+                "email": "learner1142@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1143",
+                "learner": "u_1143",
+                "email": "learner1143@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1144",
+                "learner": "u_1144",
+                "email": "learner1144@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1145",
+                "learner": "u_1145",
+                "email": "learner1145@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1146",
+                "learner": "u_1146",
+                "email": "learner1146@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1147",
+                "learner": "u_1147",
+                "email": "learner1147@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1148",
+                "learner": "u_1148",
+                "email": "learner1148@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              },
+              {
+                "id": "cert_1149",
+                "learner": "u_1149",
+                "email": "learner1149@mail.codedev.test",
+                "course": "typescript-foundations",
+                "status": "pending"
+              }
+            ],
+            "script": [
+              {
+                "at": 0,
+                "deliver": "W0",
+                "cert": "cert_1000",
+                "crashAfter": "send"
+              },
+              {
+                "at": 600,
+                "deliver": "W2",
+                "cert": "cert_1001",
+                "crashAfter": "update"
+              },
+              {
+                "at": 1200,
+                "deliver": "W4",
+                "cert": "cert_1002",
+                "crashAfter": "send"
+              },
+              {
+                "at": 1260,
+                "deliver": "W5",
+                "cert": "cert_1002"
+              },
+              {
+                "at": 1800,
+                "deliver": "W6",
+                "cert": "cert_1003",
+                "crashAfter": "update"
+              },
+              {
+                "at": 2400,
+                "deliver": "W8",
+                "cert": "cert_1004",
+                "crashAfter": "update"
+              },
+              {
+                "at": 2460,
+                "deliver": "W9",
+                "cert": "cert_1004"
+              },
+              {
+                "at": 3000,
+                "deliver": "W10",
+                "cert": "cert_1005",
+                "crashAfter": "send"
+              },
+              {
+                "at": 3060,
+                "deliver": "W11",
+                "cert": "cert_1005"
+              },
+              {
+                "at": 3600,
+                "deliver": "W12",
+                "cert": "cert_1006",
+                "crashAfter": "send"
+              },
+              {
+                "at": 3660,
+                "deliver": "W13",
+                "cert": "cert_1006"
+              },
+              {
+                "at": 4200,
+                "deliver": "W14",
+                "cert": "cert_1007"
+              },
+              {
+                "at": 4800,
+                "deliver": "W15",
+                "cert": "cert_1008",
+                "crashAfter": "update"
+              },
+              {
+                "at": 4860,
+                "deliver": "W16",
+                "cert": "cert_1008"
+              },
+              {
+                "at": 5400,
+                "deliver": "W17",
+                "cert": "cert_1009",
+                "crashAfter": "send"
+              },
+              {
+                "at": 5460,
+                "deliver": "W18",
+                "cert": "cert_1009"
+              },
+              {
+                "at": 6000,
+                "deliver": "W19",
+                "cert": "cert_1010"
+              },
+              {
+                "at": 6600,
+                "deliver": "W20",
+                "cert": "cert_1011",
+                "crashAfter": "update"
+              },
+              {
+                "at": 7200,
+                "deliver": "W22",
+                "cert": "cert_1012",
+                "crashAfter": "update"
+              },
+              {
+                "at": 7260,
+                "deliver": "W23",
+                "cert": "cert_1012"
+              },
+              {
+                "at": 7800,
+                "deliver": "W24",
+                "cert": "cert_1013"
+              },
+              {
+                "at": 7801,
+                "deliver": "W25",
+                "cert": "cert_1013"
+              },
+              {
+                "at": 7802,
+                "deliver": "W26",
+                "cert": "cert_1013"
+              },
+              {
+                "at": 8400,
+                "deliver": "W27",
+                "cert": "cert_1014"
+              },
+              {
+                "at": 9000,
+                "deliver": "W28",
+                "cert": "cert_1015",
+                "pauseAfter": "get"
+              },
+              {
+                "at": 9030,
+                "deliver": "W29",
+                "cert": "cert_1015"
+              },
+              {
+                "at": 9031,
+                "resume": "W28"
+              },
+              {
+                "at": 9600,
+                "deliver": "W30",
+                "cert": "cert_1016",
+                "crashAfter": "update"
+              },
+              {
+                "at": 9660,
+                "deliver": "W31",
+                "cert": "cert_1016"
+              },
+              {
+                "at": 10200,
+                "deliver": "W32",
+                "cert": "cert_1017",
+                "crashAfter": "update"
+              },
+              {
+                "at": 10260,
+                "deliver": "W33",
+                "cert": "cert_1017"
+              },
+              {
+                "at": 10800,
+                "deliver": "W34",
+                "cert": "cert_1018"
+              },
+              {
+                "at": 11400,
+                "deliver": "W35",
+                "cert": "cert_1019",
+                "crashAfter": "update"
+              },
+              {
+                "at": 11460,
+                "deliver": "W36",
+                "cert": "cert_1019"
+              },
+              {
+                "at": 12000,
+                "deliver": "W37",
+                "cert": "cert_1020",
+                "crashAfter": "update"
+              },
+              {
+                "at": 12600,
+                "deliver": "W39",
+                "cert": "cert_1021",
+                "crashAfter": "send"
+              },
+              {
+                "at": 13200,
+                "deliver": "W41",
+                "cert": "cert_1022",
+                "crashAfter": "update"
+              },
+              {
+                "at": 13260,
+                "deliver": "W42",
+                "cert": "cert_1022"
+              },
+              {
+                "at": 13800,
+                "deliver": "W43",
+                "cert": "cert_1023",
+                "crashAfter": "send"
+              },
+              {
+                "at": 13860,
+                "deliver": "W44",
+                "cert": "cert_1023"
+              },
+              {
+                "at": 14400,
+                "deliver": "W45",
+                "cert": "cert_1024",
+                "pauseAfter": "send"
+              },
+              {
+                "at": 14430,
+                "deliver": "W46",
+                "cert": "cert_1024"
+              },
+              {
+                "at": 14431,
+                "resume": "W45"
+              },
+              {
+                "at": 15000,
+                "deliver": "W47",
+                "cert": "cert_1025"
+              },
+              {
+                "at": 15600,
+                "deliver": "W48",
+                "cert": "cert_1026",
+                "crashAfter": "send"
+              },
+              {
+                "at": 15660,
+                "deliver": "W49",
+                "cert": "cert_1026"
+              },
+              {
+                "at": 16200,
+                "deliver": "W50",
+                "cert": "cert_1027",
+                "crashAfter": "update"
+              },
+              {
+                "at": 16800,
+                "deliver": "W52",
+                "cert": "cert_1028",
+                "crashAfter": "send"
+              },
+              {
+                "at": 16860,
+                "deliver": "W53",
+                "cert": "cert_1028"
+              },
+              {
+                "at": 17400,
+                "deliver": "W54",
+                "cert": "cert_1029",
+                "pauseAfter": "send"
+              },
+              {
+                "at": 17430,
+                "deliver": "W55",
+                "cert": "cert_1029"
+              },
+              {
+                "at": 17431,
+                "resume": "W54"
+              },
+              {
+                "at": 18000,
+                "deliver": "W56",
+                "cert": "cert_1030"
+              },
+              {
+                "at": 18600,
+                "deliver": "W57",
+                "cert": "cert_1031",
+                "pauseAfter": "get"
+              },
+              {
+                "at": 18630,
+                "deliver": "W58",
+                "cert": "cert_1031"
+              },
+              {
+                "at": 18631,
+                "resume": "W57"
+              },
+              {
+                "at": 19200,
+                "deliver": "W59",
+                "cert": "cert_1032",
+                "pauseAfter": "send"
+              },
+              {
+                "at": 19230,
+                "deliver": "W60",
+                "cert": "cert_1032"
+              },
+              {
+                "at": 19231,
+                "resume": "W59"
+              },
+              {
+                "at": 19800,
+                "deliver": "W61",
+                "cert": "cert_1033",
+                "crashAfter": "update"
+              },
+              {
+                "at": 20400,
+                "deliver": "W63",
+                "cert": "cert_1034",
+                "crashAfter": "update"
+              },
+              {
+                "at": 20460,
+                "deliver": "W64",
+                "cert": "cert_1034"
+              },
+              {
+                "at": 21000,
+                "deliver": "W65",
+                "cert": "cert_1035",
+                "crashAfter": "update"
+              },
+              {
+                "at": 21600,
+                "deliver": "W67",
+                "cert": "cert_1036"
+              },
+              {
+                "at": 22200,
+                "deliver": "W68",
+                "cert": "cert_1037",
+                "crashAfter": "send"
+              },
+              {
+                "at": 22260,
+                "deliver": "W69",
+                "cert": "cert_1037"
+              },
+              {
+                "at": 22800,
+                "deliver": "W70",
+                "cert": "cert_1038",
+                "crashAfter": "update"
+              },
+              {
+                "at": 23400,
+                "deliver": "W72",
+                "cert": "cert_1039",
+                "crashAfter": "send"
+              },
+              {
+                "at": 23460,
+                "deliver": "W73",
+                "cert": "cert_1039"
+              },
+              {
+                "at": 24000,
+                "deliver": "W74",
+                "cert": "cert_1040"
+              },
+              {
+                "at": 24600,
+                "deliver": "W75",
+                "cert": "cert_1041",
+                "crashAfter": "send"
+              },
+              {
+                "at": 24660,
+                "deliver": "W76",
+                "cert": "cert_1041"
+              },
+              {
+                "at": 25200,
+                "deliver": "W77",
+                "cert": "cert_1042"
+              },
+              {
+                "at": 25800,
+                "deliver": "W78",
+                "cert": "cert_1043",
+                "crashAfter": "update"
+              },
+              {
+                "at": 26400,
+                "deliver": "W80",
+                "cert": "cert_1044"
+              },
+              {
+                "at": 26401,
+                "deliver": "W81",
+                "cert": "cert_1044"
+              },
+              {
+                "at": 26402,
+                "deliver": "W82",
+                "cert": "cert_1044"
+              },
+              {
+                "at": 27000,
+                "deliver": "W83",
+                "cert": "cert_1045"
+              },
+              {
+                "at": 27001,
+                "deliver": "W84",
+                "cert": "cert_1045"
+              },
+              {
+                "at": 27002,
+                "deliver": "W85",
+                "cert": "cert_1045"
+              },
+              {
+                "at": 27600,
+                "deliver": "W86",
+                "cert": "cert_1046",
+                "crashAfter": "update"
+              },
+              {
+                "at": 27660,
+                "deliver": "W87",
+                "cert": "cert_1046"
+              },
+              {
+                "at": 28200,
+                "deliver": "W88",
+                "cert": "cert_1047",
+                "pauseAfter": "send"
+              },
+              {
+                "at": 28230,
+                "deliver": "W89",
+                "cert": "cert_1047"
+              },
+              {
+                "at": 28231,
+                "resume": "W88"
+              },
+              {
+                "at": 28800,
+                "deliver": "W90",
+                "cert": "cert_1048",
+                "crashAfter": "update"
+              },
+              {
+                "at": 29400,
+                "deliver": "W92",
+                "cert": "cert_1049",
+                "pauseAfter": "get"
+              },
+              {
+                "at": 29430,
+                "deliver": "W93",
+                "cert": "cert_1049"
+              },
+              {
+                "at": 29431,
+                "resume": "W92"
+              },
+              {
+                "at": 30000,
+                "deliver": "W94",
+                "cert": "cert_1050",
+                "crashAfter": "update"
+              },
+              {
+                "at": 30060,
+                "deliver": "W95",
+                "cert": "cert_1050"
+              },
+              {
+                "at": 30600,
+                "deliver": "W96",
+                "cert": "cert_1051",
+                "crashAfter": "send"
+              },
+              {
+                "at": 31200,
+                "deliver": "W98",
+                "cert": "cert_1052",
+                "crashAfter": "send"
+              },
+              {
+                "at": 31260,
+                "deliver": "W99",
+                "cert": "cert_1052"
+              },
+              {
+                "at": 31800,
+                "deliver": "W100",
+                "cert": "cert_1053",
+                "pauseAfter": "send"
+              },
+              {
+                "at": 31830,
+                "deliver": "W101",
+                "cert": "cert_1053"
+              },
+              {
+                "at": 31831,
+                "resume": "W100"
+              },
+              {
+                "at": 32400,
+                "deliver": "W102",
+                "cert": "cert_1054",
+                "crashAfter": "update"
+              },
+              {
+                "at": 33000,
+                "deliver": "W104",
+                "cert": "cert_1055",
+                "crashAfter": "update"
+              },
+              {
+                "at": 33060,
+                "deliver": "W105",
+                "cert": "cert_1055"
+              },
+              {
+                "at": 33600,
+                "deliver": "W106",
+                "cert": "cert_1056",
+                "pauseAfter": "get"
+              },
+              {
+                "at": 33630,
+                "deliver": "W107",
+                "cert": "cert_1056"
+              },
+              {
+                "at": 33631,
+                "resume": "W106"
+              },
+              {
+                "at": 34200,
+                "deliver": "W108",
+                "cert": "cert_1057"
+              },
+              {
+                "at": 34201,
+                "deliver": "W109",
+                "cert": "cert_1057"
+              },
+              {
+                "at": 34202,
+                "deliver": "W110",
+                "cert": "cert_1057"
+              },
+              {
+                "at": 34800,
+                "deliver": "W111",
+                "cert": "cert_1058",
+                "crashAfter": "update"
+              },
+              {
+                "at": 34860,
+                "deliver": "W112",
+                "cert": "cert_1058"
+              },
+              {
+                "at": 35400,
+                "deliver": "W113",
+                "cert": "cert_1059"
+              },
+              {
+                "at": 36000,
+                "deliver": "W114",
+                "cert": "cert_1060",
+                "crashAfter": "send"
+              },
+              {
+                "at": 36060,
+                "deliver": "W115",
+                "cert": "cert_1060"
+              },
+              {
+                "at": 36600,
+                "deliver": "W116",
+                "cert": "cert_1061",
+                "crashAfter": "send"
+              },
+              {
+                "at": 36660,
+                "deliver": "W117",
+                "cert": "cert_1061"
+              },
+              {
+                "at": 37200,
+                "deliver": "W118",
+                "cert": "cert_1062",
+                "crashAfter": "update"
+              },
+              {
+                "at": 37800,
+                "deliver": "W120",
+                "cert": "cert_1063"
+              },
+              {
+                "at": 37801,
+                "deliver": "W121",
+                "cert": "cert_1063"
+              },
+              {
+                "at": 37802,
+                "deliver": "W122",
+                "cert": "cert_1063"
+              },
+              {
+                "at": 38400,
+                "deliver": "W123",
+                "cert": "cert_1064",
+                "pauseAfter": "send"
+              },
+              {
+                "at": 38430,
+                "deliver": "W124",
+                "cert": "cert_1064"
+              },
+              {
+                "at": 38431,
+                "resume": "W123"
+              },
+              {
+                "at": 39000,
+                "deliver": "W125",
+                "cert": "cert_1065",
+                "crashAfter": "send"
+              },
+              {
+                "at": 39600,
+                "deliver": "W127",
+                "cert": "cert_1066"
+              },
+              {
+                "at": 39601,
+                "deliver": "W128",
+                "cert": "cert_1066"
+              },
+              {
+                "at": 39602,
+                "deliver": "W129",
+                "cert": "cert_1066"
+              },
+              {
+                "at": 40200,
+                "deliver": "W130",
+                "cert": "cert_1067",
+                "pauseAfter": "send"
+              },
+              {
+                "at": 40230,
+                "deliver": "W131",
+                "cert": "cert_1067"
+              },
+              {
+                "at": 40231,
+                "resume": "W130"
+              },
+              {
+                "at": 40800,
+                "deliver": "W132",
+                "cert": "cert_1068",
+                "crashAfter": "update"
+              },
+              {
+                "at": 41400,
+                "deliver": "W134",
+                "cert": "cert_1069"
+              },
+              {
+                "at": 41401,
+                "deliver": "W135",
+                "cert": "cert_1069"
+              },
+              {
+                "at": 41402,
+                "deliver": "W136",
+                "cert": "cert_1069"
+              },
+              {
+                "at": 42000,
+                "deliver": "W137",
+                "cert": "cert_1070",
+                "crashAfter": "send"
+              },
+              {
+                "at": 42060,
+                "deliver": "W138",
+                "cert": "cert_1070"
+              },
+              {
+                "at": 42600,
+                "deliver": "W139",
+                "cert": "cert_1071",
+                "crashAfter": "update"
+              },
+              {
+                "at": 42660,
+                "deliver": "W140",
+                "cert": "cert_1071"
+              },
+              {
+                "at": 43200,
+                "deliver": "W141",
+                "cert": "cert_1072",
+                "crashAfter": "send"
+              },
+              {
+                "at": 43260,
+                "deliver": "W142",
+                "cert": "cert_1072"
+              },
+              {
+                "at": 43800,
+                "deliver": "W143",
+                "cert": "cert_1073"
+              },
+              {
+                "at": 44400,
+                "deliver": "W144",
+                "cert": "cert_1074"
+              },
+              {
+                "at": 45000,
+                "deliver": "W145",
+                "cert": "cert_1075",
+                "crashAfter": "update"
+              },
+              {
+                "at": 45600,
+                "deliver": "W147",
+                "cert": "cert_1076"
+              },
+              {
+                "at": 45601,
+                "deliver": "W148",
+                "cert": "cert_1076"
+              },
+              {
+                "at": 45602,
+                "deliver": "W149",
+                "cert": "cert_1076"
+              },
+              {
+                "at": 46200,
+                "deliver": "W150",
+                "cert": "cert_1077",
+                "crashAfter": "update"
+              },
+              {
+                "at": 46260,
+                "deliver": "W151",
+                "cert": "cert_1077"
+              },
+              {
+                "at": 46800,
+                "deliver": "W152",
+                "cert": "cert_1078",
+                "crashAfter": "send"
+              },
+              {
+                "at": 46860,
+                "deliver": "W153",
+                "cert": "cert_1078"
+              },
+              {
+                "at": 47400,
+                "deliver": "W154",
+                "cert": "cert_1079",
+                "crashAfter": "update"
+              },
+              {
+                "at": 47460,
+                "deliver": "W155",
+                "cert": "cert_1079"
+              },
+              {
+                "at": 48000,
+                "deliver": "W156",
+                "cert": "cert_1080"
+              },
+              {
+                "at": 48600,
+                "deliver": "W157",
+                "cert": "cert_1081",
+                "crashAfter": "send"
+              },
+              {
+                "at": 48660,
+                "deliver": "W158",
+                "cert": "cert_1081"
+              },
+              {
+                "at": 49200,
+                "deliver": "W159",
+                "cert": "cert_1082",
+                "crashAfter": "update"
+              },
+              {
+                "at": 49260,
+                "deliver": "W160",
+                "cert": "cert_1082"
+              },
+              {
+                "at": 49800,
+                "deliver": "W161",
+                "cert": "cert_1083",
+                "crashAfter": "send"
+              },
+              {
+                "at": 50400,
+                "deliver": "W163",
+                "cert": "cert_1084",
+                "crashAfter": "send"
+              },
+              {
+                "at": 51000,
+                "deliver": "W165",
+                "cert": "cert_1085"
+              },
+              {
+                "at": 51600,
+                "deliver": "W166",
+                "cert": "cert_1086"
+              },
+              {
+                "at": 52200,
+                "deliver": "W167",
+                "cert": "cert_1087",
+                "crashAfter": "send"
+              },
+              {
+                "at": 52800,
+                "deliver": "W169",
+                "cert": "cert_1088",
+                "crashAfter": "update"
+              },
+              {
+                "at": 53400,
+                "deliver": "W171",
+                "cert": "cert_1089",
+                "crashAfter": "send"
+              },
+              {
+                "at": 53460,
+                "deliver": "W172",
+                "cert": "cert_1089"
+              },
+              {
+                "at": 54000,
+                "deliver": "W173",
+                "cert": "cert_1090",
+                "crashAfter": "send"
+              },
+              {
+                "at": 54060,
+                "deliver": "W174",
+                "cert": "cert_1090"
+              },
+              {
+                "at": 54600,
+                "deliver": "W175",
+                "cert": "cert_1091",
+                "crashAfter": "update"
+              },
+              {
+                "at": 54660,
+                "deliver": "W176",
+                "cert": "cert_1091"
+              },
+              {
+                "at": 55200,
+                "deliver": "W177",
+                "cert": "cert_1092"
+              },
+              {
+                "at": 55800,
+                "deliver": "W178",
+                "cert": "cert_1093",
+                "crashAfter": "send"
+              },
+              {
+                "at": 55860,
+                "deliver": "W179",
+                "cert": "cert_1093"
+              },
+              {
+                "at": 56400,
+                "deliver": "W180",
+                "cert": "cert_1094"
+              },
+              {
+                "at": 57000,
+                "deliver": "W181",
+                "cert": "cert_1095",
+                "crashAfter": "update"
+              },
+              {
+                "at": 57600,
+                "deliver": "W183",
+                "cert": "cert_1096",
+                "crashAfter": "send"
+              },
+              {
+                "at": 57660,
+                "deliver": "W184",
+                "cert": "cert_1096"
+              },
+              {
+                "at": 58200,
+                "deliver": "W185",
+                "cert": "cert_1097"
+              },
+              {
+                "at": 58201,
+                "deliver": "W186",
+                "cert": "cert_1097"
+              },
+              {
+                "at": 58202,
+                "deliver": "W187",
+                "cert": "cert_1097"
+              },
+              {
+                "at": 58800,
+                "deliver": "W188",
+                "cert": "cert_1098",
+                "crashAfter": "update"
+              },
+              {
+                "at": 59400,
+                "deliver": "W190",
+                "cert": "cert_1099",
+                "crashAfter": "send"
+              },
+              {
+                "at": 59460,
+                "deliver": "W191",
+                "cert": "cert_1099"
+              },
+              {
+                "at": 60000,
+                "deliver": "W192",
+                "cert": "cert_1100"
+              },
+              {
+                "at": 60600,
+                "deliver": "W193",
+                "cert": "cert_1101"
+              },
+              {
+                "at": 60601,
+                "deliver": "W194",
+                "cert": "cert_1101"
+              },
+              {
+                "at": 60602,
+                "deliver": "W195",
+                "cert": "cert_1101"
+              },
+              {
+                "at": 61200,
+                "deliver": "W196",
+                "cert": "cert_1102",
+                "crashAfter": "update"
+              },
+              {
+                "at": 61260,
+                "deliver": "W197",
+                "cert": "cert_1102"
+              },
+              {
+                "at": 61800,
+                "deliver": "W198",
+                "cert": "cert_1103",
+                "crashAfter": "update"
+              },
+              {
+                "at": 62400,
+                "deliver": "W200",
+                "cert": "cert_1104"
+              },
+              {
+                "at": 63000,
+                "deliver": "W201",
+                "cert": "cert_1105",
+                "pauseAfter": "get"
+              },
+              {
+                "at": 63030,
+                "deliver": "W202",
+                "cert": "cert_1105"
+              },
+              {
+                "at": 63031,
+                "resume": "W201"
+              },
+              {
+                "at": 63600,
+                "deliver": "W203",
+                "cert": "cert_1106",
+                "pauseAfter": "send"
+              },
+              {
+                "at": 63630,
+                "deliver": "W204",
+                "cert": "cert_1106"
+              },
+              {
+                "at": 63631,
+                "resume": "W203"
+              },
+              {
+                "at": 64200,
+                "deliver": "W205",
+                "cert": "cert_1107",
+                "pauseAfter": "send"
+              },
+              {
+                "at": 64230,
+                "deliver": "W206",
+                "cert": "cert_1107"
+              },
+              {
+                "at": 64231,
+                "resume": "W205"
+              },
+              {
+                "at": 64800,
+                "deliver": "W207",
+                "cert": "cert_1108",
+                "crashAfter": "update"
+              },
+              {
+                "at": 64860,
+                "deliver": "W208",
+                "cert": "cert_1108"
+              },
+              {
+                "at": 65400,
+                "deliver": "W209",
+                "cert": "cert_1109",
+                "pauseAfter": "get"
+              },
+              {
+                "at": 65430,
+                "deliver": "W210",
+                "cert": "cert_1109"
+              },
+              {
+                "at": 65431,
+                "resume": "W209"
+              },
+              {
+                "at": 66000,
+                "deliver": "W211",
+                "cert": "cert_1110",
+                "crashAfter": "update"
+              },
+              {
+                "at": 66060,
+                "deliver": "W212",
+                "cert": "cert_1110"
+              },
+              {
+                "at": 66600,
+                "deliver": "W213",
+                "cert": "cert_1111"
+              },
+              {
+                "at": 66601,
+                "deliver": "W214",
+                "cert": "cert_1111"
+              },
+              {
+                "at": 66602,
+                "deliver": "W215",
+                "cert": "cert_1111"
+              },
+              {
+                "at": 67200,
+                "deliver": "W216",
+                "cert": "cert_1112",
+                "crashAfter": "send"
+              },
+              {
+                "at": 67260,
+                "deliver": "W217",
+                "cert": "cert_1112"
+              },
+              {
+                "at": 67800,
+                "deliver": "W218",
+                "cert": "cert_1113",
+                "pauseAfter": "send"
+              },
+              {
+                "at": 67830,
+                "deliver": "W219",
+                "cert": "cert_1113"
+              },
+              {
+                "at": 67831,
+                "resume": "W218"
+              },
+              {
+                "at": 68400,
+                "deliver": "W220",
+                "cert": "cert_1114"
+              },
+              {
+                "at": 69000,
+                "deliver": "W221",
+                "cert": "cert_1115",
+                "crashAfter": "update"
+              },
+              {
+                "at": 69600,
+                "deliver": "W223",
+                "cert": "cert_1116",
+                "crashAfter": "update"
+              },
+              {
+                "at": 69660,
+                "deliver": "W224",
+                "cert": "cert_1116"
+              },
+              {
+                "at": 70200,
+                "deliver": "W225",
+                "cert": "cert_1117",
+                "crashAfter": "send"
+              },
+              {
+                "at": 70800,
+                "deliver": "W227",
+                "cert": "cert_1118",
+                "crashAfter": "send"
+              },
+              {
+                "at": 71400,
+                "deliver": "W229",
+                "cert": "cert_1119"
+              },
+              {
+                "at": 71401,
+                "deliver": "W230",
+                "cert": "cert_1119"
+              },
+              {
+                "at": 71402,
+                "deliver": "W231",
+                "cert": "cert_1119"
+              },
+              {
+                "at": 72000,
+                "deliver": "W232",
+                "cert": "cert_1120",
+                "pauseAfter": "send"
+              },
+              {
+                "at": 72030,
+                "deliver": "W233",
+                "cert": "cert_1120"
+              },
+              {
+                "at": 72031,
+                "resume": "W232"
+              },
+              {
+                "at": 72600,
+                "deliver": "W234",
+                "cert": "cert_1121"
+              },
+              {
+                "at": 72601,
+                "deliver": "W235",
+                "cert": "cert_1121"
+              },
+              {
+                "at": 72602,
+                "deliver": "W236",
+                "cert": "cert_1121"
+              },
+              {
+                "at": 73200,
+                "deliver": "W237",
+                "cert": "cert_1122",
+                "pauseAfter": "get"
+              },
+              {
+                "at": 73230,
+                "deliver": "W238",
+                "cert": "cert_1122"
+              },
+              {
+                "at": 73231,
+                "resume": "W237"
+              },
+              {
+                "at": 73800,
+                "deliver": "W239",
+                "cert": "cert_1123",
+                "crashAfter": "send"
+              },
+              {
+                "at": 73860,
+                "deliver": "W240",
+                "cert": "cert_1123"
+              },
+              {
+                "at": 74400,
+                "deliver": "W241",
+                "cert": "cert_1124",
+                "crashAfter": "update"
+              },
+              {
+                "at": 75000,
+                "deliver": "W243",
+                "cert": "cert_1125"
+              },
+              {
+                "at": 75001,
+                "deliver": "W244",
+                "cert": "cert_1125"
+              },
+              {
+                "at": 75002,
+                "deliver": "W245",
+                "cert": "cert_1125"
+              },
+              {
+                "at": 75600,
+                "deliver": "W246",
+                "cert": "cert_1126",
+                "crashAfter": "send"
+              },
+              {
+                "at": 75660,
+                "deliver": "W247",
+                "cert": "cert_1126"
+              },
+              {
+                "at": 76200,
+                "deliver": "W248",
+                "cert": "cert_1127",
+                "crashAfter": "send"
+              },
+              {
+                "at": 76800,
+                "deliver": "W250",
+                "cert": "cert_1128",
+                "pauseAfter": "send"
+              },
+              {
+                "at": 76830,
+                "deliver": "W251",
+                "cert": "cert_1128"
+              },
+              {
+                "at": 76831,
+                "resume": "W250"
+              },
+              {
+                "at": 77400,
+                "deliver": "W252",
+                "cert": "cert_1129",
+                "crashAfter": "send"
+              },
+              {
+                "at": 77460,
+                "deliver": "W253",
+                "cert": "cert_1129"
+              },
+              {
+                "at": 78000,
+                "deliver": "W254",
+                "cert": "cert_1130",
+                "crashAfter": "send"
+              },
+              {
+                "at": 78060,
+                "deliver": "W255",
+                "cert": "cert_1130"
+              },
+              {
+                "at": 78600,
+                "deliver": "W256",
+                "cert": "cert_1131"
+              },
+              {
+                "at": 78601,
+                "deliver": "W257",
+                "cert": "cert_1131"
+              },
+              {
+                "at": 78602,
+                "deliver": "W258",
+                "cert": "cert_1131"
+              },
+              {
+                "at": 79200,
+                "deliver": "W259",
+                "cert": "cert_1132",
+                "crashAfter": "update"
+              },
+              {
+                "at": 79260,
+                "deliver": "W260",
+                "cert": "cert_1132"
+              },
+              {
+                "at": 79800,
+                "deliver": "W261",
+                "cert": "cert_1133",
+                "pauseAfter": "get"
+              },
+              {
+                "at": 79830,
+                "deliver": "W262",
+                "cert": "cert_1133"
+              },
+              {
+                "at": 79831,
+                "resume": "W261"
+              },
+              {
+                "at": 80400,
+                "deliver": "W263",
+                "cert": "cert_1134",
+                "crashAfter": "send"
+              },
+              {
+                "at": 81000,
+                "deliver": "W265",
+                "cert": "cert_1135",
+                "crashAfter": "update"
+              },
+              {
+                "at": 81060,
+                "deliver": "W266",
+                "cert": "cert_1135"
+              },
+              {
+                "at": 81600,
+                "deliver": "W267",
+                "cert": "cert_1136",
+                "crashAfter": "update"
+              },
+              {
+                "at": 81660,
+                "deliver": "W268",
+                "cert": "cert_1136"
+              },
+              {
+                "at": 82200,
+                "deliver": "W269",
+                "cert": "cert_1137",
+                "crashAfter": "send"
+              },
+              {
+                "at": 82800,
+                "deliver": "W271",
+                "cert": "cert_1138",
+                "crashAfter": "send"
+              },
+              {
+                "at": 83400,
+                "deliver": "W273",
+                "cert": "cert_1139"
+              },
+              {
+                "at": 83401,
+                "deliver": "W274",
+                "cert": "cert_1139"
+              },
+              {
+                "at": 83402,
+                "deliver": "W275",
+                "cert": "cert_1139"
+              },
+              {
+                "at": 84000,
+                "deliver": "W276",
+                "cert": "cert_1140",
+                "pauseAfter": "get"
+              },
+              {
+                "at": 84030,
+                "deliver": "W277",
+                "cert": "cert_1140"
+              },
+              {
+                "at": 84031,
+                "resume": "W276"
+              },
+              {
+                "at": 84600,
+                "deliver": "W278",
+                "cert": "cert_1141",
+                "crashAfter": "send"
+              },
+              {
+                "at": 85200,
+                "deliver": "W280",
+                "cert": "cert_1142",
+                "pauseAfter": "send"
+              },
+              {
+                "at": 85230,
+                "deliver": "W281",
+                "cert": "cert_1142"
+              },
+              {
+                "at": 85231,
+                "resume": "W280"
+              },
+              {
+                "at": 85800,
+                "deliver": "W282",
+                "cert": "cert_1143"
+              },
+              {
+                "at": 86000,
+                "deliver": "W1",
+                "cert": "cert_1000"
+              },
+              {
+                "at": 86400,
+                "deliver": "W283",
+                "cert": "cert_1144",
+                "crashAfter": "send"
+              },
+              {
+                "at": 86460,
+                "deliver": "W284",
+                "cert": "cert_1144"
+              },
+              {
+                "at": 87000,
+                "deliver": "W285",
+                "cert": "cert_1145"
+              },
+              {
+                "at": 87001,
+                "deliver": "W286",
+                "cert": "cert_1145"
+              },
+              {
+                "at": 87002,
+                "deliver": "W287",
+                "cert": "cert_1145"
+              },
+              {
+                "at": 87600,
+                "deliver": "W288",
+                "cert": "cert_1146"
+              },
+              {
+                "at": 87601,
+                "deliver": "W289",
+                "cert": "cert_1146"
+              },
+              {
+                "at": 87602,
+                "deliver": "W290",
+                "cert": "cert_1146"
+              },
+              {
+                "at": 88200,
+                "deliver": "W291",
+                "cert": "cert_1147"
+              },
+              {
+                "at": 88201,
+                "deliver": "W292",
+                "cert": "cert_1147"
+              },
+              {
+                "at": 88202,
+                "deliver": "W293",
+                "cert": "cert_1147"
+              },
+              {
+                "at": 88800,
+                "deliver": "W294",
+                "cert": "cert_1148"
+              },
+              {
+                "at": 89400,
+                "deliver": "W295",
+                "cert": "cert_1149"
+              },
+              {
+                "at": 90600,
+                "deliver": "W3",
+                "cert": "cert_1001"
+              },
+              {
+                "at": 91800,
+                "deliver": "W7",
+                "cert": "cert_1003"
+              },
+              {
+                "at": 96600,
+                "deliver": "W21",
+                "cert": "cert_1011"
+              },
+              {
+                "at": 98600,
+                "deliver": "W40",
+                "cert": "cert_1021"
+              },
+              {
+                "at": 102000,
+                "deliver": "W38",
+                "cert": "cert_1020"
+              },
+              {
+                "at": 106200,
+                "deliver": "W51",
+                "cert": "cert_1027"
+              },
+              {
+                "at": 109800,
+                "deliver": "W62",
+                "cert": "cert_1033"
+              },
+              {
+                "at": 111000,
+                "deliver": "W66",
+                "cert": "cert_1035"
+              },
+              {
+                "at": 112800,
+                "deliver": "W71",
+                "cert": "cert_1038"
+              },
+              {
+                "at": 115800,
+                "deliver": "W79",
+                "cert": "cert_1043"
+              },
+              {
+                "at": 116600,
+                "deliver": "W97",
+                "cert": "cert_1051"
+              },
+              {
+                "at": 118800,
+                "deliver": "W91",
+                "cert": "cert_1048"
+              },
+              {
+                "at": 122400,
+                "deliver": "W103",
+                "cert": "cert_1054"
+              },
+              {
+                "at": 125000,
+                "deliver": "W126",
+                "cert": "cert_1065"
+              },
+              {
+                "at": 127200,
+                "deliver": "W119",
+                "cert": "cert_1062"
+              },
+              {
+                "at": 130800,
+                "deliver": "W133",
+                "cert": "cert_1068"
+              },
+              {
+                "at": 135000,
+                "deliver": "W146",
+                "cert": "cert_1075"
+              },
+              {
+                "at": 135800,
+                "deliver": "W162",
+                "cert": "cert_1083"
+              },
+              {
+                "at": 136400,
+                "deliver": "W164",
+                "cert": "cert_1084"
+              },
+              {
+                "at": 138200,
+                "deliver": "W168",
+                "cert": "cert_1087"
+              },
+              {
+                "at": 142800,
+                "deliver": "W170",
+                "cert": "cert_1088"
+              },
+              {
+                "at": 147000,
+                "deliver": "W182",
+                "cert": "cert_1095"
+              },
+              {
+                "at": 148800,
+                "deliver": "W189",
+                "cert": "cert_1098"
+              },
+              {
+                "at": 151800,
+                "deliver": "W199",
+                "cert": "cert_1103"
+              },
+              {
+                "at": 156200,
+                "deliver": "W226",
+                "cert": "cert_1117"
+              },
+              {
+                "at": 156800,
+                "deliver": "W228",
+                "cert": "cert_1118"
+              },
+              {
+                "at": 159000,
+                "deliver": "W222",
+                "cert": "cert_1115"
+              },
+              {
+                "at": 162200,
+                "deliver": "W249",
+                "cert": "cert_1127"
+              },
+              {
+                "at": 164400,
+                "deliver": "W242",
+                "cert": "cert_1124"
+              },
+              {
+                "at": 166400,
+                "deliver": "W264",
+                "cert": "cert_1134"
+              },
+              {
+                "at": 168200,
+                "deliver": "W270",
+                "cert": "cert_1137"
+              },
+              {
+                "at": 168800,
+                "deliver": "W272",
+                "cert": "cert_1138"
+              },
+              {
+                "at": 170600,
+                "deliver": "W279",
+                "cert": "cert_1141"
+              },
+              {
+                "at": 200000,
+                "deliver": "W296",
+                "cert": "cert_1000"
+              },
+              {
+                "at": 200007,
+                "deliver": "W297",
+                "cert": "cert_1007",
+                "crashAfter": "send"
+              },
+              {
+                "at": 200014,
+                "deliver": "W298",
+                "cert": "cert_1014"
+              },
+              {
+                "at": 200021,
+                "deliver": "W299",
+                "cert": "cert_1021",
+                "crashAfter": "send"
+              },
+              {
+                "at": 200028,
+                "deliver": "W300",
+                "cert": "cert_1028"
+              },
+              {
+                "at": 200035,
+                "deliver": "W301",
+                "cert": "cert_1035",
+                "crashAfter": "send"
+              },
+              {
+                "at": 200042,
+                "deliver": "W302",
+                "cert": "cert_1042"
+              },
+              {
+                "at": 200049,
+                "deliver": "W303",
+                "cert": "cert_1049",
+                "crashAfter": "send"
+              },
+              {
+                "at": 200056,
+                "deliver": "W304",
+                "cert": "cert_1056"
+              },
+              {
+                "at": 200063,
+                "deliver": "W305",
+                "cert": "cert_1063",
+                "crashAfter": "send"
+              },
+              {
+                "at": 200070,
+                "deliver": "W306",
+                "cert": "cert_1070"
+              },
+              {
+                "at": 200077,
+                "deliver": "W307",
+                "cert": "cert_1077",
+                "crashAfter": "send"
+              },
+              {
+                "at": 200084,
+                "deliver": "W308",
+                "cert": "cert_1084"
+              },
+              {
+                "at": 200091,
+                "deliver": "W309",
+                "cert": "cert_1091",
+                "crashAfter": "send"
+              },
+              {
+                "at": 200098,
+                "deliver": "W310",
+                "cert": "cert_1098"
+              },
+              {
+                "at": 200105,
+                "deliver": "W311",
+                "cert": "cert_1105",
+                "crashAfter": "send"
+              },
+              {
+                "at": 200112,
+                "deliver": "W312",
+                "cert": "cert_1112"
+              },
+              {
+                "at": 200119,
+                "deliver": "W313",
+                "cert": "cert_1119",
+                "crashAfter": "send"
+              },
+              {
+                "at": 200126,
+                "deliver": "W314",
+                "cert": "cert_1126"
+              },
+              {
+                "at": 200133,
+                "deliver": "W315",
+                "cert": "cert_1133",
+                "crashAfter": "send"
+              },
+              {
+                "at": 200140,
+                "deliver": "W316",
+                "cert": "cert_1140"
+              },
+              {
+                "at": 200147,
+                "deliver": "W317",
+                "cert": "cert_1147",
+                "crashAfter": "send"
+              },
+              {
+                "at": 300003,
+                "deliver": "W318",
+                "cert": "cert_1003"
+              },
+              {
+                "at": 300014,
+                "deliver": "W319",
+                "cert": "cert_1014"
+              },
+              {
+                "at": 300025,
+                "deliver": "W320",
+                "cert": "cert_1025"
+              },
+              {
+                "at": 300036,
+                "deliver": "W321",
+                "cert": "cert_1036"
+              },
+              {
+                "at": 300047,
+                "deliver": "W322",
+                "cert": "cert_1047"
+              },
+              {
+                "at": 300058,
+                "deliver": "W323",
+                "cert": "cert_1058"
+              },
+              {
+                "at": 300069,
+                "deliver": "W324",
+                "cert": "cert_1069"
+              },
+              {
+                "at": 300080,
+                "deliver": "W325",
+                "cert": "cert_1080"
+              },
+              {
+                "at": 300091,
+                "deliver": "W326",
+                "cert": "cert_1091"
+              },
+              {
+                "at": 300102,
+                "deliver": "W327",
+                "cert": "cert_1102"
+              },
+              {
+                "at": 300113,
+                "deliver": "W328",
+                "cert": "cert_1113"
+              },
+              {
+                "at": 300124,
+                "deliver": "W329",
+                "cert": "cert_1124"
+              },
+              {
+                "at": 300135,
+                "deliver": "W330",
+                "cert": "cert_1135"
+              },
+              {
+                "at": 300146,
+                "deliver": "W331",
+                "cert": "cert_1146"
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 3,
+          "expected": {
+            "emailsPerLearner": {
+              "u_1000": 0,
+              "u_1001": 0,
+              "u_1002": 1,
+              "u_1003": 0,
+              "u_1004": 1,
+              "u_1005": 1,
+              "u_1006": 1,
+              "u_1007": 1,
+              "u_1008": 1,
+              "u_1009": 1,
+              "u_1010": 1,
+              "u_1011": 0,
+              "u_1012": 1,
+              "u_1013": 1,
+              "u_1014": 1,
+              "u_1015": 1,
+              "u_1016": 1,
+              "u_1017": 1,
+              "u_1018": 1,
+              "u_1019": 1,
+              "u_1020": 0,
+              "u_1021": 1,
+              "u_1022": 1,
+              "u_1023": 1,
+              "u_1024": 1,
+              "u_1025": 0,
+              "u_1026": 1,
+              "u_1027": 0,
+              "u_1028": 1,
+              "u_1029": 1,
+              "u_1030": 1,
+              "u_1031": 1,
+              "u_1032": 1,
+              "u_1033": 0,
+              "u_1034": 1,
+              "u_1035": 0,
+              "u_1036": 1,
+              "u_1037": 1,
+              "u_1038": 0,
+              "u_1039": 1,
+              "u_1040": 1,
+              "u_1041": 1,
+              "u_1042": 1,
+              "u_1043": 0,
+              "u_1044": 1,
+              "u_1045": 1,
+              "u_1046": 1,
+              "u_1047": 1,
+              "u_1048": 0,
+              "u_1049": 1,
+              "u_1050": 0,
+              "u_1051": 1,
+              "u_1052": 1,
+              "u_1053": 1,
+              "u_1054": 0,
+              "u_1055": 1,
+              "u_1056": 1,
+              "u_1057": 1,
+              "u_1058": 1,
+              "u_1059": 1,
+              "u_1060": 1,
+              "u_1061": 1,
+              "u_1062": 0,
+              "u_1063": 1,
+              "u_1064": 1,
+              "u_1065": 1,
+              "u_1066": 1,
+              "u_1067": 1,
+              "u_1068": 0,
+              "u_1069": 1,
+              "u_1070": 1,
+              "u_1071": 1,
+              "u_1072": 1,
+              "u_1073": 1,
+              "u_1074": 1,
+              "u_1075": 0,
+              "u_1076": 1,
+              "u_1077": 1,
+              "u_1078": 1,
+              "u_1079": 1,
+              "u_1080": 1,
+              "u_1081": 1,
+              "u_1082": 1,
+              "u_1083": 1,
+              "u_1084": 1,
+              "u_1085": 1,
+              "u_1086": 1,
+              "u_1087": 1,
+              "u_1088": 0,
+              "u_1089": 1,
+              "u_1090": 1,
+              "u_1091": 1,
+              "u_1092": 1,
+              "u_1093": 1,
+              "u_1094": 1,
+              "u_1095": 0,
+              "u_1096": 1,
+              "u_1097": 1,
+              "u_1098": 0,
+              "u_1099": 1,
+              "u_1100": 0,
+              "u_1101": 1,
+              "u_1102": 1,
+              "u_1103": 0,
+              "u_1104": 1,
+              "u_1105": 1,
+              "u_1106": 1,
+              "u_1107": 1,
+              "u_1108": 1,
+              "u_1109": 1,
+              "u_1110": 1,
+              "u_1111": 1,
+              "u_1112": 1,
+              "u_1113": 1,
+              "u_1114": 1,
+              "u_1115": 0,
+              "u_1116": 1,
+              "u_1117": 1,
+              "u_1118": 1,
+              "u_1119": 1,
+              "u_1120": 1,
+              "u_1121": 1,
+              "u_1122": 1,
+              "u_1123": 1,
+              "u_1124": 0,
+              "u_1125": 0,
+              "u_1126": 1,
+              "u_1127": 1,
+              "u_1128": 1,
+              "u_1129": 1,
+              "u_1130": 1,
+              "u_1131": 1,
+              "u_1132": 1,
+              "u_1133": 1,
+              "u_1134": 1,
+              "u_1135": 1,
+              "u_1136": 1,
+              "u_1137": 1,
+              "u_1138": 1,
+              "u_1139": 1,
+              "u_1140": 1,
+              "u_1141": 1,
+              "u_1142": 1,
+              "u_1143": 1,
+              "u_1144": 1,
+              "u_1145": 1,
+              "u_1146": 1,
+              "u_1147": 1,
+              "u_1148": 1,
+              "u_1149": 1
+            },
+            "certificates": {
+              "cert_1000": "sent",
+              "cert_1001": "needs-review",
+              "cert_1002": "sent",
+              "cert_1003": "needs-review",
+              "cert_1004": "sent",
+              "cert_1005": "sent",
+              "cert_1006": "sent",
+              "cert_1007": "sent",
+              "cert_1008": "sent",
+              "cert_1009": "sent",
+              "cert_1010": "sent",
+              "cert_1011": "needs-review",
+              "cert_1012": "sent",
+              "cert_1013": "sent",
+              "cert_1014": "sent",
+              "cert_1015": "sent",
+              "cert_1016": "sent",
+              "cert_1017": "sent",
+              "cert_1018": "sent",
+              "cert_1019": "sent",
+              "cert_1020": "needs-review",
+              "cert_1021": "sent",
+              "cert_1022": "sent",
+              "cert_1023": "sent",
+              "cert_1024": "sent",
+              "cert_1025": "sent",
+              "cert_1026": "sent",
+              "cert_1027": "needs-review",
+              "cert_1028": "sent",
+              "cert_1029": "sent",
+              "cert_1030": "sent",
+              "cert_1031": "sent",
+              "cert_1032": "sent",
+              "cert_1033": "needs-review",
+              "cert_1034": "sent",
+              "cert_1035": "needs-review",
+              "cert_1036": "sent",
+              "cert_1037": "sent",
+              "cert_1038": "needs-review",
+              "cert_1039": "sent",
+              "cert_1040": "sent",
+              "cert_1041": "sent",
+              "cert_1042": "sent",
+              "cert_1043": "needs-review",
+              "cert_1044": "sent",
+              "cert_1045": "sent",
+              "cert_1046": "sent",
+              "cert_1047": "sent",
+              "cert_1048": "needs-review",
+              "cert_1049": "sent",
+              "cert_1050": "sent",
+              "cert_1051": "sent",
+              "cert_1052": "sent",
+              "cert_1053": "sent",
+              "cert_1054": "needs-review",
+              "cert_1055": "sent",
+              "cert_1056": "sent",
+              "cert_1057": "sent",
+              "cert_1058": "sent",
+              "cert_1059": "sent",
+              "cert_1060": "sent",
+              "cert_1061": "sent",
+              "cert_1062": "needs-review",
+              "cert_1063": "sent",
+              "cert_1064": "sent",
+              "cert_1065": "sent",
+              "cert_1066": "sent",
+              "cert_1067": "sent",
+              "cert_1068": "needs-review",
+              "cert_1069": "sent",
+              "cert_1070": "sent",
+              "cert_1071": "sent",
+              "cert_1072": "sent",
+              "cert_1073": "sent",
+              "cert_1074": "sent",
+              "cert_1075": "sent",
+              "cert_1076": "sent",
+              "cert_1077": "sent",
+              "cert_1078": "sent",
+              "cert_1079": "sent",
+              "cert_1080": "sent",
+              "cert_1081": "sent",
+              "cert_1082": "sent",
+              "cert_1083": "sent",
+              "cert_1084": "sent",
+              "cert_1085": "sent",
+              "cert_1086": "sent",
+              "cert_1087": "sent",
+              "cert_1088": "needs-review",
+              "cert_1089": "sent",
+              "cert_1090": "sent",
+              "cert_1091": "sent",
+              "cert_1092": "sent",
+              "cert_1093": "sent",
+              "cert_1094": "sent",
+              "cert_1095": "needs-review",
+              "cert_1096": "sent",
+              "cert_1097": "sent",
+              "cert_1098": "needs-review",
+              "cert_1099": "sent",
+              "cert_1100": "sent",
+              "cert_1101": "sent",
+              "cert_1102": "sent",
+              "cert_1103": "needs-review",
+              "cert_1104": "sent",
+              "cert_1105": "sent",
+              "cert_1106": "sent",
+              "cert_1107": "sent",
+              "cert_1108": "sent",
+              "cert_1109": "sent",
+              "cert_1110": "sent",
+              "cert_1111": "sent",
+              "cert_1112": "sent",
+              "cert_1113": "sent",
+              "cert_1114": "sent",
+              "cert_1115": "needs-review",
+              "cert_1116": "sent",
+              "cert_1117": "sent",
+              "cert_1118": "sent",
+              "cert_1119": "sent",
+              "cert_1120": "sent",
+              "cert_1121": "sent",
+              "cert_1122": "sent",
+              "cert_1123": "sent",
+              "cert_1124": "needs-review",
+              "cert_1125": "sent",
+              "cert_1126": "sent",
+              "cert_1127": "sent",
+              "cert_1128": "sent",
+              "cert_1129": "sent",
+              "cert_1130": "sent",
+              "cert_1131": "sent",
+              "cert_1132": "sent",
+              "cert_1133": "sent",
+              "cert_1134": "sent",
+              "cert_1135": "sent",
+              "cert_1136": "sent",
+              "cert_1137": "sent",
+              "cert_1138": "sent",
+              "cert_1139": "sent",
+              "cert_1140": "sent",
+              "cert_1141": "sent",
+              "cert_1142": "sent",
+              "cert_1143": "sent",
+              "cert_1144": "sent",
+              "cert_1145": "sent",
+              "cert_1146": "sent",
+              "cert_1147": "sent",
+              "cert_1148": "sent",
+              "cert_1149": "sent"
+            },
+            "errors": []
+          }
+        }
+      ]
+    }
+  ]
+}

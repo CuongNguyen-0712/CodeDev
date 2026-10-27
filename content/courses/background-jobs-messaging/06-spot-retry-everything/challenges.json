@@ -1,0 +1,2221 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_bjm_231",
+      "name": "retry-everything-quiz",
+      "type": "quiz",
+      "title": "Which export failures are worth a retry?",
+      "description": "Two pieces of evidence from the export worker: the log of an export retried ten times, and a first attempt at classifying errors.",
+      "difficulty": "medium",
+      "outcomes": [
+        "retries"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Export worker log (10 attempts, exponential backoff from 1 s, capped at 30 s):\n\n14:03:02.118 exp-7731 attempt=1 HttpError: reports API answered 404 (course \"nestjs-basics\")\n14:03:03.121 exp-7731 attempt=2 HttpError: reports API answered 404 (course \"nestjs-basics\")\n14:03:05.125 exp-7731 attempt=3 HttpError: reports API answered 404 (course \"nestjs-basics\")\n   ... attempts 4 to 9: the same 404 ...\n14:05:33.161 exp-7731 attempt=10 HttpError: reports API answered 404 (course \"nestjs-basics\")\n14:05:33.163 exp-7731 ALERT export exp-7731 failed\n\nThe course nestjs-basics was renamed months ago; GET /courses/nestjs-basics/progress answers 404 every time.\n\nStatement: \"None of the nine retries could have succeeded, and the alert came about two and a half minutes later than it could have.\"",
+          "explanation": "True. A 404 for a course that does not exist describes the request, not a temporary state of the reports API: sending the same request again gets the same answer, so every retry was wasted work and the worker was blocked for 151 seconds (1 + 2 + 4 + 8 + 16 + 30 x 4 seconds of sleeping). The alert could have been sent after the first attempt at 14:03:02 instead of at 14:05:33. A 404 is a permanent error: fail the export at once with the reason and alert. The misconception is that more attempts always make a worker more reliable; for permanent errors they only add load and delay the moment someone finds out.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A reviewer's first fix of the export worker:\n\n} catch (error) {\n  lastError = error;\n  const clientError = error instanceof HttpError && error.status >= 400 && error.status < 500;\n  if (attempt === MAX_ATTEMPTS || clientError) break;   // 4xx: our request is wrong, stop\n  // ... sleep with backoff or Retry-After, then retry\n}\n\nAt 17:00, when many instructors export at once, the reports API answers:\n\nHTTP/1.1 429 Too Many Requests\nRetry-After: 5\n\nStatement: \"With this change, the export that got 429 is failed for good, and that is the right outcome for a request the reports API rejected.\"",
+          "explanation": "False. The first half is accurate - the code treats 429 like any other 4xx and stops - but that outcome is wrong. 429 does not say the request is invalid; it says the client is sending too many requests right now, and Retry-After: 5 says when to try again. The same request will very likely succeed after five seconds, so it is retryable, and so is 408 Request Timeout. The correct rule is 4xx except 408 and 429 is permanent; 5xx, timeouts and connection resets are retryable. The misconception is that the status class alone decides; the meaning of the specific code does.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_bjm_232",
+      "name": "spot-the-ai-mistake-retry-everything",
+      "type": "fix_bug",
+      "title": "Spot the AI Mistake: retrying errors that can never succeed",
+      "description": "An AI assistant was asked: \"The course export worker fails now and then and instructors have to click Export again. Make the export worker reliable.\" It wrapped the export in runExportJob: up to 10 attempts with exponential backoff (1 s doubling, capped at 30 s) that honours Retry-After, then an alert. Its tests, with a reports API that times out or answers 503 or 429 and then recovers, passed. In production the export queue falls behind and alerts arrive minutes late: an export with a malformed course id, a 404 or 403 from the reports API, or a missing template file is attempted 10 times over 151 seconds before the alert. Fix runExportJob so that only errors that can go away on their own are retried: TimeoutError, a connection reset (code \"ECONNRESET\"), HttpError 5xx, 408 and 429 (waiting retryAfterMs when set). ValidationError, HttpError 4xx other than 408 and 429, and a missing file (code \"ENOENT\") are permanent: fail the job at once, without sleeping and without another attempt, and alert immediately. Keep the limit, the backoff, the alert and the result as they are. Input: a list of export jobs { id, courseId, format, script }, where script lists what each attempt meets (\"ok\", \"reports:timeout\", \"reports:reset\", \"reports:<status>[:<retryAfterSeconds>]\", \"template:missing\", \"storage:timeout\", \"storage:<status>\"; the last entry repeats). Output: one line per job with its status, attempts, fake worker time and alert time, then a total line. The public tests pass on the assistant's code; the hidden tests use failures that never recover.",
+      "difficulty": "medium",
+      "outcomes": [
+        "retries"
+      ],
+      "points": 30,
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "hints": [
+        "Inside the catch block, before deciding to sleep, what question about the error should the worker ask, and what does it do today with an error whose answer can never change?",
+        "Look at the line that decides whether the loop ends early, and at the information each error carries: its class (ValidationError, TimeoutError, HttpError), the status of an HttpError, and the code of a system error. The decision has to happen before the sleep, or a permanent error still costs one backoff delay.",
+        "A similar decision for an SMTP mailer, where the rule is reversed: reply codes 4xx are temporary and 5xx are permanent. With attempts that meet 451, then 451, then 250, the mail is sent on attempt 3 after two backoff delays; with 550 on the first attempt, the job fails on attempt 1 with no delay and the alert goes out at once. Write the rule as one small function that takes the error and returns whether the same request could succeed later."
+      ],
+      "tests": [
+        {
+          "name": "Timeouts, 503 and 429 with Retry-After are retried until the export succeeds",
+          "input": [
+            {
+              "id": "exp-101",
+              "courseId": "redis-patterns",
+              "format": "csv",
+              "script": [
+                "reports:timeout",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-102",
+              "courseId": "sql-basics",
+              "format": "csv",
+              "script": [
+                "reports:503",
+                "reports:503",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-103",
+              "courseId": "postgres-performance",
+              "format": "xlsx",
+              "script": [
+                "reports:429:7",
+                "ok"
+              ]
+            }
+          ],
+          "expected": "exp-101: done after 2 attempt(s) in 11000 ms, no alert\nexp-102: done after 3 attempt(s) in 3000 ms, no alert\nexp-103: done after 2 attempt(s) in 7000 ms, no alert\ntotal: 7 attempts, 21000 ms of worker time",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Storage that stays down fails after 10 attempts with one alert",
+          "input": [
+            {
+              "id": "exp-104",
+              "courseId": "redis-patterns",
+              "format": "csv",
+              "script": [
+                "storage:503"
+              ]
+            },
+            {
+              "id": "exp-105",
+              "courseId": "redis-patterns",
+              "format": "csv",
+              "script": [
+                "storage:502",
+                "storage:timeout",
+                "ok"
+              ]
+            }
+          ],
+          "expected": "exp-104: failed after 10 attempt(s) in 151000 ms, alert at 151000 ms: HttpError: object storage answered 503\nexp-105: done after 3 attempt(s) in 13000 ms, no alert\ntotal: 13 attempts, 164000 ms of worker time",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "A malformed or empty course id fails at once with the alert at 0 ms",
+          "input": [
+            {
+              "id": "exp-201",
+              "courseId": "Redis Patterns",
+              "format": "csv",
+              "script": [
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-202",
+              "courseId": "",
+              "format": "csv",
+              "script": [
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-203",
+              "courseId": "redis-patterns",
+              "format": "csv",
+              "script": [
+                "ok"
+              ]
+            }
+          ],
+          "expected": "exp-201: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"Redis Patterns\" is not a valid course id\nexp-202: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"\" is not a valid course id\nexp-203: done after 1 attempt(s) in 0 ms, no alert\ntotal: 3 attempts, 0 ms of worker time",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "404, 400, 401, 403 and 422 from the reports API are permanent",
+          "input": [
+            {
+              "id": "exp-301",
+              "courseId": "nestjs-basics",
+              "format": "csv",
+              "script": [
+                "reports:404"
+              ]
+            },
+            {
+              "id": "exp-302",
+              "courseId": "redis-patterns",
+              "format": "csv",
+              "script": [
+                "reports:400"
+              ]
+            },
+            {
+              "id": "exp-303",
+              "courseId": "redis-patterns",
+              "format": "csv",
+              "script": [
+                "reports:401"
+              ]
+            },
+            {
+              "id": "exp-304",
+              "courseId": "redis-patterns",
+              "format": "csv",
+              "script": [
+                "reports:403"
+              ]
+            },
+            {
+              "id": "exp-305",
+              "courseId": "redis-patterns",
+              "format": "csv",
+              "script": [
+                "reports:422"
+              ]
+            }
+          ],
+          "expected": "exp-301: failed after 1 attempt(s) in 0 ms, alert at 0 ms: HttpError: reports API answered 404\nexp-302: failed after 1 attempt(s) in 0 ms, alert at 0 ms: HttpError: reports API answered 400\nexp-303: failed after 1 attempt(s) in 0 ms, alert at 0 ms: HttpError: reports API answered 401\nexp-304: failed after 1 attempt(s) in 0 ms, alert at 0 ms: HttpError: reports API answered 403\nexp-305: failed after 1 attempt(s) in 0 ms, alert at 0 ms: HttpError: reports API answered 422\ntotal: 5 attempts, 0 ms of worker time",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "A missing template file fails at once; a 409 from storage too",
+          "input": [
+            {
+              "id": "exp-401",
+              "courseId": "redis-patterns",
+              "format": "pdf",
+              "script": [
+                "template:missing"
+              ]
+            },
+            {
+              "id": "exp-402",
+              "courseId": "redis-patterns",
+              "format": "csv",
+              "script": [
+                "storage:409"
+              ]
+            }
+          ],
+          "expected": "exp-401: failed after 1 attempt(s) in 0 ms, alert at 0 ms: Error: ENOENT: no such file or directory, open 'templates/pdf.hbs'\nexp-402: failed after 1 attempt(s) in 0 ms, alert at 0 ms: HttpError: object storage answered 409\ntotal: 2 attempts, 0 ms of worker time",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "408, 429 without Retry-After and a connection reset are still retried",
+          "input": [
+            {
+              "id": "exp-501",
+              "courseId": "redis-patterns",
+              "format": "csv",
+              "script": [
+                "reports:408",
+                "reports:429",
+                "reports:reset",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-502",
+              "courseId": "sql-basics",
+              "format": "csv",
+              "script": [
+                "reports:reset"
+              ]
+            }
+          ],
+          "expected": "exp-501: done after 4 attempt(s) in 7000 ms, no alert\nexp-502: failed after 10 attempt(s) in 151000 ms, alert at 151000 ms: Error: read ECONNRESET (reports API)\ntotal: 14 attempts, 158000 ms of worker time",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Transient errors, then a permanent one: retried until the 404, then stops",
+          "input": [
+            {
+              "id": "exp-601",
+              "courseId": "redis-patterns",
+              "format": "csv",
+              "script": [
+                "reports:503",
+                "reports:timeout",
+                "reports:404",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-602",
+              "courseId": "redis-patterns",
+              "format": "csv",
+              "script": [
+                "storage:500",
+                "template:missing"
+              ]
+            }
+          ],
+          "expected": "exp-601: failed after 3 attempt(s) in 13000 ms, alert at 13000 ms: HttpError: reports API answered 404\nexp-602: failed after 2 attempt(s) in 1000 ms, alert at 1000 ms: Error: ENOENT: no such file or directory, open 'templates/csv.hbs'\ntotal: 5 attempts, 14000 ms of worker time",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Large: 200 exports mixing transient, permanent and invalid failures",
+          "input": [
+            {
+              "id": "exp-2000",
+              "courseId": "",
+              "format": "csv",
+              "script": [
+                "reports:502",
+                "storage:503",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2001",
+              "courseId": "postgres-performance",
+              "format": "csv",
+              "script": [
+                "reports:504",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2002",
+              "courseId": "postgres-performance",
+              "format": "csv",
+              "script": [
+                "reports:429",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2003",
+              "courseId": "sql-basics",
+              "format": "csv",
+              "script": [
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2004",
+              "courseId": "web-http-fundamentals",
+              "format": "csv",
+              "script": [
+                "reports:timeout",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2005",
+              "courseId": "Redis Patterns",
+              "format": "xlsx",
+              "script": [
+                "reports:timeout",
+                "reports:timeout",
+                "storage:503",
+                "reports:reset"
+              ]
+            },
+            {
+              "id": "exp-2006",
+              "courseId": "postgres-performance",
+              "format": "csv",
+              "script": [
+                "reports:408",
+                "storage:500",
+                "reports:429:3",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2007",
+              "courseId": "background-jobs-messaging",
+              "format": "csv",
+              "script": [
+                "storage:503",
+                "reports:503",
+                "reports:503",
+                "template:missing"
+              ]
+            },
+            {
+              "id": "exp-2008",
+              "courseId": "nestjs-modular-monolith",
+              "format": "csv",
+              "script": [
+                "reports:403"
+              ]
+            },
+            {
+              "id": "exp-2009",
+              "courseId": "Redis Patterns",
+              "format": "csv",
+              "script": [
+                "storage:500",
+                "storage:500",
+                "reports:408"
+              ]
+            },
+            {
+              "id": "exp-2010",
+              "courseId": "redis-patterns",
+              "format": "xlsx",
+              "script": [
+                "reports:502",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2011",
+              "courseId": "web-http-fundamentals",
+              "format": "csv",
+              "script": [
+                "reports:500",
+                "reports:504",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2012",
+              "courseId": "nestjs-modular-monolith",
+              "format": "xlsx",
+              "script": [
+                "storage:503",
+                "reports:500",
+                "reports:401"
+              ]
+            },
+            {
+              "id": "exp-2013",
+              "courseId": "sql-basics",
+              "format": "csv",
+              "script": [
+                "reports:504",
+                "reports:reset"
+              ]
+            },
+            {
+              "id": "exp-2014",
+              "courseId": "web-http-fundamentals",
+              "format": "csv",
+              "script": [
+                "storage:500",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2015",
+              "courseId": "sql-basics",
+              "format": "xlsx",
+              "script": [
+                "reports:503",
+                "storage:500",
+                "reports:502",
+                "reports:410"
+              ]
+            },
+            {
+              "id": "exp-2016",
+              "courseId": "postgres-performance",
+              "format": "csv",
+              "script": [
+                "storage:timeout"
+              ]
+            },
+            {
+              "id": "exp-2017",
+              "courseId": "Redis Patterns",
+              "format": "csv",
+              "script": [
+                "template:missing"
+              ]
+            },
+            {
+              "id": "exp-2018",
+              "courseId": "redis-patterns",
+              "format": "csv",
+              "script": [
+                "storage:409"
+              ]
+            },
+            {
+              "id": "exp-2019",
+              "courseId": "redis-patterns",
+              "format": "csv",
+              "script": [
+                "reports:504",
+                "reports:502",
+                "reports:500",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2020",
+              "courseId": "postgres-performance",
+              "format": "xlsx",
+              "script": [
+                "reports:429:3",
+                "storage:409"
+              ]
+            },
+            {
+              "id": "exp-2021",
+              "courseId": "postgres-performance",
+              "format": "xlsx",
+              "script": [
+                "reports:429:3",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2022",
+              "courseId": "Redis Patterns",
+              "format": "xlsx",
+              "script": [
+                "reports:429"
+              ]
+            },
+            {
+              "id": "exp-2023",
+              "courseId": "sql-basics",
+              "format": "xlsx",
+              "script": [
+                "reports:504",
+                "reports:timeout",
+                "storage:timeout",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2024",
+              "courseId": "background-jobs-messaging",
+              "format": "csv",
+              "script": [
+                "reports:timeout",
+                "reports:timeout",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2025",
+              "courseId": "web-http-fundamentals",
+              "format": "csv",
+              "script": [
+                "reports:504",
+                "storage:timeout"
+              ]
+            },
+            {
+              "id": "exp-2026",
+              "courseId": "Redis Patterns",
+              "format": "csv",
+              "script": [
+                "storage:timeout",
+                "storage:timeout",
+                "reports:timeout",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2027",
+              "courseId": "Redis Patterns",
+              "format": "csv",
+              "script": [
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2028",
+              "courseId": "sql_basics",
+              "format": "csv",
+              "script": [
+                "storage:500",
+                "storage:409"
+              ]
+            },
+            {
+              "id": "exp-2029",
+              "courseId": "background-jobs-messaging",
+              "format": "csv",
+              "script": [
+                "reports:reset",
+                "reports:400"
+              ]
+            },
+            {
+              "id": "exp-2030",
+              "courseId": "postgres-performance",
+              "format": "xlsx",
+              "script": [
+                "reports:504",
+                "reports:timeout",
+                "reports:429:3",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2031",
+              "courseId": "postgres-performance",
+              "format": "csv",
+              "script": [
+                "reports:reset",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2032",
+              "courseId": "nestjs-modular-monolith",
+              "format": "csv",
+              "script": [
+                "reports:reset",
+                "reports:429:3",
+                "reports:500",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2033",
+              "courseId": "sql-basics",
+              "format": "csv",
+              "script": [
+                "reports:502",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2034",
+              "courseId": "",
+              "format": "csv",
+              "script": [
+                "storage:500",
+                "storage:503",
+                "reports:410"
+              ]
+            },
+            {
+              "id": "exp-2035",
+              "courseId": "background-jobs-messaging",
+              "format": "csv",
+              "script": [
+                "storage:500",
+                "reports:422"
+              ]
+            },
+            {
+              "id": "exp-2036",
+              "courseId": "web-http-fundamentals",
+              "format": "csv",
+              "script": [
+                "reports:reset",
+                "reports:503",
+                "reports:timeout",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2037",
+              "courseId": "background-jobs-messaging",
+              "format": "csv",
+              "script": [
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2038",
+              "courseId": "sql_basics",
+              "format": "csv",
+              "script": [
+                "storage:500",
+                "storage:503",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2039",
+              "courseId": "sql-basics",
+              "format": "csv",
+              "script": [
+                "reports:503"
+              ]
+            },
+            {
+              "id": "exp-2040",
+              "courseId": "background-jobs-messaging",
+              "format": "xlsx",
+              "script": [
+                "storage:503",
+                "reports:502",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2041",
+              "courseId": "background-jobs-messaging",
+              "format": "csv",
+              "script": [
+                "storage:500",
+                "reports:timeout",
+                "reports:timeout",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2042",
+              "courseId": "",
+              "format": "csv",
+              "script": [
+                "reports:429",
+                "reports:502",
+                "reports:408",
+                "reports:410"
+              ]
+            },
+            {
+              "id": "exp-2043",
+              "courseId": "nestjs-modular-monolith",
+              "format": "csv",
+              "script": [
+                "reports:408",
+                "reports:400"
+              ]
+            },
+            {
+              "id": "exp-2044",
+              "courseId": "redis-patterns",
+              "format": "xlsx",
+              "script": [
+                "storage:503",
+                "reports:403"
+              ]
+            },
+            {
+              "id": "exp-2045",
+              "courseId": "web-http-fundamentals",
+              "format": "csv",
+              "script": [
+                "reports:timeout",
+                "reports:500",
+                "reports:422"
+              ]
+            },
+            {
+              "id": "exp-2046",
+              "courseId": "background-jobs-messaging",
+              "format": "csv",
+              "script": [
+                "reports:429",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2047",
+              "courseId": "sql-basics",
+              "format": "xlsx",
+              "script": [
+                "storage:timeout",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2048",
+              "courseId": "",
+              "format": "csv",
+              "script": [
+                "reports:503"
+              ]
+            },
+            {
+              "id": "exp-2049",
+              "courseId": "nestjs-modular-monolith",
+              "format": "csv",
+              "script": [
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2050",
+              "courseId": "postgres-performance",
+              "format": "csv",
+              "script": [
+                "reports:408",
+                "reports:429:3",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2051",
+              "courseId": "sql-basics",
+              "format": "csv",
+              "script": [
+                "reports:500",
+                "storage:timeout",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2052",
+              "courseId": "Redis Patterns",
+              "format": "csv",
+              "script": [
+                "reports:502"
+              ]
+            },
+            {
+              "id": "exp-2053",
+              "courseId": "postgres-performance",
+              "format": "csv",
+              "script": [
+                "storage:500",
+                "reports:429:3",
+                "storage:503",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2054",
+              "courseId": "postgres-performance",
+              "format": "csv",
+              "script": [
+                "reports:502",
+                "reports:500",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2055",
+              "courseId": "nestjs-modular-monolith",
+              "format": "xlsx",
+              "script": [
+                "storage:timeout",
+                "reports:reset",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2056",
+              "courseId": "nestjs-modular-monolith",
+              "format": "csv",
+              "script": [
+                "reports:429:3",
+                "reports:408",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2057",
+              "courseId": "postgres-performance",
+              "format": "csv",
+              "script": [
+                "reports:500",
+                "reports:429:3",
+                "reports:401"
+              ]
+            },
+            {
+              "id": "exp-2058",
+              "courseId": "Redis Patterns",
+              "format": "csv",
+              "script": [
+                "reports:429:3",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2059",
+              "courseId": "nestjs-modular-monolith",
+              "format": "xlsx",
+              "script": [
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2060",
+              "courseId": "sql-basics",
+              "format": "csv",
+              "script": [
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2061",
+              "courseId": "nestjs-modular-monolith",
+              "format": "csv",
+              "script": [
+                "storage:timeout",
+                "reports:reset",
+                "reports:422"
+              ]
+            },
+            {
+              "id": "exp-2062",
+              "courseId": "sql-basics",
+              "format": "csv",
+              "script": [
+                "reports:reset",
+                "reports:429:3",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2063",
+              "courseId": "sql-basics",
+              "format": "csv",
+              "script": [
+                "reports:429",
+                "reports:502",
+                "reports:404"
+              ]
+            },
+            {
+              "id": "exp-2064",
+              "courseId": "postgres-performance",
+              "format": "csv",
+              "script": [
+                "reports:504",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2065",
+              "courseId": "nestjs-modular-monolith",
+              "format": "csv",
+              "script": [
+                "reports:500",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2066",
+              "courseId": "background-jobs-messaging",
+              "format": "csv",
+              "script": [
+                "reports:504",
+                "reports:500",
+                "reports:504",
+                "reports:400"
+              ]
+            },
+            {
+              "id": "exp-2067",
+              "courseId": "sql-basics",
+              "format": "csv",
+              "script": [
+                "storage:503",
+                "reports:401"
+              ]
+            },
+            {
+              "id": "exp-2068",
+              "courseId": "web-http-fundamentals",
+              "format": "xlsx",
+              "script": [
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2069",
+              "courseId": "sql-basics",
+              "format": "xlsx",
+              "script": [
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2070",
+              "courseId": "nestjs-modular-monolith",
+              "format": "xlsx",
+              "script": [
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2071",
+              "courseId": "sql_basics",
+              "format": "csv",
+              "script": [
+                "reports:500",
+                "reports:502",
+                "storage:500",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2072",
+              "courseId": "web-http-fundamentals",
+              "format": "xlsx",
+              "script": [
+                "reports:429",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2073",
+              "courseId": "redis-patterns",
+              "format": "csv",
+              "script": [
+                "reports:reset",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2074",
+              "courseId": "redis-patterns",
+              "format": "csv",
+              "script": [
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2075",
+              "courseId": "postgres-performance",
+              "format": "csv",
+              "script": [
+                "storage:503",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2076",
+              "courseId": "",
+              "format": "csv",
+              "script": [
+                "reports:500",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2077",
+              "courseId": "postgres-performance",
+              "format": "csv",
+              "script": [
+                "reports:408",
+                "reports:429:3",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2078",
+              "courseId": "sql-basics",
+              "format": "xlsx",
+              "script": [
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2079",
+              "courseId": "background-jobs-messaging",
+              "format": "csv",
+              "script": [
+                "reports:502",
+                "reports:reset",
+                "reports:502",
+                "reports:422"
+              ]
+            },
+            {
+              "id": "exp-2080",
+              "courseId": "nestjs-modular-monolith",
+              "format": "csv",
+              "script": [
+                "reports:503",
+                "reports:timeout",
+                "reports:500",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2081",
+              "courseId": "background-jobs-messaging",
+              "format": "csv",
+              "script": [
+                "reports:429:3",
+                "storage:409"
+              ]
+            },
+            {
+              "id": "exp-2082",
+              "courseId": "postgres-performance",
+              "format": "csv",
+              "script": [
+                "storage:timeout",
+                "storage:timeout",
+                "reports:reset",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2083",
+              "courseId": "sql_basics",
+              "format": "csv",
+              "script": [
+                "reports:504",
+                "reports:408",
+                "storage:503",
+                "reports:403"
+              ]
+            },
+            {
+              "id": "exp-2084",
+              "courseId": "sql_basics",
+              "format": "csv",
+              "script": [
+                "reports:502",
+                "reports:504",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2085",
+              "courseId": "",
+              "format": "csv",
+              "script": [
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2086",
+              "courseId": "redis-patterns",
+              "format": "csv",
+              "script": [
+                "reports:timeout",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2087",
+              "courseId": "redis-patterns",
+              "format": "csv",
+              "script": [
+                "reports:429",
+                "storage:500",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2088",
+              "courseId": "nestjs-modular-monolith",
+              "format": "csv",
+              "script": [
+                "reports:reset",
+                "reports:504",
+                "reports:408",
+                "storage:409"
+              ]
+            },
+            {
+              "id": "exp-2089",
+              "courseId": "sql_basics",
+              "format": "csv",
+              "script": [
+                "reports:429:3",
+                "reports:504",
+                "reports:408",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2090",
+              "courseId": "sql-basics",
+              "format": "xlsx",
+              "script": [
+                "storage:503",
+                "storage:500",
+                "reports:429",
+                "reports:422"
+              ]
+            },
+            {
+              "id": "exp-2091",
+              "courseId": "postgres-performance",
+              "format": "xlsx",
+              "script": [
+                "reports:429:3",
+                "reports:500",
+                "reports:429:3",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2092",
+              "courseId": "background-jobs-messaging",
+              "format": "csv",
+              "script": [
+                "reports:reset",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2093",
+              "courseId": "Redis Patterns",
+              "format": "xlsx",
+              "script": [
+                "reports:408",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2094",
+              "courseId": "redis-patterns",
+              "format": "xlsx",
+              "script": [
+                "storage:409"
+              ]
+            },
+            {
+              "id": "exp-2095",
+              "courseId": "web-http-fundamentals",
+              "format": "csv",
+              "script": [
+                "reports:408",
+                "reports:400"
+              ]
+            },
+            {
+              "id": "exp-2096",
+              "courseId": "sql-basics",
+              "format": "csv",
+              "script": [
+                "reports:reset",
+                "reports:504"
+              ]
+            },
+            {
+              "id": "exp-2097",
+              "courseId": "web-http-fundamentals",
+              "format": "xlsx",
+              "script": [
+                "reports:502",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2098",
+              "courseId": "",
+              "format": "csv",
+              "script": [
+                "storage:503",
+                "reports:408",
+                "storage:500"
+              ]
+            },
+            {
+              "id": "exp-2099",
+              "courseId": "postgres-performance",
+              "format": "csv",
+              "script": [
+                "reports:500",
+                "reports:timeout"
+              ]
+            },
+            {
+              "id": "exp-2100",
+              "courseId": "web-http-fundamentals",
+              "format": "csv",
+              "script": [
+                "reports:404"
+              ]
+            },
+            {
+              "id": "exp-2101",
+              "courseId": "redis-patterns",
+              "format": "xlsx",
+              "script": [
+                "reports:408",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2102",
+              "courseId": "background-jobs-messaging",
+              "format": "csv",
+              "script": [
+                "storage:409"
+              ]
+            },
+            {
+              "id": "exp-2103",
+              "courseId": "sql-basics",
+              "format": "csv",
+              "script": [
+                "reports:502",
+                "reports:500"
+              ]
+            },
+            {
+              "id": "exp-2104",
+              "courseId": "postgres-performance",
+              "format": "csv",
+              "script": [
+                "reports:503",
+                "reports:500",
+                "storage:503",
+                "template:missing"
+              ]
+            },
+            {
+              "id": "exp-2105",
+              "courseId": "",
+              "format": "csv",
+              "script": [
+                "storage:500",
+                "storage:timeout"
+              ]
+            },
+            {
+              "id": "exp-2106",
+              "courseId": "background-jobs-messaging",
+              "format": "csv",
+              "script": [
+                "reports:reset",
+                "reports:400"
+              ]
+            },
+            {
+              "id": "exp-2107",
+              "courseId": "web-http-fundamentals",
+              "format": "csv",
+              "script": [
+                "storage:timeout",
+                "storage:timeout",
+                "storage:503",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2108",
+              "courseId": "",
+              "format": "xlsx",
+              "script": [
+                "reports:422"
+              ]
+            },
+            {
+              "id": "exp-2109",
+              "courseId": "web-http-fundamentals",
+              "format": "csv",
+              "script": [
+                "reports:429",
+                "reports:429",
+                "reports:500",
+                "reports:503"
+              ]
+            },
+            {
+              "id": "exp-2110",
+              "courseId": "web-http-fundamentals",
+              "format": "csv",
+              "script": [
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2111",
+              "courseId": "postgres-performance",
+              "format": "csv",
+              "script": [
+                "reports:504",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2112",
+              "courseId": "sql_basics",
+              "format": "xlsx",
+              "script": [
+                "storage:503",
+                "storage:503",
+                "reports:timeout",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2113",
+              "courseId": "redis-patterns",
+              "format": "csv",
+              "script": [
+                "reports:429:3",
+                "storage:503",
+                "reports:500"
+              ]
+            },
+            {
+              "id": "exp-2114",
+              "courseId": "sql-basics",
+              "format": "csv",
+              "script": [
+                "reports:500",
+                "reports:502",
+                "reports:429",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2115",
+              "courseId": "postgres-performance",
+              "format": "csv",
+              "script": [
+                "storage:503",
+                "storage:timeout",
+                "reports:504",
+                "reports:403"
+              ]
+            },
+            {
+              "id": "exp-2116",
+              "courseId": "redis-patterns",
+              "format": "xlsx",
+              "script": [
+                "reports:reset",
+                "reports:408",
+                "reports:timeout",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2117",
+              "courseId": "",
+              "format": "csv",
+              "script": [
+                "reports:429",
+                "reports:502",
+                "reports:503",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2118",
+              "courseId": "redis-patterns",
+              "format": "xlsx",
+              "script": [
+                "reports:timeout",
+                "storage:timeout",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2119",
+              "courseId": "redis-patterns",
+              "format": "csv",
+              "script": [
+                "storage:timeout",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2120",
+              "courseId": "background-jobs-messaging",
+              "format": "csv",
+              "script": [
+                "reports:429:3",
+                "reports:timeout"
+              ]
+            },
+            {
+              "id": "exp-2121",
+              "courseId": "background-jobs-messaging",
+              "format": "csv",
+              "script": [
+                "storage:500",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2122",
+              "courseId": "",
+              "format": "csv",
+              "script": [
+                "reports:429:3",
+                "reports:429",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2123",
+              "courseId": "redis-patterns",
+              "format": "csv",
+              "script": [
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2124",
+              "courseId": "background-jobs-messaging",
+              "format": "xlsx",
+              "script": [
+                "reports:timeout"
+              ]
+            },
+            {
+              "id": "exp-2125",
+              "courseId": "Redis Patterns",
+              "format": "xlsx",
+              "script": [
+                "storage:500",
+                "reports:504",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2126",
+              "courseId": "postgres-performance",
+              "format": "csv",
+              "script": [
+                "reports:500",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2127",
+              "courseId": "sql-basics",
+              "format": "xlsx",
+              "script": [
+                "storage:500",
+                "reports:500",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2128",
+              "courseId": "sql_basics",
+              "format": "xlsx",
+              "script": [
+                "storage:timeout",
+                "reports:504",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2129",
+              "courseId": "web-http-fundamentals",
+              "format": "csv",
+              "script": [
+                "reports:reset",
+                "reports:503",
+                "reports:502",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2130",
+              "courseId": "web-http-fundamentals",
+              "format": "csv",
+              "script": [
+                "reports:504",
+                "reports:504",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2131",
+              "courseId": "nestjs-modular-monolith",
+              "format": "csv",
+              "script": [
+                "reports:404"
+              ]
+            },
+            {
+              "id": "exp-2132",
+              "courseId": "sql-basics",
+              "format": "csv",
+              "script": [
+                "reports:429",
+                "reports:400"
+              ]
+            },
+            {
+              "id": "exp-2133",
+              "courseId": "background-jobs-messaging",
+              "format": "csv",
+              "script": [
+                "storage:403"
+              ]
+            },
+            {
+              "id": "exp-2134",
+              "courseId": "sql_basics",
+              "format": "csv",
+              "script": [
+                "reports:500"
+              ]
+            },
+            {
+              "id": "exp-2135",
+              "courseId": "sql_basics",
+              "format": "csv",
+              "script": [
+                "reports:500",
+                "reports:502",
+                "reports:503",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2136",
+              "courseId": "redis-patterns",
+              "format": "csv",
+              "script": [
+                "reports:408"
+              ]
+            },
+            {
+              "id": "exp-2137",
+              "courseId": "postgres-performance",
+              "format": "csv",
+              "script": [
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2138",
+              "courseId": "sql-basics",
+              "format": "csv",
+              "script": [
+                "reports:408",
+                "reports:502",
+                "storage:500",
+                "reports:500"
+              ]
+            },
+            {
+              "id": "exp-2139",
+              "courseId": "sql-basics",
+              "format": "csv",
+              "script": [
+                "reports:429",
+                "reports:timeout",
+                "reports:502",
+                "storage:503"
+              ]
+            },
+            {
+              "id": "exp-2140",
+              "courseId": "sql_basics",
+              "format": "xlsx",
+              "script": [
+                "reports:reset",
+                "storage:timeout",
+                "reports:408",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2141",
+              "courseId": "nestjs-modular-monolith",
+              "format": "xlsx",
+              "script": [
+                "reports:500",
+                "storage:timeout",
+                "storage:500",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2142",
+              "courseId": "sql-basics",
+              "format": "csv",
+              "script": [
+                "reports:408",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2143",
+              "courseId": "background-jobs-messaging",
+              "format": "xlsx",
+              "script": [
+                "reports:502",
+                "reports:503",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2144",
+              "courseId": "postgres-performance",
+              "format": "csv",
+              "script": [
+                "storage:403"
+              ]
+            },
+            {
+              "id": "exp-2145",
+              "courseId": "sql_basics",
+              "format": "csv",
+              "script": [
+                "reports:502"
+              ]
+            },
+            {
+              "id": "exp-2146",
+              "courseId": "postgres-performance",
+              "format": "xlsx",
+              "script": [
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2147",
+              "courseId": "nestjs-modular-monolith",
+              "format": "csv",
+              "script": [
+                "reports:500",
+                "reports:503",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2148",
+              "courseId": "redis-patterns",
+              "format": "csv",
+              "script": [
+                "reports:410"
+              ]
+            },
+            {
+              "id": "exp-2149",
+              "courseId": "",
+              "format": "csv",
+              "script": [
+                "reports:503",
+                "reports:429:3",
+                "storage:timeout",
+                "storage:timeout"
+              ]
+            },
+            {
+              "id": "exp-2150",
+              "courseId": "nestjs-modular-monolith",
+              "format": "csv",
+              "script": [
+                "reports:502",
+                "reports:503",
+                "reports:429:3",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2151",
+              "courseId": "web-http-fundamentals",
+              "format": "xlsx",
+              "script": [
+                "reports:503",
+                "storage:409"
+              ]
+            },
+            {
+              "id": "exp-2152",
+              "courseId": "postgres-performance",
+              "format": "csv",
+              "script": [
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2153",
+              "courseId": "sql_basics",
+              "format": "xlsx",
+              "script": [
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2154",
+              "courseId": "sql_basics",
+              "format": "csv",
+              "script": [
+                "reports:reset",
+                "reports:503",
+                "storage:500",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2155",
+              "courseId": "sql-basics",
+              "format": "xlsx",
+              "script": [
+                "reports:408",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2156",
+              "courseId": "sql-basics",
+              "format": "csv",
+              "script": [
+                "reports:504",
+                "storage:500",
+                "reports:401"
+              ]
+            },
+            {
+              "id": "exp-2157",
+              "courseId": "web-http-fundamentals",
+              "format": "csv",
+              "script": [
+                "reports:504",
+                "reports:429",
+                "storage:503",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2158",
+              "courseId": "web-http-fundamentals",
+              "format": "csv",
+              "script": [
+                "reports:503",
+                "reports:500"
+              ]
+            },
+            {
+              "id": "exp-2159",
+              "courseId": "",
+              "format": "csv",
+              "script": [
+                "reports:504",
+                "reports:reset",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2160",
+              "courseId": "web-http-fundamentals",
+              "format": "csv",
+              "script": [
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2161",
+              "courseId": "sql-basics",
+              "format": "csv",
+              "script": [
+                "storage:403"
+              ]
+            },
+            {
+              "id": "exp-2162",
+              "courseId": "nestjs-modular-monolith",
+              "format": "xlsx",
+              "script": [
+                "reports:502",
+                "storage:503",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2163",
+              "courseId": "web-http-fundamentals",
+              "format": "csv",
+              "script": [
+                "reports:500",
+                "reports:503",
+                "reports:408",
+                "storage:timeout"
+              ]
+            },
+            {
+              "id": "exp-2164",
+              "courseId": "sql-basics",
+              "format": "csv",
+              "script": [
+                "reports:408",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2165",
+              "courseId": "nestjs-modular-monolith",
+              "format": "csv",
+              "script": [
+                "reports:502",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2166",
+              "courseId": "web-http-fundamentals",
+              "format": "csv",
+              "script": [
+                "storage:timeout",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2167",
+              "courseId": "web-http-fundamentals",
+              "format": "csv",
+              "script": [
+                "reports:timeout",
+                "reports:408",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2168",
+              "courseId": "background-jobs-messaging",
+              "format": "csv",
+              "script": [
+                "storage:503",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2169",
+              "courseId": "background-jobs-messaging",
+              "format": "csv",
+              "script": [
+                "reports:500",
+                "reports:502",
+                "storage:timeout",
+                "reports:502"
+              ]
+            },
+            {
+              "id": "exp-2170",
+              "courseId": "web-http-fundamentals",
+              "format": "csv",
+              "script": [
+                "storage:503",
+                "reports:500",
+                "reports:429",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2171",
+              "courseId": "Redis Patterns",
+              "format": "csv",
+              "script": [
+                "reports:408",
+                "reports:reset",
+                "storage:503",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2172",
+              "courseId": "postgres-performance",
+              "format": "csv",
+              "script": [
+                "reports:504",
+                "reports:429:3",
+                "reports:timeout",
+                "reports:403"
+              ]
+            },
+            {
+              "id": "exp-2173",
+              "courseId": "background-jobs-messaging",
+              "format": "xlsx",
+              "script": [
+                "reports:500",
+                "reports:408",
+                "reports:410"
+              ]
+            },
+            {
+              "id": "exp-2174",
+              "courseId": "postgres-performance",
+              "format": "csv",
+              "script": [
+                "reports:reset",
+                "storage:409"
+              ]
+            },
+            {
+              "id": "exp-2175",
+              "courseId": "web-http-fundamentals",
+              "format": "csv",
+              "script": [
+                "reports:reset",
+                "reports:500",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2176",
+              "courseId": "redis-patterns",
+              "format": "csv",
+              "script": [
+                "reports:504",
+                "storage:timeout",
+                "reports:502",
+                "storage:timeout"
+              ]
+            },
+            {
+              "id": "exp-2177",
+              "courseId": "sql-basics",
+              "format": "csv",
+              "script": [
+                "reports:408",
+                "storage:500",
+                "reports:429",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2178",
+              "courseId": "sql-basics",
+              "format": "csv",
+              "script": [
+                "storage:503",
+                "reports:500",
+                "storage:timeout"
+              ]
+            },
+            {
+              "id": "exp-2179",
+              "courseId": "postgres-performance",
+              "format": "xlsx",
+              "script": [
+                "reports:504",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2180",
+              "courseId": "background-jobs-messaging",
+              "format": "xlsx",
+              "script": [
+                "reports:504",
+                "reports:503",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2181",
+              "courseId": "background-jobs-messaging",
+              "format": "csv",
+              "script": [
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2182",
+              "courseId": "redis-patterns",
+              "format": "csv",
+              "script": [
+                "reports:504",
+                "reports:408",
+                "reports:408",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2183",
+              "courseId": "redis-patterns",
+              "format": "csv",
+              "script": [
+                "storage:503",
+                "reports:timeout",
+                "storage:500",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2184",
+              "courseId": "",
+              "format": "csv",
+              "script": [
+                "storage:500",
+                "reports:429",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2185",
+              "courseId": "",
+              "format": "csv",
+              "script": [
+                "reports:429:3",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2186",
+              "courseId": "Redis Patterns",
+              "format": "csv",
+              "script": [
+                "reports:500",
+                "reports:502",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2187",
+              "courseId": "sql_basics",
+              "format": "csv",
+              "script": [
+                "reports:500",
+                "reports:timeout",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2188",
+              "courseId": "sql-basics",
+              "format": "xlsx",
+              "script": [
+                "storage:503",
+                "storage:500",
+                "storage:500",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2189",
+              "courseId": "redis-patterns",
+              "format": "xlsx",
+              "script": [
+                "reports:500",
+                "reports:504",
+                "reports:408",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2190",
+              "courseId": "web-http-fundamentals",
+              "format": "xlsx",
+              "script": [
+                "reports:503",
+                "reports:429",
+                "reports:reset",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2191",
+              "courseId": "",
+              "format": "csv",
+              "script": [
+                "reports:429:3",
+                "reports:reset"
+              ]
+            },
+            {
+              "id": "exp-2192",
+              "courseId": "Redis Patterns",
+              "format": "csv",
+              "script": [
+                "storage:503",
+                "reports:502",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2193",
+              "courseId": "postgres-performance",
+              "format": "csv",
+              "script": [
+                "reports:429",
+                "reports:502",
+                "storage:500",
+                "reports:422"
+              ]
+            },
+            {
+              "id": "exp-2194",
+              "courseId": "redis-patterns",
+              "format": "csv",
+              "script": [
+                "reports:reset",
+                "reports:429",
+                "storage:503",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2195",
+              "courseId": "nestjs-modular-monolith",
+              "format": "csv",
+              "script": [
+                "reports:reset"
+              ]
+            },
+            {
+              "id": "exp-2196",
+              "courseId": "sql-basics",
+              "format": "csv",
+              "script": [
+                "reports:503",
+                "reports:reset",
+                "storage:503",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2197",
+              "courseId": "postgres-performance",
+              "format": "xlsx",
+              "script": [
+                "reports:504",
+                "ok"
+              ]
+            },
+            {
+              "id": "exp-2198",
+              "courseId": "Redis Patterns",
+              "format": "csv",
+              "script": [
+                "reports:504",
+                "reports:422"
+              ]
+            },
+            {
+              "id": "exp-2199",
+              "courseId": "web-http-fundamentals",
+              "format": "csv",
+              "script": [
+                "reports:504",
+                "reports:429",
+                "ok"
+              ]
+            }
+          ],
+          "expected": "exp-2000: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"\" is not a valid course id\nexp-2001: done after 2 attempt(s) in 1000 ms, no alert\nexp-2002: done after 2 attempt(s) in 1000 ms, no alert\nexp-2003: done after 1 attempt(s) in 0 ms, no alert\nexp-2004: done after 2 attempt(s) in 11000 ms, no alert\nexp-2005: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"Redis Patterns\" is not a valid course id\nexp-2006: done after 4 attempt(s) in 6000 ms, no alert\nexp-2007: failed after 4 attempt(s) in 7000 ms, alert at 7000 ms: Error: ENOENT: no such file or directory, open 'templates/csv.hbs'\nexp-2008: failed after 1 attempt(s) in 0 ms, alert at 0 ms: HttpError: reports API answered 403\nexp-2009: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"Redis Patterns\" is not a valid course id\nexp-2010: done after 2 attempt(s) in 1000 ms, no alert\nexp-2011: done after 3 attempt(s) in 3000 ms, no alert\nexp-2012: failed after 3 attempt(s) in 3000 ms, alert at 3000 ms: HttpError: reports API answered 401\nexp-2013: failed after 10 attempt(s) in 151000 ms, alert at 151000 ms: Error: read ECONNRESET (reports API)\nexp-2014: done after 2 attempt(s) in 1000 ms, no alert\nexp-2015: failed after 4 attempt(s) in 7000 ms, alert at 7000 ms: HttpError: reports API answered 410\nexp-2016: failed after 10 attempt(s) in 251000 ms, alert at 251000 ms: TimeoutError: object storage did not answer within 10000 ms\nexp-2017: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"Redis Patterns\" is not a valid course id\nexp-2018: failed after 1 attempt(s) in 0 ms, alert at 0 ms: HttpError: object storage answered 409\nexp-2019: done after 4 attempt(s) in 7000 ms, no alert\nexp-2020: failed after 2 attempt(s) in 3000 ms, alert at 3000 ms: HttpError: object storage answered 409\nexp-2021: done after 2 attempt(s) in 3000 ms, no alert\nexp-2022: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"Redis Patterns\" is not a valid course id\nexp-2023: done after 4 attempt(s) in 27000 ms, no alert\nexp-2024: done after 3 attempt(s) in 23000 ms, no alert\nexp-2025: failed after 10 attempt(s) in 241000 ms, alert at 241000 ms: TimeoutError: object storage did not answer within 10000 ms\nexp-2026: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"Redis Patterns\" is not a valid course id\nexp-2027: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"Redis Patterns\" is not a valid course id\nexp-2028: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"sql_basics\" is not a valid course id\nexp-2029: failed after 2 attempt(s) in 1000 ms, alert at 1000 ms: HttpError: reports API answered 400\nexp-2030: done after 4 attempt(s) in 16000 ms, no alert\nexp-2031: done after 2 attempt(s) in 1000 ms, no alert\nexp-2032: done after 4 attempt(s) in 8000 ms, no alert\nexp-2033: done after 2 attempt(s) in 1000 ms, no alert\nexp-2034: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"\" is not a valid course id\nexp-2035: failed after 2 attempt(s) in 1000 ms, alert at 1000 ms: HttpError: reports API answered 422\nexp-2036: done after 4 attempt(s) in 17000 ms, no alert\nexp-2037: done after 1 attempt(s) in 0 ms, no alert\nexp-2038: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"sql_basics\" is not a valid course id\nexp-2039: failed after 10 attempt(s) in 151000 ms, alert at 151000 ms: HttpError: reports API answered 503\nexp-2040: done after 3 attempt(s) in 3000 ms, no alert\nexp-2041: done after 4 attempt(s) in 27000 ms, no alert\nexp-2042: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"\" is not a valid course id\nexp-2043: failed after 2 attempt(s) in 1000 ms, alert at 1000 ms: HttpError: reports API answered 400\nexp-2044: failed after 2 attempt(s) in 1000 ms, alert at 1000 ms: HttpError: reports API answered 403\nexp-2045: failed after 3 attempt(s) in 13000 ms, alert at 13000 ms: HttpError: reports API answered 422\nexp-2046: done after 2 attempt(s) in 1000 ms, no alert\nexp-2047: done after 2 attempt(s) in 11000 ms, no alert\nexp-2048: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"\" is not a valid course id\nexp-2049: done after 1 attempt(s) in 0 ms, no alert\nexp-2050: done after 3 attempt(s) in 4000 ms, no alert\nexp-2051: done after 3 attempt(s) in 13000 ms, no alert\nexp-2052: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"Redis Patterns\" is not a valid course id\nexp-2053: done after 4 attempt(s) in 8000 ms, no alert\nexp-2054: done after 3 attempt(s) in 3000 ms, no alert\nexp-2055: done after 3 attempt(s) in 13000 ms, no alert\nexp-2056: done after 3 attempt(s) in 5000 ms, no alert\nexp-2057: failed after 3 attempt(s) in 4000 ms, alert at 4000 ms: HttpError: reports API answered 401\nexp-2058: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"Redis Patterns\" is not a valid course id\nexp-2059: done after 1 attempt(s) in 0 ms, no alert\nexp-2060: done after 1 attempt(s) in 0 ms, no alert\nexp-2061: failed after 3 attempt(s) in 13000 ms, alert at 13000 ms: HttpError: reports API answered 422\nexp-2062: done after 3 attempt(s) in 4000 ms, no alert\nexp-2063: failed after 3 attempt(s) in 3000 ms, alert at 3000 ms: HttpError: reports API answered 404\nexp-2064: done after 2 attempt(s) in 1000 ms, no alert\nexp-2065: done after 2 attempt(s) in 1000 ms, no alert\nexp-2066: failed after 4 attempt(s) in 7000 ms, alert at 7000 ms: HttpError: reports API answered 400\nexp-2067: failed after 2 attempt(s) in 1000 ms, alert at 1000 ms: HttpError: reports API answered 401\nexp-2068: done after 1 attempt(s) in 0 ms, no alert\nexp-2069: done after 1 attempt(s) in 0 ms, no alert\nexp-2070: done after 1 attempt(s) in 0 ms, no alert\nexp-2071: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"sql_basics\" is not a valid course id\nexp-2072: done after 2 attempt(s) in 1000 ms, no alert\nexp-2073: done after 2 attempt(s) in 1000 ms, no alert\nexp-2074: done after 1 attempt(s) in 0 ms, no alert\nexp-2075: done after 2 attempt(s) in 1000 ms, no alert\nexp-2076: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"\" is not a valid course id\nexp-2077: done after 3 attempt(s) in 4000 ms, no alert\nexp-2078: done after 1 attempt(s) in 0 ms, no alert\nexp-2079: failed after 4 attempt(s) in 7000 ms, alert at 7000 ms: HttpError: reports API answered 422\nexp-2080: done after 4 attempt(s) in 17000 ms, no alert\nexp-2081: failed after 2 attempt(s) in 3000 ms, alert at 3000 ms: HttpError: object storage answered 409\nexp-2082: done after 4 attempt(s) in 27000 ms, no alert\nexp-2083: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"sql_basics\" is not a valid course id\nexp-2084: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"sql_basics\" is not a valid course id\nexp-2085: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"\" is not a valid course id\nexp-2086: done after 2 attempt(s) in 11000 ms, no alert\nexp-2087: done after 3 attempt(s) in 3000 ms, no alert\nexp-2088: failed after 4 attempt(s) in 7000 ms, alert at 7000 ms: HttpError: object storage answered 409\nexp-2089: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"sql_basics\" is not a valid course id\nexp-2090: failed after 4 attempt(s) in 7000 ms, alert at 7000 ms: HttpError: reports API answered 422\nexp-2091: done after 4 attempt(s) in 8000 ms, no alert\nexp-2092: done after 2 attempt(s) in 1000 ms, no alert\nexp-2093: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"Redis Patterns\" is not a valid course id\nexp-2094: failed after 1 attempt(s) in 0 ms, alert at 0 ms: HttpError: object storage answered 409\nexp-2095: failed after 2 attempt(s) in 1000 ms, alert at 1000 ms: HttpError: reports API answered 400\nexp-2096: failed after 10 attempt(s) in 151000 ms, alert at 151000 ms: HttpError: reports API answered 504\nexp-2097: done after 2 attempt(s) in 1000 ms, no alert\nexp-2098: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"\" is not a valid course id\nexp-2099: failed after 10 attempt(s) in 241000 ms, alert at 241000 ms: TimeoutError: reports API did not answer within 10000 ms\nexp-2100: failed after 1 attempt(s) in 0 ms, alert at 0 ms: HttpError: reports API answered 404\nexp-2101: done after 2 attempt(s) in 1000 ms, no alert\nexp-2102: failed after 1 attempt(s) in 0 ms, alert at 0 ms: HttpError: object storage answered 409\nexp-2103: failed after 10 attempt(s) in 151000 ms, alert at 151000 ms: HttpError: reports API answered 500\nexp-2104: failed after 4 attempt(s) in 7000 ms, alert at 7000 ms: Error: ENOENT: no such file or directory, open 'templates/csv.hbs'\nexp-2105: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"\" is not a valid course id\nexp-2106: failed after 2 attempt(s) in 1000 ms, alert at 1000 ms: HttpError: reports API answered 400\nexp-2107: done after 4 attempt(s) in 27000 ms, no alert\nexp-2108: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"\" is not a valid course id\nexp-2109: failed after 10 attempt(s) in 151000 ms, alert at 151000 ms: HttpError: reports API answered 503\nexp-2110: done after 1 attempt(s) in 0 ms, no alert\nexp-2111: done after 2 attempt(s) in 1000 ms, no alert\nexp-2112: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"sql_basics\" is not a valid course id\nexp-2113: failed after 10 attempt(s) in 153000 ms, alert at 153000 ms: HttpError: reports API answered 500\nexp-2114: done after 4 attempt(s) in 7000 ms, no alert\nexp-2115: failed after 4 attempt(s) in 17000 ms, alert at 17000 ms: HttpError: reports API answered 403\nexp-2116: done after 4 attempt(s) in 17000 ms, no alert\nexp-2117: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"\" is not a valid course id\nexp-2118: done after 3 attempt(s) in 23000 ms, no alert\nexp-2119: done after 2 attempt(s) in 11000 ms, no alert\nexp-2120: failed after 10 attempt(s) in 243000 ms, alert at 243000 ms: TimeoutError: reports API did not answer within 10000 ms\nexp-2121: done after 2 attempt(s) in 1000 ms, no alert\nexp-2122: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"\" is not a valid course id\nexp-2123: done after 1 attempt(s) in 0 ms, no alert\nexp-2124: failed after 10 attempt(s) in 251000 ms, alert at 251000 ms: TimeoutError: reports API did not answer within 10000 ms\nexp-2125: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"Redis Patterns\" is not a valid course id\nexp-2126: done after 2 attempt(s) in 1000 ms, no alert\nexp-2127: done after 3 attempt(s) in 3000 ms, no alert\nexp-2128: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"sql_basics\" is not a valid course id\nexp-2129: done after 4 attempt(s) in 7000 ms, no alert\nexp-2130: done after 3 attempt(s) in 3000 ms, no alert\nexp-2131: failed after 1 attempt(s) in 0 ms, alert at 0 ms: HttpError: reports API answered 404\nexp-2132: failed after 2 attempt(s) in 1000 ms, alert at 1000 ms: HttpError: reports API answered 400\nexp-2133: failed after 1 attempt(s) in 0 ms, alert at 0 ms: HttpError: object storage answered 403\nexp-2134: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"sql_basics\" is not a valid course id\nexp-2135: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"sql_basics\" is not a valid course id\nexp-2136: failed after 10 attempt(s) in 151000 ms, alert at 151000 ms: HttpError: reports API answered 408\nexp-2137: done after 1 attempt(s) in 0 ms, no alert\nexp-2138: failed after 10 attempt(s) in 151000 ms, alert at 151000 ms: HttpError: reports API answered 500\nexp-2139: failed after 10 attempt(s) in 161000 ms, alert at 161000 ms: HttpError: object storage answered 503\nexp-2140: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"sql_basics\" is not a valid course id\nexp-2141: done after 4 attempt(s) in 17000 ms, no alert\nexp-2142: done after 2 attempt(s) in 1000 ms, no alert\nexp-2143: done after 3 attempt(s) in 3000 ms, no alert\nexp-2144: failed after 1 attempt(s) in 0 ms, alert at 0 ms: HttpError: object storage answered 403\nexp-2145: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"sql_basics\" is not a valid course id\nexp-2146: done after 1 attempt(s) in 0 ms, no alert\nexp-2147: done after 3 attempt(s) in 3000 ms, no alert\nexp-2148: failed after 1 attempt(s) in 0 ms, alert at 0 ms: HttpError: reports API answered 410\nexp-2149: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"\" is not a valid course id\nexp-2150: done after 4 attempt(s) in 6000 ms, no alert\nexp-2151: failed after 2 attempt(s) in 1000 ms, alert at 1000 ms: HttpError: object storage answered 409\nexp-2152: done after 1 attempt(s) in 0 ms, no alert\nexp-2153: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"sql_basics\" is not a valid course id\nexp-2154: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"sql_basics\" is not a valid course id\nexp-2155: done after 2 attempt(s) in 1000 ms, no alert\nexp-2156: failed after 3 attempt(s) in 3000 ms, alert at 3000 ms: HttpError: reports API answered 401\nexp-2157: done after 4 attempt(s) in 7000 ms, no alert\nexp-2158: failed after 10 attempt(s) in 151000 ms, alert at 151000 ms: HttpError: reports API answered 500\nexp-2159: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"\" is not a valid course id\nexp-2160: done after 1 attempt(s) in 0 ms, no alert\nexp-2161: failed after 1 attempt(s) in 0 ms, alert at 0 ms: HttpError: object storage answered 403\nexp-2162: done after 3 attempt(s) in 3000 ms, no alert\nexp-2163: failed after 10 attempt(s) in 221000 ms, alert at 221000 ms: TimeoutError: object storage did not answer within 10000 ms\nexp-2164: done after 2 attempt(s) in 1000 ms, no alert\nexp-2165: done after 2 attempt(s) in 1000 ms, no alert\nexp-2166: done after 2 attempt(s) in 11000 ms, no alert\nexp-2167: done after 3 attempt(s) in 13000 ms, no alert\nexp-2168: done after 2 attempt(s) in 1000 ms, no alert\nexp-2169: failed after 10 attempt(s) in 161000 ms, alert at 161000 ms: HttpError: reports API answered 502\nexp-2170: done after 4 attempt(s) in 7000 ms, no alert\nexp-2171: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"Redis Patterns\" is not a valid course id\nexp-2172: failed after 4 attempt(s) in 18000 ms, alert at 18000 ms: HttpError: reports API answered 403\nexp-2173: failed after 3 attempt(s) in 3000 ms, alert at 3000 ms: HttpError: reports API answered 410\nexp-2174: failed after 2 attempt(s) in 1000 ms, alert at 1000 ms: HttpError: object storage answered 409\nexp-2175: done after 3 attempt(s) in 3000 ms, no alert\nexp-2176: failed after 10 attempt(s) in 231000 ms, alert at 231000 ms: TimeoutError: object storage did not answer within 10000 ms\nexp-2177: done after 4 attempt(s) in 7000 ms, no alert\nexp-2178: failed after 10 attempt(s) in 231000 ms, alert at 231000 ms: TimeoutError: object storage did not answer within 10000 ms\nexp-2179: done after 2 attempt(s) in 1000 ms, no alert\nexp-2180: done after 3 attempt(s) in 3000 ms, no alert\nexp-2181: done after 1 attempt(s) in 0 ms, no alert\nexp-2182: done after 4 attempt(s) in 7000 ms, no alert\nexp-2183: done after 4 attempt(s) in 17000 ms, no alert\nexp-2184: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"\" is not a valid course id\nexp-2185: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"\" is not a valid course id\nexp-2186: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"Redis Patterns\" is not a valid course id\nexp-2187: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"sql_basics\" is not a valid course id\nexp-2188: done after 4 attempt(s) in 7000 ms, no alert\nexp-2189: done after 4 attempt(s) in 7000 ms, no alert\nexp-2190: done after 4 attempt(s) in 7000 ms, no alert\nexp-2191: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"\" is not a valid course id\nexp-2192: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"Redis Patterns\" is not a valid course id\nexp-2193: failed after 4 attempt(s) in 7000 ms, alert at 7000 ms: HttpError: reports API answered 422\nexp-2194: done after 4 attempt(s) in 7000 ms, no alert\nexp-2195: failed after 10 attempt(s) in 151000 ms, alert at 151000 ms: Error: read ECONNRESET (reports API)\nexp-2196: done after 4 attempt(s) in 7000 ms, no alert\nexp-2197: done after 2 attempt(s) in 1000 ms, no alert\nexp-2198: failed after 1 attempt(s) in 0 ms, alert at 0 ms: ValidationError: \"Redis Patterns\" is not a valid course id\nexp-2199: done after 3 attempt(s) in 3000 ms, no alert\ntotal: 590 attempts, 4443000 ms of worker time",
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

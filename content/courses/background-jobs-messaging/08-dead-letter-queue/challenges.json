@@ -1,0 +1,3375 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_bjm_321",
+      "name": "dead-letter-queue-redrive",
+      "type": "quiz",
+      "title": "Dead-letter queues & redrive: choose what to replay",
+      "description": "The certificate renderer dead-lettered 1,189 messages this week. A fix for the biggest group is deployed. Two statements on the DLQ listing decide what to redrive, and how fast.",
+      "difficulty": "medium",
+      "outcomes": [
+        "failure-handling"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "$ codedev-queue dlq list certificate-renderer-dlq --group-by lastError\nlastError                                           count  schema  first failure     last failure\nRenderError: font \"Inter Display\" not found         1,184  v2      10-27 08:12       10-27 09:40\nSchemaVersionError: unsupported payload version 1       3  v1      10-21 14:03       10-21 14:05\nValidationError: course c_404 does not exist            2  v2      10-25 10:31       10-25 10:33\n\n10-27 09:52 deploy certificate-renderer 1.14.2 \"bundle the Inter Display font\"\nmain queue certificate-renderer: 35 waiting, about 40 new messages per minute, renderer capacity about 120 per minute\n\nPlan: redrive only the 1,184 RenderError entries, at 50 messages per minute, and leave the other 5 entries in the DLQ with a ticket for the course team.\n\nStatement: \"This plan is a safe redrive: the fix for the RenderError group is deployed, the rate leaves room for new certificates, and the other two groups would fail again or be misread by the current code.\"",
+          "explanation": "True. Redrive replays messages through the current code, so it only makes sense for a group whose cause has been fixed: the 09:52 deploy fixes the missing font, the cause of the RenderError group. 50 per minute on top of about 40 new messages stays under the renderer's 120 per minute, so new certificates are not delayed while the backlog of 1,184 drains in about 24 minutes. The SchemaVersionError group carries v1 payloads the current code does not support, and the ValidationError group points at a course that does not exist: replaying them changes nothing or, worse, produces wrong certificates. Grouping by last error is what turns a DLQ from a pile into a set of decisions.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "$ codedev-queue dlq list certificate-renderer-dlq --group-by lastError\nlastError                                           count  schema  first failure     last failure\nRenderError: font \"Inter Display\" not found         1,184  v2      10-27 08:12       10-27 09:40\nSchemaVersionError: unsupported payload version 1       3  v1      10-21 14:03       10-21 14:05\nValidationError: course c_404 does not exist            2  v2      10-25 10:31       10-25 10:33\n\n10-27 09:52 deploy certificate-renderer 1.14.2 \"bundle the Inter Display font\"\nmain queue certificate-renderer: 35 waiting, about 40 new messages per minute, renderer capacity about 120 per minute\n\nStatement: \"Redriving all 1,189 entries at once is just as safe: anything that still fails simply goes back to the DLQ, so nothing can go wrong.\"",
+          "explanation": "False. Three things go wrong. 1,189 messages arrive at a renderer that handles about 120 a minute, so for about ten minutes new certificates wait behind the replay. The 2 ValidationError messages can never succeed and use up three attempts each for nothing, and the 3 v1 messages reach code that does not support their schema: depending on the code they fail again or, worse, are read with the wrong field names and render a wrong certificate - a quiet failure no DLQ catches. A safe redrive selects by cause (last error) after the fix, refuses schemas the code cannot read, is rate-limited, and never adds a message that is already back in the main queue.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_bjm_322",
+      "name": "dead-letter-queue-redrive",
+      "type": "mini_coding",
+      "title": "Dead-letter queue with redrive and purge",
+      "description": "The certificate-renderer queue of CodeDev needs a dead-letter queue (DLQ) that on-call engineers can work with. Implement tick, redrive and purge on an in-memory queue with a fake clock in minutes. The runner reads { config: { maxAttempts, redrivePerTick, supportedSchemas }, commands } and applies the commands in order: send (append to the main queue, attempts 0), tick { minutes? = 1 } (calls tick once per minute), redrive { ids } or { error }, deploy { fix } (from then on, messages failing with that error succeed) and purge { olderThanDays }; after each command it prints the events you return and the main queue, DLQ and redrive list. tick(state): 1) add 1 to state.now; 2) redrive, rate-limited: take up to redrivePerTick ids from the front of state.redrivePending (each taken id counts, moved or not); if a message with the same id is in the main queue, leave the DLQ entry where it is and emit \"<id>: already in the main queue, left in the DLQ\"; otherwise remove it from the DLQ, append it to the tail of the main queue with attempts 0 and the failure fields null, and emit \"redriven <id>\"; 3) deliver once: if the main queue is not empty, take the head, add 1 to its attempts and call handle(state, msg); on success emit \"processed <id>\"; on error set firstFailedAt (only if null) and lastFailedAt to now and lastError to the error message, then if attempts >= maxAttempts append it to the DLQ with id, schema, body, attempts, firstFailedAt, lastFailedAt, lastError and emit \"dead-lettered <id> after <n> attempts: <error>\", else append it to the tail of the main queue and emit \"failed <id> attempt <n>: <error>\". redrive(state, cmd): give exactly one of a non-empty ids array or a non-empty error string, else return [\"rejected: give either ids or error\"]; ids are used in the given order; an error selects the DLQ entries whose lastError equals it, in DLQ order, and if none match return [\"no dead letters with error <error>\"]. For each selected id, in this order of checks: not in the DLQ: \"<id>: not in the DLQ\"; schema not in supportedSchemas: \"<id>: schema v<schema> is not supported, not redriven\"; already in redrivePending: \"<id>: already queued for redrive\"; otherwise append it to redrivePending: \"<id>: queued for redrive\". purge(state, olderThanDays): unless it is a whole number of at least 1, return [\"rejected: olderThanDays must be a whole number of at least 1\"] and delete nothing; otherwise delete every DLQ entry with now - lastFailedAt >= olderThanDays * 1440, also remove its id from redrivePending, and emit \"purged <id>\" for each, in DLQ order. Ids are unique within the DLQ. Do not change the handler or the test runner.",
+      "difficulty": "hard",
+      "outcomes": [
+        "failure-handling"
+      ],
+      "points": 40,
+      "hints": [
+        "Write down, for one message, the full life you expect: sent, failed twice, dead-lettered, queued for redrive, moved back, processed. Which fields must change at each step, and which step is the only one allowed to move it from the DLQ to the main queue?",
+        "In tick, the order matters: the clock first, then at most redrivePerTick ids from the front of redrivePending (splice is handy), then exactly one delivery. In redrive, the three refusal checks come before anything is added to redrivePending. In purge, validate the argument before you filter.",
+        "A similar case with maxAttempts 2 and redrivePerTick 1: x fails at minutes 1 and 2 and is dead-lettered with first=1 last=2. After a deploy, redrive ids [x, y] gives \"x: queued for redrive\" and \"y: not in the DLQ\". At minute 3 x is moved back with attempts 0 and processed in the same minute. A purge with 0 days at that point deletes nothing."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "A message that keeps failing is dead-lettered after 3 attempts with first and last failure",
+          "input": {
+            "config": {
+              "maxAttempts": 3,
+              "redrivePerTick": 2,
+              "supportedSchemas": [
+                2,
+                3
+              ]
+            },
+            "commands": [
+              {
+                "op": "send",
+                "id": "cert_101",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "cert_102",
+                "schema": 2,
+                "body": "RenderError: font not found"
+              },
+              {
+                "op": "send",
+                "id": "cert_103",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "tick",
+                "minutes": 6
+              }
+            ]
+          },
+          "hidden": false,
+          "score": 3,
+          "expected": [
+            {
+              "t": 0,
+              "cmd": "send x3",
+              "main": [
+                "cert_101#0",
+                "cert_102#0",
+                "cert_103#0"
+              ]
+            },
+            {
+              "t": 6,
+              "cmd": "tick 6",
+              "events": [
+                "processed cert_101",
+                "failed cert_102 attempt 1: RenderError: font not found",
+                "processed cert_103",
+                "failed cert_102 attempt 2: RenderError: font not found",
+                "dead-lettered cert_102 after 3 attempts: RenderError: font not found"
+              ],
+              "main": [],
+              "dlq": [
+                "cert_102 v2 attempts=3 first=2 last=5 error=RenderError: font not found"
+              ],
+              "redrivePending": []
+            }
+          ]
+        },
+        {
+          "name": "After a deploy, redrive by error moves 2 messages per minute and they are processed",
+          "input": {
+            "config": {
+              "maxAttempts": 3,
+              "redrivePerTick": 2,
+              "supportedSchemas": [
+                2,
+                3
+              ]
+            },
+            "commands": [
+              {
+                "op": "send",
+                "id": "cert_201",
+                "schema": 2,
+                "body": "PdfError"
+              },
+              {
+                "op": "send",
+                "id": "cert_202",
+                "schema": 2,
+                "body": "PdfError"
+              },
+              {
+                "op": "send",
+                "id": "cert_203",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "cert_204",
+                "schema": 2,
+                "body": "PdfError"
+              },
+              {
+                "op": "send",
+                "id": "cert_205",
+                "schema": 2,
+                "body": "PdfError"
+              },
+              {
+                "op": "send",
+                "id": "cert_206",
+                "schema": 2,
+                "body": "PdfError"
+              },
+              {
+                "op": "tick",
+                "minutes": 16
+              },
+              {
+                "op": "deploy",
+                "fix": "PdfError"
+              },
+              {
+                "op": "redrive",
+                "error": "PdfError"
+              },
+              {
+                "op": "tick"
+              },
+              {
+                "op": "tick"
+              },
+              {
+                "op": "tick",
+                "minutes": 3
+              },
+              {
+                "op": "tick",
+                "minutes": 3
+              }
+            ]
+          },
+          "hidden": false,
+          "score": 3,
+          "expected": [
+            {
+              "t": 0,
+              "cmd": "send x6",
+              "main": [
+                "cert_201#0",
+                "cert_202#0",
+                "cert_203#0",
+                "cert_204#0",
+                "cert_205#0",
+                "cert_206#0"
+              ]
+            },
+            {
+              "t": 16,
+              "cmd": "tick 16",
+              "events": [
+                "failed cert_201 attempt 1: PdfError",
+                "failed cert_202 attempt 1: PdfError",
+                "processed cert_203",
+                "failed cert_204 attempt 1: PdfError",
+                "failed cert_205 attempt 1: PdfError",
+                "failed cert_206 attempt 1: PdfError",
+                "failed cert_201 attempt 2: PdfError",
+                "failed cert_202 attempt 2: PdfError",
+                "failed cert_204 attempt 2: PdfError",
+                "failed cert_205 attempt 2: PdfError",
+                "failed cert_206 attempt 2: PdfError",
+                "dead-lettered cert_201 after 3 attempts: PdfError",
+                "dead-lettered cert_202 after 3 attempts: PdfError",
+                "dead-lettered cert_204 after 3 attempts: PdfError",
+                "dead-lettered cert_205 after 3 attempts: PdfError",
+                "dead-lettered cert_206 after 3 attempts: PdfError"
+              ],
+              "main": [],
+              "dlq": [
+                "cert_201 v2 attempts=3 first=1 last=12 error=PdfError",
+                "cert_202 v2 attempts=3 first=2 last=13 error=PdfError",
+                "cert_204 v2 attempts=3 first=4 last=14 error=PdfError",
+                "cert_205 v2 attempts=3 first=5 last=15 error=PdfError",
+                "cert_206 v2 attempts=3 first=6 last=16 error=PdfError"
+              ],
+              "redrivePending": []
+            },
+            {
+              "t": 16,
+              "cmd": "deploy fix PdfError",
+              "events": [],
+              "main": [],
+              "dlq": [
+                "cert_201 v2 attempts=3 first=1 last=12 error=PdfError",
+                "cert_202 v2 attempts=3 first=2 last=13 error=PdfError",
+                "cert_204 v2 attempts=3 first=4 last=14 error=PdfError",
+                "cert_205 v2 attempts=3 first=5 last=15 error=PdfError",
+                "cert_206 v2 attempts=3 first=6 last=16 error=PdfError"
+              ],
+              "redrivePending": []
+            },
+            {
+              "t": 16,
+              "cmd": "redrive error PdfError",
+              "events": [
+                "cert_201: queued for redrive",
+                "cert_202: queued for redrive",
+                "cert_204: queued for redrive",
+                "cert_205: queued for redrive",
+                "cert_206: queued for redrive"
+              ],
+              "main": [],
+              "dlq": [
+                "cert_201 v2 attempts=3 first=1 last=12 error=PdfError",
+                "cert_202 v2 attempts=3 first=2 last=13 error=PdfError",
+                "cert_204 v2 attempts=3 first=4 last=14 error=PdfError",
+                "cert_205 v2 attempts=3 first=5 last=15 error=PdfError",
+                "cert_206 v2 attempts=3 first=6 last=16 error=PdfError"
+              ],
+              "redrivePending": [
+                "cert_201",
+                "cert_202",
+                "cert_204",
+                "cert_205",
+                "cert_206"
+              ]
+            },
+            {
+              "t": 17,
+              "cmd": "tick 1",
+              "events": [
+                "redriven cert_201",
+                "redriven cert_202",
+                "processed cert_201"
+              ],
+              "main": [
+                "cert_202#0"
+              ],
+              "dlq": [
+                "cert_204 v2 attempts=3 first=4 last=14 error=PdfError",
+                "cert_205 v2 attempts=3 first=5 last=15 error=PdfError",
+                "cert_206 v2 attempts=3 first=6 last=16 error=PdfError"
+              ],
+              "redrivePending": [
+                "cert_204",
+                "cert_205",
+                "cert_206"
+              ]
+            },
+            {
+              "t": 18,
+              "cmd": "tick 1",
+              "events": [
+                "redriven cert_204",
+                "redriven cert_205",
+                "processed cert_202"
+              ],
+              "main": [
+                "cert_204#0",
+                "cert_205#0"
+              ],
+              "dlq": [
+                "cert_206 v2 attempts=3 first=6 last=16 error=PdfError"
+              ],
+              "redrivePending": [
+                "cert_206"
+              ]
+            },
+            {
+              "t": 21,
+              "cmd": "tick 3",
+              "events": [
+                "redriven cert_206",
+                "processed cert_204",
+                "processed cert_205",
+                "processed cert_206"
+              ],
+              "main": [],
+              "dlq": [],
+              "redrivePending": []
+            },
+            {
+              "t": 24,
+              "cmd": "tick 3",
+              "events": [],
+              "main": [],
+              "dlq": [],
+              "redrivePending": []
+            }
+          ]
+        },
+        {
+          "name": "Redrive refuses an unsupported schema, unknown ids and a command without ids or error",
+          "input": {
+            "config": {
+              "maxAttempts": 3,
+              "redrivePerTick": 2,
+              "supportedSchemas": [
+                2,
+                3
+              ]
+            },
+            "commands": [
+              {
+                "op": "send",
+                "id": "old_v1",
+                "schema": 1,
+                "body": "PdfError"
+              },
+              {
+                "op": "send",
+                "id": "new_v2",
+                "schema": 2,
+                "body": "PdfError"
+              },
+              {
+                "op": "send",
+                "id": "new_v3",
+                "schema": 3,
+                "body": "PdfError"
+              },
+              {
+                "op": "tick",
+                "minutes": 9
+              },
+              {
+                "op": "deploy",
+                "fix": "PdfError"
+              },
+              {
+                "op": "redrive",
+                "ids": [
+                  "old_v1",
+                  "new_v2",
+                  "ghost_9"
+                ]
+              },
+              {
+                "op": "redrive"
+              },
+              {
+                "op": "redrive",
+                "ids": [
+                  "new_v3"
+                ],
+                "error": "PdfError"
+              },
+              {
+                "op": "redrive",
+                "ids": []
+              },
+              {
+                "op": "redrive",
+                "ids": [
+                  "new_v2",
+                  "new_v3"
+                ]
+              },
+              {
+                "op": "redrive",
+                "error": "Timeout"
+              },
+              {
+                "op": "tick",
+                "minutes": 3
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 3,
+          "expected": [
+            {
+              "t": 0,
+              "cmd": "send x3",
+              "main": [
+                "old_v1#0",
+                "new_v2#0",
+                "new_v3#0"
+              ]
+            },
+            {
+              "t": 9,
+              "cmd": "tick 9",
+              "events": [
+                "failed old_v1 attempt 1: PdfError",
+                "failed new_v2 attempt 1: PdfError",
+                "failed new_v3 attempt 1: PdfError",
+                "failed old_v1 attempt 2: PdfError",
+                "failed new_v2 attempt 2: PdfError",
+                "failed new_v3 attempt 2: PdfError",
+                "dead-lettered old_v1 after 3 attempts: PdfError",
+                "dead-lettered new_v2 after 3 attempts: PdfError",
+                "dead-lettered new_v3 after 3 attempts: PdfError"
+              ],
+              "main": [],
+              "dlq": [
+                "old_v1 v1 attempts=3 first=1 last=7 error=PdfError",
+                "new_v2 v2 attempts=3 first=2 last=8 error=PdfError",
+                "new_v3 v3 attempts=3 first=3 last=9 error=PdfError"
+              ],
+              "redrivePending": []
+            },
+            {
+              "t": 9,
+              "cmd": "deploy fix PdfError",
+              "events": [],
+              "main": [],
+              "dlq": [
+                "old_v1 v1 attempts=3 first=1 last=7 error=PdfError",
+                "new_v2 v2 attempts=3 first=2 last=8 error=PdfError",
+                "new_v3 v3 attempts=3 first=3 last=9 error=PdfError"
+              ],
+              "redrivePending": []
+            },
+            {
+              "t": 9,
+              "cmd": "redrive ids old_v1,new_v2,ghost_9",
+              "events": [
+                "old_v1: schema v1 is not supported, not redriven",
+                "new_v2: queued for redrive",
+                "ghost_9: not in the DLQ"
+              ],
+              "main": [],
+              "dlq": [
+                "old_v1 v1 attempts=3 first=1 last=7 error=PdfError",
+                "new_v2 v2 attempts=3 first=2 last=8 error=PdfError",
+                "new_v3 v3 attempts=3 first=3 last=9 error=PdfError"
+              ],
+              "redrivePending": [
+                "new_v2"
+              ]
+            },
+            {
+              "t": 9,
+              "cmd": "redrive error (none)",
+              "events": [
+                "rejected: give either ids or error"
+              ],
+              "main": [],
+              "dlq": [
+                "old_v1 v1 attempts=3 first=1 last=7 error=PdfError",
+                "new_v2 v2 attempts=3 first=2 last=8 error=PdfError",
+                "new_v3 v3 attempts=3 first=3 last=9 error=PdfError"
+              ],
+              "redrivePending": [
+                "new_v2"
+              ]
+            },
+            {
+              "t": 9,
+              "cmd": "redrive ids new_v3",
+              "events": [
+                "rejected: give either ids or error"
+              ],
+              "main": [],
+              "dlq": [
+                "old_v1 v1 attempts=3 first=1 last=7 error=PdfError",
+                "new_v2 v2 attempts=3 first=2 last=8 error=PdfError",
+                "new_v3 v3 attempts=3 first=3 last=9 error=PdfError"
+              ],
+              "redrivePending": [
+                "new_v2"
+              ]
+            },
+            {
+              "t": 9,
+              "cmd": "redrive ids ",
+              "events": [
+                "rejected: give either ids or error"
+              ],
+              "main": [],
+              "dlq": [
+                "old_v1 v1 attempts=3 first=1 last=7 error=PdfError",
+                "new_v2 v2 attempts=3 first=2 last=8 error=PdfError",
+                "new_v3 v3 attempts=3 first=3 last=9 error=PdfError"
+              ],
+              "redrivePending": [
+                "new_v2"
+              ]
+            },
+            {
+              "t": 9,
+              "cmd": "redrive ids new_v2,new_v3",
+              "events": [
+                "new_v2: already queued for redrive",
+                "new_v3: queued for redrive"
+              ],
+              "main": [],
+              "dlq": [
+                "old_v1 v1 attempts=3 first=1 last=7 error=PdfError",
+                "new_v2 v2 attempts=3 first=2 last=8 error=PdfError",
+                "new_v3 v3 attempts=3 first=3 last=9 error=PdfError"
+              ],
+              "redrivePending": [
+                "new_v2",
+                "new_v3"
+              ]
+            },
+            {
+              "t": 9,
+              "cmd": "redrive error Timeout",
+              "events": [
+                "no dead letters with error Timeout"
+              ],
+              "main": [],
+              "dlq": [
+                "old_v1 v1 attempts=3 first=1 last=7 error=PdfError",
+                "new_v2 v2 attempts=3 first=2 last=8 error=PdfError",
+                "new_v3 v3 attempts=3 first=3 last=9 error=PdfError"
+              ],
+              "redrivePending": [
+                "new_v2",
+                "new_v3"
+              ]
+            },
+            {
+              "t": 12,
+              "cmd": "tick 3",
+              "events": [
+                "redriven new_v2",
+                "redriven new_v3",
+                "processed new_v2",
+                "processed new_v3"
+              ],
+              "main": [],
+              "dlq": [
+                "old_v1 v1 attempts=3 first=1 last=7 error=PdfError"
+              ],
+              "redrivePending": []
+            }
+          ]
+        },
+        {
+          "name": "A redrive never duplicates a message that is already back in the main queue",
+          "input": {
+            "config": {
+              "maxAttempts": 3,
+              "redrivePerTick": 2,
+              "supportedSchemas": [
+                2,
+                3
+              ]
+            },
+            "commands": [
+              {
+                "op": "send",
+                "id": "cert_301",
+                "schema": 2,
+                "body": "QrError"
+              },
+              {
+                "op": "tick",
+                "minutes": 3
+              },
+              {
+                "op": "send",
+                "id": "cert_310",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "cert_311",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "cert_312",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "cert_301",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "redrive",
+                "ids": [
+                  "cert_301"
+                ]
+              },
+              {
+                "op": "tick"
+              },
+              {
+                "op": "tick",
+                "minutes": 4
+              },
+              {
+                "op": "deploy",
+                "fix": "QrError"
+              },
+              {
+                "op": "redrive",
+                "ids": [
+                  "cert_301"
+                ]
+              },
+              {
+                "op": "tick",
+                "minutes": 2
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 3,
+          "expected": [
+            {
+              "t": 0,
+              "cmd": "send x1",
+              "main": [
+                "cert_301#0"
+              ]
+            },
+            {
+              "t": 3,
+              "cmd": "tick 3",
+              "events": [
+                "failed cert_301 attempt 1: QrError",
+                "failed cert_301 attempt 2: QrError",
+                "dead-lettered cert_301 after 3 attempts: QrError"
+              ],
+              "main": [],
+              "dlq": [
+                "cert_301 v2 attempts=3 first=1 last=3 error=QrError"
+              ],
+              "redrivePending": []
+            },
+            {
+              "t": 3,
+              "cmd": "send x4",
+              "main": [
+                "cert_310#0",
+                "cert_311#0",
+                "cert_312#0",
+                "cert_301#0"
+              ]
+            },
+            {
+              "t": 3,
+              "cmd": "redrive ids cert_301",
+              "events": [
+                "cert_301: queued for redrive"
+              ],
+              "main": [
+                "cert_310#0",
+                "cert_311#0",
+                "cert_312#0",
+                "cert_301#0"
+              ],
+              "dlq": [
+                "cert_301 v2 attempts=3 first=1 last=3 error=QrError"
+              ],
+              "redrivePending": [
+                "cert_301"
+              ]
+            },
+            {
+              "t": 4,
+              "cmd": "tick 1",
+              "events": [
+                "cert_301: already in the main queue, left in the DLQ",
+                "processed cert_310"
+              ],
+              "main": [
+                "cert_311#0",
+                "cert_312#0",
+                "cert_301#0"
+              ],
+              "dlq": [
+                "cert_301 v2 attempts=3 first=1 last=3 error=QrError"
+              ],
+              "redrivePending": []
+            },
+            {
+              "t": 8,
+              "cmd": "tick 4",
+              "events": [
+                "processed cert_311",
+                "processed cert_312",
+                "processed cert_301"
+              ],
+              "main": [],
+              "dlq": [
+                "cert_301 v2 attempts=3 first=1 last=3 error=QrError"
+              ],
+              "redrivePending": []
+            },
+            {
+              "t": 8,
+              "cmd": "deploy fix QrError",
+              "events": [],
+              "main": [],
+              "dlq": [
+                "cert_301 v2 attempts=3 first=1 last=3 error=QrError"
+              ],
+              "redrivePending": []
+            },
+            {
+              "t": 8,
+              "cmd": "redrive ids cert_301",
+              "events": [
+                "cert_301: queued for redrive"
+              ],
+              "main": [],
+              "dlq": [
+                "cert_301 v2 attempts=3 first=1 last=3 error=QrError"
+              ],
+              "redrivePending": [
+                "cert_301"
+              ]
+            },
+            {
+              "t": 10,
+              "cmd": "tick 2",
+              "events": [
+                "redriven cert_301",
+                "processed cert_301"
+              ],
+              "main": [],
+              "dlq": [],
+              "redrivePending": []
+            }
+          ]
+        },
+        {
+          "name": "A redriven message that still fails gets 3 fresh attempts and new failure times",
+          "input": {
+            "config": {
+              "maxAttempts": 3,
+              "redrivePerTick": 2,
+              "supportedSchemas": [
+                2,
+                3
+              ]
+            },
+            "commands": [
+              {
+                "op": "send",
+                "id": "cert_401",
+                "schema": 2,
+                "body": "TemplateError"
+              },
+              {
+                "op": "send",
+                "id": "cert_402",
+                "schema": 2,
+                "body": "flaky:2"
+              },
+              {
+                "op": "tick",
+                "minutes": 6
+              },
+              {
+                "op": "redrive",
+                "ids": [
+                  "cert_401"
+                ]
+              },
+              {
+                "op": "tick",
+                "minutes": 2
+              },
+              {
+                "op": "tick",
+                "minutes": 5
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 3,
+          "expected": [
+            {
+              "t": 0,
+              "cmd": "send x2",
+              "main": [
+                "cert_401#0",
+                "cert_402#0"
+              ]
+            },
+            {
+              "t": 6,
+              "cmd": "tick 6",
+              "events": [
+                "failed cert_401 attempt 1: TemplateError",
+                "failed cert_402 attempt 1: Timeout",
+                "failed cert_401 attempt 2: TemplateError",
+                "failed cert_402 attempt 2: Timeout",
+                "dead-lettered cert_401 after 3 attempts: TemplateError",
+                "processed cert_402"
+              ],
+              "main": [],
+              "dlq": [
+                "cert_401 v2 attempts=3 first=1 last=5 error=TemplateError"
+              ],
+              "redrivePending": []
+            },
+            {
+              "t": 6,
+              "cmd": "redrive ids cert_401",
+              "events": [
+                "cert_401: queued for redrive"
+              ],
+              "main": [],
+              "dlq": [
+                "cert_401 v2 attempts=3 first=1 last=5 error=TemplateError"
+              ],
+              "redrivePending": [
+                "cert_401"
+              ]
+            },
+            {
+              "t": 8,
+              "cmd": "tick 2",
+              "events": [
+                "redriven cert_401",
+                "failed cert_401 attempt 1: TemplateError",
+                "failed cert_401 attempt 2: TemplateError"
+              ],
+              "main": [
+                "cert_401#2"
+              ],
+              "dlq": [],
+              "redrivePending": []
+            },
+            {
+              "t": 13,
+              "cmd": "tick 5",
+              "events": [
+                "dead-lettered cert_401 after 3 attempts: TemplateError"
+              ],
+              "main": [],
+              "dlq": [
+                "cert_401 v2 attempts=3 first=7 last=9 error=TemplateError"
+              ],
+              "redrivePending": []
+            }
+          ]
+        },
+        {
+          "name": "Purge keeps entries younger than N days, removes the boundary and rejects 0 or 1.5 days",
+          "input": {
+            "config": {
+              "maxAttempts": 3,
+              "redrivePerTick": 1,
+              "supportedSchemas": [
+                2,
+                3
+              ]
+            },
+            "commands": [
+              {
+                "op": "send",
+                "id": "p1",
+                "schema": 2,
+                "body": "PdfError"
+              },
+              {
+                "op": "tick",
+                "minutes": 3
+              },
+              {
+                "op": "send",
+                "id": "p2",
+                "schema": 2,
+                "body": "PdfError"
+              },
+              {
+                "op": "tick",
+                "minutes": 3
+              },
+              {
+                "op": "send",
+                "id": "p3",
+                "schema": 2,
+                "body": "PdfError"
+              },
+              {
+                "op": "tick",
+                "minutes": 3
+              },
+              {
+                "op": "tick",
+                "minutes": 2874
+              },
+              {
+                "op": "purge",
+                "olderThanDays": 0
+              },
+              {
+                "op": "purge",
+                "olderThanDays": 1.5
+              },
+              {
+                "op": "redrive",
+                "ids": [
+                  "p1",
+                  "p2"
+                ]
+              },
+              {
+                "op": "purge",
+                "olderThanDays": 2
+              },
+              {
+                "op": "tick",
+                "minutes": 1
+              },
+              {
+                "op": "tick",
+                "minutes": 3
+              },
+              {
+                "op": "purge",
+                "olderThanDays": 2
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 2,
+          "expected": [
+            {
+              "t": 0,
+              "cmd": "send x1",
+              "main": [
+                "p1#0"
+              ]
+            },
+            {
+              "t": 3,
+              "cmd": "tick 3",
+              "events": [
+                "failed p1 attempt 1: PdfError",
+                "failed p1 attempt 2: PdfError",
+                "dead-lettered p1 after 3 attempts: PdfError"
+              ],
+              "main": [],
+              "dlq": [
+                "p1 v2 attempts=3 first=1 last=3 error=PdfError"
+              ],
+              "redrivePending": []
+            },
+            {
+              "t": 3,
+              "cmd": "send x1",
+              "main": [
+                "p2#0"
+              ]
+            },
+            {
+              "t": 6,
+              "cmd": "tick 3",
+              "events": [
+                "failed p2 attempt 1: PdfError",
+                "failed p2 attempt 2: PdfError",
+                "dead-lettered p2 after 3 attempts: PdfError"
+              ],
+              "main": [],
+              "dlq": [
+                "p1 v2 attempts=3 first=1 last=3 error=PdfError",
+                "p2 v2 attempts=3 first=4 last=6 error=PdfError"
+              ],
+              "redrivePending": []
+            },
+            {
+              "t": 6,
+              "cmd": "send x1",
+              "main": [
+                "p3#0"
+              ]
+            },
+            {
+              "t": 9,
+              "cmd": "tick 3",
+              "events": [
+                "failed p3 attempt 1: PdfError",
+                "failed p3 attempt 2: PdfError",
+                "dead-lettered p3 after 3 attempts: PdfError"
+              ],
+              "main": [],
+              "dlq": [
+                "p1 v2 attempts=3 first=1 last=3 error=PdfError",
+                "p2 v2 attempts=3 first=4 last=6 error=PdfError",
+                "p3 v2 attempts=3 first=7 last=9 error=PdfError"
+              ],
+              "redrivePending": []
+            },
+            {
+              "t": 2883,
+              "cmd": "tick 2874",
+              "events": [],
+              "main": [],
+              "dlq": [
+                "p1 v2 attempts=3 first=1 last=3 error=PdfError",
+                "p2 v2 attempts=3 first=4 last=6 error=PdfError",
+                "p3 v2 attempts=3 first=7 last=9 error=PdfError"
+              ],
+              "redrivePending": []
+            },
+            {
+              "t": 2883,
+              "cmd": "purge 0 days",
+              "events": [
+                "rejected: olderThanDays must be a whole number of at least 1"
+              ],
+              "main": [],
+              "dlq": [
+                "p1 v2 attempts=3 first=1 last=3 error=PdfError",
+                "p2 v2 attempts=3 first=4 last=6 error=PdfError",
+                "p3 v2 attempts=3 first=7 last=9 error=PdfError"
+              ],
+              "redrivePending": []
+            },
+            {
+              "t": 2883,
+              "cmd": "purge 1.5 days",
+              "events": [
+                "rejected: olderThanDays must be a whole number of at least 1"
+              ],
+              "main": [],
+              "dlq": [
+                "p1 v2 attempts=3 first=1 last=3 error=PdfError",
+                "p2 v2 attempts=3 first=4 last=6 error=PdfError",
+                "p3 v2 attempts=3 first=7 last=9 error=PdfError"
+              ],
+              "redrivePending": []
+            },
+            {
+              "t": 2883,
+              "cmd": "redrive ids p1,p2",
+              "events": [
+                "p1: queued for redrive",
+                "p2: queued for redrive"
+              ],
+              "main": [],
+              "dlq": [
+                "p1 v2 attempts=3 first=1 last=3 error=PdfError",
+                "p2 v2 attempts=3 first=4 last=6 error=PdfError",
+                "p3 v2 attempts=3 first=7 last=9 error=PdfError"
+              ],
+              "redrivePending": [
+                "p1",
+                "p2"
+              ]
+            },
+            {
+              "t": 2883,
+              "cmd": "purge 2 days",
+              "events": [
+                "purged p1"
+              ],
+              "main": [],
+              "dlq": [
+                "p2 v2 attempts=3 first=4 last=6 error=PdfError",
+                "p3 v2 attempts=3 first=7 last=9 error=PdfError"
+              ],
+              "redrivePending": [
+                "p2"
+              ]
+            },
+            {
+              "t": 2884,
+              "cmd": "tick 1",
+              "events": [
+                "redriven p2",
+                "failed p2 attempt 1: PdfError"
+              ],
+              "main": [
+                "p2#1"
+              ],
+              "dlq": [
+                "p3 v2 attempts=3 first=7 last=9 error=PdfError"
+              ],
+              "redrivePending": []
+            },
+            {
+              "t": 2887,
+              "cmd": "tick 3",
+              "events": [
+                "failed p2 attempt 2: PdfError",
+                "dead-lettered p2 after 3 attempts: PdfError"
+              ],
+              "main": [],
+              "dlq": [
+                "p3 v2 attempts=3 first=7 last=9 error=PdfError",
+                "p2 v2 attempts=3 first=2884 last=2886 error=PdfError"
+              ],
+              "redrivePending": []
+            },
+            {
+              "t": 2887,
+              "cmd": "purge 2 days",
+              "events": [],
+              "main": [],
+              "dlq": [
+                "p3 v2 attempts=3 first=7 last=9 error=PdfError",
+                "p2 v2 attempts=3 first=2884 last=2886 error=PdfError"
+              ],
+              "redrivePending": []
+            }
+          ]
+        },
+        {
+          "name": "Large input: 250 messages, redrive of 21 dead letters at 2 per minute, then a purge",
+          "input": {
+            "config": {
+              "maxAttempts": 3,
+              "redrivePerTick": 2,
+              "supportedSchemas": [
+                2,
+                3
+              ]
+            },
+            "commands": [
+              {
+                "op": "send",
+                "id": "c000",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c001",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c002",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c003",
+                "schema": 3,
+                "body": "flaky:1"
+              },
+              {
+                "op": "send",
+                "id": "c004",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c005",
+                "schema": 1,
+                "body": "PdfError"
+              },
+              {
+                "op": "send",
+                "id": "c006",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c007",
+                "schema": 3,
+                "body": "flaky:3"
+              },
+              {
+                "op": "send",
+                "id": "c008",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c009",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c010",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c011",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c012",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c013",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c014",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c015",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c016",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c017",
+                "schema": 3,
+                "body": "PdfError"
+              },
+              {
+                "op": "send",
+                "id": "c018",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c019",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c020",
+                "schema": 2,
+                "body": "flaky:1"
+              },
+              {
+                "op": "send",
+                "id": "c021",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c022",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c023",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c024",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c025",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c026",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c027",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c028",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c029",
+                "schema": 3,
+                "body": "PdfError"
+              },
+              {
+                "op": "send",
+                "id": "c030",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c031",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c032",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c033",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c034",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c035",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c036",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c037",
+                "schema": 3,
+                "body": "flaky:1"
+              },
+              {
+                "op": "send",
+                "id": "c038",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c039",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c040",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c041",
+                "schema": 3,
+                "body": "PdfError"
+              },
+              {
+                "op": "send",
+                "id": "c042",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c043",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c044",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c045",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c046",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c047",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c048",
+                "schema": 2,
+                "body": "flaky:3"
+              },
+              {
+                "op": "send",
+                "id": "c049",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c050",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c051",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c052",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c053",
+                "schema": 3,
+                "body": "PdfError"
+              },
+              {
+                "op": "send",
+                "id": "c054",
+                "schema": 2,
+                "body": "flaky:1"
+              },
+              {
+                "op": "send",
+                "id": "c055",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c056",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c057",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c058",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c059",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c060",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c061",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c062",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c063",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c064",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c065",
+                "schema": 1,
+                "body": "PdfError"
+              },
+              {
+                "op": "send",
+                "id": "c066",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c067",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c068",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c069",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c070",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c071",
+                "schema": 3,
+                "body": "flaky:1"
+              },
+              {
+                "op": "send",
+                "id": "c072",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c073",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c074",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c075",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c076",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c077",
+                "schema": 3,
+                "body": "PdfError"
+              },
+              {
+                "op": "send",
+                "id": "c078",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c079",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c080",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c081",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c082",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c083",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c084",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c085",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c086",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c087",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c088",
+                "schema": 2,
+                "body": "flaky:1"
+              },
+              {
+                "op": "send",
+                "id": "c089",
+                "schema": 3,
+                "body": "flaky:3"
+              },
+              {
+                "op": "send",
+                "id": "c090",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c091",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c092",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c093",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c094",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c095",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c096",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c097",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c098",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c099",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c100",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c101",
+                "schema": 3,
+                "body": "PdfError"
+              },
+              {
+                "op": "send",
+                "id": "c102",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c103",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c104",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c105",
+                "schema": 3,
+                "body": "flaky:1"
+              },
+              {
+                "op": "send",
+                "id": "c106",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c107",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c108",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c109",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c110",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c111",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c112",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c113",
+                "schema": 3,
+                "body": "PdfError"
+              },
+              {
+                "op": "send",
+                "id": "c114",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c115",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c116",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c117",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c118",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c119",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c120",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c121",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c122",
+                "schema": 2,
+                "body": "flaky:1"
+              },
+              {
+                "op": "send",
+                "id": "c123",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c124",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c125",
+                "schema": 1,
+                "body": "PdfError"
+              },
+              {
+                "op": "send",
+                "id": "c126",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c127",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c128",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c129",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c130",
+                "schema": 2,
+                "body": "flaky:3"
+              },
+              {
+                "op": "send",
+                "id": "c131",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c132",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c133",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c134",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c135",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c136",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c137",
+                "schema": 3,
+                "body": "PdfError"
+              },
+              {
+                "op": "send",
+                "id": "c138",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c139",
+                "schema": 3,
+                "body": "flaky:1"
+              },
+              {
+                "op": "send",
+                "id": "c140",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c141",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c142",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c143",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c144",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c145",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c146",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c147",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c148",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c149",
+                "schema": 3,
+                "body": "PdfError"
+              },
+              {
+                "op": "send",
+                "id": "c150",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c151",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c152",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c153",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c154",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c155",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c156",
+                "schema": 2,
+                "body": "flaky:1"
+              },
+              {
+                "op": "send",
+                "id": "c157",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c158",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c159",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c160",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c161",
+                "schema": 3,
+                "body": "PdfError"
+              },
+              {
+                "op": "send",
+                "id": "c162",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c163",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c164",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c165",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c166",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c167",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c168",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c169",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c170",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c171",
+                "schema": 3,
+                "body": "flaky:3"
+              },
+              {
+                "op": "send",
+                "id": "c172",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c173",
+                "schema": 3,
+                "body": "flaky:1"
+              },
+              {
+                "op": "send",
+                "id": "c174",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c175",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c176",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c177",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c178",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c179",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c180",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c181",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c182",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c183",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c184",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c185",
+                "schema": 1,
+                "body": "PdfError"
+              },
+              {
+                "op": "send",
+                "id": "c186",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c187",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c188",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c189",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c190",
+                "schema": 2,
+                "body": "flaky:1"
+              },
+              {
+                "op": "send",
+                "id": "c191",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c192",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c193",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c194",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c195",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c196",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c197",
+                "schema": 3,
+                "body": "PdfError"
+              },
+              {
+                "op": "send",
+                "id": "c198",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c199",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c200",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c201",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c202",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c203",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c204",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c205",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c206",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c207",
+                "schema": 3,
+                "body": "flaky:1"
+              },
+              {
+                "op": "send",
+                "id": "c208",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c209",
+                "schema": 3,
+                "body": "PdfError"
+              },
+              {
+                "op": "send",
+                "id": "c210",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c211",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c212",
+                "schema": 2,
+                "body": "flaky:3"
+              },
+              {
+                "op": "send",
+                "id": "c213",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c214",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c215",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c216",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c217",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c218",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c219",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c220",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c221",
+                "schema": 3,
+                "body": "PdfError"
+              },
+              {
+                "op": "send",
+                "id": "c222",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c223",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c224",
+                "schema": 2,
+                "body": "flaky:1"
+              },
+              {
+                "op": "send",
+                "id": "c225",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c226",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c227",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c228",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c229",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c230",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c231",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c232",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c233",
+                "schema": 3,
+                "body": "PdfError"
+              },
+              {
+                "op": "send",
+                "id": "c234",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c235",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c236",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c237",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c238",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c239",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c240",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c241",
+                "schema": 3,
+                "body": "flaky:1"
+              },
+              {
+                "op": "send",
+                "id": "c242",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c243",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c244",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c245",
+                "schema": 1,
+                "body": "PdfError"
+              },
+              {
+                "op": "send",
+                "id": "c246",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c247",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c248",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "c249",
+                "schema": 3,
+                "body": "ok"
+              },
+              {
+                "op": "tick",
+                "minutes": 320
+              },
+              {
+                "op": "deploy",
+                "fix": "PdfError"
+              },
+              {
+                "op": "redrive",
+                "error": "PdfError"
+              },
+              {
+                "op": "redrive",
+                "error": "Timeout"
+              },
+              {
+                "op": "tick",
+                "minutes": 5
+              },
+              {
+                "op": "tick",
+                "minutes": 20
+              },
+              {
+                "op": "tick",
+                "minutes": 1440
+              },
+              {
+                "op": "purge",
+                "olderThanDays": 1
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 2,
+          "expected": [
+            {
+              "t": 0,
+              "cmd": "send x250",
+              "main": [
+                "c000#0",
+                "c001#0",
+                "c002#0",
+                "c003#0",
+                "c004#0",
+                "c005#0",
+                "c006#0",
+                "c007#0",
+                "c008#0",
+                "c009#0",
+                "c010#0",
+                "c011#0",
+                "c012#0",
+                "c013#0",
+                "c014#0",
+                "c015#0",
+                "c016#0",
+                "c017#0",
+                "c018#0",
+                "c019#0",
+                "c020#0",
+                "c021#0",
+                "c022#0",
+                "c023#0",
+                "c024#0",
+                "c025#0",
+                "c026#0",
+                "c027#0",
+                "c028#0",
+                "c029#0",
+                "... and 220 more"
+              ]
+            },
+            {
+              "t": 320,
+              "cmd": "tick 320",
+              "events": [
+                "processed c000",
+                "processed c001",
+                "processed c002",
+                "failed c003 attempt 1: Timeout",
+                "processed c004",
+                "failed c005 attempt 1: PdfError",
+                "processed c006",
+                "failed c007 attempt 1: Timeout",
+                "processed c008",
+                "processed c009",
+                "processed c010",
+                "processed c011",
+                "processed c012",
+                "processed c013",
+                "processed c014",
+                "processed c015",
+                "processed c016",
+                "failed c017 attempt 1: PdfError",
+                "processed c018",
+                "processed c019",
+                "failed c020 attempt 1: Timeout",
+                "processed c021",
+                "processed c022",
+                "processed c023",
+                "processed c024",
+                "processed c025",
+                "processed c026",
+                "processed c027",
+                "processed c028",
+                "failed c029 attempt 1: PdfError",
+                "... and 285 more"
+              ],
+              "main": [],
+              "dlq": [
+                "c005 v1 attempts=3 first=6 last=291 error=PdfError",
+                "c007 v3 attempts=3 first=8 last=292 error=Timeout",
+                "c017 v3 attempts=3 first=18 last=293 error=PdfError",
+                "c029 v3 attempts=3 first=30 last=294 error=PdfError",
+                "c041 v3 attempts=3 first=42 last=295 error=PdfError",
+                "c048 v2 attempts=3 first=49 last=296 error=Timeout",
+                "c053 v3 attempts=3 first=54 last=297 error=PdfError",
+                "c065 v1 attempts=3 first=66 last=298 error=PdfError",
+                "c077 v3 attempts=3 first=78 last=299 error=PdfError",
+                "c089 v3 attempts=3 first=90 last=300 error=Timeout",
+                "c101 v3 attempts=3 first=102 last=301 error=PdfError",
+                "c113 v3 attempts=3 first=114 last=302 error=PdfError",
+                "c125 v1 attempts=3 first=126 last=303 error=PdfError",
+                "c130 v2 attempts=3 first=131 last=304 error=Timeout",
+                "c137 v3 attempts=3 first=138 last=305 error=PdfError",
+                "c149 v3 attempts=3 first=150 last=306 error=PdfError",
+                "c161 v3 attempts=3 first=162 last=307 error=PdfError",
+                "c171 v3 attempts=3 first=172 last=308 error=Timeout",
+                "c185 v1 attempts=3 first=186 last=309 error=PdfError",
+                "c197 v3 attempts=3 first=198 last=310 error=PdfError",
+                "c209 v3 attempts=3 first=210 last=311 error=PdfError",
+                "c212 v2 attempts=3 first=213 last=312 error=Timeout",
+                "c221 v3 attempts=3 first=222 last=313 error=PdfError",
+                "c233 v3 attempts=3 first=234 last=314 error=PdfError",
+                "c245 v1 attempts=3 first=246 last=315 error=PdfError"
+              ],
+              "redrivePending": []
+            },
+            {
+              "t": 320,
+              "cmd": "deploy fix PdfError",
+              "events": [],
+              "main": [],
+              "dlq": [
+                "c005 v1 attempts=3 first=6 last=291 error=PdfError",
+                "c007 v3 attempts=3 first=8 last=292 error=Timeout",
+                "c017 v3 attempts=3 first=18 last=293 error=PdfError",
+                "c029 v3 attempts=3 first=30 last=294 error=PdfError",
+                "c041 v3 attempts=3 first=42 last=295 error=PdfError",
+                "c048 v2 attempts=3 first=49 last=296 error=Timeout",
+                "c053 v3 attempts=3 first=54 last=297 error=PdfError",
+                "c065 v1 attempts=3 first=66 last=298 error=PdfError",
+                "c077 v3 attempts=3 first=78 last=299 error=PdfError",
+                "c089 v3 attempts=3 first=90 last=300 error=Timeout",
+                "c101 v3 attempts=3 first=102 last=301 error=PdfError",
+                "c113 v3 attempts=3 first=114 last=302 error=PdfError",
+                "c125 v1 attempts=3 first=126 last=303 error=PdfError",
+                "c130 v2 attempts=3 first=131 last=304 error=Timeout",
+                "c137 v3 attempts=3 first=138 last=305 error=PdfError",
+                "c149 v3 attempts=3 first=150 last=306 error=PdfError",
+                "c161 v3 attempts=3 first=162 last=307 error=PdfError",
+                "c171 v3 attempts=3 first=172 last=308 error=Timeout",
+                "c185 v1 attempts=3 first=186 last=309 error=PdfError",
+                "c197 v3 attempts=3 first=198 last=310 error=PdfError",
+                "c209 v3 attempts=3 first=210 last=311 error=PdfError",
+                "c212 v2 attempts=3 first=213 last=312 error=Timeout",
+                "c221 v3 attempts=3 first=222 last=313 error=PdfError",
+                "c233 v3 attempts=3 first=234 last=314 error=PdfError",
+                "c245 v1 attempts=3 first=246 last=315 error=PdfError"
+              ],
+              "redrivePending": []
+            },
+            {
+              "t": 320,
+              "cmd": "redrive error PdfError",
+              "events": [
+                "c005: schema v1 is not supported, not redriven",
+                "c017: queued for redrive",
+                "c029: queued for redrive",
+                "c041: queued for redrive",
+                "c053: queued for redrive",
+                "c065: schema v1 is not supported, not redriven",
+                "c077: queued for redrive",
+                "c101: queued for redrive",
+                "c113: queued for redrive",
+                "c125: schema v1 is not supported, not redriven",
+                "c137: queued for redrive",
+                "c149: queued for redrive",
+                "c161: queued for redrive",
+                "c185: schema v1 is not supported, not redriven",
+                "c197: queued for redrive",
+                "c209: queued for redrive",
+                "c221: queued for redrive",
+                "c233: queued for redrive",
+                "c245: schema v1 is not supported, not redriven"
+              ],
+              "main": [],
+              "dlq": [
+                "c005 v1 attempts=3 first=6 last=291 error=PdfError",
+                "c007 v3 attempts=3 first=8 last=292 error=Timeout",
+                "c017 v3 attempts=3 first=18 last=293 error=PdfError",
+                "c029 v3 attempts=3 first=30 last=294 error=PdfError",
+                "c041 v3 attempts=3 first=42 last=295 error=PdfError",
+                "c048 v2 attempts=3 first=49 last=296 error=Timeout",
+                "c053 v3 attempts=3 first=54 last=297 error=PdfError",
+                "c065 v1 attempts=3 first=66 last=298 error=PdfError",
+                "c077 v3 attempts=3 first=78 last=299 error=PdfError",
+                "c089 v3 attempts=3 first=90 last=300 error=Timeout",
+                "c101 v3 attempts=3 first=102 last=301 error=PdfError",
+                "c113 v3 attempts=3 first=114 last=302 error=PdfError",
+                "c125 v1 attempts=3 first=126 last=303 error=PdfError",
+                "c130 v2 attempts=3 first=131 last=304 error=Timeout",
+                "c137 v3 attempts=3 first=138 last=305 error=PdfError",
+                "c149 v3 attempts=3 first=150 last=306 error=PdfError",
+                "c161 v3 attempts=3 first=162 last=307 error=PdfError",
+                "c171 v3 attempts=3 first=172 last=308 error=Timeout",
+                "c185 v1 attempts=3 first=186 last=309 error=PdfError",
+                "c197 v3 attempts=3 first=198 last=310 error=PdfError",
+                "c209 v3 attempts=3 first=210 last=311 error=PdfError",
+                "c212 v2 attempts=3 first=213 last=312 error=Timeout",
+                "c221 v3 attempts=3 first=222 last=313 error=PdfError",
+                "c233 v3 attempts=3 first=234 last=314 error=PdfError",
+                "c245 v1 attempts=3 first=246 last=315 error=PdfError"
+              ],
+              "redrivePending": [
+                "c017",
+                "c029",
+                "c041",
+                "c053",
+                "c077",
+                "c101",
+                "c113",
+                "c137",
+                "c149",
+                "c161",
+                "c197",
+                "c209",
+                "c221",
+                "c233"
+              ]
+            },
+            {
+              "t": 320,
+              "cmd": "redrive error Timeout",
+              "events": [
+                "c007: queued for redrive",
+                "c048: queued for redrive",
+                "c089: queued for redrive",
+                "c130: queued for redrive",
+                "c171: queued for redrive",
+                "c212: queued for redrive"
+              ],
+              "main": [],
+              "dlq": [
+                "c005 v1 attempts=3 first=6 last=291 error=PdfError",
+                "c007 v3 attempts=3 first=8 last=292 error=Timeout",
+                "c017 v3 attempts=3 first=18 last=293 error=PdfError",
+                "c029 v3 attempts=3 first=30 last=294 error=PdfError",
+                "c041 v3 attempts=3 first=42 last=295 error=PdfError",
+                "c048 v2 attempts=3 first=49 last=296 error=Timeout",
+                "c053 v3 attempts=3 first=54 last=297 error=PdfError",
+                "c065 v1 attempts=3 first=66 last=298 error=PdfError",
+                "c077 v3 attempts=3 first=78 last=299 error=PdfError",
+                "c089 v3 attempts=3 first=90 last=300 error=Timeout",
+                "c101 v3 attempts=3 first=102 last=301 error=PdfError",
+                "c113 v3 attempts=3 first=114 last=302 error=PdfError",
+                "c125 v1 attempts=3 first=126 last=303 error=PdfError",
+                "c130 v2 attempts=3 first=131 last=304 error=Timeout",
+                "c137 v3 attempts=3 first=138 last=305 error=PdfError",
+                "c149 v3 attempts=3 first=150 last=306 error=PdfError",
+                "c161 v3 attempts=3 first=162 last=307 error=PdfError",
+                "c171 v3 attempts=3 first=172 last=308 error=Timeout",
+                "c185 v1 attempts=3 first=186 last=309 error=PdfError",
+                "c197 v3 attempts=3 first=198 last=310 error=PdfError",
+                "c209 v3 attempts=3 first=210 last=311 error=PdfError",
+                "c212 v2 attempts=3 first=213 last=312 error=Timeout",
+                "c221 v3 attempts=3 first=222 last=313 error=PdfError",
+                "c233 v3 attempts=3 first=234 last=314 error=PdfError",
+                "c245 v1 attempts=3 first=246 last=315 error=PdfError"
+              ],
+              "redrivePending": [
+                "c017",
+                "c029",
+                "c041",
+                "c053",
+                "c077",
+                "c101",
+                "c113",
+                "c137",
+                "c149",
+                "c161",
+                "c197",
+                "c209",
+                "c221",
+                "c233",
+                "c007",
+                "c048",
+                "c089",
+                "c130",
+                "c171",
+                "c212"
+              ]
+            },
+            {
+              "t": 325,
+              "cmd": "tick 5",
+              "events": [
+                "redriven c017",
+                "redriven c029",
+                "processed c017",
+                "redriven c041",
+                "redriven c053",
+                "processed c029",
+                "redriven c077",
+                "redriven c101",
+                "processed c041",
+                "redriven c113",
+                "redriven c137",
+                "processed c053",
+                "redriven c149",
+                "redriven c161",
+                "processed c077"
+              ],
+              "main": [
+                "c101#0",
+                "c113#0",
+                "c137#0",
+                "c149#0",
+                "c161#0"
+              ],
+              "dlq": [
+                "c005 v1 attempts=3 first=6 last=291 error=PdfError",
+                "c007 v3 attempts=3 first=8 last=292 error=Timeout",
+                "c048 v2 attempts=3 first=49 last=296 error=Timeout",
+                "c065 v1 attempts=3 first=66 last=298 error=PdfError",
+                "c089 v3 attempts=3 first=90 last=300 error=Timeout",
+                "c125 v1 attempts=3 first=126 last=303 error=PdfError",
+                "c130 v2 attempts=3 first=131 last=304 error=Timeout",
+                "c171 v3 attempts=3 first=172 last=308 error=Timeout",
+                "c185 v1 attempts=3 first=186 last=309 error=PdfError",
+                "c197 v3 attempts=3 first=198 last=310 error=PdfError",
+                "c209 v3 attempts=3 first=210 last=311 error=PdfError",
+                "c212 v2 attempts=3 first=213 last=312 error=Timeout",
+                "c221 v3 attempts=3 first=222 last=313 error=PdfError",
+                "c233 v3 attempts=3 first=234 last=314 error=PdfError",
+                "c245 v1 attempts=3 first=246 last=315 error=PdfError"
+              ],
+              "redrivePending": [
+                "c197",
+                "c209",
+                "c221",
+                "c233",
+                "c007",
+                "c048",
+                "c089",
+                "c130",
+                "c171",
+                "c212"
+              ]
+            },
+            {
+              "t": 345,
+              "cmd": "tick 20",
+              "events": [
+                "redriven c197",
+                "redriven c209",
+                "processed c101",
+                "redriven c221",
+                "redriven c233",
+                "processed c113",
+                "redriven c007",
+                "redriven c048",
+                "processed c137",
+                "redriven c089",
+                "redriven c130",
+                "processed c149",
+                "redriven c171",
+                "redriven c212",
+                "processed c161",
+                "processed c197",
+                "processed c209",
+                "processed c221",
+                "processed c233",
+                "failed c007 attempt 1: Timeout",
+                "failed c048 attempt 1: Timeout",
+                "failed c089 attempt 1: Timeout",
+                "failed c130 attempt 1: Timeout",
+                "failed c171 attempt 1: Timeout",
+                "failed c212 attempt 1: Timeout",
+                "failed c007 attempt 2: Timeout",
+                "failed c048 attempt 2: Timeout",
+                "failed c089 attempt 2: Timeout",
+                "failed c130 attempt 2: Timeout",
+                "failed c171 attempt 2: Timeout"
+              ],
+              "main": [
+                "c212#1",
+                "c007#2",
+                "c048#2",
+                "c089#2",
+                "c130#2",
+                "c171#2"
+              ],
+              "dlq": [
+                "c005 v1 attempts=3 first=6 last=291 error=PdfError",
+                "c065 v1 attempts=3 first=66 last=298 error=PdfError",
+                "c125 v1 attempts=3 first=126 last=303 error=PdfError",
+                "c185 v1 attempts=3 first=186 last=309 error=PdfError",
+                "c245 v1 attempts=3 first=246 last=315 error=PdfError"
+              ],
+              "redrivePending": []
+            },
+            {
+              "t": 1785,
+              "cmd": "tick 1440",
+              "events": [
+                "failed c212 attempt 2: Timeout",
+                "dead-lettered c007 after 3 attempts: Timeout",
+                "dead-lettered c048 after 3 attempts: Timeout",
+                "dead-lettered c089 after 3 attempts: Timeout",
+                "dead-lettered c130 after 3 attempts: Timeout",
+                "dead-lettered c171 after 3 attempts: Timeout",
+                "dead-lettered c212 after 3 attempts: Timeout"
+              ],
+              "main": [],
+              "dlq": [
+                "c005 v1 attempts=3 first=6 last=291 error=PdfError",
+                "c065 v1 attempts=3 first=66 last=298 error=PdfError",
+                "c125 v1 attempts=3 first=126 last=303 error=PdfError",
+                "c185 v1 attempts=3 first=186 last=309 error=PdfError",
+                "c245 v1 attempts=3 first=246 last=315 error=PdfError",
+                "c007 v3 attempts=3 first=335 last=347 error=Timeout",
+                "c048 v2 attempts=3 first=336 last=348 error=Timeout",
+                "c089 v3 attempts=3 first=337 last=349 error=Timeout",
+                "c130 v2 attempts=3 first=338 last=350 error=Timeout",
+                "c171 v3 attempts=3 first=339 last=351 error=Timeout",
+                "c212 v2 attempts=3 first=340 last=352 error=Timeout"
+              ],
+              "redrivePending": []
+            },
+            {
+              "t": 1785,
+              "cmd": "purge 1 days",
+              "events": [
+                "purged c005",
+                "purged c065",
+                "purged c125",
+                "purged c185",
+                "purged c245"
+              ],
+              "main": [],
+              "dlq": [
+                "c007 v3 attempts=3 first=335 last=347 error=Timeout",
+                "c048 v2 attempts=3 first=336 last=348 error=Timeout",
+                "c089 v3 attempts=3 first=337 last=349 error=Timeout",
+                "c130 v2 attempts=3 first=338 last=350 error=Timeout",
+                "c171 v3 attempts=3 first=339 last=351 error=Timeout",
+                "c212 v2 attempts=3 first=340 last=352 error=Timeout"
+              ],
+              "redrivePending": []
+            }
+          ]
+        },
+        {
+          "name": "Redrive keeps the requested order at 1 per minute while new messages keep arriving",
+          "input": {
+            "config": {
+              "maxAttempts": 3,
+              "redrivePerTick": 1,
+              "supportedSchemas": [
+                2,
+                3
+              ]
+            },
+            "commands": [
+              {
+                "op": "send",
+                "id": "a",
+                "schema": 2,
+                "body": "LinkError"
+              },
+              {
+                "op": "send",
+                "id": "b",
+                "schema": 2,
+                "body": "LinkError"
+              },
+              {
+                "op": "send",
+                "id": "c",
+                "schema": 2,
+                "body": "LinkError"
+              },
+              {
+                "op": "tick",
+                "minutes": 9
+              },
+              {
+                "op": "deploy",
+                "fix": "LinkError"
+              },
+              {
+                "op": "redrive",
+                "ids": [
+                  "c",
+                  "a",
+                  "b",
+                  "a"
+                ]
+              },
+              {
+                "op": "send",
+                "id": "n1",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "send",
+                "id": "n2",
+                "schema": 2,
+                "body": "ok"
+              },
+              {
+                "op": "tick"
+              },
+              {
+                "op": "tick"
+              },
+              {
+                "op": "tick"
+              },
+              {
+                "op": "tick",
+                "minutes": 3
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 2,
+          "expected": [
+            {
+              "t": 0,
+              "cmd": "send x3",
+              "main": [
+                "a#0",
+                "b#0",
+                "c#0"
+              ]
+            },
+            {
+              "t": 9,
+              "cmd": "tick 9",
+              "events": [
+                "failed a attempt 1: LinkError",
+                "failed b attempt 1: LinkError",
+                "failed c attempt 1: LinkError",
+                "failed a attempt 2: LinkError",
+                "failed b attempt 2: LinkError",
+                "failed c attempt 2: LinkError",
+                "dead-lettered a after 3 attempts: LinkError",
+                "dead-lettered b after 3 attempts: LinkError",
+                "dead-lettered c after 3 attempts: LinkError"
+              ],
+              "main": [],
+              "dlq": [
+                "a v2 attempts=3 first=1 last=7 error=LinkError",
+                "b v2 attempts=3 first=2 last=8 error=LinkError",
+                "c v2 attempts=3 first=3 last=9 error=LinkError"
+              ],
+              "redrivePending": []
+            },
+            {
+              "t": 9,
+              "cmd": "deploy fix LinkError",
+              "events": [],
+              "main": [],
+              "dlq": [
+                "a v2 attempts=3 first=1 last=7 error=LinkError",
+                "b v2 attempts=3 first=2 last=8 error=LinkError",
+                "c v2 attempts=3 first=3 last=9 error=LinkError"
+              ],
+              "redrivePending": []
+            },
+            {
+              "t": 9,
+              "cmd": "redrive ids c,a,b,a",
+              "events": [
+                "c: queued for redrive",
+                "a: queued for redrive",
+                "b: queued for redrive",
+                "a: already queued for redrive"
+              ],
+              "main": [],
+              "dlq": [
+                "a v2 attempts=3 first=1 last=7 error=LinkError",
+                "b v2 attempts=3 first=2 last=8 error=LinkError",
+                "c v2 attempts=3 first=3 last=9 error=LinkError"
+              ],
+              "redrivePending": [
+                "c",
+                "a",
+                "b"
+              ]
+            },
+            {
+              "t": 9,
+              "cmd": "send x2",
+              "main": [
+                "n1#0",
+                "n2#0"
+              ]
+            },
+            {
+              "t": 10,
+              "cmd": "tick 1",
+              "events": [
+                "redriven c",
+                "processed n1"
+              ],
+              "main": [
+                "n2#0",
+                "c#0"
+              ],
+              "dlq": [
+                "a v2 attempts=3 first=1 last=7 error=LinkError",
+                "b v2 attempts=3 first=2 last=8 error=LinkError"
+              ],
+              "redrivePending": [
+                "a",
+                "b"
+              ]
+            },
+            {
+              "t": 11,
+              "cmd": "tick 1",
+              "events": [
+                "redriven a",
+                "processed n2"
+              ],
+              "main": [
+                "c#0",
+                "a#0"
+              ],
+              "dlq": [
+                "b v2 attempts=3 first=2 last=8 error=LinkError"
+              ],
+              "redrivePending": [
+                "b"
+              ]
+            },
+            {
+              "t": 12,
+              "cmd": "tick 1",
+              "events": [
+                "redriven b",
+                "processed c"
+              ],
+              "main": [
+                "a#0",
+                "b#0"
+              ],
+              "dlq": [],
+              "redrivePending": []
+            },
+            {
+              "t": 15,
+              "cmd": "tick 3",
+              "events": [
+                "processed a",
+                "processed b"
+              ],
+              "main": [],
+              "dlq": [],
+              "redrivePending": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_bjm_431",
+      "name": "operating-queues-quiz",
+      "type": "quiz",
+      "title": "Alerts, shutdowns and payload versions on the certificates queue",
+      "description": "Three pieces of evidence from one week of the certificates queue: an alert history, a worker killed during a deploy and a release that changed the job payload.",
+      "difficulty": "medium",
+      "outcomes": ["queue-observability"],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Alert history, last 30 days:\n\nGradingQueueBacklog  queue_depth{queue=\"grading\"} > 1000 for 5m\n  fired 23 times, all between 18:00 and 21:00, all resolved by themselves within 20 min\n  oldest age of the grading queue while it fired: 35 s to 70 s\n\nEmail queue, 2026-10-22 01:10 to 04:20 (SMTP credentials expired):\n  depth 30, oldest age rising to 3 h 10 min, no alert fired\n\nProposed rule, per queue:\n  queue_oldest_age_seconds > 600 for 5m\n\nStatement: \"The proposed rule would have paged for the email stall and would have stayed quiet during all 23 evening peaks.\"",
+          "explanation": "True. During the peaks the oldest grading job was at most 70 s old, far below 600 s, so the age rule does not fire even though depth passed 1,000: those were busy evenings in which jobs still left the queue quickly. The email stall kept a small depth of 30, but its oldest message passed 600 s about ten minutes into the stall and stayed above it for hours, so the age rule pages within about 15 minutes (600 s plus the 5-minute for clause). The misconception is that a bigger depth means a worse incident: depth fires on harmless peaks and misses small stuck queues; age measures the delay users actually suffer. In practice you would also give each queue its own threshold, since 600 s is generous for grading and strict for a nightly export.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Certificates worker:\n\nprocess.on(\"SIGTERM\", () => process.exit(0));\n\nDeploy log and job state:\n11:02:14  pod certificates-7f9 received SIGTERM (rolling deploy)\n11:02:14  job cert-5521 in progress: PDF stored, email sent, enrollment not yet marked certificate_issued\n11:02:14  process exited, cert-5521 not acknowledged\nqueue setting: visibility timeout 15 min\n\nStatement: \"Exiting at once is safe here: the broker redelivers cert-5521 and the learner ends up with exactly one certificate email, a few seconds later.\"",
+          "explanation": "False, on both counts. The message becomes visible again only when its visibility timeout runs out, so cert-5521 is retried about 15 minutes later, not a few seconds later. And the email step already ran: when the job runs again from the start, the learner gets a second email unless the email step is idempotent (a sent marker or an idempotency key at the provider, lessons 4 and 9). A graceful shutdown stops taking new jobs on SIGTERM, lets in-flight jobs finish within a deadline shorter than the platform's grace period, and releases any job it cannot finish (for SQS, ChangeMessageVisibility to 0) so it is redelivered at once. The misconception is that at-least-once delivery makes crashes free: it makes them recoverable, at the cost of a delay and a duplicate run that the job must be written to survive.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Release v42 changes the certificate job payload. The API (producer) and the certificate workers ship in the same image, deployed pod by pod:\n\nv41 payload  { \"userId\": \"u_81\", \"courseId\": \"c_12\" }\nv42 payload  { \"v\": 2, \"learnerId\": \"u_81\", \"courseId\": \"c_12\" }\n\n11:30:40  api pod-1 now v42, enqueues v2 payloads\n11:31:05  worker pod-3 (v41)  cert-6001  Error: userId is required  attempt 1/5\n11:33:12  worker pod-3 (v41)  cert-6001  Error: userId is required  attempt 5/5 -> DLQ\n11:36:00  certificates DLQ: 214 messages, all v2 payloads handled by v41 workers\n\nStatement: \"Releasing workers that accept both payload shapes first, and switching the producer to v2 only after every worker runs that release, would have avoided these failures.\"",
+          "explanation": "True. During a rolling deploy old and new code run side by side, and jobs outlive the deploy that created them. If every worker can read v1 and v2 before any producer writes v2, no worker ever receives a payload it cannot read; v1 support is removed in a later release, once no v1 job is left in the queue, in delayed retries or in the DLQ. Here the producer and the consumer changed in the same release, so new payloads reached old workers. The 214 messages can be redriven from the DLQ after the fix, because a v42 worker reads them. The misconception is that a deploy is atomic: for queues, the payload is a contract between versions that are running at the same time, so it needs a version field and expand-then-contract changes.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        }
+      ]
+    }
+  ]
+}
