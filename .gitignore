@@ -12,6 +12,8 @@ node_modules/
 /.next/
 /out/
 /dist/
+# Local challenge builds (can hold reference solutions)
+/build/
 
 # misc
 .DS_Store
