@@ -1,0 +1,4713 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nas_231",
+      "name": "rotation-families-quiz",
+      "type": "quiz",
+      "title": "Reading a token family",
+      "description": "Two pieces of evidence from the rotation work: a pull request that adds an absolute session lifetime, and a refresh that was rejected as used.",
+      "difficulty": "medium",
+      "outcomes": [
+        "rotation-revocation"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Pull request #1290 \"auth: absolute session lifetime\" (IDLE_TIMEOUT_MS = 14 days, ABSOLUTE_LIFETIME_MS = 30 days), inside refresh() after the revoked and used checks; row is the presented token:\n\n+  const familyDeadline = row.createdAt + ABSOLUTE_LIFETIME_MS;\n+  if (now >= familyDeadline) return { ok: false, reason: \"family_expired\" };\n   if (now >= row.expiresAt) return { ok: false, reason: \"idle_timeout\" };\n   const next = await this.tokens.insert({\n     familyId: row.familyId, userId: row.userId, deviceId: row.deviceId,\n     tokenHash: sha256Hex(newToken), createdAt: now,\n-    expiresAt: now + IDLE_TIMEOUT_MS,\n+    expiresAt: Math.min(now + IDLE_TIMEOUT_MS, familyDeadline),\n   });\n\nStatement: \"After this change, a client that refreshes every 6 days must sign in again at the latest 30 days after its login.\"",
+          "explanation": "False. row is the presented token, and its createdAt is the moment of the previous refresh, not of the login. So familyDeadline moves 6 days forward at every refresh, the check never fires, and the cap is always later than now + 14 days: the session slides forever, exactly as before the change. The absolute lifetime has to start at the family's first token: the smallest created_at in the family (or a started_at stored on a family row), and every new token's expires_at is capped at that start + 30 days. A test that refreshes every 6 days and expects family_expired at day 30 catches this immediately. The misconception is that any \"createdAt + lifetime\" check is an absolute timeout; it is only absolute if the createdAt never changes. RFC 9700 (section 4.14.2) says refresh tokens should expire after a period of inactivity, and the OWASP Session Management Cheat Sheet asks for both an idle timeout and an absolute timeout.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Family fam_7 of u_binh (laptop), idle timeout 14 days, absolute lifetime 30 days, now = 2026-10-26 12:00:\n\n id   | created_at       | expires_at       | used_at          | revoked_at | replaced_by\n------+------------------+------------------+------------------+------------+------------\n rt_7 | 2026-10-20 09:00 | 2026-11-03 09:00 | 2026-10-24 18:30 |            | rt_8\n rt_8 | 2026-10-24 18:30 | 2026-11-07 18:30 | 2026-10-26 11:58 |            | rt_9\n rt_9 | 2026-10-26 11:58 | 2026-11-09 11:58 |                  |            |\n\nAPI log at 12:00: POST /auth/refresh token=rt_8 -> 401 {\"error\":\"invalid_grant\",\"reason\":\"used\"}\n\nStatement: \"rt_9 is the only token of fam_7 that the server will exchange now.\"",
+          "explanation": "True. Rotation keeps exactly one live token per family: rt_7 was replaced by rt_8, rt_8 by rt_9, and both have used_at set, so the server rejects them as used. rt_9 is unused, not revoked, not past its expires_at (2026-11-09 11:58) and the family started on 2026-10-20 09:00, well inside the 30-day lifetime. The replaced_by chain (rt_7 -> rt_8 -> rt_9) is what lets you read the history of one sign-in. Who sent rt_8 again at 12:00 - a second tab that missed the response, or someone who copied the token - is the question of the next two lessons; this table cannot tell them apart. The misconception is that an old token keeps working until its own expires_at.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_nas_232",
+      "name": "refresh-token-rotation-families",
+      "type": "mini_coding",
+      "title": "Refresh token rotation with token families",
+      "description": "Since hashed tokens shipped, CodeDev's refresh tokens are safe at rest, but a refresh token still lives forever: each refresh pushes the expiry forward, and one family in production has been refreshed 412 times since March. Write login and refresh so that every sign-in is a token family with an idle timeout and an absolute lifetime.\n\nlogin(deps, userId, deviceId): always a new family, even for a device that already has one. id = deps.newId(\"rt\"), then familyId = deps.newId(\"fam\"), token = deps.randomBytes(32).toString(\"base64url\"). familyExpiresAt = now + deps.absoluteLifetimeMs; the row gets tokenHash = sha256Hex(token), createdAt = now, expiresAt = min(now + deps.idleTimeoutMs, familyExpiresAt), usedAt, revokedAt and replacedBy null. Return the Session { token, id, familyId, userId, deviceId, expiresAt, familyExpiresAt }.\n\nrefresh(deps, presented): return the first match: (1) not a 43-character base64url string -> \"malformed\"; (2) no row for sha256Hex(presented) via deps.store.findByHash (compare the hashes with timingSafeEqual) -> \"unknown\"; (3) row.revokedAt not null -> \"revoked\"; (4) row.usedAt not null -> \"used\" (no other change: replay detection is the next lesson); (5) the family started at the smallest createdAt of deps.store.findFamily(row.familyId); familyExpiresAt = that start + absoluteLifetimeMs; now >= familyExpiresAt -> \"family_expired\"; (6) now >= row.expiresAt -> \"idle_timeout\"; (7) rotate: id = deps.newId(\"rt\"), insert a new row in the same family for the same user and device with createdAt = now and expiresAt = min(now + idleTimeoutMs, familyExpiresAt), then update the presented row to usedAt = now and replacedBy = the new id. Return { ok: true, ...the new Session }. Failures return { ok: false, reason } and change nothing.\n\nThe tests run logins and refreshes for several users and devices over a fake clock (times print as days and hours after the start, d2 03:00) and print each result, then the store and a leak check. Do not change the types, the store, the helpers TOKEN_FORMAT and sha256Hex or the runner.",
+      "difficulty": "hard",
+      "outcomes": [
+        "rotation-revocation"
+      ],
+      "points": 40,
+      "hints": [
+        "Two clocks run for every token: one that restarts at each refresh and one that never restarts. Where does each one start, and which of them can you compute from the presented row alone?",
+        "The idle clock is the presented row's expiresAt. The absolute clock starts at the first token of the family, which is not the row you were given: look at what deps.store.findFamily returns. Then look at the expiresAt you write for the new token: what happens when the family has less time left than idleTimeoutMs?",
+        "A worked trace with idle 10 h and absolute 24 h: login at 00:00 gives expiresAt 10:00 and family until d1 00:00. Refresh at 09:00 -> new token expires 19:00. Refresh at 18:00 -> min(d1 04:00, d1 00:00) = d1 00:00. A refresh at d1 00:00 is family_expired, not idle_timeout, even though that token's own expiry has also passed. Presenting the 09:00 token again at 12:00 is used, and the family is left as it was."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Login and three refreshes: one family, a replacedBy chain, every old token marked used",
+          "input": {
+            "idleTimeoutMs": 1209600000,
+            "absoluteLifetimeMs": 2592000000,
+            "ops": [
+              {
+                "op": "login",
+                "userId": "u_ana",
+                "deviceId": "phone"
+              },
+              {
+                "op": "advance",
+                "ms": 7200000
+              },
+              {
+                "op": "refresh",
+                "token": "#1"
+              },
+              {
+                "op": "advance",
+                "ms": 86400000
+              },
+              {
+                "op": "refresh",
+                "token": "#2"
+              },
+              {
+                "op": "advance",
+                "ms": 259200000
+              },
+              {
+                "op": "refresh",
+                "token": "#3"
+              }
+            ]
+          },
+          "expected": "d0 00:00 login -> rt_1 fam_1 u_ana/phone token #1 expires d14 00:00 family until d30 00:00\nd0 02:00 refresh #1 -> ok rt_2 fam_1 u_ana/phone token #2 expires d14 02:00 family until d30 00:00\nd1 02:00 refresh #2 -> ok rt_3 fam_1 u_ana/phone token #3 expires d15 02:00 family until d30 00:00\nd4 02:00 refresh #3 -> ok rt_4 fam_1 u_ana/phone token #4 expires d18 02:00 family until d30 00:00\nstore:\n  rt_1 fam_1 u_ana/phone created d0 00:00 expires d14 00:00 used d0 02:00 revoked - replacedBy rt_2\n  rt_2 fam_1 u_ana/phone created d0 02:00 expires d14 02:00 used d1 02:00 revoked - replacedBy rt_3\n  rt_3 fam_1 u_ana/phone created d1 02:00 expires d15 02:00 used d4 02:00 revoked - replacedBy rt_4\n  rt_4 fam_1 u_ana/phone created d4 02:00 expires d18 02:00 used - revoked - replacedBy -\nleaks: none",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "A rotated token is rejected as used; a session left alone for 14 days hits the idle timeout",
+          "input": {
+            "idleTimeoutMs": 1209600000,
+            "absoluteLifetimeMs": 2592000000,
+            "ops": [
+              {
+                "op": "login",
+                "userId": "u_ana",
+                "deviceId": "phone"
+              },
+              {
+                "op": "login",
+                "userId": "u_binh",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "refresh",
+                "token": "#1"
+              },
+              {
+                "op": "refresh",
+                "token": "#1"
+              },
+              {
+                "op": "advance",
+                "ms": 1209600000
+              },
+              {
+                "op": "refresh",
+                "token": "#3"
+              },
+              {
+                "op": "refresh",
+                "token": "#2"
+              }
+            ]
+          },
+          "expected": "d0 00:00 login -> rt_1 fam_1 u_ana/phone token #1 expires d14 00:00 family until d30 00:00\nd0 00:00 login -> rt_2 fam_2 u_binh/laptop token #2 expires d14 00:00 family until d30 00:00\nd0 00:00 refresh #1 -> ok rt_3 fam_1 u_ana/phone token #3 expires d14 00:00 family until d30 00:00\nd0 00:00 refresh #1 -> used\nd14 00:00 refresh #3 -> idle_timeout\nd14 00:00 refresh #2 -> idle_timeout\nstore:\n  rt_1 fam_1 u_ana/phone created d0 00:00 expires d14 00:00 used d0 00:00 revoked - replacedBy rt_3\n  rt_2 fam_2 u_binh/laptop created d0 00:00 expires d14 00:00 used - revoked - replacedBy -\n  rt_3 fam_1 u_ana/phone created d0 00:00 expires d14 00:00 used - revoked - replacedBy -\nleaks: none",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "No endless sliding: refreshing every 6 days still ends 30 days after login",
+          "input": {
+            "idleTimeoutMs": 1209600000,
+            "absoluteLifetimeMs": 2592000000,
+            "ops": [
+              {
+                "op": "login",
+                "userId": "u_ana",
+                "deviceId": "phone"
+              },
+              {
+                "op": "advance",
+                "ms": 518400000
+              },
+              {
+                "op": "refresh",
+                "token": "#1"
+              },
+              {
+                "op": "advance",
+                "ms": 518400000
+              },
+              {
+                "op": "refresh",
+                "token": "#2"
+              },
+              {
+                "op": "advance",
+                "ms": 518400000
+              },
+              {
+                "op": "refresh",
+                "token": "#3"
+              },
+              {
+                "op": "advance",
+                "ms": 518400000
+              },
+              {
+                "op": "refresh",
+                "token": "#4"
+              },
+              {
+                "op": "advance",
+                "ms": 518400000
+              },
+              {
+                "op": "refresh",
+                "token": "#5"
+              },
+              {
+                "op": "login",
+                "userId": "u_ana",
+                "deviceId": "phone"
+              }
+            ]
+          },
+          "expected": "d0 00:00 login -> rt_1 fam_1 u_ana/phone token #1 expires d14 00:00 family until d30 00:00\nd6 00:00 refresh #1 -> ok rt_2 fam_1 u_ana/phone token #2 expires d20 00:00 family until d30 00:00\nd12 00:00 refresh #2 -> ok rt_3 fam_1 u_ana/phone token #3 expires d26 00:00 family until d30 00:00\nd18 00:00 refresh #3 -> ok rt_4 fam_1 u_ana/phone token #4 expires d30 00:00 family until d30 00:00\nd24 00:00 refresh #4 -> ok rt_5 fam_1 u_ana/phone token #5 expires d30 00:00 family until d30 00:00\nd30 00:00 refresh #5 -> family_expired\nd30 00:00 login -> rt_6 fam_2 u_ana/phone token #6 expires d44 00:00 family until d60 00:00\nstore:\n  rt_1 fam_1 u_ana/phone created d0 00:00 expires d14 00:00 used d6 00:00 revoked - replacedBy rt_2\n  rt_2 fam_1 u_ana/phone created d6 00:00 expires d20 00:00 used d12 00:00 revoked - replacedBy rt_3\n  rt_3 fam_1 u_ana/phone created d12 00:00 expires d26 00:00 used d18 00:00 revoked - replacedBy rt_4\n  rt_4 fam_1 u_ana/phone created d18 00:00 expires d30 00:00 used d24 00:00 revoked - replacedBy rt_5\n  rt_5 fam_1 u_ana/phone created d24 00:00 expires d30 00:00 used - revoked - replacedBy -\n  rt_6 fam_2 u_ana/phone created d30 00:00 expires d44 00:00 used - revoked - replacedBy -\nleaks: none",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Boundaries: idle 1 ms before and at expiresAt, last token capped to family end, family_expired wins",
+          "input": {
+            "idleTimeoutMs": 36000000,
+            "absoluteLifetimeMs": 86400000,
+            "ops": [
+              {
+                "op": "login",
+                "userId": "u_chi",
+                "deviceId": "web"
+              },
+              {
+                "op": "advance",
+                "ms": 35999999
+              },
+              {
+                "op": "refresh",
+                "token": "#1"
+              },
+              {
+                "op": "advance",
+                "ms": 32400000
+              },
+              {
+                "op": "refresh",
+                "token": "#2"
+              },
+              {
+                "op": "advance",
+                "ms": 17999999
+              },
+              {
+                "op": "refresh",
+                "token": "#3"
+              },
+              {
+                "op": "advance",
+                "ms": 1
+              },
+              {
+                "op": "refresh",
+                "token": "#4"
+              },
+              {
+                "op": "login",
+                "userId": "u_chi",
+                "deviceId": "web"
+              },
+              {
+                "op": "advance",
+                "ms": 36000000
+              },
+              {
+                "op": "refresh",
+                "token": "#5"
+              }
+            ]
+          },
+          "expected": "d0 00:00 login -> rt_1 fam_1 u_chi/web token #1 expires d0 10:00 family until d1 00:00\nd0 09:59:59.999 refresh #1 -> ok rt_2 fam_1 u_chi/web token #2 expires d0 19:59:59.999 family until d1 00:00\nd0 18:59:59.999 refresh #2 -> ok rt_3 fam_1 u_chi/web token #3 expires d1 00:00 family until d1 00:00\nd0 23:59:59.998 refresh #3 -> ok rt_4 fam_1 u_chi/web token #4 expires d1 00:00 family until d1 00:00\nd0 23:59:59.999 refresh #4 -> ok rt_5 fam_1 u_chi/web token #5 expires d1 00:00 family until d1 00:00\nd0 23:59:59.999 login -> rt_6 fam_2 u_chi/web token #6 expires d1 09:59:59.999 family until d1 23:59:59.999\nd1 09:59:59.999 refresh #5 -> family_expired\nstore:\n  rt_1 fam_1 u_chi/web created d0 00:00 expires d0 10:00 used d0 09:59:59.999 revoked - replacedBy rt_2\n  rt_2 fam_1 u_chi/web created d0 09:59:59.999 expires d0 19:59:59.999 used d0 18:59:59.999 revoked - replacedBy rt_3\n  rt_3 fam_1 u_chi/web created d0 18:59:59.999 expires d1 00:00 used d0 23:59:59.998 revoked - replacedBy rt_4\n  rt_4 fam_1 u_chi/web created d0 23:59:59.998 expires d1 00:00 used d0 23:59:59.999 revoked - replacedBy rt_5\n  rt_5 fam_1 u_chi/web created d0 23:59:59.999 expires d1 00:00 used - revoked - replacedBy -\n  rt_6 fam_2 u_chi/web created d0 23:59:59.999 expires d1 09:59:59.999 used - revoked - replacedBy -\nleaks: none",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Users and devices interleaved: a 2nd login on a device is a new family; revoking one leaves others",
+          "input": {
+            "idleTimeoutMs": 1209600000,
+            "absoluteLifetimeMs": 2592000000,
+            "ops": [
+              {
+                "op": "login",
+                "userId": "u_ana",
+                "deviceId": "phone"
+              },
+              {
+                "op": "login",
+                "userId": "u_ana",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_binh",
+                "deviceId": "phone"
+              },
+              {
+                "op": "advance",
+                "ms": 86400000
+              },
+              {
+                "op": "refresh",
+                "token": "#1"
+              },
+              {
+                "op": "refresh",
+                "token": "#3"
+              },
+              {
+                "op": "login",
+                "userId": "u_ana",
+                "deviceId": "phone"
+              },
+              {
+                "op": "advance",
+                "ms": 3600000
+              },
+              {
+                "op": "refresh",
+                "token": "#2"
+              },
+              {
+                "op": "revokeFamily",
+                "familyId": "fam_1"
+              },
+              {
+                "op": "refresh",
+                "token": "#4"
+              },
+              {
+                "op": "refresh",
+                "token": "#6"
+              },
+              {
+                "op": "refresh",
+                "token": "#5"
+              },
+              {
+                "op": "advance",
+                "ms": 1123200000
+              },
+              {
+                "op": "refresh",
+                "token": "#8"
+              },
+              {
+                "op": "refresh",
+                "token": "#7"
+              },
+              {
+                "op": "advance",
+                "ms": 172800000
+              },
+              {
+                "op": "refresh",
+                "token": "#9"
+              }
+            ]
+          },
+          "expected": "d0 00:00 login -> rt_1 fam_1 u_ana/phone token #1 expires d14 00:00 family until d30 00:00\nd0 00:00 login -> rt_2 fam_2 u_ana/laptop token #2 expires d14 00:00 family until d30 00:00\nd0 00:00 login -> rt_3 fam_3 u_binh/phone token #3 expires d14 00:00 family until d30 00:00\nd1 00:00 refresh #1 -> ok rt_4 fam_1 u_ana/phone token #4 expires d15 00:00 family until d30 00:00\nd1 00:00 refresh #3 -> ok rt_5 fam_3 u_binh/phone token #5 expires d15 00:00 family until d30 00:00\nd1 00:00 login -> rt_6 fam_4 u_ana/phone token #6 expires d15 00:00 family until d31 00:00\nd1 01:00 refresh #2 -> ok rt_7 fam_2 u_ana/laptop token #7 expires d15 01:00 family until d30 00:00\nd1 01:00 revoke family fam_1\nd1 01:00 refresh #4 -> revoked\nd1 01:00 refresh #6 -> ok rt_8 fam_4 u_ana/phone token #8 expires d15 01:00 family until d31 00:00\nd1 01:00 refresh #5 -> ok rt_9 fam_3 u_binh/phone token #9 expires d15 01:00 family until d30 00:00\nd14 01:00 refresh #8 -> ok rt_10 fam_4 u_ana/phone token #10 expires d28 01:00 family until d31 00:00\nd14 01:00 refresh #7 -> ok rt_11 fam_2 u_ana/laptop token #11 expires d28 01:00 family until d30 00:00\nd16 01:00 refresh #9 -> idle_timeout\nstore:\n  rt_1 fam_1 u_ana/phone created d0 00:00 expires d14 00:00 used d1 00:00 revoked d1 01:00 replacedBy rt_4\n  rt_2 fam_2 u_ana/laptop created d0 00:00 expires d14 00:00 used d1 01:00 revoked - replacedBy rt_7\n  rt_3 fam_3 u_binh/phone created d0 00:00 expires d14 00:00 used d1 00:00 revoked - replacedBy rt_5\n  rt_4 fam_1 u_ana/phone created d1 00:00 expires d15 00:00 used - revoked d1 01:00 replacedBy -\n  rt_5 fam_3 u_binh/phone created d1 00:00 expires d15 00:00 used d1 01:00 revoked - replacedBy rt_9\n  rt_6 fam_4 u_ana/phone created d1 00:00 expires d15 00:00 used d1 01:00 revoked - replacedBy rt_8\n  rt_7 fam_2 u_ana/laptop created d1 01:00 expires d15 01:00 used d14 01:00 revoked - replacedBy rt_11\n  rt_8 fam_4 u_ana/phone created d1 01:00 expires d15 01:00 used d14 01:00 revoked - replacedBy rt_10\n  rt_9 fam_3 u_binh/phone created d1 01:00 expires d15 01:00 used - revoked - replacedBy -\n  rt_10 fam_4 u_ana/phone created d14 01:00 expires d28 01:00 used - revoked - replacedBy -\n  rt_11 fam_2 u_ana/laptop created d14 01:00 expires d28 01:00 used - revoked - replacedBy -\nleaks: none",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Invalid input: malformed values, unknown token, stored hash replayed, revoked wins over used",
+          "input": {
+            "idleTimeoutMs": 1209600000,
+            "absoluteLifetimeMs": 2592000000,
+            "ops": [
+              {
+                "op": "login",
+                "userId": "u_dan",
+                "deviceId": "tv"
+              },
+              {
+                "op": "refresh",
+                "token": "#1"
+              },
+              {
+                "op": "refresh",
+                "token": null
+              },
+              {
+                "op": "refresh",
+                "token": 12345
+              },
+              {
+                "op": "refresh",
+                "token": {
+                  "token": "#2"
+                }
+              },
+              {
+                "op": "refresh",
+                "token": ""
+              },
+              {
+                "op": "refresh",
+                "token": "#2 "
+              },
+              {
+                "op": "refresh",
+                "token": "hash:rt_2"
+              },
+              {
+                "op": "refresh",
+                "token": "YS10b2tlbi10aGlzLXNlcnZlci1uZXZlci1pc3N1ZWQ"
+              },
+              {
+                "op": "revokeFamily",
+                "familyId": "fam_1"
+              },
+              {
+                "op": "refresh",
+                "token": "#1"
+              },
+              {
+                "op": "refresh",
+                "token": "#2"
+              }
+            ]
+          },
+          "expected": "d0 00:00 login -> rt_1 fam_1 u_dan/tv token #1 expires d14 00:00 family until d30 00:00\nd0 00:00 refresh #1 -> ok rt_2 fam_1 u_dan/tv token #2 expires d14 00:00 family until d30 00:00\nd0 00:00 refresh null -> malformed\nd0 00:00 refresh 12345 -> malformed\nd0 00:00 refresh {\"token\":\"#2\"} -> malformed\nd0 00:00 refresh \"\" -> malformed\nd0 00:00 refresh \"#2 \" -> malformed\nd0 00:00 refresh tokenHash of rt_2 -> malformed\nd0 00:00 refresh \"YS10b2tlbi10aGlzLXNlcnZlci1uZXZlci1pc3N1ZWQ\" -> unknown\nd0 00:00 revoke family fam_1\nd0 00:00 refresh #1 -> revoked\nd0 00:00 refresh #2 -> revoked\nstore:\n  rt_1 fam_1 u_dan/tv created d0 00:00 expires d14 00:00 used d0 00:00 revoked d0 00:00 replacedBy rt_2\n  rt_2 fam_1 u_dan/tv created d0 00:00 expires d14 00:00 used - revoked d0 00:00 replacedBy -\nleaks: none",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Large: 25 users x 3 devices refreshing on their own rhythm for 31 days, idle 2 days, family 10 days",
+          "input": {
+            "idleTimeoutMs": 172800000,
+            "absoluteLifetimeMs": 864000000,
+            "quiet": true,
+            "ops": [
+              {
+                "op": "login",
+                "userId": "u_01",
+                "deviceId": "phone"
+              },
+              {
+                "op": "login",
+                "userId": "u_01",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_01",
+                "deviceId": "web"
+              },
+              {
+                "op": "login",
+                "userId": "u_02",
+                "deviceId": "phone"
+              },
+              {
+                "op": "login",
+                "userId": "u_02",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_02",
+                "deviceId": "web"
+              },
+              {
+                "op": "login",
+                "userId": "u_03",
+                "deviceId": "phone"
+              },
+              {
+                "op": "login",
+                "userId": "u_03",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_03",
+                "deviceId": "web"
+              },
+              {
+                "op": "login",
+                "userId": "u_04",
+                "deviceId": "phone"
+              },
+              {
+                "op": "login",
+                "userId": "u_04",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_04",
+                "deviceId": "web"
+              },
+              {
+                "op": "login",
+                "userId": "u_05",
+                "deviceId": "phone"
+              },
+              {
+                "op": "login",
+                "userId": "u_05",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_05",
+                "deviceId": "web"
+              },
+              {
+                "op": "login",
+                "userId": "u_06",
+                "deviceId": "phone"
+              },
+              {
+                "op": "login",
+                "userId": "u_06",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_06",
+                "deviceId": "web"
+              },
+              {
+                "op": "login",
+                "userId": "u_07",
+                "deviceId": "phone"
+              },
+              {
+                "op": "login",
+                "userId": "u_07",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_07",
+                "deviceId": "web"
+              },
+              {
+                "op": "login",
+                "userId": "u_08",
+                "deviceId": "phone"
+              },
+              {
+                "op": "login",
+                "userId": "u_08",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_08",
+                "deviceId": "web"
+              },
+              {
+                "op": "login",
+                "userId": "u_09",
+                "deviceId": "phone"
+              },
+              {
+                "op": "login",
+                "userId": "u_09",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_09",
+                "deviceId": "web"
+              },
+              {
+                "op": "login",
+                "userId": "u_10",
+                "deviceId": "phone"
+              },
+              {
+                "op": "login",
+                "userId": "u_10",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_10",
+                "deviceId": "web"
+              },
+              {
+                "op": "login",
+                "userId": "u_11",
+                "deviceId": "phone"
+              },
+              {
+                "op": "login",
+                "userId": "u_11",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_11",
+                "deviceId": "web"
+              },
+              {
+                "op": "login",
+                "userId": "u_12",
+                "deviceId": "phone"
+              },
+              {
+                "op": "login",
+                "userId": "u_12",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_12",
+                "deviceId": "web"
+              },
+              {
+                "op": "login",
+                "userId": "u_13",
+                "deviceId": "phone"
+              },
+              {
+                "op": "login",
+                "userId": "u_13",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_13",
+                "deviceId": "web"
+              },
+              {
+                "op": "login",
+                "userId": "u_14",
+                "deviceId": "phone"
+              },
+              {
+                "op": "login",
+                "userId": "u_14",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_14",
+                "deviceId": "web"
+              },
+              {
+                "op": "login",
+                "userId": "u_15",
+                "deviceId": "phone"
+              },
+              {
+                "op": "login",
+                "userId": "u_15",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_15",
+                "deviceId": "web"
+              },
+              {
+                "op": "login",
+                "userId": "u_16",
+                "deviceId": "phone"
+              },
+              {
+                "op": "login",
+                "userId": "u_16",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_16",
+                "deviceId": "web"
+              },
+              {
+                "op": "login",
+                "userId": "u_17",
+                "deviceId": "phone"
+              },
+              {
+                "op": "login",
+                "userId": "u_17",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_17",
+                "deviceId": "web"
+              },
+              {
+                "op": "login",
+                "userId": "u_18",
+                "deviceId": "phone"
+              },
+              {
+                "op": "login",
+                "userId": "u_18",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_18",
+                "deviceId": "web"
+              },
+              {
+                "op": "login",
+                "userId": "u_19",
+                "deviceId": "phone"
+              },
+              {
+                "op": "login",
+                "userId": "u_19",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_19",
+                "deviceId": "web"
+              },
+              {
+                "op": "login",
+                "userId": "u_20",
+                "deviceId": "phone"
+              },
+              {
+                "op": "login",
+                "userId": "u_20",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_20",
+                "deviceId": "web"
+              },
+              {
+                "op": "login",
+                "userId": "u_21",
+                "deviceId": "phone"
+              },
+              {
+                "op": "login",
+                "userId": "u_21",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_21",
+                "deviceId": "web"
+              },
+              {
+                "op": "login",
+                "userId": "u_22",
+                "deviceId": "phone"
+              },
+              {
+                "op": "login",
+                "userId": "u_22",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_22",
+                "deviceId": "web"
+              },
+              {
+                "op": "login",
+                "userId": "u_23",
+                "deviceId": "phone"
+              },
+              {
+                "op": "login",
+                "userId": "u_23",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_23",
+                "deviceId": "web"
+              },
+              {
+                "op": "login",
+                "userId": "u_24",
+                "deviceId": "phone"
+              },
+              {
+                "op": "login",
+                "userId": "u_24",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_24",
+                "deviceId": "web"
+              },
+              {
+                "op": "login",
+                "userId": "u_25",
+                "deviceId": "phone"
+              },
+              {
+                "op": "login",
+                "userId": "u_25",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_25",
+                "deviceId": "web"
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "refresh",
+                "token": "#60"
+              },
+              {
+                "op": "refresh",
+                "token": "#74"
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "refresh",
+                "token": "#9"
+              },
+              {
+                "op": "refresh",
+                "token": "#11"
+              },
+              {
+                "op": "refresh",
+                "token": "#13"
+              },
+              {
+                "op": "refresh",
+                "token": "#23"
+              },
+              {
+                "op": "refresh",
+                "token": "#24"
+              },
+              {
+                "op": "refresh",
+                "token": "#25"
+              },
+              {
+                "op": "refresh",
+                "token": "#36"
+              },
+              {
+                "op": "refresh",
+                "token": "#37"
+              },
+              {
+                "op": "refresh",
+                "token": "#38"
+              },
+              {
+                "op": "refresh",
+                "token": "#48"
+              },
+              {
+                "op": "refresh",
+                "token": "#50"
+              },
+              {
+                "op": "refresh",
+                "token": "#52"
+              },
+              {
+                "op": "refresh",
+                "token": "#76"
+              },
+              {
+                "op": "refresh",
+                "token": "#62"
+              },
+              {
+                "op": "refresh",
+                "token": "#64"
+              },
+              {
+                "op": "refresh",
+                "token": "#77"
+              },
+              {
+                "op": "refresh",
+                "token": "#75"
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "refresh",
+                "token": "#1"
+              },
+              {
+                "op": "refresh",
+                "token": "#2"
+              },
+              {
+                "op": "refresh",
+                "token": "#12"
+              },
+              {
+                "op": "refresh",
+                "token": "#14"
+              },
+              {
+                "op": "refresh",
+                "token": "#16"
+              },
+              {
+                "op": "refresh",
+                "token": "#26"
+              },
+              {
+                "op": "refresh",
+                "token": "#28"
+              },
+              {
+                "op": "refresh",
+                "token": "#39"
+              },
+              {
+                "op": "refresh",
+                "token": "#40"
+              },
+              {
+                "op": "refresh",
+                "token": "#51"
+              },
+              {
+                "op": "refresh",
+                "token": "#53"
+              },
+              {
+                "op": "refresh",
+                "token": "#90"
+              },
+              {
+                "op": "refresh",
+                "token": "#63"
+              },
+              {
+                "op": "refresh",
+                "token": "#65"
+              },
+              {
+                "op": "refresh",
+                "token": "#67"
+              },
+              {
+                "op": "refresh",
+                "token": "#93"
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "refresh",
+                "token": "#3"
+              },
+              {
+                "op": "refresh",
+                "token": "#4"
+              },
+              {
+                "op": "refresh",
+                "token": "#78"
+              },
+              {
+                "op": "refresh",
+                "token": "#79"
+              },
+              {
+                "op": "refresh",
+                "token": "#80"
+              },
+              {
+                "op": "refresh",
+                "token": "#15"
+              },
+              {
+                "op": "refresh",
+                "token": "#17"
+              },
+              {
+                "op": "refresh",
+                "token": "#81"
+              },
+              {
+                "op": "refresh",
+                "token": "#82"
+              },
+              {
+                "op": "refresh",
+                "token": "#83"
+              },
+              {
+                "op": "refresh",
+                "token": "#27"
+              },
+              {
+                "op": "refresh",
+                "token": "#29"
+              },
+              {
+                "op": "refresh",
+                "token": "#31"
+              },
+              {
+                "op": "refresh",
+                "token": "#84"
+              },
+              {
+                "op": "refresh",
+                "token": "#85"
+              },
+              {
+                "op": "refresh",
+                "token": "#86"
+              },
+              {
+                "op": "refresh",
+                "token": "#41"
+              },
+              {
+                "op": "refresh",
+                "token": "#43"
+              },
+              {
+                "op": "refresh",
+                "token": "#87"
+              },
+              {
+                "op": "refresh",
+                "token": "#88"
+              },
+              {
+                "op": "refresh",
+                "token": "#89"
+              },
+              {
+                "op": "refresh",
+                "token": "#55"
+              },
+              {
+                "op": "refresh",
+                "token": "#106"
+              },
+              {
+                "op": "refresh",
+                "token": "#91"
+              },
+              {
+                "op": "refresh",
+                "token": "#92"
+              },
+              {
+                "op": "refresh",
+                "token": "#110"
+              },
+              {
+                "op": "refresh",
+                "token": "#94"
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "refresh",
+                "token": "#5"
+              },
+              {
+                "op": "refresh",
+                "token": "#7"
+              },
+              {
+                "op": "refresh",
+                "token": "#19"
+              },
+              {
+                "op": "refresh",
+                "token": "#57"
+              },
+              {
+                "op": "refresh",
+                "token": "#133"
+              },
+              {
+                "op": "refresh",
+                "token": "#69"
+              },
+              {
+                "op": "refresh",
+                "token": "#71"
+              },
+              {
+                "op": "refresh",
+                "token": "#136"
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "refresh",
+                "token": "#95"
+              },
+              {
+                "op": "refresh",
+                "token": "#96"
+              },
+              {
+                "op": "refresh",
+                "token": "#113"
+              },
+              {
+                "op": "refresh",
+                "token": "#114"
+              },
+              {
+                "op": "refresh",
+                "token": "#97"
+              },
+              {
+                "op": "refresh",
+                "token": "#115"
+              },
+              {
+                "op": "refresh",
+                "token": "#98"
+              },
+              {
+                "op": "refresh",
+                "token": "#99"
+              },
+              {
+                "op": "refresh",
+                "token": "#21"
+              },
+              {
+                "op": "refresh",
+                "token": "#118"
+              },
+              {
+                "op": "refresh",
+                "token": "#119"
+              },
+              {
+                "op": "refresh",
+                "token": "#120"
+              },
+              {
+                "op": "refresh",
+                "token": "#100"
+              },
+              {
+                "op": "refresh",
+                "token": "#101"
+              },
+              {
+                "op": "refresh",
+                "token": "#33"
+              },
+              {
+                "op": "refresh",
+                "token": "#35"
+              },
+              {
+                "op": "refresh",
+                "token": "#124"
+              },
+              {
+                "op": "refresh",
+                "token": "#125"
+              },
+              {
+                "op": "refresh",
+                "token": "#126"
+              },
+              {
+                "op": "refresh",
+                "token": "#102"
+              },
+              {
+                "op": "refresh",
+                "token": "#103"
+              },
+              {
+                "op": "refresh",
+                "token": "#45"
+              },
+              {
+                "op": "refresh",
+                "token": "#47"
+              },
+              {
+                "op": "refresh",
+                "token": "#129"
+              },
+              {
+                "op": "refresh",
+                "token": "#49"
+              },
+              {
+                "op": "refresh",
+                "token": "#130"
+              },
+              {
+                "op": "refresh",
+                "token": "#104"
+              },
+              {
+                "op": "refresh",
+                "token": "#131"
+              },
+              {
+                "op": "refresh",
+                "token": "#105"
+              },
+              {
+                "op": "refresh",
+                "token": "#59"
+              },
+              {
+                "op": "refresh",
+                "token": "#142"
+              },
+              {
+                "op": "refresh",
+                "token": "#61"
+              },
+              {
+                "op": "refresh",
+                "token": "#134"
+              },
+              {
+                "op": "refresh",
+                "token": "#107"
+              },
+              {
+                "op": "refresh",
+                "token": "#135"
+              },
+              {
+                "op": "refresh",
+                "token": "#108"
+              },
+              {
+                "op": "refresh",
+                "token": "#109"
+              },
+              {
+                "op": "refresh",
+                "token": "#72"
+              },
+              {
+                "op": "refresh",
+                "token": "#73"
+              },
+              {
+                "op": "refresh",
+                "token": "#145"
+              },
+              {
+                "op": "refresh",
+                "token": "#137"
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "refresh",
+                "token": "#176"
+              },
+              {
+                "op": "refresh",
+                "token": "#185"
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "refresh",
+                "token": "#111"
+              },
+              {
+                "op": "refresh",
+                "token": "#112"
+              },
+              {
+                "op": "refresh",
+                "token": "#148"
+              },
+              {
+                "op": "refresh",
+                "token": "#149"
+              },
+              {
+                "op": "refresh",
+                "token": "#151"
+              },
+              {
+                "op": "refresh",
+                "token": "#116"
+              },
+              {
+                "op": "refresh",
+                "token": "#117"
+              },
+              {
+                "op": "refresh",
+                "token": "#155"
+              },
+              {
+                "op": "refresh",
+                "token": "#156"
+              },
+              {
+                "op": "refresh",
+                "token": "#157"
+              },
+              {
+                "op": "refresh",
+                "token": "#121"
+              },
+              {
+                "op": "refresh",
+                "token": "#122"
+              },
+              {
+                "op": "refresh",
+                "token": "#123"
+              },
+              {
+                "op": "refresh",
+                "token": "#162"
+              },
+              {
+                "op": "refresh",
+                "token": "#163"
+              },
+              {
+                "op": "refresh",
+                "token": "#164"
+              },
+              {
+                "op": "refresh",
+                "token": "#127"
+              },
+              {
+                "op": "refresh",
+                "token": "#128"
+              },
+              {
+                "op": "refresh",
+                "token": "#169"
+              },
+              {
+                "op": "refresh",
+                "token": "#171"
+              },
+              {
+                "op": "refresh",
+                "token": "#173"
+              },
+              {
+                "op": "refresh",
+                "token": "#132"
+              },
+              {
+                "op": "refresh",
+                "token": "#187"
+              },
+              {
+                "op": "refresh",
+                "token": "#178"
+              },
+              {
+                "op": "refresh",
+                "token": "#180"
+              },
+              {
+                "op": "refresh",
+                "token": "#188"
+              },
+              {
+                "op": "refresh",
+                "token": "#186"
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "refresh",
+                "token": "#146"
+              },
+              {
+                "op": "refresh",
+                "token": "#147"
+              },
+              {
+                "op": "refresh",
+                "token": "#150"
+              },
+              {
+                "op": "refresh",
+                "token": "#152"
+              },
+              {
+                "op": "refresh",
+                "token": "#153"
+              },
+              {
+                "op": "refresh",
+                "token": "#158"
+              },
+              {
+                "op": "refresh",
+                "token": "#159"
+              },
+              {
+                "op": "refresh",
+                "token": "#165"
+              },
+              {
+                "op": "refresh",
+                "token": "#166"
+              },
+              {
+                "op": "refresh",
+                "token": "#172"
+              },
+              {
+                "op": "refresh",
+                "token": "#174"
+              },
+              {
+                "op": "refresh",
+                "token": "#211"
+              },
+              {
+                "op": "refresh",
+                "token": "#179"
+              },
+              {
+                "op": "refresh",
+                "token": "#181"
+              },
+              {
+                "op": "refresh",
+                "token": "#182"
+              },
+              {
+                "op": "refresh",
+                "token": "#214"
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "refresh",
+                "token": "#138"
+              },
+              {
+                "op": "refresh",
+                "token": "#139"
+              },
+              {
+                "op": "refresh",
+                "token": "#191"
+              },
+              {
+                "op": "refresh",
+                "token": "#192"
+              },
+              {
+                "op": "refresh",
+                "token": "#193"
+              },
+              {
+                "op": "refresh",
+                "token": "#140"
+              },
+              {
+                "op": "refresh",
+                "token": "#196"
+              },
+              {
+                "op": "refresh",
+                "token": "#197"
+              },
+              {
+                "op": "refresh",
+                "token": "#198"
+              },
+              {
+                "op": "refresh",
+                "token": "#202"
+              },
+              {
+                "op": "refresh",
+                "token": "#203"
+              },
+              {
+                "op": "refresh",
+                "token": "#204"
+              },
+              {
+                "op": "refresh",
+                "token": "#207"
+              },
+              {
+                "op": "refresh",
+                "token": "#208"
+              },
+              {
+                "op": "refresh",
+                "token": "#209"
+              },
+              {
+                "op": "refresh",
+                "token": "#141"
+              },
+              {
+                "op": "refresh",
+                "token": "#227"
+              },
+              {
+                "op": "refresh",
+                "token": "#212"
+              },
+              {
+                "op": "refresh",
+                "token": "#213"
+              },
+              {
+                "op": "refresh",
+                "token": "#143"
+              },
+              {
+                "op": "refresh",
+                "token": "#144"
+              },
+              {
+                "op": "refresh",
+                "token": "#231"
+              },
+              {
+                "op": "refresh",
+                "token": "#215"
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "refresh",
+                "token": "#248"
+              },
+              {
+                "op": "refresh",
+                "token": "#253"
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "refresh",
+                "token": "#216"
+              },
+              {
+                "op": "refresh",
+                "token": "#217"
+              },
+              {
+                "op": "refresh",
+                "token": "#189"
+              },
+              {
+                "op": "refresh",
+                "token": "#190"
+              },
+              {
+                "op": "refresh",
+                "token": "#6"
+              },
+              {
+                "op": "refresh",
+                "token": "#8"
+              },
+              {
+                "op": "refresh",
+                "token": "#234"
+              },
+              {
+                "op": "refresh",
+                "token": "#10"
+              },
+              {
+                "op": "refresh",
+                "token": "#235"
+              },
+              {
+                "op": "refresh",
+                "token": "#218"
+              },
+              {
+                "op": "refresh",
+                "token": "#236"
+              },
+              {
+                "op": "refresh",
+                "token": "#219"
+              },
+              {
+                "op": "refresh",
+                "token": "#194"
+              },
+              {
+                "op": "refresh",
+                "token": "#220"
+              },
+              {
+                "op": "refresh",
+                "token": "#195"
+              },
+              {
+                "op": "refresh",
+                "token": "#18"
+              },
+              {
+                "op": "refresh",
+                "token": "#20"
+              },
+              {
+                "op": "refresh",
+                "token": "#154"
+              },
+              {
+                "op": "refresh",
+                "token": "#22"
+              },
+              {
+                "op": "refresh",
+                "token": "#238"
+              },
+              {
+                "op": "refresh",
+                "token": "#239"
+              },
+              {
+                "op": "refresh",
+                "token": "#240"
+              },
+              {
+                "op": "refresh",
+                "token": "#221"
+              },
+              {
+                "op": "refresh",
+                "token": "#199"
+              },
+              {
+                "op": "refresh",
+                "token": "#222"
+              },
+              {
+                "op": "refresh",
+                "token": "#200"
+              },
+              {
+                "op": "refresh",
+                "token": "#30"
+              },
+              {
+                "op": "refresh",
+                "token": "#201"
+              },
+              {
+                "op": "refresh",
+                "token": "#32"
+              },
+              {
+                "op": "refresh",
+                "token": "#160"
+              },
+              {
+                "op": "refresh",
+                "token": "#34"
+              },
+              {
+                "op": "refresh",
+                "token": "#161"
+              },
+              {
+                "op": "refresh",
+                "token": "#241"
+              },
+              {
+                "op": "refresh",
+                "token": "#242"
+              },
+              {
+                "op": "refresh",
+                "token": "#243"
+              },
+              {
+                "op": "refresh",
+                "token": "#223"
+              },
+              {
+                "op": "refresh",
+                "token": "#224"
+              },
+              {
+                "op": "refresh",
+                "token": "#205"
+              },
+              {
+                "op": "refresh",
+                "token": "#42"
+              },
+              {
+                "op": "refresh",
+                "token": "#206"
+              },
+              {
+                "op": "refresh",
+                "token": "#44"
+              },
+              {
+                "op": "refresh",
+                "token": "#167"
+              },
+              {
+                "op": "refresh",
+                "token": "#46"
+              },
+              {
+                "op": "refresh",
+                "token": "#168"
+              },
+              {
+                "op": "refresh",
+                "token": "#244"
+              },
+              {
+                "op": "refresh",
+                "token": "#170"
+              },
+              {
+                "op": "refresh",
+                "token": "#245"
+              },
+              {
+                "op": "refresh",
+                "token": "#225"
+              },
+              {
+                "op": "refresh",
+                "token": "#246"
+              },
+              {
+                "op": "refresh",
+                "token": "#226"
+              },
+              {
+                "op": "refresh",
+                "token": "#54"
+              },
+              {
+                "op": "refresh",
+                "token": "#210"
+              },
+              {
+                "op": "refresh",
+                "token": "#56"
+              },
+              {
+                "op": "refresh",
+                "token": "#58"
+              },
+              {
+                "op": "refresh",
+                "token": "#175"
+              },
+              {
+                "op": "refresh",
+                "token": "#255"
+              },
+              {
+                "op": "refresh",
+                "token": "#177"
+              },
+              {
+                "op": "refresh",
+                "token": "#249"
+              },
+              {
+                "op": "refresh",
+                "token": "#228"
+              },
+              {
+                "op": "refresh",
+                "token": "#250"
+              },
+              {
+                "op": "refresh",
+                "token": "#229"
+              },
+              {
+                "op": "refresh",
+                "token": "#66"
+              },
+              {
+                "op": "refresh",
+                "token": "#230"
+              },
+              {
+                "op": "refresh",
+                "token": "#68"
+              },
+              {
+                "op": "refresh",
+                "token": "#70"
+              },
+              {
+                "op": "refresh",
+                "token": "#183"
+              },
+              {
+                "op": "refresh",
+                "token": "#184"
+              },
+              {
+                "op": "refresh",
+                "token": "#256"
+              },
+              {
+                "op": "refresh",
+                "token": "#254"
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "refresh",
+                "token": "#297"
+              },
+              {
+                "op": "refresh",
+                "token": "#306"
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "refresh",
+                "token": "#261"
+              },
+              {
+                "op": "refresh",
+                "token": "#262"
+              },
+              {
+                "op": "refresh",
+                "token": "#264"
+              },
+              {
+                "op": "refresh",
+                "token": "#270"
+              },
+              {
+                "op": "refresh",
+                "token": "#271"
+              },
+              {
+                "op": "refresh",
+                "token": "#272"
+              },
+              {
+                "op": "refresh",
+                "token": "#280"
+              },
+              {
+                "op": "refresh",
+                "token": "#281"
+              },
+              {
+                "op": "refresh",
+                "token": "#282"
+              },
+              {
+                "op": "refresh",
+                "token": "#289"
+              },
+              {
+                "op": "refresh",
+                "token": "#291"
+              },
+              {
+                "op": "refresh",
+                "token": "#293"
+              },
+              {
+                "op": "refresh",
+                "token": "#308"
+              },
+              {
+                "op": "refresh",
+                "token": "#299"
+              },
+              {
+                "op": "refresh",
+                "token": "#301"
+              },
+              {
+                "op": "refresh",
+                "token": "#309"
+              },
+              {
+                "op": "refresh",
+                "token": "#307"
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "refresh",
+                "token": "#257"
+              },
+              {
+                "op": "refresh",
+                "token": "#258"
+              },
+              {
+                "op": "refresh",
+                "token": "#232"
+              },
+              {
+                "op": "refresh",
+                "token": "#233"
+              },
+              {
+                "op": "refresh",
+                "token": "#263"
+              },
+              {
+                "op": "refresh",
+                "token": "#265"
+              },
+              {
+                "op": "refresh",
+                "token": "#267"
+              },
+              {
+                "op": "refresh",
+                "token": "#237"
+              },
+              {
+                "op": "refresh",
+                "token": "#273"
+              },
+              {
+                "op": "refresh",
+                "token": "#275"
+              },
+              {
+                "op": "refresh",
+                "token": "#283"
+              },
+              {
+                "op": "refresh",
+                "token": "#284"
+              },
+              {
+                "op": "refresh",
+                "token": "#292"
+              },
+              {
+                "op": "refresh",
+                "token": "#294"
+              },
+              {
+                "op": "refresh",
+                "token": "#247"
+              },
+              {
+                "op": "refresh",
+                "token": "#322"
+              },
+              {
+                "op": "refresh",
+                "token": "#300"
+              },
+              {
+                "op": "refresh",
+                "token": "#302"
+              },
+              {
+                "op": "refresh",
+                "token": "#303"
+              },
+              {
+                "op": "refresh",
+                "token": "#251"
+              },
+              {
+                "op": "refresh",
+                "token": "#252"
+              },
+              {
+                "op": "refresh",
+                "token": "#325"
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "refresh",
+                "token": "#259"
+              },
+              {
+                "op": "refresh",
+                "token": "#260"
+              },
+              {
+                "op": "refresh",
+                "token": "#310"
+              },
+              {
+                "op": "refresh",
+                "token": "#311"
+              },
+              {
+                "op": "refresh",
+                "token": "#312"
+              },
+              {
+                "op": "refresh",
+                "token": "#266"
+              },
+              {
+                "op": "refresh",
+                "token": "#268"
+              },
+              {
+                "op": "refresh",
+                "token": "#313"
+              },
+              {
+                "op": "refresh",
+                "token": "#314"
+              },
+              {
+                "op": "refresh",
+                "token": "#315"
+              },
+              {
+                "op": "refresh",
+                "token": "#274"
+              },
+              {
+                "op": "refresh",
+                "token": "#276"
+              },
+              {
+                "op": "refresh",
+                "token": "#277"
+              },
+              {
+                "op": "refresh",
+                "token": "#316"
+              },
+              {
+                "op": "refresh",
+                "token": "#317"
+              },
+              {
+                "op": "refresh",
+                "token": "#318"
+              },
+              {
+                "op": "refresh",
+                "token": "#285"
+              },
+              {
+                "op": "refresh",
+                "token": "#286"
+              },
+              {
+                "op": "refresh",
+                "token": "#319"
+              },
+              {
+                "op": "refresh",
+                "token": "#320"
+              },
+              {
+                "op": "refresh",
+                "token": "#321"
+              },
+              {
+                "op": "refresh",
+                "token": "#295"
+              },
+              {
+                "op": "refresh",
+                "token": "#342"
+              },
+              {
+                "op": "refresh",
+                "token": "#323"
+              },
+              {
+                "op": "refresh",
+                "token": "#324"
+              },
+              {
+                "op": "refresh",
+                "token": "#348"
+              },
+              {
+                "op": "refresh",
+                "token": "#326"
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "refresh",
+                "token": "#371"
+              },
+              {
+                "op": "refresh",
+                "token": "#374"
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "refresh",
+                "token": "#327"
+              },
+              {
+                "op": "refresh",
+                "token": "#328"
+              },
+              {
+                "op": "refresh",
+                "token": "#351"
+              },
+              {
+                "op": "refresh",
+                "token": "#352"
+              },
+              {
+                "op": "refresh",
+                "token": "#331"
+              },
+              {
+                "op": "refresh",
+                "token": "#353"
+              },
+              {
+                "op": "refresh",
+                "token": "#332"
+              },
+              {
+                "op": "refresh",
+                "token": "#333"
+              },
+              {
+                "op": "refresh",
+                "token": "#269"
+              },
+              {
+                "op": "refresh",
+                "token": "#356"
+              },
+              {
+                "op": "refresh",
+                "token": "#357"
+              },
+              {
+                "op": "refresh",
+                "token": "#358"
+              },
+              {
+                "op": "refresh",
+                "token": "#335"
+              },
+              {
+                "op": "refresh",
+                "token": "#336"
+              },
+              {
+                "op": "refresh",
+                "token": "#278"
+              },
+              {
+                "op": "refresh",
+                "token": "#279"
+              },
+              {
+                "op": "refresh",
+                "token": "#362"
+              },
+              {
+                "op": "refresh",
+                "token": "#363"
+              },
+              {
+                "op": "refresh",
+                "token": "#364"
+              },
+              {
+                "op": "refresh",
+                "token": "#337"
+              },
+              {
+                "op": "refresh",
+                "token": "#338"
+              },
+              {
+                "op": "refresh",
+                "token": "#287"
+              },
+              {
+                "op": "refresh",
+                "token": "#288"
+              },
+              {
+                "op": "refresh",
+                "token": "#367"
+              },
+              {
+                "op": "refresh",
+                "token": "#290"
+              },
+              {
+                "op": "refresh",
+                "token": "#368"
+              },
+              {
+                "op": "refresh",
+                "token": "#339"
+              },
+              {
+                "op": "refresh",
+                "token": "#369"
+              },
+              {
+                "op": "refresh",
+                "token": "#340"
+              },
+              {
+                "op": "refresh",
+                "token": "#296"
+              },
+              {
+                "op": "refresh",
+                "token": "#376"
+              },
+              {
+                "op": "refresh",
+                "token": "#298"
+              },
+              {
+                "op": "refresh",
+                "token": "#372"
+              },
+              {
+                "op": "refresh",
+                "token": "#343"
+              },
+              {
+                "op": "refresh",
+                "token": "#373"
+              },
+              {
+                "op": "refresh",
+                "token": "#344"
+              },
+              {
+                "op": "refresh",
+                "token": "#345"
+              },
+              {
+                "op": "refresh",
+                "token": "#304"
+              },
+              {
+                "op": "refresh",
+                "token": "#305"
+              },
+              {
+                "op": "refresh",
+                "token": "#377"
+              },
+              {
+                "op": "refresh",
+                "token": "#375"
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "refresh",
+                "token": "#408"
+              },
+              {
+                "op": "refresh",
+                "token": "#417"
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "refresh",
+                "token": "#349"
+              },
+              {
+                "op": "refresh",
+                "token": "#350"
+              },
+              {
+                "op": "refresh",
+                "token": "#329"
+              },
+              {
+                "op": "refresh",
+                "token": "#330"
+              },
+              {
+                "op": "refresh",
+                "token": "#380"
+              },
+              {
+                "op": "refresh",
+                "token": "#381"
+              },
+              {
+                "op": "refresh",
+                "token": "#383"
+              },
+              {
+                "op": "refresh",
+                "token": "#354"
+              },
+              {
+                "op": "refresh",
+                "token": "#355"
+              },
+              {
+                "op": "refresh",
+                "token": "#334"
+              },
+              {
+                "op": "refresh",
+                "token": "#387"
+              },
+              {
+                "op": "refresh",
+                "token": "#388"
+              },
+              {
+                "op": "refresh",
+                "token": "#389"
+              },
+              {
+                "op": "refresh",
+                "token": "#359"
+              },
+              {
+                "op": "refresh",
+                "token": "#360"
+              },
+              {
+                "op": "refresh",
+                "token": "#361"
+              },
+              {
+                "op": "refresh",
+                "token": "#394"
+              },
+              {
+                "op": "refresh",
+                "token": "#395"
+              },
+              {
+                "op": "refresh",
+                "token": "#396"
+              },
+              {
+                "op": "refresh",
+                "token": "#365"
+              },
+              {
+                "op": "refresh",
+                "token": "#366"
+              },
+              {
+                "op": "refresh",
+                "token": "#401"
+              },
+              {
+                "op": "refresh",
+                "token": "#403"
+              },
+              {
+                "op": "refresh",
+                "token": "#405"
+              },
+              {
+                "op": "refresh",
+                "token": "#370"
+              },
+              {
+                "op": "refresh",
+                "token": "#341"
+              },
+              {
+                "op": "refresh",
+                "token": "#419"
+              },
+              {
+                "op": "refresh",
+                "token": "#410"
+              },
+              {
+                "op": "refresh",
+                "token": "#412"
+              },
+              {
+                "op": "refresh",
+                "token": "#346"
+              },
+              {
+                "op": "refresh",
+                "token": "#347"
+              },
+              {
+                "op": "refresh",
+                "token": "#420"
+              },
+              {
+                "op": "refresh",
+                "token": "#418"
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "refresh",
+                "token": "#378"
+              },
+              {
+                "op": "refresh",
+                "token": "#379"
+              },
+              {
+                "op": "refresh",
+                "token": "#382"
+              },
+              {
+                "op": "refresh",
+                "token": "#384"
+              },
+              {
+                "op": "refresh",
+                "token": "#385"
+              },
+              {
+                "op": "refresh",
+                "token": "#390"
+              },
+              {
+                "op": "refresh",
+                "token": "#391"
+              },
+              {
+                "op": "refresh",
+                "token": "#397"
+              },
+              {
+                "op": "refresh",
+                "token": "#398"
+              },
+              {
+                "op": "refresh",
+                "token": "#404"
+              },
+              {
+                "op": "refresh",
+                "token": "#406"
+              },
+              {
+                "op": "refresh",
+                "token": "#447"
+              },
+              {
+                "op": "refresh",
+                "token": "#411"
+              },
+              {
+                "op": "refresh",
+                "token": "#413"
+              },
+              {
+                "op": "refresh",
+                "token": "#414"
+              },
+              {
+                "op": "refresh",
+                "token": "#452"
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "refresh",
+                "token": "#425"
+              },
+              {
+                "op": "refresh",
+                "token": "#426"
+              },
+              {
+                "op": "refresh",
+                "token": "#427"
+              },
+              {
+                "op": "refresh",
+                "token": "#431"
+              },
+              {
+                "op": "refresh",
+                "token": "#432"
+              },
+              {
+                "op": "refresh",
+                "token": "#433"
+              },
+              {
+                "op": "refresh",
+                "token": "#437"
+              },
+              {
+                "op": "refresh",
+                "token": "#438"
+              },
+              {
+                "op": "refresh",
+                "token": "#439"
+              },
+              {
+                "op": "refresh",
+                "token": "#442"
+              },
+              {
+                "op": "refresh",
+                "token": "#443"
+              },
+              {
+                "op": "refresh",
+                "token": "#444"
+              },
+              {
+                "op": "refresh",
+                "token": "#465"
+              },
+              {
+                "op": "refresh",
+                "token": "#448"
+              },
+              {
+                "op": "refresh",
+                "token": "#449"
+              },
+              {
+                "op": "refresh",
+                "token": "#469"
+              },
+              {
+                "op": "refresh",
+                "token": "#453"
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "refresh",
+                "token": "#482"
+              },
+              {
+                "op": "refresh",
+                "token": "#485"
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "refresh",
+                "token": "#454"
+              },
+              {
+                "op": "refresh",
+                "token": "#455"
+              },
+              {
+                "op": "refresh",
+                "token": "#421"
+              },
+              {
+                "op": "refresh",
+                "token": "#422"
+              },
+              {
+                "op": "refresh",
+                "token": "#470"
+              },
+              {
+                "op": "refresh",
+                "token": "#471"
+              },
+              {
+                "op": "refresh",
+                "token": "#456"
+              },
+              {
+                "op": "refresh",
+                "token": "#472"
+              },
+              {
+                "op": "refresh",
+                "token": "#457"
+              },
+              {
+                "op": "refresh",
+                "token": "#428"
+              },
+              {
+                "op": "refresh",
+                "token": "#458"
+              },
+              {
+                "op": "refresh",
+                "token": "#429"
+              },
+              {
+                "op": "refresh",
+                "token": "#386"
+              },
+              {
+                "op": "refresh",
+                "token": "#473"
+              },
+              {
+                "op": "refresh",
+                "token": "#474"
+              },
+              {
+                "op": "refresh",
+                "token": "#475"
+              },
+              {
+                "op": "refresh",
+                "token": "#459"
+              },
+              {
+                "op": "refresh",
+                "token": "#434"
+              },
+              {
+                "op": "refresh",
+                "token": "#460"
+              },
+              {
+                "op": "refresh",
+                "token": "#435"
+              },
+              {
+                "op": "refresh",
+                "token": "#436"
+              },
+              {
+                "op": "refresh",
+                "token": "#392"
+              },
+              {
+                "op": "refresh",
+                "token": "#393"
+              },
+              {
+                "op": "refresh",
+                "token": "#476"
+              },
+              {
+                "op": "refresh",
+                "token": "#477"
+              },
+              {
+                "op": "refresh",
+                "token": "#478"
+              },
+              {
+                "op": "refresh",
+                "token": "#461"
+              },
+              {
+                "op": "refresh",
+                "token": "#462"
+              },
+              {
+                "op": "refresh",
+                "token": "#440"
+              },
+              {
+                "op": "refresh",
+                "token": "#441"
+              },
+              {
+                "op": "refresh",
+                "token": "#399"
+              },
+              {
+                "op": "refresh",
+                "token": "#400"
+              },
+              {
+                "op": "refresh",
+                "token": "#479"
+              },
+              {
+                "op": "refresh",
+                "token": "#402"
+              },
+              {
+                "op": "refresh",
+                "token": "#480"
+              },
+              {
+                "op": "refresh",
+                "token": "#463"
+              },
+              {
+                "op": "refresh",
+                "token": "#481"
+              },
+              {
+                "op": "refresh",
+                "token": "#464"
+              },
+              {
+                "op": "refresh",
+                "token": "#445"
+              },
+              {
+                "op": "refresh",
+                "token": "#407"
+              },
+              {
+                "op": "refresh",
+                "token": "#487"
+              },
+              {
+                "op": "refresh",
+                "token": "#409"
+              },
+              {
+                "op": "refresh",
+                "token": "#483"
+              },
+              {
+                "op": "refresh",
+                "token": "#466"
+              },
+              {
+                "op": "refresh",
+                "token": "#484"
+              },
+              {
+                "op": "refresh",
+                "token": "#467"
+              },
+              {
+                "op": "refresh",
+                "token": "#468"
+              },
+              {
+                "op": "refresh",
+                "token": "#415"
+              },
+              {
+                "op": "refresh",
+                "token": "#416"
+              },
+              {
+                "op": "refresh",
+                "token": "#488"
+              },
+              {
+                "op": "refresh",
+                "token": "#486"
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "refresh",
+                "token": "#423"
+              },
+              {
+                "op": "refresh",
+                "token": "#424"
+              },
+              {
+                "op": "refresh",
+                "token": "#430"
+              },
+              {
+                "op": "refresh",
+                "token": "#446"
+              },
+              {
+                "op": "refresh",
+                "token": "#529"
+              },
+              {
+                "op": "refresh",
+                "token": "#450"
+              },
+              {
+                "op": "refresh",
+                "token": "#451"
+              },
+              {
+                "op": "refresh",
+                "token": "#538"
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "refresh",
+                "token": "#493"
+              },
+              {
+                "op": "refresh",
+                "token": "#494"
+              },
+              {
+                "op": "refresh",
+                "token": "#496"
+              },
+              {
+                "op": "refresh",
+                "token": "#502"
+              },
+              {
+                "op": "refresh",
+                "token": "#503"
+              },
+              {
+                "op": "refresh",
+                "token": "#504"
+              },
+              {
+                "op": "refresh",
+                "token": "#512"
+              },
+              {
+                "op": "refresh",
+                "token": "#513"
+              },
+              {
+                "op": "refresh",
+                "token": "#514"
+              },
+              {
+                "op": "refresh",
+                "token": "#521"
+              },
+              {
+                "op": "refresh",
+                "token": "#523"
+              },
+              {
+                "op": "refresh",
+                "token": "#525"
+              },
+              {
+                "op": "refresh",
+                "token": "#544"
+              },
+              {
+                "op": "refresh",
+                "token": "#531"
+              },
+              {
+                "op": "refresh",
+                "token": "#533"
+              },
+              {
+                "op": "refresh",
+                "token": "#547"
+              },
+              {
+                "op": "refresh",
+                "token": "#539"
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "refresh",
+                "token": "#489"
+              },
+              {
+                "op": "refresh",
+                "token": "#490"
+              },
+              {
+                "op": "refresh",
+                "token": "#495"
+              },
+              {
+                "op": "refresh",
+                "token": "#497"
+              },
+              {
+                "op": "refresh",
+                "token": "#499"
+              },
+              {
+                "op": "refresh",
+                "token": "#505"
+              },
+              {
+                "op": "refresh",
+                "token": "#507"
+              },
+              {
+                "op": "refresh",
+                "token": "#515"
+              },
+              {
+                "op": "refresh",
+                "token": "#516"
+              },
+              {
+                "op": "refresh",
+                "token": "#524"
+              },
+              {
+                "op": "refresh",
+                "token": "#526"
+              },
+              {
+                "op": "refresh",
+                "token": "#560"
+              },
+              {
+                "op": "refresh",
+                "token": "#532"
+              },
+              {
+                "op": "refresh",
+                "token": "#534"
+              },
+              {
+                "op": "refresh",
+                "token": "#535"
+              },
+              {
+                "op": "refresh",
+                "token": "#563"
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "refresh",
+                "token": "#491"
+              },
+              {
+                "op": "refresh",
+                "token": "#492"
+              },
+              {
+                "op": "refresh",
+                "token": "#548"
+              },
+              {
+                "op": "refresh",
+                "token": "#549"
+              },
+              {
+                "op": "refresh",
+                "token": "#550"
+              },
+              {
+                "op": "refresh",
+                "token": "#498"
+              },
+              {
+                "op": "refresh",
+                "token": "#500"
+              },
+              {
+                "op": "refresh",
+                "token": "#551"
+              },
+              {
+                "op": "refresh",
+                "token": "#552"
+              },
+              {
+                "op": "refresh",
+                "token": "#553"
+              },
+              {
+                "op": "refresh",
+                "token": "#506"
+              },
+              {
+                "op": "refresh",
+                "token": "#508"
+              },
+              {
+                "op": "refresh",
+                "token": "#509"
+              },
+              {
+                "op": "refresh",
+                "token": "#554"
+              },
+              {
+                "op": "refresh",
+                "token": "#555"
+              },
+              {
+                "op": "refresh",
+                "token": "#556"
+              },
+              {
+                "op": "refresh",
+                "token": "#517"
+              },
+              {
+                "op": "refresh",
+                "token": "#518"
+              },
+              {
+                "op": "refresh",
+                "token": "#557"
+              },
+              {
+                "op": "refresh",
+                "token": "#558"
+              },
+              {
+                "op": "refresh",
+                "token": "#559"
+              },
+              {
+                "op": "refresh",
+                "token": "#527"
+              },
+              {
+                "op": "refresh",
+                "token": "#576"
+              },
+              {
+                "op": "refresh",
+                "token": "#561"
+              },
+              {
+                "op": "refresh",
+                "token": "#562"
+              },
+              {
+                "op": "refresh",
+                "token": "#580"
+              },
+              {
+                "op": "refresh",
+                "token": "#564"
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "refresh",
+                "token": "#603"
+              },
+              {
+                "op": "refresh",
+                "token": "#606"
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "refresh",
+                "token": "#565"
+              },
+              {
+                "op": "refresh",
+                "token": "#566"
+              },
+              {
+                "op": "refresh",
+                "token": "#540"
+              },
+              {
+                "op": "refresh",
+                "token": "#541"
+              },
+              {
+                "op": "refresh",
+                "token": "#583"
+              },
+              {
+                "op": "refresh",
+                "token": "#584"
+              },
+              {
+                "op": "refresh",
+                "token": "#567"
+              },
+              {
+                "op": "refresh",
+                "token": "#585"
+              },
+              {
+                "op": "refresh",
+                "token": "#568"
+              },
+              {
+                "op": "refresh",
+                "token": "#569"
+              },
+              {
+                "op": "refresh",
+                "token": "#542"
+              },
+              {
+                "op": "refresh",
+                "token": "#501"
+              },
+              {
+                "op": "refresh",
+                "token": "#588"
+              },
+              {
+                "op": "refresh",
+                "token": "#589"
+              },
+              {
+                "op": "refresh",
+                "token": "#590"
+              },
+              {
+                "op": "refresh",
+                "token": "#570"
+              },
+              {
+                "op": "refresh",
+                "token": "#571"
+              },
+              {
+                "op": "refresh",
+                "token": "#510"
+              },
+              {
+                "op": "refresh",
+                "token": "#511"
+              },
+              {
+                "op": "refresh",
+                "token": "#594"
+              },
+              {
+                "op": "refresh",
+                "token": "#595"
+              },
+              {
+                "op": "refresh",
+                "token": "#596"
+              },
+              {
+                "op": "refresh",
+                "token": "#572"
+              },
+              {
+                "op": "refresh",
+                "token": "#573"
+              },
+              {
+                "op": "refresh",
+                "token": "#519"
+              },
+              {
+                "op": "refresh",
+                "token": "#520"
+              },
+              {
+                "op": "refresh",
+                "token": "#599"
+              },
+              {
+                "op": "refresh",
+                "token": "#522"
+              },
+              {
+                "op": "refresh",
+                "token": "#600"
+              },
+              {
+                "op": "refresh",
+                "token": "#574"
+              },
+              {
+                "op": "refresh",
+                "token": "#601"
+              },
+              {
+                "op": "refresh",
+                "token": "#575"
+              },
+              {
+                "op": "refresh",
+                "token": "#543"
+              },
+              {
+                "op": "refresh",
+                "token": "#528"
+              },
+              {
+                "op": "refresh",
+                "token": "#608"
+              },
+              {
+                "op": "refresh",
+                "token": "#530"
+              },
+              {
+                "op": "refresh",
+                "token": "#604"
+              },
+              {
+                "op": "refresh",
+                "token": "#577"
+              },
+              {
+                "op": "refresh",
+                "token": "#605"
+              },
+              {
+                "op": "refresh",
+                "token": "#578"
+              },
+              {
+                "op": "refresh",
+                "token": "#579"
+              },
+              {
+                "op": "refresh",
+                "token": "#545"
+              },
+              {
+                "op": "refresh",
+                "token": "#546"
+              },
+              {
+                "op": "refresh",
+                "token": "#536"
+              },
+              {
+                "op": "refresh",
+                "token": "#537"
+              },
+              {
+                "op": "refresh",
+                "token": "#609"
+              },
+              {
+                "op": "refresh",
+                "token": "#607"
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "refresh",
+                "token": "#644"
+              },
+              {
+                "op": "refresh",
+                "token": "#655"
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "refresh",
+                "token": "#581"
+              },
+              {
+                "op": "refresh",
+                "token": "#582"
+              },
+              {
+                "op": "refresh",
+                "token": "#614"
+              },
+              {
+                "op": "refresh",
+                "token": "#615"
+              },
+              {
+                "op": "refresh",
+                "token": "#617"
+              },
+              {
+                "op": "refresh",
+                "token": "#586"
+              },
+              {
+                "op": "refresh",
+                "token": "#587"
+              },
+              {
+                "op": "refresh",
+                "token": "#622"
+              },
+              {
+                "op": "refresh",
+                "token": "#623"
+              },
+              {
+                "op": "refresh",
+                "token": "#624"
+              },
+              {
+                "op": "refresh",
+                "token": "#591"
+              },
+              {
+                "op": "refresh",
+                "token": "#592"
+              },
+              {
+                "op": "refresh",
+                "token": "#593"
+              },
+              {
+                "op": "refresh",
+                "token": "#629"
+              },
+              {
+                "op": "refresh",
+                "token": "#630"
+              },
+              {
+                "op": "refresh",
+                "token": "#631"
+              },
+              {
+                "op": "refresh",
+                "token": "#597"
+              },
+              {
+                "op": "refresh",
+                "token": "#598"
+              },
+              {
+                "op": "refresh",
+                "token": "#636"
+              },
+              {
+                "op": "refresh",
+                "token": "#638"
+              },
+              {
+                "op": "refresh",
+                "token": "#640"
+              },
+              {
+                "op": "refresh",
+                "token": "#602"
+              },
+              {
+                "op": "refresh",
+                "token": "#657"
+              },
+              {
+                "op": "refresh",
+                "token": "#646"
+              },
+              {
+                "op": "refresh",
+                "token": "#648"
+              },
+              {
+                "op": "refresh",
+                "token": "#658"
+              },
+              {
+                "op": "refresh",
+                "token": "#656"
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "refresh",
+                "token": "#610"
+              },
+              {
+                "op": "refresh",
+                "token": "#611"
+              },
+              {
+                "op": "refresh",
+                "token": "#616"
+              },
+              {
+                "op": "refresh",
+                "token": "#618"
+              },
+              {
+                "op": "refresh",
+                "token": "#619"
+              },
+              {
+                "op": "refresh",
+                "token": "#625"
+              },
+              {
+                "op": "refresh",
+                "token": "#626"
+              },
+              {
+                "op": "refresh",
+                "token": "#632"
+              },
+              {
+                "op": "refresh",
+                "token": "#633"
+              },
+              {
+                "op": "refresh",
+                "token": "#639"
+              },
+              {
+                "op": "refresh",
+                "token": "#641"
+              },
+              {
+                "op": "refresh",
+                "token": "#681"
+              },
+              {
+                "op": "refresh",
+                "token": "#647"
+              },
+              {
+                "op": "refresh",
+                "token": "#649"
+              },
+              {
+                "op": "refresh",
+                "token": "#650"
+              },
+              {
+                "op": "refresh",
+                "token": "#684"
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "refresh",
+                "token": "#661"
+              },
+              {
+                "op": "refresh",
+                "token": "#662"
+              },
+              {
+                "op": "refresh",
+                "token": "#663"
+              },
+              {
+                "op": "refresh",
+                "token": "#666"
+              },
+              {
+                "op": "refresh",
+                "token": "#667"
+              },
+              {
+                "op": "refresh",
+                "token": "#668"
+              },
+              {
+                "op": "refresh",
+                "token": "#672"
+              },
+              {
+                "op": "refresh",
+                "token": "#673"
+              },
+              {
+                "op": "refresh",
+                "token": "#674"
+              },
+              {
+                "op": "refresh",
+                "token": "#677"
+              },
+              {
+                "op": "refresh",
+                "token": "#678"
+              },
+              {
+                "op": "refresh",
+                "token": "#679"
+              },
+              {
+                "op": "refresh",
+                "token": "#697"
+              },
+              {
+                "op": "refresh",
+                "token": "#682"
+              },
+              {
+                "op": "refresh",
+                "token": "#683"
+              },
+              {
+                "op": "refresh",
+                "token": "#701"
+              },
+              {
+                "op": "refresh",
+                "token": "#685"
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "refresh",
+                "token": "#612"
+              },
+              {
+                "op": "refresh",
+                "token": "#613"
+              },
+              {
+                "op": "refresh",
+                "token": "#620"
+              },
+              {
+                "op": "refresh",
+                "token": "#642"
+              },
+              {
+                "op": "refresh",
+                "token": "#714"
+              },
+              {
+                "op": "refresh",
+                "token": "#651"
+              },
+              {
+                "op": "refresh",
+                "token": "#652"
+              },
+              {
+                "op": "refresh",
+                "token": "#717"
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "refresh",
+                "token": "#686"
+              },
+              {
+                "op": "refresh",
+                "token": "#687"
+              },
+              {
+                "op": "refresh",
+                "token": "#659"
+              },
+              {
+                "op": "refresh",
+                "token": "#660"
+              },
+              {
+                "op": "refresh",
+                "token": "#702"
+              },
+              {
+                "op": "refresh",
+                "token": "#703"
+              },
+              {
+                "op": "refresh",
+                "token": "#688"
+              },
+              {
+                "op": "refresh",
+                "token": "#704"
+              },
+              {
+                "op": "refresh",
+                "token": "#689"
+              },
+              {
+                "op": "refresh",
+                "token": "#664"
+              },
+              {
+                "op": "refresh",
+                "token": "#690"
+              },
+              {
+                "op": "refresh",
+                "token": "#665"
+              },
+              {
+                "op": "refresh",
+                "token": "#621"
+              },
+              {
+                "op": "refresh",
+                "token": "#705"
+              },
+              {
+                "op": "refresh",
+                "token": "#706"
+              },
+              {
+                "op": "refresh",
+                "token": "#707"
+              },
+              {
+                "op": "refresh",
+                "token": "#691"
+              },
+              {
+                "op": "refresh",
+                "token": "#669"
+              },
+              {
+                "op": "refresh",
+                "token": "#692"
+              },
+              {
+                "op": "refresh",
+                "token": "#670"
+              },
+              {
+                "op": "refresh",
+                "token": "#671"
+              },
+              {
+                "op": "refresh",
+                "token": "#627"
+              },
+              {
+                "op": "refresh",
+                "token": "#628"
+              },
+              {
+                "op": "refresh",
+                "token": "#708"
+              },
+              {
+                "op": "refresh",
+                "token": "#709"
+              },
+              {
+                "op": "refresh",
+                "token": "#710"
+              },
+              {
+                "op": "refresh",
+                "token": "#693"
+              },
+              {
+                "op": "refresh",
+                "token": "#694"
+              },
+              {
+                "op": "refresh",
+                "token": "#675"
+              },
+              {
+                "op": "refresh",
+                "token": "#676"
+              },
+              {
+                "op": "refresh",
+                "token": "#634"
+              },
+              {
+                "op": "refresh",
+                "token": "#635"
+              },
+              {
+                "op": "refresh",
+                "token": "#711"
+              },
+              {
+                "op": "refresh",
+                "token": "#637"
+              },
+              {
+                "op": "refresh",
+                "token": "#712"
+              },
+              {
+                "op": "refresh",
+                "token": "#695"
+              },
+              {
+                "op": "refresh",
+                "token": "#713"
+              },
+              {
+                "op": "refresh",
+                "token": "#696"
+              },
+              {
+                "op": "refresh",
+                "token": "#680"
+              },
+              {
+                "op": "refresh",
+                "token": "#643"
+              },
+              {
+                "op": "refresh",
+                "token": "#723"
+              },
+              {
+                "op": "refresh",
+                "token": "#645"
+              },
+              {
+                "op": "refresh",
+                "token": "#715"
+              },
+              {
+                "op": "refresh",
+                "token": "#698"
+              },
+              {
+                "op": "refresh",
+                "token": "#716"
+              },
+              {
+                "op": "refresh",
+                "token": "#699"
+              },
+              {
+                "op": "refresh",
+                "token": "#700"
+              },
+              {
+                "op": "refresh",
+                "token": "#653"
+              },
+              {
+                "op": "refresh",
+                "token": "#654"
+              },
+              {
+                "op": "refresh",
+                "token": "#726"
+              },
+              {
+                "op": "refresh",
+                "token": "#718"
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "refresh",
+                "token": "#767"
+              },
+              {
+                "op": "refresh",
+                "token": "#776"
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "refresh",
+                "token": "#731"
+              },
+              {
+                "op": "refresh",
+                "token": "#732"
+              },
+              {
+                "op": "refresh",
+                "token": "#734"
+              },
+              {
+                "op": "refresh",
+                "token": "#740"
+              },
+              {
+                "op": "refresh",
+                "token": "#741"
+              },
+              {
+                "op": "refresh",
+                "token": "#742"
+              },
+              {
+                "op": "refresh",
+                "token": "#750"
+              },
+              {
+                "op": "refresh",
+                "token": "#751"
+              },
+              {
+                "op": "refresh",
+                "token": "#752"
+              },
+              {
+                "op": "refresh",
+                "token": "#759"
+              },
+              {
+                "op": "refresh",
+                "token": "#761"
+              },
+              {
+                "op": "refresh",
+                "token": "#763"
+              },
+              {
+                "op": "refresh",
+                "token": "#778"
+              },
+              {
+                "op": "refresh",
+                "token": "#769"
+              },
+              {
+                "op": "refresh",
+                "token": "#771"
+              },
+              {
+                "op": "refresh",
+                "token": "#779"
+              },
+              {
+                "op": "refresh",
+                "token": "#777"
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "refresh",
+                "token": "#727"
+              },
+              {
+                "op": "refresh",
+                "token": "#728"
+              },
+              {
+                "op": "refresh",
+                "token": "#733"
+              },
+              {
+                "op": "refresh",
+                "token": "#735"
+              },
+              {
+                "op": "refresh",
+                "token": "#737"
+              },
+              {
+                "op": "refresh",
+                "token": "#743"
+              },
+              {
+                "op": "refresh",
+                "token": "#745"
+              },
+              {
+                "op": "refresh",
+                "token": "#753"
+              },
+              {
+                "op": "refresh",
+                "token": "#754"
+              },
+              {
+                "op": "refresh",
+                "token": "#762"
+              },
+              {
+                "op": "refresh",
+                "token": "#764"
+              },
+              {
+                "op": "refresh",
+                "token": "#792"
+              },
+              {
+                "op": "refresh",
+                "token": "#770"
+              },
+              {
+                "op": "refresh",
+                "token": "#772"
+              },
+              {
+                "op": "refresh",
+                "token": "#773"
+              },
+              {
+                "op": "refresh",
+                "token": "#795"
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "refresh",
+                "token": "#729"
+              },
+              {
+                "op": "refresh",
+                "token": "#730"
+              },
+              {
+                "op": "refresh",
+                "token": "#719"
+              },
+              {
+                "op": "refresh",
+                "token": "#720"
+              },
+              {
+                "op": "refresh",
+                "token": "#780"
+              },
+              {
+                "op": "refresh",
+                "token": "#781"
+              },
+              {
+                "op": "refresh",
+                "token": "#782"
+              },
+              {
+                "op": "refresh",
+                "token": "#736"
+              },
+              {
+                "op": "refresh",
+                "token": "#738"
+              },
+              {
+                "op": "refresh",
+                "token": "#721"
+              },
+              {
+                "op": "refresh",
+                "token": "#783"
+              },
+              {
+                "op": "refresh",
+                "token": "#784"
+              },
+              {
+                "op": "refresh",
+                "token": "#785"
+              },
+              {
+                "op": "refresh",
+                "token": "#744"
+              },
+              {
+                "op": "refresh",
+                "token": "#746"
+              },
+              {
+                "op": "refresh",
+                "token": "#747"
+              },
+              {
+                "op": "refresh",
+                "token": "#786"
+              },
+              {
+                "op": "refresh",
+                "token": "#787"
+              },
+              {
+                "op": "refresh",
+                "token": "#788"
+              },
+              {
+                "op": "refresh",
+                "token": "#755"
+              },
+              {
+                "op": "refresh",
+                "token": "#756"
+              },
+              {
+                "op": "refresh",
+                "token": "#789"
+              },
+              {
+                "op": "refresh",
+                "token": "#790"
+              },
+              {
+                "op": "refresh",
+                "token": "#791"
+              },
+              {
+                "op": "refresh",
+                "token": "#765"
+              },
+              {
+                "op": "refresh",
+                "token": "#722"
+              },
+              {
+                "op": "refresh",
+                "token": "#808"
+              },
+              {
+                "op": "refresh",
+                "token": "#793"
+              },
+              {
+                "op": "refresh",
+                "token": "#794"
+              },
+              {
+                "op": "refresh",
+                "token": "#724"
+              },
+              {
+                "op": "refresh",
+                "token": "#725"
+              },
+              {
+                "op": "refresh",
+                "token": "#812"
+              },
+              {
+                "op": "refresh",
+                "token": "#796"
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "refresh",
+                "token": "#797"
+              },
+              {
+                "op": "refresh",
+                "token": "#798"
+              },
+              {
+                "op": "refresh",
+                "token": "#799"
+              },
+              {
+                "op": "refresh",
+                "token": "#800"
+              },
+              {
+                "op": "refresh",
+                "token": "#801"
+              },
+              {
+                "op": "refresh",
+                "token": "#739"
+              },
+              {
+                "op": "refresh",
+                "token": "#802"
+              },
+              {
+                "op": "refresh",
+                "token": "#803"
+              },
+              {
+                "op": "refresh",
+                "token": "#748"
+              },
+              {
+                "op": "refresh",
+                "token": "#749"
+              },
+              {
+                "op": "refresh",
+                "token": "#804"
+              },
+              {
+                "op": "refresh",
+                "token": "#805"
+              },
+              {
+                "op": "refresh",
+                "token": "#757"
+              },
+              {
+                "op": "refresh",
+                "token": "#758"
+              },
+              {
+                "op": "refresh",
+                "token": "#760"
+              },
+              {
+                "op": "refresh",
+                "token": "#806"
+              },
+              {
+                "op": "refresh",
+                "token": "#807"
+              },
+              {
+                "op": "refresh",
+                "token": "#766"
+              },
+              {
+                "op": "refresh",
+                "token": "#768"
+              },
+              {
+                "op": "refresh",
+                "token": "#809"
+              },
+              {
+                "op": "refresh",
+                "token": "#810"
+              },
+              {
+                "op": "refresh",
+                "token": "#811"
+              },
+              {
+                "op": "refresh",
+                "token": "#774"
+              },
+              {
+                "op": "refresh",
+                "token": "#775"
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "refresh",
+                "token": "#1"
+              },
+              {
+                "op": "refresh",
+                "token": "#2"
+              },
+              {
+                "op": "refresh",
+                "token": "#3"
+              },
+              {
+                "op": "refresh",
+                "token": "#4"
+              },
+              {
+                "op": "refresh",
+                "token": "#5"
+              },
+              {
+                "op": "refresh",
+                "token": "#6"
+              },
+              {
+                "op": "refresh",
+                "token": "#7"
+              },
+              {
+                "op": "refresh",
+                "token": "#8"
+              },
+              {
+                "op": "refresh",
+                "token": "#9"
+              },
+              {
+                "op": "refresh",
+                "token": "#10"
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "advance",
+                "ms": 21600000
+              },
+              {
+                "op": "login",
+                "userId": "u_01",
+                "deviceId": "phone"
+              },
+              {
+                "op": "login",
+                "userId": "u_03",
+                "deviceId": "phone"
+              },
+              {
+                "op": "login",
+                "userId": "u_05",
+                "deviceId": "phone"
+              },
+              {
+                "op": "login",
+                "userId": "u_07",
+                "deviceId": "phone"
+              },
+              {
+                "op": "login",
+                "userId": "u_09",
+                "deviceId": "phone"
+              },
+              {
+                "op": "login",
+                "userId": "u_11",
+                "deviceId": "phone"
+              },
+              {
+                "op": "login",
+                "userId": "u_13",
+                "deviceId": "phone"
+              },
+              {
+                "op": "login",
+                "userId": "u_15",
+                "deviceId": "phone"
+              },
+              {
+                "op": "login",
+                "userId": "u_17",
+                "deviceId": "phone"
+              },
+              {
+                "op": "login",
+                "userId": "u_19",
+                "deviceId": "phone"
+              },
+              {
+                "op": "login",
+                "userId": "u_21",
+                "deviceId": "phone"
+              },
+              {
+                "op": "login",
+                "userId": "u_23",
+                "deviceId": "phone"
+              },
+              {
+                "op": "login",
+                "userId": "u_25",
+                "deviceId": "phone"
+              },
+              {
+                "op": "advance",
+                "ms": 86400000
+              },
+              {
+                "op": "refresh",
+                "token": "#813"
+              },
+              {
+                "op": "refresh",
+                "token": "#814"
+              },
+              {
+                "op": "refresh",
+                "token": "#815"
+              },
+              {
+                "op": "refresh",
+                "token": "#816"
+              },
+              {
+                "op": "refresh",
+                "token": "#817"
+              },
+              {
+                "op": "refresh",
+                "token": "#818"
+              },
+              {
+                "op": "refresh",
+                "token": "#819"
+              },
+              {
+                "op": "refresh",
+                "token": "#820"
+              },
+              {
+                "op": "refresh",
+                "token": "#821"
+              },
+              {
+                "op": "refresh",
+                "token": "#822"
+              },
+              {
+                "op": "refresh",
+                "token": "#823"
+              },
+              {
+                "op": "refresh",
+                "token": "#824"
+              },
+              {
+                "op": "refresh",
+                "token": "#825"
+              }
+            ]
+          },
+          "expected": "login: 88\nrefresh family_expired: 60\nrefresh idle_timeout: 18\nrefresh ok: 750\nrefresh used: 7\nstore: 838 rows in 88 families, 750 used, 0 used rows without a replacedBy in their family\nlongest family: last token issued d9 18:00, last expiry d10 00:00 after its first token\nleaks: none",
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

@@ -28,17 +28,17 @@
   <g id="copy" font-family="Segoe UI, Inter, Arial, sans-serif">
     <polygon points="158,146 204,172 204,224 158,250 112,224 112,172" fill="#5FA04E"/>
     <text x="158" y="213.64" text-anchor="middle" font-size="46" font-weight="800" fill="#0B0F18">N</text>
-    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#8CC84B">NODE.JS · API SECURITY</text>
-    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">OWASP API</text>
-    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">Top 10</text>
-    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">BOLA · JWT · Mass assignment · SSRF</text>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#8CC84B">TYPESCRIPT · AUTH DESIGN</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">Auth &amp;</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">Sessions</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Cookies · Rotation · Replay · Races</text>
     <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#C7E8B8">
       <rect x="110" y="660" width="136" height="52" rx="26" fill="#17281A" stroke="#5FA04E"/>
       <text x="178" y="695" text-anchor="middle">authz</text>
       <rect x="262" y="660" width="107" height="52" rx="26" fill="#17281A" stroke="#5FA04E"/>
       <text x="315.5" y="695" text-anchor="middle">JWT</text>
       <rect x="385" y="660" width="121" height="52" rx="26" fill="#17281A" stroke="#5FA04E"/>
-      <text x="445.5" y="695" text-anchor="middle">SSRF</text>
+      <text x="445.5" y="695" text-anchor="middle">CSRF</text>
       <rect x="522" y="660" width="207" height="52" rx="26" fill="#17281A" stroke="#5FA04E"/>
       <text x="625.5" y="695" text-anchor="middle">rate limit</text>
     </g>

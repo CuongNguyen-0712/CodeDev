@@ -1,116 +1,84 @@
 {
   "publicId": "nodejs-api-security",
-  "title": "Node.js API Security: OWASP API Top 10 in Practice",
-  "concept": "Find and fix the API vulnerabilities attackers actually use: broken object-level authorization, JWT and refresh-token mistakes, mass assignment, SSRF, resource exhaustion and leaked secrets.",
-  "description": "Find and fix the API vulnerabilities attackers actually use: broken object-level authorization, JWT and refresh-token mistakes, mass assignment, SSRF, resource exhaustion and leaked secrets. 9 lessons, each starting from a real bug or incident, with graded challenges.",
-  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594598/codedev/courses/nodejs-api-security/cover",
-  "level": "expert",
-  "durationMinutes": 180,
+  "title": "Authentication & Session Design: Cookies, Refresh Token Rotation & Replay Detection",
+  "concept": "Design sign-in that holds up under real traffic and real attackers: where the session lives, cookie flags that matter, short-lived access tokens, refresh tokens stored as hashes and rotated in families, replay detection, revocation per device, CSRF and XSS, and two refresh requests that arrive at the same time.",
+  "description": "An advanced course for backend developers who own a login flow. Every lesson starts from an incident on the CodeDev learning platform - a refresh token copied from a database backup that still worked, a cookie the browser sent to every subdomain, a learner signed out on all devices when one phone refreshed twice in parallel, a stolen refresh token used once more after the real user had rotated it, an AI-written cookie helper that let any script read the token - and fixes it with a design you can test: sessions versus tokens, cookie flags, signing and verifying access tokens with a fake clock, hashing and rotating refresh tokens, token families and replay detection, revoking one device or all of them, CSRF and XSS, concurrent refresh with compare-and-swap, and a threat review. 12 lessons with True/False quizzes on real headers, logs and code, and TypeScript challenges graded by hidden tests.",
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1793019693/codedev/courses/nodejs-api-security/cover",
+  "level": "advanced",
+  "durationMinutes": 390,
   "instructor": "CodeDev Engineering Team",
-  "language": "JavaScript",
+  "language": "TypeScript",
   "category": "Cyber Security",
   "cost": 0,
   "pointPrice": 0,
-  "reward": 200,
+  "reward": 150,
   "accessModel": "premium",
   "publishStatus": "draft",
   "offers": [
-    {
-      "priceType": "points",
-      "amount": 1000
-    },
-    {
-      "priceType": "money",
-      "amount": 349000,
-      "currency": "VND"
-    }
+    { "priceType": "points", "amount": 600 },
+    { "priceType": "money", "amount": 249000, "currency": "VND" }
   ],
-  "careerRoles": [
-    "backend_developer",
-    "fullstack_developer",
-    "devops_engineer"
+  "completionRules": {},
+  "domain": "backend",
+  "learningOutcomes": [
+    { "code": "token-flow", "text": "Design an access and refresh token flow with short-lived, verified access tokens" },
+    { "code": "session-storage", "text": "Choose where the session lives and set cookie flags that keep tokens away from scripts and other sites" },
+    { "code": "rotation-revocation", "text": "Store refresh tokens as hashes, rotate them in families and revoke one device or all devices" },
+    { "code": "attack-mitigation", "text": "Reduce CSRF, XSS and token replay risk, and detect a replayed refresh token" },
+    { "code": "concurrency", "text": "Handle two refresh requests at the same time without double success or false replay alarms" }
   ],
-  "skills": {
-    "api_design": 5,
-    "nodejs": 4,
-    "system_design": 3,
-    "testing": 2
-  },
-  "goals": [
-    "grow_in_role",
-    "interview_prep"
+  "testedVersions": { "TypeScript": "5.9.3 (tsc --strict in the code runner)", "Node.js crypto": "24 (HMAC-SHA256, timingSafeEqual in lesson examples)" },
+  "lastReviewedAt": "2026-10-26",
+  "sourceLinks": [
+    "https://datatracker.ietf.org/doc/html/rfc6265",
+    "https://datatracker.ietf.org/doc/html/rfc9700",
+    "https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html"
   ],
-  "industries": [
-    "fintech",
-    "ecommerce",
-    "software_product"
+  "owner": "CodeDev Engineering Team",
+  "knownIssues": [
+    "No PostgreSQL or Redis in the code runner: token stores are in-memory fakes with compare-and-swap that mirror the SQL shown in the lessons"
   ],
-  "prerequisites": [
-    "nodejs-high-performance"
-  ],
-  "modules": [],
-  "outline": [
+  "scenario": { "title": "Concurrent Refresh & Token Replay", "quiz": "chal_quiz_nas_321", "fixBug": "chal_coding_nas_322" },
+  "careerRoles": ["backend_developer", "fullstack_developer", "devops_engineer"],
+  "skills": { "api_design": 5, "typescript": 3, "system_design": 3, "concurrency": 2, "testing": 2 },
+  "goals": ["grow_in_role", "interview_prep"],
+  "industries": ["fintech", "ecommerce", "software_product"],
+  "prerequisites": ["nestjs-modular-monolith"],
+  "modules": [
     {
       "orderIndex": 1,
-      "title": "Authentication & Authorization",
+      "title": "Sessions, Cookies & Access Tokens",
       "lessons": [
-        {
-          "orderIndex": 1,
-          "title": "BOLA: object-level authorization checks",
-          "challenges": "F(m)"
-        },
-        {
-          "orderIndex": 2,
-          "title": "JWT verification pitfalls: alg, exp, aud, clock skew",
-          "challenges": "Q(h) + C(h)"
-        },
-        {
-          "orderIndex": 3,
-          "title": "Refresh token rotation & reuse detection",
-          "challenges": "C(h)"
-        }
+        { "orderIndex": 1, "folder": "01-sessions-vs-tokens", "title": "Sessions or tokens: where the sign-in state lives", "sanityId": "lesson-nas-1-1" },
+        { "orderIndex": 2, "folder": "02-cookie-flags", "title": "Cookie flags that matter: HttpOnly, Secure, SameSite & Path", "sanityId": "lesson-nas-1-2" },
+        { "orderIndex": 3, "folder": "03-short-lived-access-tokens", "title": "Short-lived access tokens: signing, expiry & clock skew", "sanityId": "lesson-nas-1-3" }
       ]
     },
     {
       "orderIndex": 2,
-      "title": "Input & Resources",
+      "title": "Refresh Tokens",
       "lessons": [
-        {
-          "orderIndex": 1,
-          "title": "Mass assignment & allow-lists",
-          "challenges": "F(m)"
-        },
-        {
-          "orderIndex": 2,
-          "title": "SSRF: URL parsing & allow-listing",
-          "challenges": "Q(h) + C(h)"
-        },
-        {
-          "orderIndex": 3,
-          "title": "Unrestricted resource consumption: sliding-window limits",
-          "challenges": "C(m)"
-        }
+        { "orderIndex": 1, "folder": "04-hashed-refresh-tokens", "title": "How to store refresh tokens as hashes", "sanityId": "lesson-nas-2-1" },
+        { "orderIndex": 2, "folder": "05-plaintext-tokens", "title": "Fix it: refresh tokens stored in plain text", "sanityId": "lesson-nas-2-2" },
+        { "orderIndex": 3, "folder": "06-rotation-families", "title": "Refresh token rotation with token families", "sanityId": "lesson-nas-2-3" }
       ]
     },
     {
       "orderIndex": 3,
-      "title": "Operations",
+      "title": "Attacks & Races",
       "lessons": [
-        {
-          "orderIndex": 1,
-          "title": "Secrets & log redaction",
-          "challenges": "C(m)"
-        },
-        {
-          "orderIndex": 2,
-          "title": "Supply chain: lockfiles, provenance, npm audit triage",
-          "challenges": "Q(m)"
-        },
-        {
-          "orderIndex": 3,
-          "title": "Security headers & CORS done right",
-          "challenges": "Q(m) + F(m)"
-        }
+        { "orderIndex": 1, "folder": "07-replay-detection", "title": "Replay detection: an old refresh token revokes the family", "sanityId": "lesson-nas-3-1" },
+        { "orderIndex": 2, "folder": "08-concurrent-refresh", "title": "Concurrent refresh & token replay: two requests, one token", "sanityId": "lesson-nas-3-2" },
+        { "orderIndex": 3, "folder": "09-csrf-xss", "title": "CSRF & XSS: what cookies and tokens do and don't protect", "sanityId": "lesson-nas-3-3" }
+      ]
+    },
+    {
+      "orderIndex": 4,
+      "title": "Operating Sign-in",
+      "lessons": [
+        { "orderIndex": 1, "folder": "10-revocation", "title": "How to sign out one device or all devices", "sanityId": "lesson-nas-4-1" },
+        { "orderIndex": 2, "folder": "11-spot-ai-cookie", "title": "Spot the AI mistake: a token cookie JavaScript can read", "sanityId": "lesson-nas-4-2" },
+        { "orderIndex": 3, "folder": "12-threat-review", "title": "A threat review for the sign-in flow", "sanityId": "lesson-nas-4-3" }
       ]
     }
   ]

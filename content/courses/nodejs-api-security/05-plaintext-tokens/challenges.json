@@ -1,0 +1,2669 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nas_221",
+      "name": "plaintext-tokens-migration-quiz",
+      "type": "quiz",
+      "title": "Moving a live table off plain-text tokens",
+      "description": "Two pieces of evidence from the migration to hashed refresh tokens: a rolling deploy log and a one-line fix proposed in review.",
+      "difficulty": "medium",
+      "outcomes": [
+        "rotation-revocation"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Rolling deploy of release 42 (hashed tokens) over 6 instances, 14:00-14:25:\n\n14:00:12 api-1 release 42 ready     api-2..api-6 release 41\n14:05:40 api-2 release 42 ready     api-3..api-6 release 41\n...\n14:24:58 api-6 release 42 ready\n\nSELECT count(*) FROM auth.refresh_tokens WHERE token IS NOT NULL AND created_at > '2026-10-26 14:00';\n count\n-------\n  3114\n\nRelease 42 looks up refresh tokens only with WHERE token_hash = $1.\n\nStatement: \"About 3,100 learners who signed in during the deploy will get invalid_grant at their next refresh and have to sign in again.\"",
+          "explanation": "True. During a rolling deploy both releases serve traffic. Every sign-in handled by a release 41 instance wrote a row with the plain token and no token_hash, and the query shows 3,114 such rows created after 14:00. Release 42 searches only by hash, finds nothing for those tokens and answers invalid_grant. That is why the new code must also read the legacy column for a while: find the row by its plain token, move it to the hash at once, and rotate. Only after the last old instance is gone does a backfill (UPDATE ... SET token_hash = encode(sha256(convert_to(token, 'UTF8')), 'hex'), token = NULL) clear the remaining rows, and a later release drops the column. The misconception is that a schema change and a code change switch over at one instant.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The incident: a database backup with auth.refresh_tokens leaked, and its tokens worked. A proposed fix in review:\n\n-  if (!row || row.token !== presented) return { ok: false, reason: \"unknown\" };\n+  if (!row || !timingSafeEqual(Buffer.from(row.token), Buffer.from(presented))) {\n+    return { ok: false, reason: \"unknown\" };\n+  }\n\n\"Constant-time comparison closes the leak.\"\n\nStatement: \"After this change, a token copied from that backup stops working.\"",
+          "explanation": "False. timingSafeEqual removes a timing side channel: an attacker probing the API cannot learn a token byte by byte from response times. It does nothing about secrets at rest. The backup holds the plain token, the table still holds it, and presenting it gives an exact match whichever comparison is used. Two changes close the incident: store only SHA-256 of the token, and rotate on every refresh so the copies in old backups are already used. Also note that timingSafeEqual throws when the two buffers have different lengths, so comparing raw strings needs a length check (or comparing fixed-size hashes). The misconception is that \"constant-time\" means \"secure storage\".",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_nas_222",
+      "name": "fix-plaintext-refresh-tokens",
+      "type": "fix_bug",
+      "title": "Fix it: refresh tokens stored in plain text",
+      "description": "Incident CODEDEV-1907: a copy of auth.refresh_tokens leaked from a backup bucket and the refresh tokens in it still worked, some of them months after they were issued. The token service in the starter is the code that was running. It writes every refresh token into the plain-text column token, finds it with WHERE token = $1 and compares with !==, and refresh hands back the same token with its expiry pushed forward, so a copied token never stops working. Release 42 must fix all of that while release 41 instances keep writing plain-text rows until the rolling deploy is finished.\n\nlogin(deps, userId, deviceId): keep the order id = deps.newId(\"rt\"), then familyId = deps.newId(\"fam\"), token from deps.randomBytes(32).toString(\"base64url\"). Insert the row with token = null and tokenHash = SHA-256 of the token as lowercase hex, createdAt = deps.now(), expiresAt = createdAt + deps.ttlMs. Return { token, id, familyId, expiresAt } as before.\n\nrefresh(deps, presented), checked in this order: (1) not a 43-character base64url string -> \"malformed\". (2) Hash it and look it up with deps.store.findByHash; compare the stored and computed hashes with crypto.timingSafeEqual. (3) Migration path - no row by hash: look it up with deps.store.findByPlainToken (compare the bytes with timingSafeEqual too). No row either way -> \"unknown\". When the row is found this way, immediately update it to token = null and tokenHash = the hash, whatever the result of the remaining checks, so a legacy token is never left in plain text once it has been presented. (4) row.revokedAt not null -> \"revoked\"; (5) row.usedAt not null -> \"used\"; (6) deps.now() >= row.expiresAt -> \"expired\". (7) Rotate: take id = deps.newId(\"rt\"), insert a new row in the same family for the same user and device (new random token, token = null, tokenHash = its hash, createdAt = now, expiresAt = now + ttlMs, usedAt, revokedAt and replacedBy null), then update the old row to usedAt = now and replacedBy = the new id. Return { ok: true, token, id, familyId, expiresAt } of the new token. Failures return { ok: false, reason }.\n\nThe test runner seeds legacy rows (L1, L2 ...), runs the operations and prints the store after each one: tokenHash shows as sha256(#n) or sha256(L1) and the token column as PLAIN(...) when it holds a token. It ends with every token still stored in plain text or returned in a result. Do not change the types, the store or the runner.",
+      "difficulty": "medium",
+      "outcomes": [
+        "rotation-revocation"
+      ],
+      "points": 30,
+      "hints": [
+        "Look at the store dump after login and after a refresh: which column holds the token, and which token does the client hold afterwards? Would a copy of this table from last month still sign someone in?",
+        "Three places: the row inserted by login (token versus tokenHash), the lookup at the top of refresh (only findByPlainToken today), and the end of refresh, which updates expiresAt on the old row instead of creating a new one. For the migration, the legacy lookup belongs after the hash lookup, and the legacy row must be moved to its hash before the revoked, used and expired checks.",
+        "A similar migration for API keys: a request with key K first runs findByHash(sha256(K)). Not found, it tries findByPlainKey(K); found, it immediately writes keyHash = sha256(K) and key = null on that row, then applies the usual checks. A second request with K now finds the row by hash, and a SELECT on the key column no longer shows K - even if the first request was rejected because the key had expired."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Sign in stores only the hash; each refresh returns a new token and marks the old row used",
+          "input": {
+            "ttlMs": 2592000000,
+            "ops": [
+              {
+                "op": "login",
+                "userId": "u_ana",
+                "deviceId": "phone"
+              },
+              {
+                "op": "advance",
+                "ms": 3600000
+              },
+              {
+                "op": "refresh",
+                "token": "#1"
+              },
+              {
+                "op": "advance",
+                "ms": 3600000
+              },
+              {
+                "op": "refresh",
+                "token": "#2"
+              }
+            ]
+          },
+          "expected": "login u_ana/phone -> rt_1 fam_1 token #1 expires 2026-11-25T08:00:00.000Z\n  rt_1 fam_1 u_ana/phone hash=sha256(#1) token=- expires 2026-11-25T08:00:00.000Z used - revoked - replacedBy -\nadvance to 2026-10-26T09:00:00.000Z\n  rt_1 fam_1 u_ana/phone hash=sha256(#1) token=- expires 2026-11-25T08:00:00.000Z used - revoked - replacedBy -\nrefresh #1 -> ok rt_2 fam_1 token #2 expires 2026-11-25T09:00:00.000Z\n  rt_1 fam_1 u_ana/phone hash=sha256(#1) token=- expires 2026-11-25T08:00:00.000Z used 2026-10-26T09:00:00.000Z revoked - replacedBy rt_2\n  rt_2 fam_1 u_ana/phone hash=sha256(#2) token=- expires 2026-11-25T09:00:00.000Z used - revoked - replacedBy -\nadvance to 2026-10-26T10:00:00.000Z\n  rt_1 fam_1 u_ana/phone hash=sha256(#1) token=- expires 2026-11-25T08:00:00.000Z used 2026-10-26T09:00:00.000Z revoked - replacedBy rt_2\n  rt_2 fam_1 u_ana/phone hash=sha256(#2) token=- expires 2026-11-25T09:00:00.000Z used - revoked - replacedBy -\nrefresh #2 -> ok rt_3 fam_1 token #3 expires 2026-11-25T10:00:00.000Z\n  rt_1 fam_1 u_ana/phone hash=sha256(#1) token=- expires 2026-11-25T08:00:00.000Z used 2026-10-26T09:00:00.000Z revoked - replacedBy rt_2\n  rt_2 fam_1 u_ana/phone hash=sha256(#2) token=- expires 2026-11-25T09:00:00.000Z used 2026-10-26T10:00:00.000Z revoked - replacedBy rt_3\n  rt_3 fam_1 u_ana/phone hash=sha256(#3) token=- expires 2026-11-25T10:00:00.000Z used - revoked - replacedBy -\nplain text: none",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "A token copied before a refresh is rejected as used; the token from the refresh keeps working",
+          "input": {
+            "ttlMs": 2592000000,
+            "ops": [
+              {
+                "op": "login",
+                "userId": "u_ana",
+                "deviceId": "phone"
+              },
+              {
+                "op": "login",
+                "userId": "u_binh",
+                "deviceId": "web"
+              },
+              {
+                "op": "refresh",
+                "token": "#1"
+              },
+              {
+                "op": "refresh",
+                "token": "#1"
+              },
+              {
+                "op": "refresh",
+                "token": "#3"
+              },
+              {
+                "op": "refresh",
+                "token": "#2"
+              }
+            ]
+          },
+          "expected": "login u_ana/phone -> rt_1 fam_1 token #1 expires 2026-11-25T08:00:00.000Z\n  rt_1 fam_1 u_ana/phone hash=sha256(#1) token=- expires 2026-11-25T08:00:00.000Z used - revoked - replacedBy -\nlogin u_binh/web -> rt_2 fam_2 token #2 expires 2026-11-25T08:00:00.000Z\n  rt_1 fam_1 u_ana/phone hash=sha256(#1) token=- expires 2026-11-25T08:00:00.000Z used - revoked - replacedBy -\n  rt_2 fam_2 u_binh/web hash=sha256(#2) token=- expires 2026-11-25T08:00:00.000Z used - revoked - replacedBy -\nrefresh #1 -> ok rt_3 fam_1 token #3 expires 2026-11-25T08:00:00.000Z\n  rt_1 fam_1 u_ana/phone hash=sha256(#1) token=- expires 2026-11-25T08:00:00.000Z used 2026-10-26T08:00:00.000Z revoked - replacedBy rt_3\n  rt_2 fam_2 u_binh/web hash=sha256(#2) token=- expires 2026-11-25T08:00:00.000Z used - revoked - replacedBy -\n  rt_3 fam_1 u_ana/phone hash=sha256(#3) token=- expires 2026-11-25T08:00:00.000Z used - revoked - replacedBy -\nrefresh #1 -> used\n  rt_1 fam_1 u_ana/phone hash=sha256(#1) token=- expires 2026-11-25T08:00:00.000Z used 2026-10-26T08:00:00.000Z revoked - replacedBy rt_3\n  rt_2 fam_2 u_binh/web hash=sha256(#2) token=- expires 2026-11-25T08:00:00.000Z used - revoked - replacedBy -\n  rt_3 fam_1 u_ana/phone hash=sha256(#3) token=- expires 2026-11-25T08:00:00.000Z used - revoked - replacedBy -\nrefresh #3 -> ok rt_4 fam_1 token #4 expires 2026-11-25T08:00:00.000Z\n  rt_1 fam_1 u_ana/phone hash=sha256(#1) token=- expires 2026-11-25T08:00:00.000Z used 2026-10-26T08:00:00.000Z revoked - replacedBy rt_3\n  rt_2 fam_2 u_binh/web hash=sha256(#2) token=- expires 2026-11-25T08:00:00.000Z used - revoked - replacedBy -\n  rt_3 fam_1 u_ana/phone hash=sha256(#3) token=- expires 2026-11-25T08:00:00.000Z used 2026-10-26T08:00:00.000Z revoked - replacedBy rt_4\n  rt_4 fam_1 u_ana/phone hash=sha256(#4) token=- expires 2026-11-25T08:00:00.000Z used - revoked - replacedBy -\nrefresh #2 -> ok rt_5 fam_2 token #5 expires 2026-11-25T08:00:00.000Z\n  rt_1 fam_1 u_ana/phone hash=sha256(#1) token=- expires 2026-11-25T08:00:00.000Z used 2026-10-26T08:00:00.000Z revoked - replacedBy rt_3\n  rt_2 fam_2 u_binh/web hash=sha256(#2) token=- expires 2026-11-25T08:00:00.000Z used 2026-10-26T08:00:00.000Z revoked - replacedBy rt_5\n  rt_3 fam_1 u_ana/phone hash=sha256(#3) token=- expires 2026-11-25T08:00:00.000Z used 2026-10-26T08:00:00.000Z revoked - replacedBy rt_4\n  rt_4 fam_1 u_ana/phone hash=sha256(#4) token=- expires 2026-11-25T08:00:00.000Z used - revoked - replacedBy -\n  rt_5 fam_2 u_binh/web hash=sha256(#5) token=- expires 2026-11-25T08:00:00.000Z used - revoked - replacedBy -\nplain text: none",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Migration: a release 41 plain-text row is accepted once, moved to its hash and replaced",
+          "input": {
+            "ttlMs": 2592000000,
+            "legacy": [
+              {
+                "id": "rt_901",
+                "familyId": "fam_901",
+                "userId": "u_chi",
+                "deviceId": "tablet",
+                "token": "dhSGZkQjIFnO8_u6AfCe1S4mLkluU6nF0sQ_6BOzwNc",
+                "createdAt": 1792742400000,
+                "expiresAt": 1795334400000
+              },
+              {
+                "id": "rt_902",
+                "familyId": "fam_902",
+                "userId": "u_dan",
+                "deviceId": "phone",
+                "token": "-7jniX6POaxu5XN8qKTWuCqkx6xtFmQPvZ_MvQ7VdhY",
+                "createdAt": 1792569600000,
+                "expiresAt": 1795161600000
+              }
+            ],
+            "ops": [
+              {
+                "op": "refresh",
+                "token": "L1"
+              },
+              {
+                "op": "refresh",
+                "token": "L1"
+              },
+              {
+                "op": "refresh",
+                "token": "#1"
+              }
+            ]
+          },
+          "expected": "refresh L1 -> ok rt_1 fam_901 token #1 expires 2026-11-25T08:00:00.000Z\n  rt_901 fam_901 u_chi/tablet hash=sha256(L1) token=- expires 2026-11-22T08:00:00.000Z used 2026-10-26T08:00:00.000Z revoked - replacedBy rt_1\n  rt_902 fam_902 u_dan/phone hash=- token=PLAIN(L2) expires 2026-11-20T08:00:00.000Z used - revoked - replacedBy -\n  rt_1 fam_901 u_chi/tablet hash=sha256(#1) token=- expires 2026-11-25T08:00:00.000Z used - revoked - replacedBy -\nrefresh L1 -> used\n  rt_901 fam_901 u_chi/tablet hash=sha256(L1) token=- expires 2026-11-22T08:00:00.000Z used 2026-10-26T08:00:00.000Z revoked - replacedBy rt_1\n  rt_902 fam_902 u_dan/phone hash=- token=PLAIN(L2) expires 2026-11-20T08:00:00.000Z used - revoked - replacedBy -\n  rt_1 fam_901 u_chi/tablet hash=sha256(#1) token=- expires 2026-11-25T08:00:00.000Z used - revoked - replacedBy -\nrefresh #1 -> ok rt_2 fam_901 token #2 expires 2026-11-25T08:00:00.000Z\n  rt_901 fam_901 u_chi/tablet hash=sha256(L1) token=- expires 2026-11-22T08:00:00.000Z used 2026-10-26T08:00:00.000Z revoked - replacedBy rt_1\n  rt_902 fam_902 u_dan/phone hash=- token=PLAIN(L2) expires 2026-11-20T08:00:00.000Z used - revoked - replacedBy -\n  rt_1 fam_901 u_chi/tablet hash=sha256(#1) token=- expires 2026-11-25T08:00:00.000Z used 2026-10-26T08:00:00.000Z revoked - replacedBy rt_2\n  rt_2 fam_901 u_chi/tablet hash=sha256(#2) token=- expires 2026-11-25T08:00:00.000Z used - revoked - replacedBy -\nplain text: L2 in the store as plain text",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Legacy rows that are expired, revoked or already used are rejected and still lose their plain text",
+          "input": {
+            "ttlMs": 2592000000,
+            "legacy": [
+              {
+                "id": "rt_911",
+                "familyId": "fam_911",
+                "userId": "u_eve",
+                "deviceId": "phone",
+                "token": "eiz7n2VpPEf_9gaAwqzzyIVSLIAtvTBOqzapjp7hZQI",
+                "createdAt": 1790323200000,
+                "expiresAt": 1792915200000
+              },
+              {
+                "id": "rt_912",
+                "familyId": "fam_912",
+                "userId": "u_eve",
+                "deviceId": "laptop",
+                "token": "-AsY6YKtoSIu5SdZ78lGplrBAV5QPyosB9iIIRUU_oY",
+                "createdAt": 1792828800000,
+                "expiresAt": 1795420800000,
+                "revokedAt": 1792915200000
+              },
+              {
+                "id": "rt_913",
+                "familyId": "fam_913",
+                "userId": "u_fai",
+                "deviceId": "web",
+                "token": "-5wzO6Kgn9wJZe-wiWQUb-1OIeJaxmv0VACaGjMro2k",
+                "createdAt": 1792656000000,
+                "expiresAt": 1795248000000,
+                "usedAt": 1792742400000
+              },
+              {
+                "id": "rt_914",
+                "familyId": "fam_914",
+                "userId": "u_gia",
+                "deviceId": "web",
+                "token": "DSct5ELfcvepRxj8t3_TysfizvuGl5yMOzEKyvBiKGA",
+                "createdAt": 1792137600000,
+                "expiresAt": 1794729600000
+              }
+            ],
+            "ops": [
+              {
+                "op": "refresh",
+                "token": "L1"
+              },
+              {
+                "op": "refresh",
+                "token": "L2"
+              },
+              {
+                "op": "refresh",
+                "token": "L3"
+              },
+              {
+                "op": "refresh",
+                "token": "L1"
+              },
+              {
+                "op": "revoke",
+                "id": "rt_914"
+              },
+              {
+                "op": "refresh",
+                "token": "L4"
+              }
+            ]
+          },
+          "expected": "refresh L1 -> expired\n  rt_911 fam_911 u_eve/phone hash=sha256(L1) token=- expires 2026-10-25T08:00:00.000Z used - revoked - replacedBy -\n  rt_912 fam_912 u_eve/laptop hash=- token=PLAIN(L2) expires 2026-11-23T08:00:00.000Z used - revoked 2026-10-25T08:00:00.000Z replacedBy -\n  rt_913 fam_913 u_fai/web hash=- token=PLAIN(L3) expires 2026-11-21T08:00:00.000Z used 2026-10-23T08:00:00.000Z revoked - replacedBy -\n  rt_914 fam_914 u_gia/web hash=- token=PLAIN(L4) expires 2026-11-15T08:00:00.000Z used - revoked - replacedBy -\nrefresh L2 -> revoked\n  rt_911 fam_911 u_eve/phone hash=sha256(L1) token=- expires 2026-10-25T08:00:00.000Z used - revoked - replacedBy -\n  rt_912 fam_912 u_eve/laptop hash=sha256(L2) token=- expires 2026-11-23T08:00:00.000Z used - revoked 2026-10-25T08:00:00.000Z replacedBy -\n  rt_913 fam_913 u_fai/web hash=- token=PLAIN(L3) expires 2026-11-21T08:00:00.000Z used 2026-10-23T08:00:00.000Z revoked - replacedBy -\n  rt_914 fam_914 u_gia/web hash=- token=PLAIN(L4) expires 2026-11-15T08:00:00.000Z used - revoked - replacedBy -\nrefresh L3 -> used\n  rt_911 fam_911 u_eve/phone hash=sha256(L1) token=- expires 2026-10-25T08:00:00.000Z used - revoked - replacedBy -\n  rt_912 fam_912 u_eve/laptop hash=sha256(L2) token=- expires 2026-11-23T08:00:00.000Z used - revoked 2026-10-25T08:00:00.000Z replacedBy -\n  rt_913 fam_913 u_fai/web hash=sha256(L3) token=- expires 2026-11-21T08:00:00.000Z used 2026-10-23T08:00:00.000Z revoked - replacedBy -\n  rt_914 fam_914 u_gia/web hash=- token=PLAIN(L4) expires 2026-11-15T08:00:00.000Z used - revoked - replacedBy -\nrefresh L1 -> expired\n  rt_911 fam_911 u_eve/phone hash=sha256(L1) token=- expires 2026-10-25T08:00:00.000Z used - revoked - replacedBy -\n  rt_912 fam_912 u_eve/laptop hash=sha256(L2) token=- expires 2026-11-23T08:00:00.000Z used - revoked 2026-10-25T08:00:00.000Z replacedBy -\n  rt_913 fam_913 u_fai/web hash=sha256(L3) token=- expires 2026-11-21T08:00:00.000Z used 2026-10-23T08:00:00.000Z revoked - replacedBy -\n  rt_914 fam_914 u_gia/web hash=- token=PLAIN(L4) expires 2026-11-15T08:00:00.000Z used - revoked - replacedBy -\nrevoke rt_914\n  rt_911 fam_911 u_eve/phone hash=sha256(L1) token=- expires 2026-10-25T08:00:00.000Z used - revoked - replacedBy -\n  rt_912 fam_912 u_eve/laptop hash=sha256(L2) token=- expires 2026-11-23T08:00:00.000Z used - revoked 2026-10-25T08:00:00.000Z replacedBy -\n  rt_913 fam_913 u_fai/web hash=sha256(L3) token=- expires 2026-11-21T08:00:00.000Z used 2026-10-23T08:00:00.000Z revoked - replacedBy -\n  rt_914 fam_914 u_gia/web hash=- token=PLAIN(L4) expires 2026-11-15T08:00:00.000Z used - revoked 2026-10-26T08:00:00.000Z replacedBy -\nrefresh L4 -> revoked\n  rt_911 fam_911 u_eve/phone hash=sha256(L1) token=- expires 2026-10-25T08:00:00.000Z used - revoked - replacedBy -\n  rt_912 fam_912 u_eve/laptop hash=sha256(L2) token=- expires 2026-11-23T08:00:00.000Z used - revoked 2026-10-25T08:00:00.000Z replacedBy -\n  rt_913 fam_913 u_fai/web hash=sha256(L3) token=- expires 2026-11-21T08:00:00.000Z used 2026-10-23T08:00:00.000Z revoked - replacedBy -\n  rt_914 fam_914 u_gia/web hash=sha256(L4) token=- expires 2026-11-15T08:00:00.000Z used - revoked 2026-10-26T08:00:00.000Z replacedBy -\nplain text: none",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Rotation gives a fresh 1-hour TTL; expired exactly at expiresAt; revoking the new row stops it",
+          "input": {
+            "ttlMs": 3600000,
+            "ops": [
+              {
+                "op": "login",
+                "userId": "u_hai",
+                "deviceId": "phone"
+              },
+              {
+                "op": "advance",
+                "ms": 3599999
+              },
+              {
+                "op": "refresh",
+                "token": "#1"
+              },
+              {
+                "op": "advance",
+                "ms": 3599999
+              },
+              {
+                "op": "refresh",
+                "token": "#2"
+              },
+              {
+                "op": "advance",
+                "ms": 3600000
+              },
+              {
+                "op": "refresh",
+                "token": "#3"
+              },
+              {
+                "op": "login",
+                "userId": "u_hai",
+                "deviceId": "phone"
+              },
+              {
+                "op": "refresh",
+                "token": "#4"
+              },
+              {
+                "op": "revoke",
+                "id": "rt_5"
+              },
+              {
+                "op": "refresh",
+                "token": "#5"
+              }
+            ]
+          },
+          "expected": "login u_hai/phone -> rt_1 fam_1 token #1 expires 2026-10-26T09:00:00.000Z\n  rt_1 fam_1 u_hai/phone hash=sha256(#1) token=- expires 2026-10-26T09:00:00.000Z used - revoked - replacedBy -\nadvance to 2026-10-26T08:59:59.999Z\n  rt_1 fam_1 u_hai/phone hash=sha256(#1) token=- expires 2026-10-26T09:00:00.000Z used - revoked - replacedBy -\nrefresh #1 -> ok rt_2 fam_1 token #2 expires 2026-10-26T09:59:59.999Z\n  rt_1 fam_1 u_hai/phone hash=sha256(#1) token=- expires 2026-10-26T09:00:00.000Z used 2026-10-26T08:59:59.999Z revoked - replacedBy rt_2\n  rt_2 fam_1 u_hai/phone hash=sha256(#2) token=- expires 2026-10-26T09:59:59.999Z used - revoked - replacedBy -\nadvance to 2026-10-26T09:59:59.998Z\n  rt_1 fam_1 u_hai/phone hash=sha256(#1) token=- expires 2026-10-26T09:00:00.000Z used 2026-10-26T08:59:59.999Z revoked - replacedBy rt_2\n  rt_2 fam_1 u_hai/phone hash=sha256(#2) token=- expires 2026-10-26T09:59:59.999Z used - revoked - replacedBy -\nrefresh #2 -> ok rt_3 fam_1 token #3 expires 2026-10-26T10:59:59.998Z\n  rt_1 fam_1 u_hai/phone hash=sha256(#1) token=- expires 2026-10-26T09:00:00.000Z used 2026-10-26T08:59:59.999Z revoked - replacedBy rt_2\n  rt_2 fam_1 u_hai/phone hash=sha256(#2) token=- expires 2026-10-26T09:59:59.999Z used 2026-10-26T09:59:59.998Z revoked - replacedBy rt_3\n  rt_3 fam_1 u_hai/phone hash=sha256(#3) token=- expires 2026-10-26T10:59:59.998Z used - revoked - replacedBy -\nadvance to 2026-10-26T10:59:59.998Z\n  rt_1 fam_1 u_hai/phone hash=sha256(#1) token=- expires 2026-10-26T09:00:00.000Z used 2026-10-26T08:59:59.999Z revoked - replacedBy rt_2\n  rt_2 fam_1 u_hai/phone hash=sha256(#2) token=- expires 2026-10-26T09:59:59.999Z used 2026-10-26T09:59:59.998Z revoked - replacedBy rt_3\n  rt_3 fam_1 u_hai/phone hash=sha256(#3) token=- expires 2026-10-26T10:59:59.998Z used - revoked - replacedBy -\nrefresh #3 -> expired\n  rt_1 fam_1 u_hai/phone hash=sha256(#1) token=- expires 2026-10-26T09:00:00.000Z used 2026-10-26T08:59:59.999Z revoked - replacedBy rt_2\n  rt_2 fam_1 u_hai/phone hash=sha256(#2) token=- expires 2026-10-26T09:59:59.999Z used 2026-10-26T09:59:59.998Z revoked - replacedBy rt_3\n  rt_3 fam_1 u_hai/phone hash=sha256(#3) token=- expires 2026-10-26T10:59:59.998Z used - revoked - replacedBy -\nlogin u_hai/phone -> rt_4 fam_2 token #4 expires 2026-10-26T11:59:59.998Z\n  rt_1 fam_1 u_hai/phone hash=sha256(#1) token=- expires 2026-10-26T09:00:00.000Z used 2026-10-26T08:59:59.999Z revoked - replacedBy rt_2\n  rt_2 fam_1 u_hai/phone hash=sha256(#2) token=- expires 2026-10-26T09:59:59.999Z used 2026-10-26T09:59:59.998Z revoked - replacedBy rt_3\n  rt_3 fam_1 u_hai/phone hash=sha256(#3) token=- expires 2026-10-26T10:59:59.998Z used - revoked - replacedBy -\n  rt_4 fam_2 u_hai/phone hash=sha256(#4) token=- expires 2026-10-26T11:59:59.998Z used - revoked - replacedBy -\nrefresh #4 -> ok rt_5 fam_2 token #5 expires 2026-10-26T11:59:59.998Z\n  rt_1 fam_1 u_hai/phone hash=sha256(#1) token=- expires 2026-10-26T09:00:00.000Z used 2026-10-26T08:59:59.999Z revoked - replacedBy rt_2\n  rt_2 fam_1 u_hai/phone hash=sha256(#2) token=- expires 2026-10-26T09:59:59.999Z used 2026-10-26T09:59:59.998Z revoked - replacedBy rt_3\n  rt_3 fam_1 u_hai/phone hash=sha256(#3) token=- expires 2026-10-26T10:59:59.998Z used - revoked - replacedBy -\n  rt_4 fam_2 u_hai/phone hash=sha256(#4) token=- expires 2026-10-26T11:59:59.998Z used 2026-10-26T10:59:59.998Z revoked - replacedBy rt_5\n  rt_5 fam_2 u_hai/phone hash=sha256(#5) token=- expires 2026-10-26T11:59:59.998Z used - revoked - replacedBy -\nrevoke rt_5\n  rt_1 fam_1 u_hai/phone hash=sha256(#1) token=- expires 2026-10-26T09:00:00.000Z used 2026-10-26T08:59:59.999Z revoked - replacedBy rt_2\n  rt_2 fam_1 u_hai/phone hash=sha256(#2) token=- expires 2026-10-26T09:59:59.999Z used 2026-10-26T09:59:59.998Z revoked - replacedBy rt_3\n  rt_3 fam_1 u_hai/phone hash=sha256(#3) token=- expires 2026-10-26T10:59:59.998Z used - revoked - replacedBy -\n  rt_4 fam_2 u_hai/phone hash=sha256(#4) token=- expires 2026-10-26T11:59:59.998Z used 2026-10-26T10:59:59.998Z revoked - replacedBy rt_5\n  rt_5 fam_2 u_hai/phone hash=sha256(#5) token=- expires 2026-10-26T11:59:59.998Z used - revoked 2026-10-26T10:59:59.998Z replacedBy -\nrefresh #5 -> revoked\n  rt_1 fam_1 u_hai/phone hash=sha256(#1) token=- expires 2026-10-26T09:00:00.000Z used 2026-10-26T08:59:59.999Z revoked - replacedBy rt_2\n  rt_2 fam_1 u_hai/phone hash=sha256(#2) token=- expires 2026-10-26T09:59:59.999Z used 2026-10-26T09:59:59.998Z revoked - replacedBy rt_3\n  rt_3 fam_1 u_hai/phone hash=sha256(#3) token=- expires 2026-10-26T10:59:59.998Z used - revoked - replacedBy -\n  rt_4 fam_2 u_hai/phone hash=sha256(#4) token=- expires 2026-10-26T11:59:59.998Z used 2026-10-26T10:59:59.998Z revoked - replacedBy rt_5\n  rt_5 fam_2 u_hai/phone hash=sha256(#5) token=- expires 2026-10-26T11:59:59.998Z used - revoked 2026-10-26T10:59:59.998Z replacedBy -\nplain text: none",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Invalid input: malformed values, a stored hash replayed, an unknown token, a legacy token reused",
+          "input": {
+            "ttlMs": 2592000000,
+            "legacy": [
+              {
+                "id": "rt_921",
+                "familyId": "fam_921",
+                "userId": "u_ian",
+                "deviceId": "phone",
+                "token": "bTYUilC8xtgIbIMbxqE5TinU52IC3UX2kvfrmS0SdmY",
+                "createdAt": 1792915200000,
+                "expiresAt": 1795507200000
+              }
+            ],
+            "ops": [
+              {
+                "op": "login",
+                "userId": "u_ian",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "refresh",
+                "token": null
+              },
+              {
+                "op": "refresh",
+                "token": ""
+              },
+              {
+                "op": "refresh",
+                "token": 7
+              },
+              {
+                "op": "refresh",
+                "token": [
+                  "#1"
+                ]
+              },
+              {
+                "op": "refresh",
+                "token": "#1x"
+              },
+              {
+                "op": "refresh",
+                "token": "hash:rt_1"
+              },
+              {
+                "op": "refresh",
+                "token": "bmV2ZXItaXNzdWVkLWJ5LXJlbGVhc2UtNDEtb3ItNDI"
+              },
+              {
+                "op": "refresh",
+                "token": "L1"
+              },
+              {
+                "op": "refresh",
+                "token": "hash:rt_921"
+              },
+              {
+                "op": "refresh",
+                "token": "L1"
+              },
+              {
+                "op": "refresh",
+                "token": "#1"
+              }
+            ]
+          },
+          "expected": "login u_ian/laptop -> rt_1 fam_1 token #1 expires 2026-11-25T08:00:00.000Z\n  rt_921 fam_921 u_ian/phone hash=- token=PLAIN(L1) expires 2026-11-24T08:00:00.000Z used - revoked - replacedBy -\n  rt_1 fam_1 u_ian/laptop hash=sha256(#1) token=- expires 2026-11-25T08:00:00.000Z used - revoked - replacedBy -\nrefresh null -> malformed\n  rt_921 fam_921 u_ian/phone hash=- token=PLAIN(L1) expires 2026-11-24T08:00:00.000Z used - revoked - replacedBy -\n  rt_1 fam_1 u_ian/laptop hash=sha256(#1) token=- expires 2026-11-25T08:00:00.000Z used - revoked - replacedBy -\nrefresh \"\" -> malformed\n  rt_921 fam_921 u_ian/phone hash=- token=PLAIN(L1) expires 2026-11-24T08:00:00.000Z used - revoked - replacedBy -\n  rt_1 fam_1 u_ian/laptop hash=sha256(#1) token=- expires 2026-11-25T08:00:00.000Z used - revoked - replacedBy -\nrefresh 7 -> malformed\n  rt_921 fam_921 u_ian/phone hash=- token=PLAIN(L1) expires 2026-11-24T08:00:00.000Z used - revoked - replacedBy -\n  rt_1 fam_1 u_ian/laptop hash=sha256(#1) token=- expires 2026-11-25T08:00:00.000Z used - revoked - replacedBy -\nrefresh [\"#1\"] -> malformed\n  rt_921 fam_921 u_ian/phone hash=- token=PLAIN(L1) expires 2026-11-24T08:00:00.000Z used - revoked - replacedBy -\n  rt_1 fam_1 u_ian/laptop hash=sha256(#1) token=- expires 2026-11-25T08:00:00.000Z used - revoked - replacedBy -\nrefresh \"#1x\" -> malformed\n  rt_921 fam_921 u_ian/phone hash=- token=PLAIN(L1) expires 2026-11-24T08:00:00.000Z used - revoked - replacedBy -\n  rt_1 fam_1 u_ian/laptop hash=sha256(#1) token=- expires 2026-11-25T08:00:00.000Z used - revoked - replacedBy -\nrefresh tokenHash of rt_1 -> malformed\n  rt_921 fam_921 u_ian/phone hash=- token=PLAIN(L1) expires 2026-11-24T08:00:00.000Z used - revoked - replacedBy -\n  rt_1 fam_1 u_ian/laptop hash=sha256(#1) token=- expires 2026-11-25T08:00:00.000Z used - revoked - replacedBy -\nrefresh \"bmV2ZXItaXNzdWVkLWJ5LXJlbGVhc2UtNDEtb3ItNDI\" -> unknown\n  rt_921 fam_921 u_ian/phone hash=- token=PLAIN(L1) expires 2026-11-24T08:00:00.000Z used - revoked - replacedBy -\n  rt_1 fam_1 u_ian/laptop hash=sha256(#1) token=- expires 2026-11-25T08:00:00.000Z used - revoked - replacedBy -\nrefresh L1 -> ok rt_2 fam_921 token #2 expires 2026-11-25T08:00:00.000Z\n  rt_921 fam_921 u_ian/phone hash=sha256(L1) token=- expires 2026-11-24T08:00:00.000Z used 2026-10-26T08:00:00.000Z revoked - replacedBy rt_2\n  rt_1 fam_1 u_ian/laptop hash=sha256(#1) token=- expires 2026-11-25T08:00:00.000Z used - revoked - replacedBy -\n  rt_2 fam_921 u_ian/phone hash=sha256(#2) token=- expires 2026-11-25T08:00:00.000Z used - revoked - replacedBy -\nrefresh tokenHash of rt_921 -> malformed\n  rt_921 fam_921 u_ian/phone hash=sha256(L1) token=- expires 2026-11-24T08:00:00.000Z used 2026-10-26T08:00:00.000Z revoked - replacedBy rt_2\n  rt_1 fam_1 u_ian/laptop hash=sha256(#1) token=- expires 2026-11-25T08:00:00.000Z used - revoked - replacedBy -\n  rt_2 fam_921 u_ian/phone hash=sha256(#2) token=- expires 2026-11-25T08:00:00.000Z used - revoked - replacedBy -\nrefresh L1 -> used\n  rt_921 fam_921 u_ian/phone hash=sha256(L1) token=- expires 2026-11-24T08:00:00.000Z used 2026-10-26T08:00:00.000Z revoked - replacedBy rt_2\n  rt_1 fam_1 u_ian/laptop hash=sha256(#1) token=- expires 2026-11-25T08:00:00.000Z used - revoked - replacedBy -\n  rt_2 fam_921 u_ian/phone hash=sha256(#2) token=- expires 2026-11-25T08:00:00.000Z used - revoked - replacedBy -\nrefresh #1 -> ok rt_3 fam_1 token #3 expires 2026-11-25T08:00:00.000Z\n  rt_921 fam_921 u_ian/phone hash=sha256(L1) token=- expires 2026-11-24T08:00:00.000Z used 2026-10-26T08:00:00.000Z revoked - replacedBy rt_2\n  rt_1 fam_1 u_ian/laptop hash=sha256(#1) token=- expires 2026-11-25T08:00:00.000Z used 2026-10-26T08:00:00.000Z revoked - replacedBy rt_3\n  rt_2 fam_921 u_ian/phone hash=sha256(#2) token=- expires 2026-11-25T08:00:00.000Z used - revoked - replacedBy -\n  rt_3 fam_1 u_ian/laptop hash=sha256(#3) token=- expires 2026-11-25T08:00:00.000Z used - revoked - replacedBy -\nplain text: none",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Large: 40 legacy rows and 40 sign-ins refreshed 4 times, 80 old tokens replayed, 20 expired",
+          "input": {
+            "ttlMs": 2592000000,
+            "quiet": true,
+            "legacy": [
+              {
+                "id": "rt_901",
+                "familyId": "fam_901",
+                "userId": "u_101",
+                "deviceId": "phone",
+                "token": "dhSGZkQjIFnO8_u6AfCe1S4mLkluU6nF0sQ_6BOzwNc",
+                "createdAt": 1792915200000,
+                "expiresAt": 1795507200000
+              },
+              {
+                "id": "rt_902",
+                "familyId": "fam_902",
+                "userId": "u_102",
+                "deviceId": "web",
+                "token": "-7jniX6POaxu5XN8qKTWuCqkx6xtFmQPvZ_MvQ7VdhY",
+                "createdAt": 1792828800000,
+                "expiresAt": 1795420800000
+              },
+              {
+                "id": "rt_903",
+                "familyId": "fam_903",
+                "userId": "u_103",
+                "deviceId": "phone",
+                "token": "Y2N3Bap678h5zltA3knYlX4WWZIiHIIl7oYspLf8kE4",
+                "createdAt": 1792742400000,
+                "expiresAt": 1795334400000
+              },
+              {
+                "id": "rt_904",
+                "familyId": "fam_904",
+                "userId": "u_104",
+                "deviceId": "web",
+                "token": "JWTHYGte3ddJmfOALOI7szWxqAYpzuIKrSUhsTs79Lw",
+                "createdAt": 1792656000000,
+                "expiresAt": 1795248000000
+              },
+              {
+                "id": "rt_905",
+                "familyId": "fam_905",
+                "userId": "u_105",
+                "deviceId": "phone",
+                "token": "lLF8FJrdvVJjbwdPF8lyn4Zq00Jg_vrYZoS7NGnpE58",
+                "createdAt": 1792569600000,
+                "expiresAt": 1795161600000
+              },
+              {
+                "id": "rt_906",
+                "familyId": "fam_906",
+                "userId": "u_106",
+                "deviceId": "web",
+                "token": "Hz5l7nSfCsEUgPfoDzerGVF6n_d0ISDgiYrRTlmS2Ys",
+                "createdAt": 1792483200000,
+                "expiresAt": 1795075200000
+              },
+              {
+                "id": "rt_907",
+                "familyId": "fam_907",
+                "userId": "u_107",
+                "deviceId": "phone",
+                "token": "zESKs-t580wEOAsMNuGx8uJzCub26vBSXPHVRPRIJ8Q",
+                "createdAt": 1792396800000,
+                "expiresAt": 1794988800000
+              },
+              {
+                "id": "rt_908",
+                "familyId": "fam_908",
+                "userId": "u_108",
+                "deviceId": "web",
+                "token": "g3jH3Xaxy7QxINMCdZyKqmWlYWPMoLvARzFbf5Zmbws",
+                "createdAt": 1792310400000,
+                "expiresAt": 1794902400000
+              },
+              {
+                "id": "rt_909",
+                "familyId": "fam_909",
+                "userId": "u_109",
+                "deviceId": "phone",
+                "token": "exEbxHSUX-GZF9apqZh51EOQubgNhnsIKFpcWuCTGFg",
+                "createdAt": 1792224000000,
+                "expiresAt": 1794816000000
+              },
+              {
+                "id": "rt_910",
+                "familyId": "fam_910",
+                "userId": "u_110",
+                "deviceId": "web",
+                "token": "5oAF4v_HuMzrEG4HGVM884Gt-ktSKaFM-RyBoyKlwBk",
+                "createdAt": 1793001600000,
+                "expiresAt": 1795593600000
+              },
+              {
+                "id": "rt_911",
+                "familyId": "fam_911",
+                "userId": "u_111",
+                "deviceId": "phone",
+                "token": "eiz7n2VpPEf_9gaAwqzzyIVSLIAtvTBOqzapjp7hZQI",
+                "createdAt": 1792915200000,
+                "expiresAt": 1795507200000
+              },
+              {
+                "id": "rt_912",
+                "familyId": "fam_912",
+                "userId": "u_112",
+                "deviceId": "web",
+                "token": "-AsY6YKtoSIu5SdZ78lGplrBAV5QPyosB9iIIRUU_oY",
+                "createdAt": 1792828800000,
+                "expiresAt": 1795420800000
+              },
+              {
+                "id": "rt_913",
+                "familyId": "fam_913",
+                "userId": "u_113",
+                "deviceId": "phone",
+                "token": "-5wzO6Kgn9wJZe-wiWQUb-1OIeJaxmv0VACaGjMro2k",
+                "createdAt": 1792742400000,
+                "expiresAt": 1795334400000
+              },
+              {
+                "id": "rt_914",
+                "familyId": "fam_914",
+                "userId": "u_114",
+                "deviceId": "web",
+                "token": "DSct5ELfcvepRxj8t3_TysfizvuGl5yMOzEKyvBiKGA",
+                "createdAt": 1792656000000,
+                "expiresAt": 1795248000000
+              },
+              {
+                "id": "rt_915",
+                "familyId": "fam_915",
+                "userId": "u_115",
+                "deviceId": "phone",
+                "token": "bfV_sy8zn1aVzFX-Mnj2S6rRAZo2zz_6Q4uHrKQmwRo",
+                "createdAt": 1792569600000,
+                "expiresAt": 1795161600000
+              },
+              {
+                "id": "rt_916",
+                "familyId": "fam_916",
+                "userId": "u_116",
+                "deviceId": "web",
+                "token": "Pjud0V9pjWKsOj4Wx-3l-C83LmsiRceiq9i8yet0lSU",
+                "createdAt": 1792483200000,
+                "expiresAt": 1795075200000
+              },
+              {
+                "id": "rt_917",
+                "familyId": "fam_917",
+                "userId": "u_117",
+                "deviceId": "phone",
+                "token": "KjFiitSV7yPyb06fH_BuTNOBXnYTD1qxWQG0Akw1ybU",
+                "createdAt": 1792396800000,
+                "expiresAt": 1794988800000
+              },
+              {
+                "id": "rt_918",
+                "familyId": "fam_918",
+                "userId": "u_118",
+                "deviceId": "web",
+                "token": "hWMRV6YGN1yDcxv9BRjk61xcBmMilB0uGJ4dk-Sxuh4",
+                "createdAt": 1792310400000,
+                "expiresAt": 1794902400000
+              },
+              {
+                "id": "rt_919",
+                "familyId": "fam_919",
+                "userId": "u_119",
+                "deviceId": "phone",
+                "token": "zYZ3-tcYdc3FAihoTIQIl-WiieGZMYKV-ilp3Q0OLVQ",
+                "createdAt": 1792224000000,
+                "expiresAt": 1794816000000
+              },
+              {
+                "id": "rt_920",
+                "familyId": "fam_920",
+                "userId": "u_120",
+                "deviceId": "web",
+                "token": "C-ifg6660VjLmkrUOiksUHUXwG23-41y8WhOYQAcI48",
+                "createdAt": 1793001600000,
+                "expiresAt": 1795593600000
+              },
+              {
+                "id": "rt_921",
+                "familyId": "fam_921",
+                "userId": "u_121",
+                "deviceId": "phone",
+                "token": "bTYUilC8xtgIbIMbxqE5TinU52IC3UX2kvfrmS0SdmY",
+                "createdAt": 1792915200000,
+                "expiresAt": 1795507200000
+              },
+              {
+                "id": "rt_922",
+                "familyId": "fam_922",
+                "userId": "u_122",
+                "deviceId": "web",
+                "token": "osoGIU0-TbnXYGZKBWmMWgc_IPbHRMgbzTzpEOJWeKE",
+                "createdAt": 1792828800000,
+                "expiresAt": 1795420800000
+              },
+              {
+                "id": "rt_923",
+                "familyId": "fam_923",
+                "userId": "u_123",
+                "deviceId": "phone",
+                "token": "izMuqbFY27eaWfSJFGBC-3BwWeZngI4BqdOknIBXqUk",
+                "createdAt": 1792742400000,
+                "expiresAt": 1795334400000
+              },
+              {
+                "id": "rt_924",
+                "familyId": "fam_924",
+                "userId": "u_124",
+                "deviceId": "web",
+                "token": "QqthDKOtTw2FeZ_IezgVlsQrokIJw8IEm74xDi9PSug",
+                "createdAt": 1792656000000,
+                "expiresAt": 1795248000000
+              },
+              {
+                "id": "rt_925",
+                "familyId": "fam_925",
+                "userId": "u_125",
+                "deviceId": "phone",
+                "token": "jBYuKWH7jIn3FiPuiFw1LY0UfVDa0wIbhq6G3ymQj9c",
+                "createdAt": 1792569600000,
+                "expiresAt": 1795161600000
+              },
+              {
+                "id": "rt_926",
+                "familyId": "fam_926",
+                "userId": "u_126",
+                "deviceId": "web",
+                "token": "R4fThY9OBYke9AX0XsH6m_9eeNwiqXVhau7f828IYHU",
+                "createdAt": 1792483200000,
+                "expiresAt": 1795075200000
+              },
+              {
+                "id": "rt_927",
+                "familyId": "fam_927",
+                "userId": "u_127",
+                "deviceId": "phone",
+                "token": "AbgnwxNZo7g449SDc3ThQcpCBGtpjD2V7nGaobQgJTM",
+                "createdAt": 1792396800000,
+                "expiresAt": 1794988800000
+              },
+              {
+                "id": "rt_928",
+                "familyId": "fam_928",
+                "userId": "u_128",
+                "deviceId": "web",
+                "token": "FyPcF7IrYxgJdUsPK4OlA_a2GMxXI7ovumLIyoGSnu4",
+                "createdAt": 1792310400000,
+                "expiresAt": 1794902400000
+              },
+              {
+                "id": "rt_929",
+                "familyId": "fam_929",
+                "userId": "u_129",
+                "deviceId": "phone",
+                "token": "C3XejjpF-syuBiUOC1U-epFs7dDpOw8XJTFUvpiw7Do",
+                "createdAt": 1792224000000,
+                "expiresAt": 1794816000000
+              },
+              {
+                "id": "rt_930",
+                "familyId": "fam_930",
+                "userId": "u_130",
+                "deviceId": "web",
+                "token": "mKC_y4LOFYs2PNfbGHE5itiuyCXB2lMzvmr7tDWPvmU",
+                "createdAt": 1793001600000,
+                "expiresAt": 1795593600000
+              },
+              {
+                "id": "rt_931",
+                "familyId": "fam_931",
+                "userId": "u_131",
+                "deviceId": "phone",
+                "token": "8mIbNw50JvtPAT1IOgGG1YI1mRg8_bd12jYnk5Gf7gc",
+                "createdAt": 1792915200000,
+                "expiresAt": 1795507200000
+              },
+              {
+                "id": "rt_932",
+                "familyId": "fam_932",
+                "userId": "u_132",
+                "deviceId": "web",
+                "token": "DOfrBQsCqadr4Z60YpvKw7owqo7P0-0zVftcAR3h7pY",
+                "createdAt": 1792828800000,
+                "expiresAt": 1795420800000
+              },
+              {
+                "id": "rt_933",
+                "familyId": "fam_933",
+                "userId": "u_133",
+                "deviceId": "phone",
+                "token": "M_C3tRZn2lMI3-EPCCXUZF8hQG3V9FfRpGTQe8zo-ok",
+                "createdAt": 1792742400000,
+                "expiresAt": 1795334400000
+              },
+              {
+                "id": "rt_934",
+                "familyId": "fam_934",
+                "userId": "u_134",
+                "deviceId": "web",
+                "token": "tjZ9o15PpeLIoMLdedumzPzcZyOU5M38rsBNhoJk4WM",
+                "createdAt": 1792656000000,
+                "expiresAt": 1795248000000
+              },
+              {
+                "id": "rt_935",
+                "familyId": "fam_935",
+                "userId": "u_135",
+                "deviceId": "phone",
+                "token": "vPvOh9fZjvwnNJzjBANhdUDPTINAynEbtnpJkpQf15c",
+                "createdAt": 1792569600000,
+                "expiresAt": 1795161600000
+              },
+              {
+                "id": "rt_936",
+                "familyId": "fam_936",
+                "userId": "u_136",
+                "deviceId": "web",
+                "token": "m65HhLowzN_1XGLL80hcrGsQ1pKjF_-weROb4_Welm4",
+                "createdAt": 1792483200000,
+                "expiresAt": 1795075200000
+              },
+              {
+                "id": "rt_937",
+                "familyId": "fam_937",
+                "userId": "u_137",
+                "deviceId": "phone",
+                "token": "lusrbQ8-GQvv2DngLaHt5TRsM4fGXg6sygDv6rz9_FU",
+                "createdAt": 1792396800000,
+                "expiresAt": 1794988800000
+              },
+              {
+                "id": "rt_938",
+                "familyId": "fam_938",
+                "userId": "u_138",
+                "deviceId": "web",
+                "token": "xcX7gocfZPzhaYl4vilNN0zhm-ETQehg1jJP2j0mVLk",
+                "createdAt": 1792310400000,
+                "expiresAt": 1794902400000
+              },
+              {
+                "id": "rt_939",
+                "familyId": "fam_939",
+                "userId": "u_139",
+                "deviceId": "phone",
+                "token": "fOsoQkbXw8zVV6TcyTP9tj6Ae9yRuBNl80pEcdcA6VA",
+                "createdAt": 1792224000000,
+                "expiresAt": 1794816000000
+              },
+              {
+                "id": "rt_940",
+                "familyId": "fam_940",
+                "userId": "u_140",
+                "deviceId": "web",
+                "token": "ozgeUt1ZkTJcC1E8adWBjjsughigRCH15011Q3-ynGQ",
+                "createdAt": 1793001600000,
+                "expiresAt": 1795593600000
+              }
+            ],
+            "ops": [
+              {
+                "op": "login",
+                "userId": "u_201",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_202",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_203",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "login",
+                "userId": "u_204",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_205",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_206",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "login",
+                "userId": "u_207",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_208",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_209",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "login",
+                "userId": "u_210",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_211",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_212",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "login",
+                "userId": "u_213",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_214",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_215",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "login",
+                "userId": "u_216",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_217",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_218",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "login",
+                "userId": "u_219",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_220",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_221",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "login",
+                "userId": "u_222",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_223",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_224",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "login",
+                "userId": "u_225",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_226",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_227",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "login",
+                "userId": "u_228",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_229",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_230",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "login",
+                "userId": "u_231",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_232",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_233",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "login",
+                "userId": "u_234",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_235",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_236",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "login",
+                "userId": "u_237",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_238",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "userId": "u_239",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "login",
+                "userId": "u_240",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "advance",
+                "ms": 172800000
+              },
+              {
+                "op": "refresh",
+                "token": "L1"
+              },
+              {
+                "op": "refresh",
+                "token": "L2"
+              },
+              {
+                "op": "refresh",
+                "token": "L3"
+              },
+              {
+                "op": "refresh",
+                "token": "L4"
+              },
+              {
+                "op": "refresh",
+                "token": "L5"
+              },
+              {
+                "op": "refresh",
+                "token": "L6"
+              },
+              {
+                "op": "refresh",
+                "token": "L7"
+              },
+              {
+                "op": "refresh",
+                "token": "L8"
+              },
+              {
+                "op": "refresh",
+                "token": "L9"
+              },
+              {
+                "op": "refresh",
+                "token": "L10"
+              },
+              {
+                "op": "refresh",
+                "token": "L11"
+              },
+              {
+                "op": "refresh",
+                "token": "L12"
+              },
+              {
+                "op": "refresh",
+                "token": "L13"
+              },
+              {
+                "op": "refresh",
+                "token": "L14"
+              },
+              {
+                "op": "refresh",
+                "token": "L15"
+              },
+              {
+                "op": "refresh",
+                "token": "L16"
+              },
+              {
+                "op": "refresh",
+                "token": "L17"
+              },
+              {
+                "op": "refresh",
+                "token": "L18"
+              },
+              {
+                "op": "refresh",
+                "token": "L19"
+              },
+              {
+                "op": "refresh",
+                "token": "L20"
+              },
+              {
+                "op": "refresh",
+                "token": "L21"
+              },
+              {
+                "op": "refresh",
+                "token": "L22"
+              },
+              {
+                "op": "refresh",
+                "token": "L23"
+              },
+              {
+                "op": "refresh",
+                "token": "L24"
+              },
+              {
+                "op": "refresh",
+                "token": "L25"
+              },
+              {
+                "op": "refresh",
+                "token": "L26"
+              },
+              {
+                "op": "refresh",
+                "token": "L27"
+              },
+              {
+                "op": "refresh",
+                "token": "L28"
+              },
+              {
+                "op": "refresh",
+                "token": "L29"
+              },
+              {
+                "op": "refresh",
+                "token": "L30"
+              },
+              {
+                "op": "refresh",
+                "token": "L31"
+              },
+              {
+                "op": "refresh",
+                "token": "L32"
+              },
+              {
+                "op": "refresh",
+                "token": "L33"
+              },
+              {
+                "op": "refresh",
+                "token": "L34"
+              },
+              {
+                "op": "refresh",
+                "token": "L35"
+              },
+              {
+                "op": "refresh",
+                "token": "L36"
+              },
+              {
+                "op": "refresh",
+                "token": "L37"
+              },
+              {
+                "op": "refresh",
+                "token": "L38"
+              },
+              {
+                "op": "refresh",
+                "token": "L39"
+              },
+              {
+                "op": "refresh",
+                "token": "L40"
+              },
+              {
+                "op": "refresh",
+                "token": "#1"
+              },
+              {
+                "op": "refresh",
+                "token": "#2"
+              },
+              {
+                "op": "refresh",
+                "token": "#3"
+              },
+              {
+                "op": "refresh",
+                "token": "#4"
+              },
+              {
+                "op": "refresh",
+                "token": "#5"
+              },
+              {
+                "op": "refresh",
+                "token": "#6"
+              },
+              {
+                "op": "refresh",
+                "token": "#7"
+              },
+              {
+                "op": "refresh",
+                "token": "#8"
+              },
+              {
+                "op": "refresh",
+                "token": "#9"
+              },
+              {
+                "op": "refresh",
+                "token": "#10"
+              },
+              {
+                "op": "refresh",
+                "token": "#11"
+              },
+              {
+                "op": "refresh",
+                "token": "#12"
+              },
+              {
+                "op": "refresh",
+                "token": "#13"
+              },
+              {
+                "op": "refresh",
+                "token": "#14"
+              },
+              {
+                "op": "refresh",
+                "token": "#15"
+              },
+              {
+                "op": "refresh",
+                "token": "#16"
+              },
+              {
+                "op": "refresh",
+                "token": "#17"
+              },
+              {
+                "op": "refresh",
+                "token": "#18"
+              },
+              {
+                "op": "refresh",
+                "token": "#19"
+              },
+              {
+                "op": "refresh",
+                "token": "#20"
+              },
+              {
+                "op": "refresh",
+                "token": "#21"
+              },
+              {
+                "op": "refresh",
+                "token": "#22"
+              },
+              {
+                "op": "refresh",
+                "token": "#23"
+              },
+              {
+                "op": "refresh",
+                "token": "#24"
+              },
+              {
+                "op": "refresh",
+                "token": "#25"
+              },
+              {
+                "op": "refresh",
+                "token": "#26"
+              },
+              {
+                "op": "refresh",
+                "token": "#27"
+              },
+              {
+                "op": "refresh",
+                "token": "#28"
+              },
+              {
+                "op": "refresh",
+                "token": "#29"
+              },
+              {
+                "op": "refresh",
+                "token": "#30"
+              },
+              {
+                "op": "refresh",
+                "token": "#31"
+              },
+              {
+                "op": "refresh",
+                "token": "#32"
+              },
+              {
+                "op": "refresh",
+                "token": "#33"
+              },
+              {
+                "op": "refresh",
+                "token": "#34"
+              },
+              {
+                "op": "refresh",
+                "token": "#35"
+              },
+              {
+                "op": "refresh",
+                "token": "#36"
+              },
+              {
+                "op": "refresh",
+                "token": "#37"
+              },
+              {
+                "op": "refresh",
+                "token": "#38"
+              },
+              {
+                "op": "refresh",
+                "token": "#39"
+              },
+              {
+                "op": "refresh",
+                "token": "#40"
+              },
+              {
+                "op": "advance",
+                "ms": 172800000
+              },
+              {
+                "op": "refresh",
+                "token": "#41"
+              },
+              {
+                "op": "refresh",
+                "token": "#42"
+              },
+              {
+                "op": "refresh",
+                "token": "#43"
+              },
+              {
+                "op": "refresh",
+                "token": "#44"
+              },
+              {
+                "op": "refresh",
+                "token": "#45"
+              },
+              {
+                "op": "refresh",
+                "token": "#46"
+              },
+              {
+                "op": "refresh",
+                "token": "#47"
+              },
+              {
+                "op": "refresh",
+                "token": "#48"
+              },
+              {
+                "op": "refresh",
+                "token": "#49"
+              },
+              {
+                "op": "refresh",
+                "token": "#50"
+              },
+              {
+                "op": "refresh",
+                "token": "#51"
+              },
+              {
+                "op": "refresh",
+                "token": "#52"
+              },
+              {
+                "op": "refresh",
+                "token": "#53"
+              },
+              {
+                "op": "refresh",
+                "token": "#54"
+              },
+              {
+                "op": "refresh",
+                "token": "#55"
+              },
+              {
+                "op": "refresh",
+                "token": "#56"
+              },
+              {
+                "op": "refresh",
+                "token": "#57"
+              },
+              {
+                "op": "refresh",
+                "token": "#58"
+              },
+              {
+                "op": "refresh",
+                "token": "#59"
+              },
+              {
+                "op": "refresh",
+                "token": "#60"
+              },
+              {
+                "op": "refresh",
+                "token": "#61"
+              },
+              {
+                "op": "refresh",
+                "token": "#62"
+              },
+              {
+                "op": "refresh",
+                "token": "#63"
+              },
+              {
+                "op": "refresh",
+                "token": "#64"
+              },
+              {
+                "op": "refresh",
+                "token": "#65"
+              },
+              {
+                "op": "refresh",
+                "token": "#66"
+              },
+              {
+                "op": "refresh",
+                "token": "#67"
+              },
+              {
+                "op": "refresh",
+                "token": "#68"
+              },
+              {
+                "op": "refresh",
+                "token": "#69"
+              },
+              {
+                "op": "refresh",
+                "token": "#70"
+              },
+              {
+                "op": "refresh",
+                "token": "#71"
+              },
+              {
+                "op": "refresh",
+                "token": "#72"
+              },
+              {
+                "op": "refresh",
+                "token": "#73"
+              },
+              {
+                "op": "refresh",
+                "token": "#74"
+              },
+              {
+                "op": "refresh",
+                "token": "#75"
+              },
+              {
+                "op": "refresh",
+                "token": "#76"
+              },
+              {
+                "op": "refresh",
+                "token": "#77"
+              },
+              {
+                "op": "refresh",
+                "token": "#78"
+              },
+              {
+                "op": "refresh",
+                "token": "#79"
+              },
+              {
+                "op": "refresh",
+                "token": "#80"
+              },
+              {
+                "op": "refresh",
+                "token": "#81"
+              },
+              {
+                "op": "refresh",
+                "token": "#82"
+              },
+              {
+                "op": "refresh",
+                "token": "#83"
+              },
+              {
+                "op": "refresh",
+                "token": "#84"
+              },
+              {
+                "op": "refresh",
+                "token": "#85"
+              },
+              {
+                "op": "refresh",
+                "token": "#86"
+              },
+              {
+                "op": "refresh",
+                "token": "#87"
+              },
+              {
+                "op": "refresh",
+                "token": "#88"
+              },
+              {
+                "op": "refresh",
+                "token": "#89"
+              },
+              {
+                "op": "refresh",
+                "token": "#90"
+              },
+              {
+                "op": "refresh",
+                "token": "#91"
+              },
+              {
+                "op": "refresh",
+                "token": "#92"
+              },
+              {
+                "op": "refresh",
+                "token": "#93"
+              },
+              {
+                "op": "refresh",
+                "token": "#94"
+              },
+              {
+                "op": "refresh",
+                "token": "#95"
+              },
+              {
+                "op": "refresh",
+                "token": "#96"
+              },
+              {
+                "op": "refresh",
+                "token": "#97"
+              },
+              {
+                "op": "refresh",
+                "token": "#98"
+              },
+              {
+                "op": "refresh",
+                "token": "#99"
+              },
+              {
+                "op": "refresh",
+                "token": "#100"
+              },
+              {
+                "op": "refresh",
+                "token": "#101"
+              },
+              {
+                "op": "refresh",
+                "token": "#102"
+              },
+              {
+                "op": "refresh",
+                "token": "#103"
+              },
+              {
+                "op": "refresh",
+                "token": "#104"
+              },
+              {
+                "op": "refresh",
+                "token": "#105"
+              },
+              {
+                "op": "refresh",
+                "token": "#106"
+              },
+              {
+                "op": "refresh",
+                "token": "#107"
+              },
+              {
+                "op": "refresh",
+                "token": "#108"
+              },
+              {
+                "op": "refresh",
+                "token": "#109"
+              },
+              {
+                "op": "refresh",
+                "token": "#110"
+              },
+              {
+                "op": "refresh",
+                "token": "#111"
+              },
+              {
+                "op": "refresh",
+                "token": "#112"
+              },
+              {
+                "op": "refresh",
+                "token": "#113"
+              },
+              {
+                "op": "refresh",
+                "token": "#114"
+              },
+              {
+                "op": "refresh",
+                "token": "#115"
+              },
+              {
+                "op": "refresh",
+                "token": "#116"
+              },
+              {
+                "op": "refresh",
+                "token": "#117"
+              },
+              {
+                "op": "refresh",
+                "token": "#118"
+              },
+              {
+                "op": "refresh",
+                "token": "#119"
+              },
+              {
+                "op": "refresh",
+                "token": "#120"
+              },
+              {
+                "op": "advance",
+                "ms": 172800000
+              },
+              {
+                "op": "refresh",
+                "token": "#121"
+              },
+              {
+                "op": "refresh",
+                "token": "#122"
+              },
+              {
+                "op": "refresh",
+                "token": "#123"
+              },
+              {
+                "op": "refresh",
+                "token": "#124"
+              },
+              {
+                "op": "refresh",
+                "token": "#125"
+              },
+              {
+                "op": "refresh",
+                "token": "#126"
+              },
+              {
+                "op": "refresh",
+                "token": "#127"
+              },
+              {
+                "op": "refresh",
+                "token": "#128"
+              },
+              {
+                "op": "refresh",
+                "token": "#129"
+              },
+              {
+                "op": "refresh",
+                "token": "#130"
+              },
+              {
+                "op": "refresh",
+                "token": "#131"
+              },
+              {
+                "op": "refresh",
+                "token": "#132"
+              },
+              {
+                "op": "refresh",
+                "token": "#133"
+              },
+              {
+                "op": "refresh",
+                "token": "#134"
+              },
+              {
+                "op": "refresh",
+                "token": "#135"
+              },
+              {
+                "op": "refresh",
+                "token": "#136"
+              },
+              {
+                "op": "refresh",
+                "token": "#137"
+              },
+              {
+                "op": "refresh",
+                "token": "#138"
+              },
+              {
+                "op": "refresh",
+                "token": "#139"
+              },
+              {
+                "op": "refresh",
+                "token": "#140"
+              },
+              {
+                "op": "refresh",
+                "token": "#141"
+              },
+              {
+                "op": "refresh",
+                "token": "#142"
+              },
+              {
+                "op": "refresh",
+                "token": "#143"
+              },
+              {
+                "op": "refresh",
+                "token": "#144"
+              },
+              {
+                "op": "refresh",
+                "token": "#145"
+              },
+              {
+                "op": "refresh",
+                "token": "#146"
+              },
+              {
+                "op": "refresh",
+                "token": "#147"
+              },
+              {
+                "op": "refresh",
+                "token": "#148"
+              },
+              {
+                "op": "refresh",
+                "token": "#149"
+              },
+              {
+                "op": "refresh",
+                "token": "#150"
+              },
+              {
+                "op": "refresh",
+                "token": "#151"
+              },
+              {
+                "op": "refresh",
+                "token": "#152"
+              },
+              {
+                "op": "refresh",
+                "token": "#153"
+              },
+              {
+                "op": "refresh",
+                "token": "#154"
+              },
+              {
+                "op": "refresh",
+                "token": "#155"
+              },
+              {
+                "op": "refresh",
+                "token": "#156"
+              },
+              {
+                "op": "refresh",
+                "token": "#157"
+              },
+              {
+                "op": "refresh",
+                "token": "#158"
+              },
+              {
+                "op": "refresh",
+                "token": "#159"
+              },
+              {
+                "op": "refresh",
+                "token": "#160"
+              },
+              {
+                "op": "refresh",
+                "token": "#161"
+              },
+              {
+                "op": "refresh",
+                "token": "#162"
+              },
+              {
+                "op": "refresh",
+                "token": "#163"
+              },
+              {
+                "op": "refresh",
+                "token": "#164"
+              },
+              {
+                "op": "refresh",
+                "token": "#165"
+              },
+              {
+                "op": "refresh",
+                "token": "#166"
+              },
+              {
+                "op": "refresh",
+                "token": "#167"
+              },
+              {
+                "op": "refresh",
+                "token": "#168"
+              },
+              {
+                "op": "refresh",
+                "token": "#169"
+              },
+              {
+                "op": "refresh",
+                "token": "#170"
+              },
+              {
+                "op": "refresh",
+                "token": "#171"
+              },
+              {
+                "op": "refresh",
+                "token": "#172"
+              },
+              {
+                "op": "refresh",
+                "token": "#173"
+              },
+              {
+                "op": "refresh",
+                "token": "#174"
+              },
+              {
+                "op": "refresh",
+                "token": "#175"
+              },
+              {
+                "op": "refresh",
+                "token": "#176"
+              },
+              {
+                "op": "refresh",
+                "token": "#177"
+              },
+              {
+                "op": "refresh",
+                "token": "#178"
+              },
+              {
+                "op": "refresh",
+                "token": "#179"
+              },
+              {
+                "op": "refresh",
+                "token": "#180"
+              },
+              {
+                "op": "refresh",
+                "token": "#181"
+              },
+              {
+                "op": "refresh",
+                "token": "#182"
+              },
+              {
+                "op": "refresh",
+                "token": "#183"
+              },
+              {
+                "op": "refresh",
+                "token": "#184"
+              },
+              {
+                "op": "refresh",
+                "token": "#185"
+              },
+              {
+                "op": "refresh",
+                "token": "#186"
+              },
+              {
+                "op": "refresh",
+                "token": "#187"
+              },
+              {
+                "op": "refresh",
+                "token": "#188"
+              },
+              {
+                "op": "refresh",
+                "token": "#189"
+              },
+              {
+                "op": "refresh",
+                "token": "#190"
+              },
+              {
+                "op": "refresh",
+                "token": "#191"
+              },
+              {
+                "op": "refresh",
+                "token": "#192"
+              },
+              {
+                "op": "refresh",
+                "token": "#193"
+              },
+              {
+                "op": "refresh",
+                "token": "#194"
+              },
+              {
+                "op": "refresh",
+                "token": "#195"
+              },
+              {
+                "op": "refresh",
+                "token": "#196"
+              },
+              {
+                "op": "refresh",
+                "token": "#197"
+              },
+              {
+                "op": "refresh",
+                "token": "#198"
+              },
+              {
+                "op": "refresh",
+                "token": "#199"
+              },
+              {
+                "op": "refresh",
+                "token": "#200"
+              },
+              {
+                "op": "advance",
+                "ms": 172800000
+              },
+              {
+                "op": "refresh",
+                "token": "#201"
+              },
+              {
+                "op": "refresh",
+                "token": "#202"
+              },
+              {
+                "op": "refresh",
+                "token": "#203"
+              },
+              {
+                "op": "refresh",
+                "token": "#204"
+              },
+              {
+                "op": "refresh",
+                "token": "#205"
+              },
+              {
+                "op": "refresh",
+                "token": "#206"
+              },
+              {
+                "op": "refresh",
+                "token": "#207"
+              },
+              {
+                "op": "refresh",
+                "token": "#208"
+              },
+              {
+                "op": "refresh",
+                "token": "#209"
+              },
+              {
+                "op": "refresh",
+                "token": "#210"
+              },
+              {
+                "op": "refresh",
+                "token": "#211"
+              },
+              {
+                "op": "refresh",
+                "token": "#212"
+              },
+              {
+                "op": "refresh",
+                "token": "#213"
+              },
+              {
+                "op": "refresh",
+                "token": "#214"
+              },
+              {
+                "op": "refresh",
+                "token": "#215"
+              },
+              {
+                "op": "refresh",
+                "token": "#216"
+              },
+              {
+                "op": "refresh",
+                "token": "#217"
+              },
+              {
+                "op": "refresh",
+                "token": "#218"
+              },
+              {
+                "op": "refresh",
+                "token": "#219"
+              },
+              {
+                "op": "refresh",
+                "token": "#220"
+              },
+              {
+                "op": "refresh",
+                "token": "#221"
+              },
+              {
+                "op": "refresh",
+                "token": "#222"
+              },
+              {
+                "op": "refresh",
+                "token": "#223"
+              },
+              {
+                "op": "refresh",
+                "token": "#224"
+              },
+              {
+                "op": "refresh",
+                "token": "#225"
+              },
+              {
+                "op": "refresh",
+                "token": "#226"
+              },
+              {
+                "op": "refresh",
+                "token": "#227"
+              },
+              {
+                "op": "refresh",
+                "token": "#228"
+              },
+              {
+                "op": "refresh",
+                "token": "#229"
+              },
+              {
+                "op": "refresh",
+                "token": "#230"
+              },
+              {
+                "op": "refresh",
+                "token": "#231"
+              },
+              {
+                "op": "refresh",
+                "token": "#232"
+              },
+              {
+                "op": "refresh",
+                "token": "#233"
+              },
+              {
+                "op": "refresh",
+                "token": "#234"
+              },
+              {
+                "op": "refresh",
+                "token": "#235"
+              },
+              {
+                "op": "refresh",
+                "token": "#236"
+              },
+              {
+                "op": "refresh",
+                "token": "#237"
+              },
+              {
+                "op": "refresh",
+                "token": "#238"
+              },
+              {
+                "op": "refresh",
+                "token": "#239"
+              },
+              {
+                "op": "refresh",
+                "token": "#240"
+              },
+              {
+                "op": "refresh",
+                "token": "#241"
+              },
+              {
+                "op": "refresh",
+                "token": "#242"
+              },
+              {
+                "op": "refresh",
+                "token": "#243"
+              },
+              {
+                "op": "refresh",
+                "token": "#244"
+              },
+              {
+                "op": "refresh",
+                "token": "#245"
+              },
+              {
+                "op": "refresh",
+                "token": "#246"
+              },
+              {
+                "op": "refresh",
+                "token": "#247"
+              },
+              {
+                "op": "refresh",
+                "token": "#248"
+              },
+              {
+                "op": "refresh",
+                "token": "#249"
+              },
+              {
+                "op": "refresh",
+                "token": "#250"
+              },
+              {
+                "op": "refresh",
+                "token": "#251"
+              },
+              {
+                "op": "refresh",
+                "token": "#252"
+              },
+              {
+                "op": "refresh",
+                "token": "#253"
+              },
+              {
+                "op": "refresh",
+                "token": "#254"
+              },
+              {
+                "op": "refresh",
+                "token": "#255"
+              },
+              {
+                "op": "refresh",
+                "token": "#256"
+              },
+              {
+                "op": "refresh",
+                "token": "#257"
+              },
+              {
+                "op": "refresh",
+                "token": "#258"
+              },
+              {
+                "op": "refresh",
+                "token": "#259"
+              },
+              {
+                "op": "refresh",
+                "token": "#260"
+              },
+              {
+                "op": "refresh",
+                "token": "#261"
+              },
+              {
+                "op": "refresh",
+                "token": "#262"
+              },
+              {
+                "op": "refresh",
+                "token": "#263"
+              },
+              {
+                "op": "refresh",
+                "token": "#264"
+              },
+              {
+                "op": "refresh",
+                "token": "#265"
+              },
+              {
+                "op": "refresh",
+                "token": "#266"
+              },
+              {
+                "op": "refresh",
+                "token": "#267"
+              },
+              {
+                "op": "refresh",
+                "token": "#268"
+              },
+              {
+                "op": "refresh",
+                "token": "#269"
+              },
+              {
+                "op": "refresh",
+                "token": "#270"
+              },
+              {
+                "op": "refresh",
+                "token": "#271"
+              },
+              {
+                "op": "refresh",
+                "token": "#272"
+              },
+              {
+                "op": "refresh",
+                "token": "#273"
+              },
+              {
+                "op": "refresh",
+                "token": "#274"
+              },
+              {
+                "op": "refresh",
+                "token": "#275"
+              },
+              {
+                "op": "refresh",
+                "token": "#276"
+              },
+              {
+                "op": "refresh",
+                "token": "#277"
+              },
+              {
+                "op": "refresh",
+                "token": "#278"
+              },
+              {
+                "op": "refresh",
+                "token": "#279"
+              },
+              {
+                "op": "refresh",
+                "token": "#280"
+              },
+              {
+                "op": "refresh",
+                "token": "L1"
+              },
+              {
+                "op": "refresh",
+                "token": "L2"
+              },
+              {
+                "op": "refresh",
+                "token": "L3"
+              },
+              {
+                "op": "refresh",
+                "token": "L4"
+              },
+              {
+                "op": "refresh",
+                "token": "L5"
+              },
+              {
+                "op": "refresh",
+                "token": "L6"
+              },
+              {
+                "op": "refresh",
+                "token": "L7"
+              },
+              {
+                "op": "refresh",
+                "token": "L8"
+              },
+              {
+                "op": "refresh",
+                "token": "L9"
+              },
+              {
+                "op": "refresh",
+                "token": "L10"
+              },
+              {
+                "op": "refresh",
+                "token": "L11"
+              },
+              {
+                "op": "refresh",
+                "token": "L12"
+              },
+              {
+                "op": "refresh",
+                "token": "L13"
+              },
+              {
+                "op": "refresh",
+                "token": "L14"
+              },
+              {
+                "op": "refresh",
+                "token": "L15"
+              },
+              {
+                "op": "refresh",
+                "token": "L16"
+              },
+              {
+                "op": "refresh",
+                "token": "L17"
+              },
+              {
+                "op": "refresh",
+                "token": "L18"
+              },
+              {
+                "op": "refresh",
+                "token": "L19"
+              },
+              {
+                "op": "refresh",
+                "token": "L20"
+              },
+              {
+                "op": "refresh",
+                "token": "L21"
+              },
+              {
+                "op": "refresh",
+                "token": "L22"
+              },
+              {
+                "op": "refresh",
+                "token": "L23"
+              },
+              {
+                "op": "refresh",
+                "token": "L24"
+              },
+              {
+                "op": "refresh",
+                "token": "L25"
+              },
+              {
+                "op": "refresh",
+                "token": "L26"
+              },
+              {
+                "op": "refresh",
+                "token": "L27"
+              },
+              {
+                "op": "refresh",
+                "token": "L28"
+              },
+              {
+                "op": "refresh",
+                "token": "L29"
+              },
+              {
+                "op": "refresh",
+                "token": "L30"
+              },
+              {
+                "op": "refresh",
+                "token": "L31"
+              },
+              {
+                "op": "refresh",
+                "token": "L32"
+              },
+              {
+                "op": "refresh",
+                "token": "L33"
+              },
+              {
+                "op": "refresh",
+                "token": "L34"
+              },
+              {
+                "op": "refresh",
+                "token": "L35"
+              },
+              {
+                "op": "refresh",
+                "token": "L36"
+              },
+              {
+                "op": "refresh",
+                "token": "L37"
+              },
+              {
+                "op": "refresh",
+                "token": "L38"
+              },
+              {
+                "op": "refresh",
+                "token": "L39"
+              },
+              {
+                "op": "refresh",
+                "token": "L40"
+              },
+              {
+                "op": "refresh",
+                "token": "#1"
+              },
+              {
+                "op": "refresh",
+                "token": "#2"
+              },
+              {
+                "op": "refresh",
+                "token": "#3"
+              },
+              {
+                "op": "refresh",
+                "token": "#4"
+              },
+              {
+                "op": "refresh",
+                "token": "#5"
+              },
+              {
+                "op": "refresh",
+                "token": "#6"
+              },
+              {
+                "op": "refresh",
+                "token": "#7"
+              },
+              {
+                "op": "refresh",
+                "token": "#8"
+              },
+              {
+                "op": "refresh",
+                "token": "#9"
+              },
+              {
+                "op": "refresh",
+                "token": "#10"
+              },
+              {
+                "op": "refresh",
+                "token": "#11"
+              },
+              {
+                "op": "refresh",
+                "token": "#12"
+              },
+              {
+                "op": "refresh",
+                "token": "#13"
+              },
+              {
+                "op": "refresh",
+                "token": "#14"
+              },
+              {
+                "op": "refresh",
+                "token": "#15"
+              },
+              {
+                "op": "refresh",
+                "token": "#16"
+              },
+              {
+                "op": "refresh",
+                "token": "#17"
+              },
+              {
+                "op": "refresh",
+                "token": "#18"
+              },
+              {
+                "op": "refresh",
+                "token": "#19"
+              },
+              {
+                "op": "refresh",
+                "token": "#20"
+              },
+              {
+                "op": "refresh",
+                "token": "#21"
+              },
+              {
+                "op": "refresh",
+                "token": "#22"
+              },
+              {
+                "op": "refresh",
+                "token": "#23"
+              },
+              {
+                "op": "refresh",
+                "token": "#24"
+              },
+              {
+                "op": "refresh",
+                "token": "#25"
+              },
+              {
+                "op": "refresh",
+                "token": "#26"
+              },
+              {
+                "op": "refresh",
+                "token": "#27"
+              },
+              {
+                "op": "refresh",
+                "token": "#28"
+              },
+              {
+                "op": "refresh",
+                "token": "#29"
+              },
+              {
+                "op": "refresh",
+                "token": "#30"
+              },
+              {
+                "op": "refresh",
+                "token": "#31"
+              },
+              {
+                "op": "refresh",
+                "token": "#32"
+              },
+              {
+                "op": "refresh",
+                "token": "#33"
+              },
+              {
+                "op": "refresh",
+                "token": "#34"
+              },
+              {
+                "op": "refresh",
+                "token": "#35"
+              },
+              {
+                "op": "refresh",
+                "token": "#36"
+              },
+              {
+                "op": "refresh",
+                "token": "#37"
+              },
+              {
+                "op": "refresh",
+                "token": "#38"
+              },
+              {
+                "op": "refresh",
+                "token": "#39"
+              },
+              {
+                "op": "refresh",
+                "token": "#40"
+              },
+              {
+                "op": "advance",
+                "ms": 2592000000
+              },
+              {
+                "op": "refresh",
+                "token": "#281"
+              },
+              {
+                "op": "refresh",
+                "token": "#282"
+              },
+              {
+                "op": "refresh",
+                "token": "#283"
+              },
+              {
+                "op": "refresh",
+                "token": "#284"
+              },
+              {
+                "op": "refresh",
+                "token": "#285"
+              },
+              {
+                "op": "refresh",
+                "token": "#286"
+              },
+              {
+                "op": "refresh",
+                "token": "#287"
+              },
+              {
+                "op": "refresh",
+                "token": "#288"
+              },
+              {
+                "op": "refresh",
+                "token": "#289"
+              },
+              {
+                "op": "refresh",
+                "token": "#290"
+              },
+              {
+                "op": "refresh",
+                "token": "#291"
+              },
+              {
+                "op": "refresh",
+                "token": "#292"
+              },
+              {
+                "op": "refresh",
+                "token": "#293"
+              },
+              {
+                "op": "refresh",
+                "token": "#294"
+              },
+              {
+                "op": "refresh",
+                "token": "#295"
+              },
+              {
+                "op": "refresh",
+                "token": "#296"
+              },
+              {
+                "op": "refresh",
+                "token": "#297"
+              },
+              {
+                "op": "refresh",
+                "token": "#298"
+              },
+              {
+                "op": "refresh",
+                "token": "#299"
+              },
+              {
+                "op": "refresh",
+                "token": "#300"
+              }
+            ]
+          },
+          "expected": "login: 40\nrefresh expired: 20\nrefresh ok: 320\nrefresh used: 80\nstore: 400 rows, 400 hashed, 0 plain, 320 used, 320 with replacedBy\nplain text: none",
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

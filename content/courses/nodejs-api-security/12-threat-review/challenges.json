@@ -1,0 +1,66 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nas_431",
+      "name": "sign-in-threat-review-quiz",
+      "type": "quiz",
+      "title": "Read the threat review evidence",
+      "description": "Three findings from the threat review of CodeDev's sign-in flow: a log redaction list, a weekend of failed logins against the current rate limits, and the password reset handler.",
+      "difficulty": "medium",
+      "outcomes": [
+        "attack-mitigation"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Logger of the API:\n\nconst logger = pino({ redact: [\"req.headers.authorization\"] });\napp.use(pinoHttp({ logger }));\n\nOne line from yesterday's log (shortened):\n\n{\"req\":{\"method\":\"POST\",\"url\":\"/auth/refresh\",\"headers\":{\"host\":\"api.codedev.test\",\"authorization\":\"[Redacted]\",\"cookie\":\"__Secure-cd_rt=rt_9fKq2...; display_name=Lan%20Nguyen\"}},\"res\":{\"statusCode\":200},\"responseTime\":41}\n\nStatement: \"With this redact list, refresh tokens cannot end up in the API's logs.\"",
+          "explanation": "False. The redact list covers only the Authorization header, but since lesson 4.2 the tokens travel in cookies, and pino-http logs req.headers.cookie in full: the line above contains a working refresh token. Responses can leak too through the Set-Cookie header of /auth/login and /auth/refresh. The list needs req.headers.cookie and res.headers[\"set-cookie\"] (or a serializer that logs only an allowlist of headers), plus a test that greps a captured log for the token. The misconception is that redacting Authorization covers tokens wherever they are sent.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Current limits on POST /auth/login: at most 20 failed logins per IP and at most 10 failed logins per account, each per 15 minutes. Saturday 02:00-05:00, from the auth_events table:\n\nfailed logins             41,200   (normal night: about 900)\nsuccessful logins             37   from IPs never seen for those accounts\ndistinct source IPs        3,912\nmax failures per IP / 15 min    6\nmax failures per account        2\ndistinct emails tried      39,850   (most are not CodeDev accounts)\n\nStatement: \"This traffic never reached either limit, so the limits did not slow it down; a signal across all logins, such as the global failure rate or successful logins from new devices, is what shows this attack.\"",
+          "explanation": "True. This is credential stuffing: email and password pairs leaked from other sites, spread over thousands of IPs so that each IP stays at 6 failures and each account at 1 or 2. Per-IP and per-account limits are still worth having against simple brute force, but they cannot see an attack designed to stay under them. What stands out is the shape of all traffic together: failures at about 45 times the normal level, most emails unknown, and 37 successes from new devices. Alerts on those, plus a breached-password check and MFA, are the defences that fit. The misconception is that a per-IP limit stops any login attack.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Password reset, as it is today:\n\nasync resetPassword(token: string, newPassword: string) {\n  const row = await db.one(\"SELECT user_id FROM password_resets WHERE token = $1 AND created_at > now() - interval '24 hours'\", [token]);\n  await db.query(\"UPDATE users SET password_hash = $1 WHERE id = $2\", [await argon2.hash(newPassword), row.user_id]);\n}\n\nAccess tokens live 15 minutes, refresh tokens 14 days with rotation and replay detection. Last week an attacker copied a learner's refresh token from her shared computer; she has not used that computer since.\n\nStatement: \"Once the learner resets her password with this handler, the attacker loses access within 15 minutes, when the last access token expires.\"",
+          "explanation": "False. The handler only replaces the password hash. It does not revoke the refresh token families or bump the session version (lesson 4.1), so the attacker's refresh token keeps rotating for up to 14 days, each time getting a fresh access token; replay detection does not fire because the learner never uses that token again. The handler has more problems a threat review should list: the reset token is stored and compared in plain text, it is never marked as used, and 24 hours is a long window. The misconception is that changing the password ends existing sessions by itself.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

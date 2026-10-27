@@ -1,0 +1,5938 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nas_311",
+      "name": "replay-detection-evidence",
+      "type": "quiz",
+      "title": "Replay detection: read the rows and the log",
+      "description": "Two statements on real refresh_tokens rows and API logs: what to revoke when a rotated token comes back, and when a reuse is only a network retry.",
+      "difficulty": "medium",
+      "outcomes": [
+        "attack-mitigation"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Family f_12 after an alert (refresh tokens rotate on every refresh):\n\nSELECT id, device_id, used_at, revoked_at, replaced_by\nFROM refresh_tokens WHERE family_id = 'f_12' ORDER BY created_at;\n\n id   | device_id | used_at             | revoked_at | replaced_by\n r_40 | phone-31  | 2026-10-20 08:00:05 |            | r_41\n r_41 | phone-31  | 2026-10-20 08:15:09 |            | r_42\n r_42 | phone-31  |                     |            |\n\nAPI log:\n2026-10-20 08:31:44 POST /auth/refresh token_id=r_40 device=phone-31 ip=203.0.113.50 reuse=true\n\nStatement: \"Revoking only r_40, the token that was presented again, is enough: r_42 is the phone's current token, so it is safe to leave it valid.\"",
+          "explanation": "False. r_40 came back about 31 minutes after it was rotated (and after a second rotation), so at least two parties held a copy of it. The server cannot tell who performed the rotations r_40 -> r_41 -> r_42: if an attacker stole r_40 and refreshed first, the attacker holds r_42 and the learner is the one presenting r_40 now; it could also be the other way round. r_40 is already useless (it is used), so revoking it alone changes nothing. The safe answer is to revoke the whole family, r_42 included, record a security event and let the real learner sign in again. The misconception is that whoever presents the old token must be the attacker.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "API log, one phone with a 2 s client timeout:\n\n10:00:00.000 POST /auth/refresh device=phone-8812 token_id=r_77 -> 200 rotated, issued r_78\n10:00:02.000 client: request timed out, retrying\n10:00:02.410 POST /auth/refresh device=phone-8812 token_id=r_77\n\nConfig: REFRESH_GRACE_MS=10000. At 10:00:02.410, r_77 has used_at 10:00:00.000 and replaced_by r_78; r_78 has used_at NULL and revoked_at NULL.\n\nStatement: \"With this grace window, the retry receives the refresh token already issued as r_78, no new row is inserted, and no security event is recorded.\"",
+          "explanation": "True. The reuse comes from the same device 2.41 s after r_77 was used, inside the 10 s window, and the successor r_78 has not been used or revoked, so this looks like a lost response, not a second party. The server answers with the successor it already issued (kept for the window), so the family does not fork and the phone ends up with the one live token. Two misconceptions: that every reuse must revoke the family (every slow network would sign learners out), and that a retry should get a brand-new token (that creates a second live branch in the family).",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_nas_312",
+      "name": "refresh-token-replay-detection",
+      "type": "mini_coding",
+      "title": "Replay Detection: Revoke the Family",
+      "description": "CodeDev rotates the refresh token on every POST /auth/refresh, but when a token that was already rotated comes back, the API only answers 401 and leaves the rest of the family alive. A copy stolen from a learner's laptop was used once more after the learner had rotated it, and the attacker's own chain kept working. Write refresh(store, req) with replay detection.\n\nLook the row up by sha256(token) (hex, helper given). Check in this order: (1) no row -> {status:\"invalid\"}; (2) revokedAt set -> {status:\"revoked\"}; (3) req.now >= expiresAt -> {status:\"expired\"}; (4) unused row -> claim it with store.markUsed (a compare-and-swap: UPDATE ... SET used_at = $2 WHERE id = $1 AND used_at IS NULL AND revoked_at IS NULL RETURNING *), issue the successor in the same family for the row's user and device with store.issue, link it with store.recordSuccessor and return {status:\"rotated\", token}; if issue returns null (family revoked) return {status:\"revoked\"}; (5) used row (a reuse) -> grace when the request comes from the row's device, less than GRACE_MS = 10000 ms after usedAt (10000 ms is outside), and the successor row (replacedBy) is neither used nor revoked: return {status:\"grace\", token: store.getReply(row.id)}, the successor already issued, and create nothing. Any other reuse is a replay: revoke the whole family with store.revokeFamily, record one security event {type:\"refresh_token_reuse\", userId, familyId, tokenId: the presented row id, deviceId: req.deviceId, at: req.now} and return {status:\"replay_detected\"}.\n\nInput: {\"steps\": [...], \"quiet\"?: true}; a step is {op:\"login\", user, device, at} (a new family) or {op:\"refresh\", token, device, at}, where token is a label (\"t3\" = the token of row r3) or a literal string. Times are milliseconds on a fake clock; tokens live 14 days. Output: one line per step (\"refresh t1 laptop @3600000: replay_detected\", \"... rotated t2\"), then one line per security event and one per row (\"r1 f1 phone used=60000 revoked=- next=r2\"); with quiet, a summary instead of the step and row lines.",
+      "difficulty": "hard",
+      "outcomes": [
+        "attack-mitigation",
+        "rotation-revocation"
+      ],
+      "points": 40,
+      "hints": [
+        "When a token that was already rotated comes back, can the server tell which of the two callers is the real learner? If not, which tokens of the family could the other caller be holding right now?",
+        "Everything you need for a reuse is on the presented row and its successor: row.usedAt (when the window started), row.deviceId, row.replacedBy (load it with store.findById to see whether it was used) and store.getReply(row.id). Check the cheap grace conditions first and let everything else fall through to the alarm.",
+        "A similar rule on different data: a one-time sign-in link c1 is used at 12:00:00 and creates session s2. The same browser opens c1 again at 12:00:03 while s2 is untouched: show s2 again and create nothing. Another browser opens c1, or s2 was already used, or it is 12:00:30: end every session that came from c1 and log one alert with the link id, the browser and the time."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Reuse from another device after rotation revokes the whole family",
+          "input": {
+            "steps": [
+              {
+                "op": "login",
+                "user": "u_8812",
+                "device": "phone",
+                "at": 0
+              },
+              {
+                "op": "refresh",
+                "token": "t1",
+                "device": "phone",
+                "at": 60000
+              },
+              {
+                "op": "refresh",
+                "token": "t1",
+                "device": "laptop",
+                "at": 3600000
+              },
+              {
+                "op": "refresh",
+                "token": "t2",
+                "device": "phone",
+                "at": 3660000
+              }
+            ]
+          },
+          "expected": "login u_8812 phone: t1\nrefresh t1 phone @60000: rotated t2\nrefresh t1 laptop @3600000: replay_detected\nrefresh t2 phone @3660000: revoked\nevent refresh_token_reuse user=u_8812 family=f1 token=r1 device=laptop at=3600000\nr1 f1 phone used=60000 revoked=3600000 next=r2\nr2 f1 phone used=- revoked=3600000 next=-",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "A retry from the same device within 10 s gets the successor already issued",
+          "input": {
+            "steps": [
+              {
+                "op": "login",
+                "user": "u_8812",
+                "device": "phone",
+                "at": 0
+              },
+              {
+                "op": "refresh",
+                "token": "t1",
+                "device": "phone",
+                "at": 60000
+              },
+              {
+                "op": "refresh",
+                "token": "t1",
+                "device": "phone",
+                "at": 64000
+              },
+              {
+                "op": "refresh",
+                "token": "t2",
+                "device": "phone",
+                "at": 900000
+              },
+              {
+                "op": "refresh",
+                "token": "t3",
+                "device": "phone",
+                "at": 1800000
+              }
+            ]
+          },
+          "expected": "login u_8812 phone: t1\nrefresh t1 phone @60000: rotated t2\nrefresh t1 phone @64000: grace t2\nrefresh t2 phone @900000: rotated t3\nrefresh t3 phone @1800000: rotated t4\nr1 f1 phone used=60000 revoked=- next=r2\nr2 f1 phone used=900000 revoked=- next=r3\nr3 f1 phone used=1800000 revoked=- next=r4\nr4 f1 phone used=- revoked=- next=-",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "The window ends at 10 s: 9999 ms is a retry, 10000 ms is a replay",
+          "input": {
+            "steps": [
+              {
+                "op": "login",
+                "user": "u_8812",
+                "device": "phone",
+                "at": 0
+              },
+              {
+                "op": "refresh",
+                "token": "t1",
+                "device": "phone",
+                "at": 60000
+              },
+              {
+                "op": "refresh",
+                "token": "t1",
+                "device": "phone",
+                "at": 69999
+              },
+              {
+                "op": "refresh",
+                "token": "t1",
+                "device": "phone",
+                "at": 70000
+              },
+              {
+                "op": "refresh",
+                "token": "t2",
+                "device": "phone",
+                "at": 71000
+              }
+            ]
+          },
+          "expected": "login u_8812 phone: t1\nrefresh t1 phone @60000: rotated t2\nrefresh t1 phone @69999: grace t2\nrefresh t1 phone @70000: replay_detected\nrefresh t2 phone @71000: revoked\nevent refresh_token_reuse user=u_8812 family=f1 token=r1 device=phone at=70000\nr1 f1 phone used=60000 revoked=70000 next=r2\nr2 f1 phone used=- revoked=70000 next=-",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "No grace once the successor itself was used",
+          "input": {
+            "steps": [
+              {
+                "op": "login",
+                "user": "u_8812",
+                "device": "phone",
+                "at": 0
+              },
+              {
+                "op": "refresh",
+                "token": "t1",
+                "device": "phone",
+                "at": 60000
+              },
+              {
+                "op": "refresh",
+                "token": "t2",
+                "device": "phone",
+                "at": 62000
+              },
+              {
+                "op": "refresh",
+                "token": "t1",
+                "device": "phone",
+                "at": 63000
+              },
+              {
+                "op": "refresh",
+                "token": "t3",
+                "device": "phone",
+                "at": 64000
+              }
+            ]
+          },
+          "expected": "login u_8812 phone: t1\nrefresh t1 phone @60000: rotated t2\nrefresh t2 phone @62000: rotated t3\nrefresh t1 phone @63000: replay_detected\nrefresh t3 phone @64000: revoked\nevent refresh_token_reuse user=u_8812 family=f1 token=r1 device=phone at=63000\nr1 f1 phone used=60000 revoked=63000 next=r2\nr2 f1 phone used=62000 revoked=63000 next=r3\nr3 f1 phone used=- revoked=63000 next=-",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Another device 3 s after rotation is a replay; it revokes its own family only, with one event",
+          "input": {
+            "steps": [
+              {
+                "op": "login",
+                "user": "u_8812",
+                "device": "phone",
+                "at": 0
+              },
+              {
+                "op": "login",
+                "user": "u_8812",
+                "device": "laptop",
+                "at": 0
+              },
+              {
+                "op": "login",
+                "user": "u_9001",
+                "device": "phone",
+                "at": 0
+              },
+              {
+                "op": "refresh",
+                "token": "t1",
+                "device": "phone",
+                "at": 60000
+              },
+              {
+                "op": "refresh",
+                "token": "t1",
+                "device": "attacker",
+                "at": 63000
+              },
+              {
+                "op": "refresh",
+                "token": "t2",
+                "device": "laptop",
+                "at": 180000
+              },
+              {
+                "op": "refresh",
+                "token": "t3",
+                "device": "phone",
+                "at": 200000
+              },
+              {
+                "op": "refresh",
+                "token": "t4",
+                "device": "phone",
+                "at": 240000
+              },
+              {
+                "op": "refresh",
+                "token": "t1",
+                "device": "attacker",
+                "at": 300000
+              },
+              {
+                "op": "refresh",
+                "token": "t5",
+                "device": "laptop",
+                "at": 360000
+              }
+            ]
+          },
+          "expected": "login u_8812 phone: t1\nlogin u_8812 laptop: t2\nlogin u_9001 phone: t3\nrefresh t1 phone @60000: rotated t4\nrefresh t1 attacker @63000: replay_detected\nrefresh t2 laptop @180000: rotated t5\nrefresh t3 phone @200000: rotated t6\nrefresh t4 phone @240000: revoked\nrefresh t1 attacker @300000: revoked\nrefresh t5 laptop @360000: rotated t7\nevent refresh_token_reuse user=u_8812 family=f1 token=r1 device=attacker at=63000\nr1 f1 phone used=60000 revoked=63000 next=r4\nr2 f2 laptop used=180000 revoked=- next=r5\nr3 f3 phone used=200000 revoked=- next=r6\nr4 f1 phone used=- revoked=63000 next=-\nr5 f2 laptop used=360000 revoked=- next=r7\nr6 f3 phone used=- revoked=- next=-\nr7 f2 laptop used=- revoked=- next=-",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Stolen token used first: the real device's late reuse revokes the attacker's chain",
+          "input": {
+            "steps": [
+              {
+                "op": "login",
+                "user": "u_8812",
+                "device": "phone",
+                "at": 0
+              },
+              {
+                "op": "refresh",
+                "token": "t1",
+                "device": "unknown-device",
+                "at": 100000
+              },
+              {
+                "op": "refresh",
+                "token": "t2",
+                "device": "unknown-device",
+                "at": 200000
+              },
+              {
+                "op": "refresh",
+                "token": "t1",
+                "device": "phone",
+                "at": 900000
+              },
+              {
+                "op": "refresh",
+                "token": "t3",
+                "device": "unknown-device",
+                "at": 950000
+              }
+            ]
+          },
+          "expected": "login u_8812 phone: t1\nrefresh t1 unknown-device @100000: rotated t2\nrefresh t2 unknown-device @200000: rotated t3\nrefresh t1 phone @900000: replay_detected\nrefresh t3 unknown-device @950000: revoked\nevent refresh_token_reuse user=u_8812 family=f1 token=r1 device=phone at=900000\nr1 f1 phone used=100000 revoked=900000 next=r2\nr2 f1 phone used=200000 revoked=900000 next=r3\nr3 f1 phone used=- revoked=900000 next=-",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Invalid input: empty, unknown, never issued and expired tokens",
+          "input": {
+            "steps": [
+              {
+                "op": "login",
+                "user": "u_8812",
+                "device": "phone",
+                "at": 0
+              },
+              {
+                "op": "refresh",
+                "token": "",
+                "device": "phone",
+                "at": 1000
+              },
+              {
+                "op": "refresh",
+                "token": "garbage-token",
+                "device": "phone",
+                "at": 2000
+              },
+              {
+                "op": "refresh",
+                "token": "t9",
+                "device": "phone",
+                "at": 3000
+              },
+              {
+                "op": "refresh",
+                "token": "t1",
+                "device": "phone",
+                "at": 1209600000
+              },
+              {
+                "op": "login",
+                "user": "u_8812",
+                "device": "phone",
+                "at": 1209600000
+              },
+              {
+                "op": "refresh",
+                "token": "t2",
+                "device": "phone",
+                "at": 1209700000
+              },
+              {
+                "op": "refresh",
+                "token": "t1",
+                "device": "phone",
+                "at": 1209800000
+              }
+            ]
+          },
+          "expected": "login u_8812 phone: t1\nrefresh \"\" phone @1000: invalid\nrefresh garbage-token phone @2000: invalid\nrefresh t9 phone @3000: invalid\nrefresh t1 phone @1209600000: expired\nlogin u_8812 phone: t2\nrefresh t2 phone @1209700000: rotated t3\nrefresh t1 phone @1209800000: expired\nr1 f1 phone used=- revoked=- next=-\nr2 f2 phone used=1209700000 revoked=- next=r3\nr3 f2 phone used=- revoked=- next=-",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "900 rotations with retries every 50, then an old token returns (summary)",
+          "input": {
+            "quiet": true,
+            "steps": [
+              {
+                "op": "login",
+                "user": "u_8812",
+                "device": "phone",
+                "at": 0
+              },
+              {
+                "op": "refresh",
+                "token": "t1",
+                "device": "phone",
+                "at": 60000
+              },
+              {
+                "op": "refresh",
+                "token": "t2",
+                "device": "phone",
+                "at": 120000
+              },
+              {
+                "op": "refresh",
+                "token": "t3",
+                "device": "phone",
+                "at": 180000
+              },
+              {
+                "op": "refresh",
+                "token": "t4",
+                "device": "phone",
+                "at": 240000
+              },
+              {
+                "op": "refresh",
+                "token": "t5",
+                "device": "phone",
+                "at": 300000
+              },
+              {
+                "op": "refresh",
+                "token": "t6",
+                "device": "phone",
+                "at": 360000
+              },
+              {
+                "op": "refresh",
+                "token": "t7",
+                "device": "phone",
+                "at": 420000
+              },
+              {
+                "op": "refresh",
+                "token": "t8",
+                "device": "phone",
+                "at": 480000
+              },
+              {
+                "op": "refresh",
+                "token": "t9",
+                "device": "phone",
+                "at": 540000
+              },
+              {
+                "op": "refresh",
+                "token": "t10",
+                "device": "phone",
+                "at": 600000
+              },
+              {
+                "op": "refresh",
+                "token": "t11",
+                "device": "phone",
+                "at": 660000
+              },
+              {
+                "op": "refresh",
+                "token": "t12",
+                "device": "phone",
+                "at": 720000
+              },
+              {
+                "op": "refresh",
+                "token": "t13",
+                "device": "phone",
+                "at": 780000
+              },
+              {
+                "op": "refresh",
+                "token": "t14",
+                "device": "phone",
+                "at": 840000
+              },
+              {
+                "op": "refresh",
+                "token": "t15",
+                "device": "phone",
+                "at": 900000
+              },
+              {
+                "op": "refresh",
+                "token": "t16",
+                "device": "phone",
+                "at": 960000
+              },
+              {
+                "op": "refresh",
+                "token": "t17",
+                "device": "phone",
+                "at": 1020000
+              },
+              {
+                "op": "refresh",
+                "token": "t18",
+                "device": "phone",
+                "at": 1080000
+              },
+              {
+                "op": "refresh",
+                "token": "t19",
+                "device": "phone",
+                "at": 1140000
+              },
+              {
+                "op": "refresh",
+                "token": "t20",
+                "device": "phone",
+                "at": 1200000
+              },
+              {
+                "op": "refresh",
+                "token": "t21",
+                "device": "phone",
+                "at": 1260000
+              },
+              {
+                "op": "refresh",
+                "token": "t22",
+                "device": "phone",
+                "at": 1320000
+              },
+              {
+                "op": "refresh",
+                "token": "t23",
+                "device": "phone",
+                "at": 1380000
+              },
+              {
+                "op": "refresh",
+                "token": "t24",
+                "device": "phone",
+                "at": 1440000
+              },
+              {
+                "op": "refresh",
+                "token": "t25",
+                "device": "phone",
+                "at": 1500000
+              },
+              {
+                "op": "refresh",
+                "token": "t26",
+                "device": "phone",
+                "at": 1560000
+              },
+              {
+                "op": "refresh",
+                "token": "t27",
+                "device": "phone",
+                "at": 1620000
+              },
+              {
+                "op": "refresh",
+                "token": "t28",
+                "device": "phone",
+                "at": 1680000
+              },
+              {
+                "op": "refresh",
+                "token": "t29",
+                "device": "phone",
+                "at": 1740000
+              },
+              {
+                "op": "refresh",
+                "token": "t30",
+                "device": "phone",
+                "at": 1800000
+              },
+              {
+                "op": "refresh",
+                "token": "t31",
+                "device": "phone",
+                "at": 1860000
+              },
+              {
+                "op": "refresh",
+                "token": "t32",
+                "device": "phone",
+                "at": 1920000
+              },
+              {
+                "op": "refresh",
+                "token": "t33",
+                "device": "phone",
+                "at": 1980000
+              },
+              {
+                "op": "refresh",
+                "token": "t34",
+                "device": "phone",
+                "at": 2040000
+              },
+              {
+                "op": "refresh",
+                "token": "t35",
+                "device": "phone",
+                "at": 2100000
+              },
+              {
+                "op": "refresh",
+                "token": "t36",
+                "device": "phone",
+                "at": 2160000
+              },
+              {
+                "op": "refresh",
+                "token": "t37",
+                "device": "phone",
+                "at": 2220000
+              },
+              {
+                "op": "refresh",
+                "token": "t38",
+                "device": "phone",
+                "at": 2280000
+              },
+              {
+                "op": "refresh",
+                "token": "t39",
+                "device": "phone",
+                "at": 2340000
+              },
+              {
+                "op": "refresh",
+                "token": "t40",
+                "device": "phone",
+                "at": 2400000
+              },
+              {
+                "op": "refresh",
+                "token": "t41",
+                "device": "phone",
+                "at": 2460000
+              },
+              {
+                "op": "refresh",
+                "token": "t42",
+                "device": "phone",
+                "at": 2520000
+              },
+              {
+                "op": "refresh",
+                "token": "t43",
+                "device": "phone",
+                "at": 2580000
+              },
+              {
+                "op": "refresh",
+                "token": "t44",
+                "device": "phone",
+                "at": 2640000
+              },
+              {
+                "op": "refresh",
+                "token": "t45",
+                "device": "phone",
+                "at": 2700000
+              },
+              {
+                "op": "refresh",
+                "token": "t46",
+                "device": "phone",
+                "at": 2760000
+              },
+              {
+                "op": "refresh",
+                "token": "t47",
+                "device": "phone",
+                "at": 2820000
+              },
+              {
+                "op": "refresh",
+                "token": "t48",
+                "device": "phone",
+                "at": 2880000
+              },
+              {
+                "op": "refresh",
+                "token": "t49",
+                "device": "phone",
+                "at": 2940000
+              },
+              {
+                "op": "refresh",
+                "token": "t50",
+                "device": "phone",
+                "at": 3000000
+              },
+              {
+                "op": "refresh",
+                "token": "t50",
+                "device": "phone",
+                "at": 3002000
+              },
+              {
+                "op": "refresh",
+                "token": "t51",
+                "device": "phone",
+                "at": 3060000
+              },
+              {
+                "op": "refresh",
+                "token": "t52",
+                "device": "phone",
+                "at": 3120000
+              },
+              {
+                "op": "refresh",
+                "token": "t53",
+                "device": "phone",
+                "at": 3180000
+              },
+              {
+                "op": "refresh",
+                "token": "t54",
+                "device": "phone",
+                "at": 3240000
+              },
+              {
+                "op": "refresh",
+                "token": "t55",
+                "device": "phone",
+                "at": 3300000
+              },
+              {
+                "op": "refresh",
+                "token": "t56",
+                "device": "phone",
+                "at": 3360000
+              },
+              {
+                "op": "refresh",
+                "token": "t57",
+                "device": "phone",
+                "at": 3420000
+              },
+              {
+                "op": "refresh",
+                "token": "t58",
+                "device": "phone",
+                "at": 3480000
+              },
+              {
+                "op": "refresh",
+                "token": "t59",
+                "device": "phone",
+                "at": 3540000
+              },
+              {
+                "op": "refresh",
+                "token": "t60",
+                "device": "phone",
+                "at": 3600000
+              },
+              {
+                "op": "refresh",
+                "token": "t61",
+                "device": "phone",
+                "at": 3660000
+              },
+              {
+                "op": "refresh",
+                "token": "t62",
+                "device": "phone",
+                "at": 3720000
+              },
+              {
+                "op": "refresh",
+                "token": "t63",
+                "device": "phone",
+                "at": 3780000
+              },
+              {
+                "op": "refresh",
+                "token": "t64",
+                "device": "phone",
+                "at": 3840000
+              },
+              {
+                "op": "refresh",
+                "token": "t65",
+                "device": "phone",
+                "at": 3900000
+              },
+              {
+                "op": "refresh",
+                "token": "t66",
+                "device": "phone",
+                "at": 3960000
+              },
+              {
+                "op": "refresh",
+                "token": "t67",
+                "device": "phone",
+                "at": 4020000
+              },
+              {
+                "op": "refresh",
+                "token": "t68",
+                "device": "phone",
+                "at": 4080000
+              },
+              {
+                "op": "refresh",
+                "token": "t69",
+                "device": "phone",
+                "at": 4140000
+              },
+              {
+                "op": "refresh",
+                "token": "t70",
+                "device": "phone",
+                "at": 4200000
+              },
+              {
+                "op": "refresh",
+                "token": "t71",
+                "device": "phone",
+                "at": 4260000
+              },
+              {
+                "op": "refresh",
+                "token": "t72",
+                "device": "phone",
+                "at": 4320000
+              },
+              {
+                "op": "refresh",
+                "token": "t73",
+                "device": "phone",
+                "at": 4380000
+              },
+              {
+                "op": "refresh",
+                "token": "t74",
+                "device": "phone",
+                "at": 4440000
+              },
+              {
+                "op": "refresh",
+                "token": "t75",
+                "device": "phone",
+                "at": 4500000
+              },
+              {
+                "op": "refresh",
+                "token": "t76",
+                "device": "phone",
+                "at": 4560000
+              },
+              {
+                "op": "refresh",
+                "token": "t77",
+                "device": "phone",
+                "at": 4620000
+              },
+              {
+                "op": "refresh",
+                "token": "t78",
+                "device": "phone",
+                "at": 4680000
+              },
+              {
+                "op": "refresh",
+                "token": "t79",
+                "device": "phone",
+                "at": 4740000
+              },
+              {
+                "op": "refresh",
+                "token": "t80",
+                "device": "phone",
+                "at": 4800000
+              },
+              {
+                "op": "refresh",
+                "token": "t81",
+                "device": "phone",
+                "at": 4860000
+              },
+              {
+                "op": "refresh",
+                "token": "t82",
+                "device": "phone",
+                "at": 4920000
+              },
+              {
+                "op": "refresh",
+                "token": "t83",
+                "device": "phone",
+                "at": 4980000
+              },
+              {
+                "op": "refresh",
+                "token": "t84",
+                "device": "phone",
+                "at": 5040000
+              },
+              {
+                "op": "refresh",
+                "token": "t85",
+                "device": "phone",
+                "at": 5100000
+              },
+              {
+                "op": "refresh",
+                "token": "t86",
+                "device": "phone",
+                "at": 5160000
+              },
+              {
+                "op": "refresh",
+                "token": "t87",
+                "device": "phone",
+                "at": 5220000
+              },
+              {
+                "op": "refresh",
+                "token": "t88",
+                "device": "phone",
+                "at": 5280000
+              },
+              {
+                "op": "refresh",
+                "token": "t89",
+                "device": "phone",
+                "at": 5340000
+              },
+              {
+                "op": "refresh",
+                "token": "t90",
+                "device": "phone",
+                "at": 5400000
+              },
+              {
+                "op": "refresh",
+                "token": "t91",
+                "device": "phone",
+                "at": 5460000
+              },
+              {
+                "op": "refresh",
+                "token": "t92",
+                "device": "phone",
+                "at": 5520000
+              },
+              {
+                "op": "refresh",
+                "token": "t93",
+                "device": "phone",
+                "at": 5580000
+              },
+              {
+                "op": "refresh",
+                "token": "t94",
+                "device": "phone",
+                "at": 5640000
+              },
+              {
+                "op": "refresh",
+                "token": "t95",
+                "device": "phone",
+                "at": 5700000
+              },
+              {
+                "op": "refresh",
+                "token": "t96",
+                "device": "phone",
+                "at": 5760000
+              },
+              {
+                "op": "refresh",
+                "token": "t97",
+                "device": "phone",
+                "at": 5820000
+              },
+              {
+                "op": "refresh",
+                "token": "t98",
+                "device": "phone",
+                "at": 5880000
+              },
+              {
+                "op": "refresh",
+                "token": "t99",
+                "device": "phone",
+                "at": 5940000
+              },
+              {
+                "op": "refresh",
+                "token": "t100",
+                "device": "phone",
+                "at": 6000000
+              },
+              {
+                "op": "refresh",
+                "token": "t100",
+                "device": "phone",
+                "at": 6002000
+              },
+              {
+                "op": "refresh",
+                "token": "t101",
+                "device": "phone",
+                "at": 6060000
+              },
+              {
+                "op": "refresh",
+                "token": "t102",
+                "device": "phone",
+                "at": 6120000
+              },
+              {
+                "op": "refresh",
+                "token": "t103",
+                "device": "phone",
+                "at": 6180000
+              },
+              {
+                "op": "refresh",
+                "token": "t104",
+                "device": "phone",
+                "at": 6240000
+              },
+              {
+                "op": "refresh",
+                "token": "t105",
+                "device": "phone",
+                "at": 6300000
+              },
+              {
+                "op": "refresh",
+                "token": "t106",
+                "device": "phone",
+                "at": 6360000
+              },
+              {
+                "op": "refresh",
+                "token": "t107",
+                "device": "phone",
+                "at": 6420000
+              },
+              {
+                "op": "refresh",
+                "token": "t108",
+                "device": "phone",
+                "at": 6480000
+              },
+              {
+                "op": "refresh",
+                "token": "t109",
+                "device": "phone",
+                "at": 6540000
+              },
+              {
+                "op": "refresh",
+                "token": "t110",
+                "device": "phone",
+                "at": 6600000
+              },
+              {
+                "op": "refresh",
+                "token": "t111",
+                "device": "phone",
+                "at": 6660000
+              },
+              {
+                "op": "refresh",
+                "token": "t112",
+                "device": "phone",
+                "at": 6720000
+              },
+              {
+                "op": "refresh",
+                "token": "t113",
+                "device": "phone",
+                "at": 6780000
+              },
+              {
+                "op": "refresh",
+                "token": "t114",
+                "device": "phone",
+                "at": 6840000
+              },
+              {
+                "op": "refresh",
+                "token": "t115",
+                "device": "phone",
+                "at": 6900000
+              },
+              {
+                "op": "refresh",
+                "token": "t116",
+                "device": "phone",
+                "at": 6960000
+              },
+              {
+                "op": "refresh",
+                "token": "t117",
+                "device": "phone",
+                "at": 7020000
+              },
+              {
+                "op": "refresh",
+                "token": "t118",
+                "device": "phone",
+                "at": 7080000
+              },
+              {
+                "op": "refresh",
+                "token": "t119",
+                "device": "phone",
+                "at": 7140000
+              },
+              {
+                "op": "refresh",
+                "token": "t120",
+                "device": "phone",
+                "at": 7200000
+              },
+              {
+                "op": "refresh",
+                "token": "t121",
+                "device": "phone",
+                "at": 7260000
+              },
+              {
+                "op": "refresh",
+                "token": "t122",
+                "device": "phone",
+                "at": 7320000
+              },
+              {
+                "op": "refresh",
+                "token": "t123",
+                "device": "phone",
+                "at": 7380000
+              },
+              {
+                "op": "refresh",
+                "token": "t124",
+                "device": "phone",
+                "at": 7440000
+              },
+              {
+                "op": "refresh",
+                "token": "t125",
+                "device": "phone",
+                "at": 7500000
+              },
+              {
+                "op": "refresh",
+                "token": "t126",
+                "device": "phone",
+                "at": 7560000
+              },
+              {
+                "op": "refresh",
+                "token": "t127",
+                "device": "phone",
+                "at": 7620000
+              },
+              {
+                "op": "refresh",
+                "token": "t128",
+                "device": "phone",
+                "at": 7680000
+              },
+              {
+                "op": "refresh",
+                "token": "t129",
+                "device": "phone",
+                "at": 7740000
+              },
+              {
+                "op": "refresh",
+                "token": "t130",
+                "device": "phone",
+                "at": 7800000
+              },
+              {
+                "op": "refresh",
+                "token": "t131",
+                "device": "phone",
+                "at": 7860000
+              },
+              {
+                "op": "refresh",
+                "token": "t132",
+                "device": "phone",
+                "at": 7920000
+              },
+              {
+                "op": "refresh",
+                "token": "t133",
+                "device": "phone",
+                "at": 7980000
+              },
+              {
+                "op": "refresh",
+                "token": "t134",
+                "device": "phone",
+                "at": 8040000
+              },
+              {
+                "op": "refresh",
+                "token": "t135",
+                "device": "phone",
+                "at": 8100000
+              },
+              {
+                "op": "refresh",
+                "token": "t136",
+                "device": "phone",
+                "at": 8160000
+              },
+              {
+                "op": "refresh",
+                "token": "t137",
+                "device": "phone",
+                "at": 8220000
+              },
+              {
+                "op": "refresh",
+                "token": "t138",
+                "device": "phone",
+                "at": 8280000
+              },
+              {
+                "op": "refresh",
+                "token": "t139",
+                "device": "phone",
+                "at": 8340000
+              },
+              {
+                "op": "refresh",
+                "token": "t140",
+                "device": "phone",
+                "at": 8400000
+              },
+              {
+                "op": "refresh",
+                "token": "t141",
+                "device": "phone",
+                "at": 8460000
+              },
+              {
+                "op": "refresh",
+                "token": "t142",
+                "device": "phone",
+                "at": 8520000
+              },
+              {
+                "op": "refresh",
+                "token": "t143",
+                "device": "phone",
+                "at": 8580000
+              },
+              {
+                "op": "refresh",
+                "token": "t144",
+                "device": "phone",
+                "at": 8640000
+              },
+              {
+                "op": "refresh",
+                "token": "t145",
+                "device": "phone",
+                "at": 8700000
+              },
+              {
+                "op": "refresh",
+                "token": "t146",
+                "device": "phone",
+                "at": 8760000
+              },
+              {
+                "op": "refresh",
+                "token": "t147",
+                "device": "phone",
+                "at": 8820000
+              },
+              {
+                "op": "refresh",
+                "token": "t148",
+                "device": "phone",
+                "at": 8880000
+              },
+              {
+                "op": "refresh",
+                "token": "t149",
+                "device": "phone",
+                "at": 8940000
+              },
+              {
+                "op": "refresh",
+                "token": "t150",
+                "device": "phone",
+                "at": 9000000
+              },
+              {
+                "op": "refresh",
+                "token": "t150",
+                "device": "phone",
+                "at": 9002000
+              },
+              {
+                "op": "refresh",
+                "token": "t151",
+                "device": "phone",
+                "at": 9060000
+              },
+              {
+                "op": "refresh",
+                "token": "t152",
+                "device": "phone",
+                "at": 9120000
+              },
+              {
+                "op": "refresh",
+                "token": "t153",
+                "device": "phone",
+                "at": 9180000
+              },
+              {
+                "op": "refresh",
+                "token": "t154",
+                "device": "phone",
+                "at": 9240000
+              },
+              {
+                "op": "refresh",
+                "token": "t155",
+                "device": "phone",
+                "at": 9300000
+              },
+              {
+                "op": "refresh",
+                "token": "t156",
+                "device": "phone",
+                "at": 9360000
+              },
+              {
+                "op": "refresh",
+                "token": "t157",
+                "device": "phone",
+                "at": 9420000
+              },
+              {
+                "op": "refresh",
+                "token": "t158",
+                "device": "phone",
+                "at": 9480000
+              },
+              {
+                "op": "refresh",
+                "token": "t159",
+                "device": "phone",
+                "at": 9540000
+              },
+              {
+                "op": "refresh",
+                "token": "t160",
+                "device": "phone",
+                "at": 9600000
+              },
+              {
+                "op": "refresh",
+                "token": "t161",
+                "device": "phone",
+                "at": 9660000
+              },
+              {
+                "op": "refresh",
+                "token": "t162",
+                "device": "phone",
+                "at": 9720000
+              },
+              {
+                "op": "refresh",
+                "token": "t163",
+                "device": "phone",
+                "at": 9780000
+              },
+              {
+                "op": "refresh",
+                "token": "t164",
+                "device": "phone",
+                "at": 9840000
+              },
+              {
+                "op": "refresh",
+                "token": "t165",
+                "device": "phone",
+                "at": 9900000
+              },
+              {
+                "op": "refresh",
+                "token": "t166",
+                "device": "phone",
+                "at": 9960000
+              },
+              {
+                "op": "refresh",
+                "token": "t167",
+                "device": "phone",
+                "at": 10020000
+              },
+              {
+                "op": "refresh",
+                "token": "t168",
+                "device": "phone",
+                "at": 10080000
+              },
+              {
+                "op": "refresh",
+                "token": "t169",
+                "device": "phone",
+                "at": 10140000
+              },
+              {
+                "op": "refresh",
+                "token": "t170",
+                "device": "phone",
+                "at": 10200000
+              },
+              {
+                "op": "refresh",
+                "token": "t171",
+                "device": "phone",
+                "at": 10260000
+              },
+              {
+                "op": "refresh",
+                "token": "t172",
+                "device": "phone",
+                "at": 10320000
+              },
+              {
+                "op": "refresh",
+                "token": "t173",
+                "device": "phone",
+                "at": 10380000
+              },
+              {
+                "op": "refresh",
+                "token": "t174",
+                "device": "phone",
+                "at": 10440000
+              },
+              {
+                "op": "refresh",
+                "token": "t175",
+                "device": "phone",
+                "at": 10500000
+              },
+              {
+                "op": "refresh",
+                "token": "t176",
+                "device": "phone",
+                "at": 10560000
+              },
+              {
+                "op": "refresh",
+                "token": "t177",
+                "device": "phone",
+                "at": 10620000
+              },
+              {
+                "op": "refresh",
+                "token": "t178",
+                "device": "phone",
+                "at": 10680000
+              },
+              {
+                "op": "refresh",
+                "token": "t179",
+                "device": "phone",
+                "at": 10740000
+              },
+              {
+                "op": "refresh",
+                "token": "t180",
+                "device": "phone",
+                "at": 10800000
+              },
+              {
+                "op": "refresh",
+                "token": "t181",
+                "device": "phone",
+                "at": 10860000
+              },
+              {
+                "op": "refresh",
+                "token": "t182",
+                "device": "phone",
+                "at": 10920000
+              },
+              {
+                "op": "refresh",
+                "token": "t183",
+                "device": "phone",
+                "at": 10980000
+              },
+              {
+                "op": "refresh",
+                "token": "t184",
+                "device": "phone",
+                "at": 11040000
+              },
+              {
+                "op": "refresh",
+                "token": "t185",
+                "device": "phone",
+                "at": 11100000
+              },
+              {
+                "op": "refresh",
+                "token": "t186",
+                "device": "phone",
+                "at": 11160000
+              },
+              {
+                "op": "refresh",
+                "token": "t187",
+                "device": "phone",
+                "at": 11220000
+              },
+              {
+                "op": "refresh",
+                "token": "t188",
+                "device": "phone",
+                "at": 11280000
+              },
+              {
+                "op": "refresh",
+                "token": "t189",
+                "device": "phone",
+                "at": 11340000
+              },
+              {
+                "op": "refresh",
+                "token": "t190",
+                "device": "phone",
+                "at": 11400000
+              },
+              {
+                "op": "refresh",
+                "token": "t191",
+                "device": "phone",
+                "at": 11460000
+              },
+              {
+                "op": "refresh",
+                "token": "t192",
+                "device": "phone",
+                "at": 11520000
+              },
+              {
+                "op": "refresh",
+                "token": "t193",
+                "device": "phone",
+                "at": 11580000
+              },
+              {
+                "op": "refresh",
+                "token": "t194",
+                "device": "phone",
+                "at": 11640000
+              },
+              {
+                "op": "refresh",
+                "token": "t195",
+                "device": "phone",
+                "at": 11700000
+              },
+              {
+                "op": "refresh",
+                "token": "t196",
+                "device": "phone",
+                "at": 11760000
+              },
+              {
+                "op": "refresh",
+                "token": "t197",
+                "device": "phone",
+                "at": 11820000
+              },
+              {
+                "op": "refresh",
+                "token": "t198",
+                "device": "phone",
+                "at": 11880000
+              },
+              {
+                "op": "refresh",
+                "token": "t199",
+                "device": "phone",
+                "at": 11940000
+              },
+              {
+                "op": "refresh",
+                "token": "t200",
+                "device": "phone",
+                "at": 12000000
+              },
+              {
+                "op": "refresh",
+                "token": "t200",
+                "device": "phone",
+                "at": 12002000
+              },
+              {
+                "op": "refresh",
+                "token": "t201",
+                "device": "phone",
+                "at": 12060000
+              },
+              {
+                "op": "refresh",
+                "token": "t202",
+                "device": "phone",
+                "at": 12120000
+              },
+              {
+                "op": "refresh",
+                "token": "t203",
+                "device": "phone",
+                "at": 12180000
+              },
+              {
+                "op": "refresh",
+                "token": "t204",
+                "device": "phone",
+                "at": 12240000
+              },
+              {
+                "op": "refresh",
+                "token": "t205",
+                "device": "phone",
+                "at": 12300000
+              },
+              {
+                "op": "refresh",
+                "token": "t206",
+                "device": "phone",
+                "at": 12360000
+              },
+              {
+                "op": "refresh",
+                "token": "t207",
+                "device": "phone",
+                "at": 12420000
+              },
+              {
+                "op": "refresh",
+                "token": "t208",
+                "device": "phone",
+                "at": 12480000
+              },
+              {
+                "op": "refresh",
+                "token": "t209",
+                "device": "phone",
+                "at": 12540000
+              },
+              {
+                "op": "refresh",
+                "token": "t210",
+                "device": "phone",
+                "at": 12600000
+              },
+              {
+                "op": "refresh",
+                "token": "t211",
+                "device": "phone",
+                "at": 12660000
+              },
+              {
+                "op": "refresh",
+                "token": "t212",
+                "device": "phone",
+                "at": 12720000
+              },
+              {
+                "op": "refresh",
+                "token": "t213",
+                "device": "phone",
+                "at": 12780000
+              },
+              {
+                "op": "refresh",
+                "token": "t214",
+                "device": "phone",
+                "at": 12840000
+              },
+              {
+                "op": "refresh",
+                "token": "t215",
+                "device": "phone",
+                "at": 12900000
+              },
+              {
+                "op": "refresh",
+                "token": "t216",
+                "device": "phone",
+                "at": 12960000
+              },
+              {
+                "op": "refresh",
+                "token": "t217",
+                "device": "phone",
+                "at": 13020000
+              },
+              {
+                "op": "refresh",
+                "token": "t218",
+                "device": "phone",
+                "at": 13080000
+              },
+              {
+                "op": "refresh",
+                "token": "t219",
+                "device": "phone",
+                "at": 13140000
+              },
+              {
+                "op": "refresh",
+                "token": "t220",
+                "device": "phone",
+                "at": 13200000
+              },
+              {
+                "op": "refresh",
+                "token": "t221",
+                "device": "phone",
+                "at": 13260000
+              },
+              {
+                "op": "refresh",
+                "token": "t222",
+                "device": "phone",
+                "at": 13320000
+              },
+              {
+                "op": "refresh",
+                "token": "t223",
+                "device": "phone",
+                "at": 13380000
+              },
+              {
+                "op": "refresh",
+                "token": "t224",
+                "device": "phone",
+                "at": 13440000
+              },
+              {
+                "op": "refresh",
+                "token": "t225",
+                "device": "phone",
+                "at": 13500000
+              },
+              {
+                "op": "refresh",
+                "token": "t226",
+                "device": "phone",
+                "at": 13560000
+              },
+              {
+                "op": "refresh",
+                "token": "t227",
+                "device": "phone",
+                "at": 13620000
+              },
+              {
+                "op": "refresh",
+                "token": "t228",
+                "device": "phone",
+                "at": 13680000
+              },
+              {
+                "op": "refresh",
+                "token": "t229",
+                "device": "phone",
+                "at": 13740000
+              },
+              {
+                "op": "refresh",
+                "token": "t230",
+                "device": "phone",
+                "at": 13800000
+              },
+              {
+                "op": "refresh",
+                "token": "t231",
+                "device": "phone",
+                "at": 13860000
+              },
+              {
+                "op": "refresh",
+                "token": "t232",
+                "device": "phone",
+                "at": 13920000
+              },
+              {
+                "op": "refresh",
+                "token": "t233",
+                "device": "phone",
+                "at": 13980000
+              },
+              {
+                "op": "refresh",
+                "token": "t234",
+                "device": "phone",
+                "at": 14040000
+              },
+              {
+                "op": "refresh",
+                "token": "t235",
+                "device": "phone",
+                "at": 14100000
+              },
+              {
+                "op": "refresh",
+                "token": "t236",
+                "device": "phone",
+                "at": 14160000
+              },
+              {
+                "op": "refresh",
+                "token": "t237",
+                "device": "phone",
+                "at": 14220000
+              },
+              {
+                "op": "refresh",
+                "token": "t238",
+                "device": "phone",
+                "at": 14280000
+              },
+              {
+                "op": "refresh",
+                "token": "t239",
+                "device": "phone",
+                "at": 14340000
+              },
+              {
+                "op": "refresh",
+                "token": "t240",
+                "device": "phone",
+                "at": 14400000
+              },
+              {
+                "op": "refresh",
+                "token": "t241",
+                "device": "phone",
+                "at": 14460000
+              },
+              {
+                "op": "refresh",
+                "token": "t242",
+                "device": "phone",
+                "at": 14520000
+              },
+              {
+                "op": "refresh",
+                "token": "t243",
+                "device": "phone",
+                "at": 14580000
+              },
+              {
+                "op": "refresh",
+                "token": "t244",
+                "device": "phone",
+                "at": 14640000
+              },
+              {
+                "op": "refresh",
+                "token": "t245",
+                "device": "phone",
+                "at": 14700000
+              },
+              {
+                "op": "refresh",
+                "token": "t246",
+                "device": "phone",
+                "at": 14760000
+              },
+              {
+                "op": "refresh",
+                "token": "t247",
+                "device": "phone",
+                "at": 14820000
+              },
+              {
+                "op": "refresh",
+                "token": "t248",
+                "device": "phone",
+                "at": 14880000
+              },
+              {
+                "op": "refresh",
+                "token": "t249",
+                "device": "phone",
+                "at": 14940000
+              },
+              {
+                "op": "refresh",
+                "token": "t250",
+                "device": "phone",
+                "at": 15000000
+              },
+              {
+                "op": "refresh",
+                "token": "t250",
+                "device": "phone",
+                "at": 15002000
+              },
+              {
+                "op": "refresh",
+                "token": "t251",
+                "device": "phone",
+                "at": 15060000
+              },
+              {
+                "op": "refresh",
+                "token": "t252",
+                "device": "phone",
+                "at": 15120000
+              },
+              {
+                "op": "refresh",
+                "token": "t253",
+                "device": "phone",
+                "at": 15180000
+              },
+              {
+                "op": "refresh",
+                "token": "t254",
+                "device": "phone",
+                "at": 15240000
+              },
+              {
+                "op": "refresh",
+                "token": "t255",
+                "device": "phone",
+                "at": 15300000
+              },
+              {
+                "op": "refresh",
+                "token": "t256",
+                "device": "phone",
+                "at": 15360000
+              },
+              {
+                "op": "refresh",
+                "token": "t257",
+                "device": "phone",
+                "at": 15420000
+              },
+              {
+                "op": "refresh",
+                "token": "t258",
+                "device": "phone",
+                "at": 15480000
+              },
+              {
+                "op": "refresh",
+                "token": "t259",
+                "device": "phone",
+                "at": 15540000
+              },
+              {
+                "op": "refresh",
+                "token": "t260",
+                "device": "phone",
+                "at": 15600000
+              },
+              {
+                "op": "refresh",
+                "token": "t261",
+                "device": "phone",
+                "at": 15660000
+              },
+              {
+                "op": "refresh",
+                "token": "t262",
+                "device": "phone",
+                "at": 15720000
+              },
+              {
+                "op": "refresh",
+                "token": "t263",
+                "device": "phone",
+                "at": 15780000
+              },
+              {
+                "op": "refresh",
+                "token": "t264",
+                "device": "phone",
+                "at": 15840000
+              },
+              {
+                "op": "refresh",
+                "token": "t265",
+                "device": "phone",
+                "at": 15900000
+              },
+              {
+                "op": "refresh",
+                "token": "t266",
+                "device": "phone",
+                "at": 15960000
+              },
+              {
+                "op": "refresh",
+                "token": "t267",
+                "device": "phone",
+                "at": 16020000
+              },
+              {
+                "op": "refresh",
+                "token": "t268",
+                "device": "phone",
+                "at": 16080000
+              },
+              {
+                "op": "refresh",
+                "token": "t269",
+                "device": "phone",
+                "at": 16140000
+              },
+              {
+                "op": "refresh",
+                "token": "t270",
+                "device": "phone",
+                "at": 16200000
+              },
+              {
+                "op": "refresh",
+                "token": "t271",
+                "device": "phone",
+                "at": 16260000
+              },
+              {
+                "op": "refresh",
+                "token": "t272",
+                "device": "phone",
+                "at": 16320000
+              },
+              {
+                "op": "refresh",
+                "token": "t273",
+                "device": "phone",
+                "at": 16380000
+              },
+              {
+                "op": "refresh",
+                "token": "t274",
+                "device": "phone",
+                "at": 16440000
+              },
+              {
+                "op": "refresh",
+                "token": "t275",
+                "device": "phone",
+                "at": 16500000
+              },
+              {
+                "op": "refresh",
+                "token": "t276",
+                "device": "phone",
+                "at": 16560000
+              },
+              {
+                "op": "refresh",
+                "token": "t277",
+                "device": "phone",
+                "at": 16620000
+              },
+              {
+                "op": "refresh",
+                "token": "t278",
+                "device": "phone",
+                "at": 16680000
+              },
+              {
+                "op": "refresh",
+                "token": "t279",
+                "device": "phone",
+                "at": 16740000
+              },
+              {
+                "op": "refresh",
+                "token": "t280",
+                "device": "phone",
+                "at": 16800000
+              },
+              {
+                "op": "refresh",
+                "token": "t281",
+                "device": "phone",
+                "at": 16860000
+              },
+              {
+                "op": "refresh",
+                "token": "t282",
+                "device": "phone",
+                "at": 16920000
+              },
+              {
+                "op": "refresh",
+                "token": "t283",
+                "device": "phone",
+                "at": 16980000
+              },
+              {
+                "op": "refresh",
+                "token": "t284",
+                "device": "phone",
+                "at": 17040000
+              },
+              {
+                "op": "refresh",
+                "token": "t285",
+                "device": "phone",
+                "at": 17100000
+              },
+              {
+                "op": "refresh",
+                "token": "t286",
+                "device": "phone",
+                "at": 17160000
+              },
+              {
+                "op": "refresh",
+                "token": "t287",
+                "device": "phone",
+                "at": 17220000
+              },
+              {
+                "op": "refresh",
+                "token": "t288",
+                "device": "phone",
+                "at": 17280000
+              },
+              {
+                "op": "refresh",
+                "token": "t289",
+                "device": "phone",
+                "at": 17340000
+              },
+              {
+                "op": "refresh",
+                "token": "t290",
+                "device": "phone",
+                "at": 17400000
+              },
+              {
+                "op": "refresh",
+                "token": "t291",
+                "device": "phone",
+                "at": 17460000
+              },
+              {
+                "op": "refresh",
+                "token": "t292",
+                "device": "phone",
+                "at": 17520000
+              },
+              {
+                "op": "refresh",
+                "token": "t293",
+                "device": "phone",
+                "at": 17580000
+              },
+              {
+                "op": "refresh",
+                "token": "t294",
+                "device": "phone",
+                "at": 17640000
+              },
+              {
+                "op": "refresh",
+                "token": "t295",
+                "device": "phone",
+                "at": 17700000
+              },
+              {
+                "op": "refresh",
+                "token": "t296",
+                "device": "phone",
+                "at": 17760000
+              },
+              {
+                "op": "refresh",
+                "token": "t297",
+                "device": "phone",
+                "at": 17820000
+              },
+              {
+                "op": "refresh",
+                "token": "t298",
+                "device": "phone",
+                "at": 17880000
+              },
+              {
+                "op": "refresh",
+                "token": "t299",
+                "device": "phone",
+                "at": 17940000
+              },
+              {
+                "op": "refresh",
+                "token": "t300",
+                "device": "phone",
+                "at": 18000000
+              },
+              {
+                "op": "refresh",
+                "token": "t300",
+                "device": "phone",
+                "at": 18002000
+              },
+              {
+                "op": "refresh",
+                "token": "t301",
+                "device": "phone",
+                "at": 18060000
+              },
+              {
+                "op": "refresh",
+                "token": "t302",
+                "device": "phone",
+                "at": 18120000
+              },
+              {
+                "op": "refresh",
+                "token": "t303",
+                "device": "phone",
+                "at": 18180000
+              },
+              {
+                "op": "refresh",
+                "token": "t304",
+                "device": "phone",
+                "at": 18240000
+              },
+              {
+                "op": "refresh",
+                "token": "t305",
+                "device": "phone",
+                "at": 18300000
+              },
+              {
+                "op": "refresh",
+                "token": "t306",
+                "device": "phone",
+                "at": 18360000
+              },
+              {
+                "op": "refresh",
+                "token": "t307",
+                "device": "phone",
+                "at": 18420000
+              },
+              {
+                "op": "refresh",
+                "token": "t308",
+                "device": "phone",
+                "at": 18480000
+              },
+              {
+                "op": "refresh",
+                "token": "t309",
+                "device": "phone",
+                "at": 18540000
+              },
+              {
+                "op": "refresh",
+                "token": "t310",
+                "device": "phone",
+                "at": 18600000
+              },
+              {
+                "op": "refresh",
+                "token": "t311",
+                "device": "phone",
+                "at": 18660000
+              },
+              {
+                "op": "refresh",
+                "token": "t312",
+                "device": "phone",
+                "at": 18720000
+              },
+              {
+                "op": "refresh",
+                "token": "t313",
+                "device": "phone",
+                "at": 18780000
+              },
+              {
+                "op": "refresh",
+                "token": "t314",
+                "device": "phone",
+                "at": 18840000
+              },
+              {
+                "op": "refresh",
+                "token": "t315",
+                "device": "phone",
+                "at": 18900000
+              },
+              {
+                "op": "refresh",
+                "token": "t316",
+                "device": "phone",
+                "at": 18960000
+              },
+              {
+                "op": "refresh",
+                "token": "t317",
+                "device": "phone",
+                "at": 19020000
+              },
+              {
+                "op": "refresh",
+                "token": "t318",
+                "device": "phone",
+                "at": 19080000
+              },
+              {
+                "op": "refresh",
+                "token": "t319",
+                "device": "phone",
+                "at": 19140000
+              },
+              {
+                "op": "refresh",
+                "token": "t320",
+                "device": "phone",
+                "at": 19200000
+              },
+              {
+                "op": "refresh",
+                "token": "t321",
+                "device": "phone",
+                "at": 19260000
+              },
+              {
+                "op": "refresh",
+                "token": "t322",
+                "device": "phone",
+                "at": 19320000
+              },
+              {
+                "op": "refresh",
+                "token": "t323",
+                "device": "phone",
+                "at": 19380000
+              },
+              {
+                "op": "refresh",
+                "token": "t324",
+                "device": "phone",
+                "at": 19440000
+              },
+              {
+                "op": "refresh",
+                "token": "t325",
+                "device": "phone",
+                "at": 19500000
+              },
+              {
+                "op": "refresh",
+                "token": "t326",
+                "device": "phone",
+                "at": 19560000
+              },
+              {
+                "op": "refresh",
+                "token": "t327",
+                "device": "phone",
+                "at": 19620000
+              },
+              {
+                "op": "refresh",
+                "token": "t328",
+                "device": "phone",
+                "at": 19680000
+              },
+              {
+                "op": "refresh",
+                "token": "t329",
+                "device": "phone",
+                "at": 19740000
+              },
+              {
+                "op": "refresh",
+                "token": "t330",
+                "device": "phone",
+                "at": 19800000
+              },
+              {
+                "op": "refresh",
+                "token": "t331",
+                "device": "phone",
+                "at": 19860000
+              },
+              {
+                "op": "refresh",
+                "token": "t332",
+                "device": "phone",
+                "at": 19920000
+              },
+              {
+                "op": "refresh",
+                "token": "t333",
+                "device": "phone",
+                "at": 19980000
+              },
+              {
+                "op": "refresh",
+                "token": "t334",
+                "device": "phone",
+                "at": 20040000
+              },
+              {
+                "op": "refresh",
+                "token": "t335",
+                "device": "phone",
+                "at": 20100000
+              },
+              {
+                "op": "refresh",
+                "token": "t336",
+                "device": "phone",
+                "at": 20160000
+              },
+              {
+                "op": "refresh",
+                "token": "t337",
+                "device": "phone",
+                "at": 20220000
+              },
+              {
+                "op": "refresh",
+                "token": "t338",
+                "device": "phone",
+                "at": 20280000
+              },
+              {
+                "op": "refresh",
+                "token": "t339",
+                "device": "phone",
+                "at": 20340000
+              },
+              {
+                "op": "refresh",
+                "token": "t340",
+                "device": "phone",
+                "at": 20400000
+              },
+              {
+                "op": "refresh",
+                "token": "t341",
+                "device": "phone",
+                "at": 20460000
+              },
+              {
+                "op": "refresh",
+                "token": "t342",
+                "device": "phone",
+                "at": 20520000
+              },
+              {
+                "op": "refresh",
+                "token": "t343",
+                "device": "phone",
+                "at": 20580000
+              },
+              {
+                "op": "refresh",
+                "token": "t344",
+                "device": "phone",
+                "at": 20640000
+              },
+              {
+                "op": "refresh",
+                "token": "t345",
+                "device": "phone",
+                "at": 20700000
+              },
+              {
+                "op": "refresh",
+                "token": "t346",
+                "device": "phone",
+                "at": 20760000
+              },
+              {
+                "op": "refresh",
+                "token": "t347",
+                "device": "phone",
+                "at": 20820000
+              },
+              {
+                "op": "refresh",
+                "token": "t348",
+                "device": "phone",
+                "at": 20880000
+              },
+              {
+                "op": "refresh",
+                "token": "t349",
+                "device": "phone",
+                "at": 20940000
+              },
+              {
+                "op": "refresh",
+                "token": "t350",
+                "device": "phone",
+                "at": 21000000
+              },
+              {
+                "op": "refresh",
+                "token": "t350",
+                "device": "phone",
+                "at": 21002000
+              },
+              {
+                "op": "refresh",
+                "token": "t351",
+                "device": "phone",
+                "at": 21060000
+              },
+              {
+                "op": "refresh",
+                "token": "t352",
+                "device": "phone",
+                "at": 21120000
+              },
+              {
+                "op": "refresh",
+                "token": "t353",
+                "device": "phone",
+                "at": 21180000
+              },
+              {
+                "op": "refresh",
+                "token": "t354",
+                "device": "phone",
+                "at": 21240000
+              },
+              {
+                "op": "refresh",
+                "token": "t355",
+                "device": "phone",
+                "at": 21300000
+              },
+              {
+                "op": "refresh",
+                "token": "t356",
+                "device": "phone",
+                "at": 21360000
+              },
+              {
+                "op": "refresh",
+                "token": "t357",
+                "device": "phone",
+                "at": 21420000
+              },
+              {
+                "op": "refresh",
+                "token": "t358",
+                "device": "phone",
+                "at": 21480000
+              },
+              {
+                "op": "refresh",
+                "token": "t359",
+                "device": "phone",
+                "at": 21540000
+              },
+              {
+                "op": "refresh",
+                "token": "t360",
+                "device": "phone",
+                "at": 21600000
+              },
+              {
+                "op": "refresh",
+                "token": "t361",
+                "device": "phone",
+                "at": 21660000
+              },
+              {
+                "op": "refresh",
+                "token": "t362",
+                "device": "phone",
+                "at": 21720000
+              },
+              {
+                "op": "refresh",
+                "token": "t363",
+                "device": "phone",
+                "at": 21780000
+              },
+              {
+                "op": "refresh",
+                "token": "t364",
+                "device": "phone",
+                "at": 21840000
+              },
+              {
+                "op": "refresh",
+                "token": "t365",
+                "device": "phone",
+                "at": 21900000
+              },
+              {
+                "op": "refresh",
+                "token": "t366",
+                "device": "phone",
+                "at": 21960000
+              },
+              {
+                "op": "refresh",
+                "token": "t367",
+                "device": "phone",
+                "at": 22020000
+              },
+              {
+                "op": "refresh",
+                "token": "t368",
+                "device": "phone",
+                "at": 22080000
+              },
+              {
+                "op": "refresh",
+                "token": "t369",
+                "device": "phone",
+                "at": 22140000
+              },
+              {
+                "op": "refresh",
+                "token": "t370",
+                "device": "phone",
+                "at": 22200000
+              },
+              {
+                "op": "refresh",
+                "token": "t371",
+                "device": "phone",
+                "at": 22260000
+              },
+              {
+                "op": "refresh",
+                "token": "t372",
+                "device": "phone",
+                "at": 22320000
+              },
+              {
+                "op": "refresh",
+                "token": "t373",
+                "device": "phone",
+                "at": 22380000
+              },
+              {
+                "op": "refresh",
+                "token": "t374",
+                "device": "phone",
+                "at": 22440000
+              },
+              {
+                "op": "refresh",
+                "token": "t375",
+                "device": "phone",
+                "at": 22500000
+              },
+              {
+                "op": "refresh",
+                "token": "t376",
+                "device": "phone",
+                "at": 22560000
+              },
+              {
+                "op": "refresh",
+                "token": "t377",
+                "device": "phone",
+                "at": 22620000
+              },
+              {
+                "op": "refresh",
+                "token": "t378",
+                "device": "phone",
+                "at": 22680000
+              },
+              {
+                "op": "refresh",
+                "token": "t379",
+                "device": "phone",
+                "at": 22740000
+              },
+              {
+                "op": "refresh",
+                "token": "t380",
+                "device": "phone",
+                "at": 22800000
+              },
+              {
+                "op": "refresh",
+                "token": "t381",
+                "device": "phone",
+                "at": 22860000
+              },
+              {
+                "op": "refresh",
+                "token": "t382",
+                "device": "phone",
+                "at": 22920000
+              },
+              {
+                "op": "refresh",
+                "token": "t383",
+                "device": "phone",
+                "at": 22980000
+              },
+              {
+                "op": "refresh",
+                "token": "t384",
+                "device": "phone",
+                "at": 23040000
+              },
+              {
+                "op": "refresh",
+                "token": "t385",
+                "device": "phone",
+                "at": 23100000
+              },
+              {
+                "op": "refresh",
+                "token": "t386",
+                "device": "phone",
+                "at": 23160000
+              },
+              {
+                "op": "refresh",
+                "token": "t387",
+                "device": "phone",
+                "at": 23220000
+              },
+              {
+                "op": "refresh",
+                "token": "t388",
+                "device": "phone",
+                "at": 23280000
+              },
+              {
+                "op": "refresh",
+                "token": "t389",
+                "device": "phone",
+                "at": 23340000
+              },
+              {
+                "op": "refresh",
+                "token": "t390",
+                "device": "phone",
+                "at": 23400000
+              },
+              {
+                "op": "refresh",
+                "token": "t391",
+                "device": "phone",
+                "at": 23460000
+              },
+              {
+                "op": "refresh",
+                "token": "t392",
+                "device": "phone",
+                "at": 23520000
+              },
+              {
+                "op": "refresh",
+                "token": "t393",
+                "device": "phone",
+                "at": 23580000
+              },
+              {
+                "op": "refresh",
+                "token": "t394",
+                "device": "phone",
+                "at": 23640000
+              },
+              {
+                "op": "refresh",
+                "token": "t395",
+                "device": "phone",
+                "at": 23700000
+              },
+              {
+                "op": "refresh",
+                "token": "t396",
+                "device": "phone",
+                "at": 23760000
+              },
+              {
+                "op": "refresh",
+                "token": "t397",
+                "device": "phone",
+                "at": 23820000
+              },
+              {
+                "op": "refresh",
+                "token": "t398",
+                "device": "phone",
+                "at": 23880000
+              },
+              {
+                "op": "refresh",
+                "token": "t399",
+                "device": "phone",
+                "at": 23940000
+              },
+              {
+                "op": "refresh",
+                "token": "t400",
+                "device": "phone",
+                "at": 24000000
+              },
+              {
+                "op": "refresh",
+                "token": "t400",
+                "device": "phone",
+                "at": 24002000
+              },
+              {
+                "op": "refresh",
+                "token": "t401",
+                "device": "phone",
+                "at": 24060000
+              },
+              {
+                "op": "refresh",
+                "token": "t402",
+                "device": "phone",
+                "at": 24120000
+              },
+              {
+                "op": "refresh",
+                "token": "t403",
+                "device": "phone",
+                "at": 24180000
+              },
+              {
+                "op": "refresh",
+                "token": "t404",
+                "device": "phone",
+                "at": 24240000
+              },
+              {
+                "op": "refresh",
+                "token": "t405",
+                "device": "phone",
+                "at": 24300000
+              },
+              {
+                "op": "refresh",
+                "token": "t406",
+                "device": "phone",
+                "at": 24360000
+              },
+              {
+                "op": "refresh",
+                "token": "t407",
+                "device": "phone",
+                "at": 24420000
+              },
+              {
+                "op": "refresh",
+                "token": "t408",
+                "device": "phone",
+                "at": 24480000
+              },
+              {
+                "op": "refresh",
+                "token": "t409",
+                "device": "phone",
+                "at": 24540000
+              },
+              {
+                "op": "refresh",
+                "token": "t410",
+                "device": "phone",
+                "at": 24600000
+              },
+              {
+                "op": "refresh",
+                "token": "t411",
+                "device": "phone",
+                "at": 24660000
+              },
+              {
+                "op": "refresh",
+                "token": "t412",
+                "device": "phone",
+                "at": 24720000
+              },
+              {
+                "op": "refresh",
+                "token": "t413",
+                "device": "phone",
+                "at": 24780000
+              },
+              {
+                "op": "refresh",
+                "token": "t414",
+                "device": "phone",
+                "at": 24840000
+              },
+              {
+                "op": "refresh",
+                "token": "t415",
+                "device": "phone",
+                "at": 24900000
+              },
+              {
+                "op": "refresh",
+                "token": "t416",
+                "device": "phone",
+                "at": 24960000
+              },
+              {
+                "op": "refresh",
+                "token": "t417",
+                "device": "phone",
+                "at": 25020000
+              },
+              {
+                "op": "refresh",
+                "token": "t418",
+                "device": "phone",
+                "at": 25080000
+              },
+              {
+                "op": "refresh",
+                "token": "t419",
+                "device": "phone",
+                "at": 25140000
+              },
+              {
+                "op": "refresh",
+                "token": "t420",
+                "device": "phone",
+                "at": 25200000
+              },
+              {
+                "op": "refresh",
+                "token": "t421",
+                "device": "phone",
+                "at": 25260000
+              },
+              {
+                "op": "refresh",
+                "token": "t422",
+                "device": "phone",
+                "at": 25320000
+              },
+              {
+                "op": "refresh",
+                "token": "t423",
+                "device": "phone",
+                "at": 25380000
+              },
+              {
+                "op": "refresh",
+                "token": "t424",
+                "device": "phone",
+                "at": 25440000
+              },
+              {
+                "op": "refresh",
+                "token": "t425",
+                "device": "phone",
+                "at": 25500000
+              },
+              {
+                "op": "refresh",
+                "token": "t426",
+                "device": "phone",
+                "at": 25560000
+              },
+              {
+                "op": "refresh",
+                "token": "t427",
+                "device": "phone",
+                "at": 25620000
+              },
+              {
+                "op": "refresh",
+                "token": "t428",
+                "device": "phone",
+                "at": 25680000
+              },
+              {
+                "op": "refresh",
+                "token": "t429",
+                "device": "phone",
+                "at": 25740000
+              },
+              {
+                "op": "refresh",
+                "token": "t430",
+                "device": "phone",
+                "at": 25800000
+              },
+              {
+                "op": "refresh",
+                "token": "t431",
+                "device": "phone",
+                "at": 25860000
+              },
+              {
+                "op": "refresh",
+                "token": "t432",
+                "device": "phone",
+                "at": 25920000
+              },
+              {
+                "op": "refresh",
+                "token": "t433",
+                "device": "phone",
+                "at": 25980000
+              },
+              {
+                "op": "refresh",
+                "token": "t434",
+                "device": "phone",
+                "at": 26040000
+              },
+              {
+                "op": "refresh",
+                "token": "t435",
+                "device": "phone",
+                "at": 26100000
+              },
+              {
+                "op": "refresh",
+                "token": "t436",
+                "device": "phone",
+                "at": 26160000
+              },
+              {
+                "op": "refresh",
+                "token": "t437",
+                "device": "phone",
+                "at": 26220000
+              },
+              {
+                "op": "refresh",
+                "token": "t438",
+                "device": "phone",
+                "at": 26280000
+              },
+              {
+                "op": "refresh",
+                "token": "t439",
+                "device": "phone",
+                "at": 26340000
+              },
+              {
+                "op": "refresh",
+                "token": "t440",
+                "device": "phone",
+                "at": 26400000
+              },
+              {
+                "op": "refresh",
+                "token": "t441",
+                "device": "phone",
+                "at": 26460000
+              },
+              {
+                "op": "refresh",
+                "token": "t442",
+                "device": "phone",
+                "at": 26520000
+              },
+              {
+                "op": "refresh",
+                "token": "t443",
+                "device": "phone",
+                "at": 26580000
+              },
+              {
+                "op": "refresh",
+                "token": "t444",
+                "device": "phone",
+                "at": 26640000
+              },
+              {
+                "op": "refresh",
+                "token": "t445",
+                "device": "phone",
+                "at": 26700000
+              },
+              {
+                "op": "refresh",
+                "token": "t446",
+                "device": "phone",
+                "at": 26760000
+              },
+              {
+                "op": "refresh",
+                "token": "t447",
+                "device": "phone",
+                "at": 26820000
+              },
+              {
+                "op": "refresh",
+                "token": "t448",
+                "device": "phone",
+                "at": 26880000
+              },
+              {
+                "op": "refresh",
+                "token": "t449",
+                "device": "phone",
+                "at": 26940000
+              },
+              {
+                "op": "refresh",
+                "token": "t450",
+                "device": "phone",
+                "at": 27000000
+              },
+              {
+                "op": "refresh",
+                "token": "t450",
+                "device": "phone",
+                "at": 27002000
+              },
+              {
+                "op": "refresh",
+                "token": "t451",
+                "device": "phone",
+                "at": 27060000
+              },
+              {
+                "op": "refresh",
+                "token": "t452",
+                "device": "phone",
+                "at": 27120000
+              },
+              {
+                "op": "refresh",
+                "token": "t453",
+                "device": "phone",
+                "at": 27180000
+              },
+              {
+                "op": "refresh",
+                "token": "t454",
+                "device": "phone",
+                "at": 27240000
+              },
+              {
+                "op": "refresh",
+                "token": "t455",
+                "device": "phone",
+                "at": 27300000
+              },
+              {
+                "op": "refresh",
+                "token": "t456",
+                "device": "phone",
+                "at": 27360000
+              },
+              {
+                "op": "refresh",
+                "token": "t457",
+                "device": "phone",
+                "at": 27420000
+              },
+              {
+                "op": "refresh",
+                "token": "t458",
+                "device": "phone",
+                "at": 27480000
+              },
+              {
+                "op": "refresh",
+                "token": "t459",
+                "device": "phone",
+                "at": 27540000
+              },
+              {
+                "op": "refresh",
+                "token": "t460",
+                "device": "phone",
+                "at": 27600000
+              },
+              {
+                "op": "refresh",
+                "token": "t461",
+                "device": "phone",
+                "at": 27660000
+              },
+              {
+                "op": "refresh",
+                "token": "t462",
+                "device": "phone",
+                "at": 27720000
+              },
+              {
+                "op": "refresh",
+                "token": "t463",
+                "device": "phone",
+                "at": 27780000
+              },
+              {
+                "op": "refresh",
+                "token": "t464",
+                "device": "phone",
+                "at": 27840000
+              },
+              {
+                "op": "refresh",
+                "token": "t465",
+                "device": "phone",
+                "at": 27900000
+              },
+              {
+                "op": "refresh",
+                "token": "t466",
+                "device": "phone",
+                "at": 27960000
+              },
+              {
+                "op": "refresh",
+                "token": "t467",
+                "device": "phone",
+                "at": 28020000
+              },
+              {
+                "op": "refresh",
+                "token": "t468",
+                "device": "phone",
+                "at": 28080000
+              },
+              {
+                "op": "refresh",
+                "token": "t469",
+                "device": "phone",
+                "at": 28140000
+              },
+              {
+                "op": "refresh",
+                "token": "t470",
+                "device": "phone",
+                "at": 28200000
+              },
+              {
+                "op": "refresh",
+                "token": "t471",
+                "device": "phone",
+                "at": 28260000
+              },
+              {
+                "op": "refresh",
+                "token": "t472",
+                "device": "phone",
+                "at": 28320000
+              },
+              {
+                "op": "refresh",
+                "token": "t473",
+                "device": "phone",
+                "at": 28380000
+              },
+              {
+                "op": "refresh",
+                "token": "t474",
+                "device": "phone",
+                "at": 28440000
+              },
+              {
+                "op": "refresh",
+                "token": "t475",
+                "device": "phone",
+                "at": 28500000
+              },
+              {
+                "op": "refresh",
+                "token": "t476",
+                "device": "phone",
+                "at": 28560000
+              },
+              {
+                "op": "refresh",
+                "token": "t477",
+                "device": "phone",
+                "at": 28620000
+              },
+              {
+                "op": "refresh",
+                "token": "t478",
+                "device": "phone",
+                "at": 28680000
+              },
+              {
+                "op": "refresh",
+                "token": "t479",
+                "device": "phone",
+                "at": 28740000
+              },
+              {
+                "op": "refresh",
+                "token": "t480",
+                "device": "phone",
+                "at": 28800000
+              },
+              {
+                "op": "refresh",
+                "token": "t481",
+                "device": "phone",
+                "at": 28860000
+              },
+              {
+                "op": "refresh",
+                "token": "t482",
+                "device": "phone",
+                "at": 28920000
+              },
+              {
+                "op": "refresh",
+                "token": "t483",
+                "device": "phone",
+                "at": 28980000
+              },
+              {
+                "op": "refresh",
+                "token": "t484",
+                "device": "phone",
+                "at": 29040000
+              },
+              {
+                "op": "refresh",
+                "token": "t485",
+                "device": "phone",
+                "at": 29100000
+              },
+              {
+                "op": "refresh",
+                "token": "t486",
+                "device": "phone",
+                "at": 29160000
+              },
+              {
+                "op": "refresh",
+                "token": "t487",
+                "device": "phone",
+                "at": 29220000
+              },
+              {
+                "op": "refresh",
+                "token": "t488",
+                "device": "phone",
+                "at": 29280000
+              },
+              {
+                "op": "refresh",
+                "token": "t489",
+                "device": "phone",
+                "at": 29340000
+              },
+              {
+                "op": "refresh",
+                "token": "t490",
+                "device": "phone",
+                "at": 29400000
+              },
+              {
+                "op": "refresh",
+                "token": "t491",
+                "device": "phone",
+                "at": 29460000
+              },
+              {
+                "op": "refresh",
+                "token": "t492",
+                "device": "phone",
+                "at": 29520000
+              },
+              {
+                "op": "refresh",
+                "token": "t493",
+                "device": "phone",
+                "at": 29580000
+              },
+              {
+                "op": "refresh",
+                "token": "t494",
+                "device": "phone",
+                "at": 29640000
+              },
+              {
+                "op": "refresh",
+                "token": "t495",
+                "device": "phone",
+                "at": 29700000
+              },
+              {
+                "op": "refresh",
+                "token": "t496",
+                "device": "phone",
+                "at": 29760000
+              },
+              {
+                "op": "refresh",
+                "token": "t497",
+                "device": "phone",
+                "at": 29820000
+              },
+              {
+                "op": "refresh",
+                "token": "t498",
+                "device": "phone",
+                "at": 29880000
+              },
+              {
+                "op": "refresh",
+                "token": "t499",
+                "device": "phone",
+                "at": 29940000
+              },
+              {
+                "op": "refresh",
+                "token": "t500",
+                "device": "phone",
+                "at": 30000000
+              },
+              {
+                "op": "refresh",
+                "token": "t500",
+                "device": "phone",
+                "at": 30002000
+              },
+              {
+                "op": "refresh",
+                "token": "t501",
+                "device": "phone",
+                "at": 30060000
+              },
+              {
+                "op": "refresh",
+                "token": "t502",
+                "device": "phone",
+                "at": 30120000
+              },
+              {
+                "op": "refresh",
+                "token": "t503",
+                "device": "phone",
+                "at": 30180000
+              },
+              {
+                "op": "refresh",
+                "token": "t504",
+                "device": "phone",
+                "at": 30240000
+              },
+              {
+                "op": "refresh",
+                "token": "t505",
+                "device": "phone",
+                "at": 30300000
+              },
+              {
+                "op": "refresh",
+                "token": "t506",
+                "device": "phone",
+                "at": 30360000
+              },
+              {
+                "op": "refresh",
+                "token": "t507",
+                "device": "phone",
+                "at": 30420000
+              },
+              {
+                "op": "refresh",
+                "token": "t508",
+                "device": "phone",
+                "at": 30480000
+              },
+              {
+                "op": "refresh",
+                "token": "t509",
+                "device": "phone",
+                "at": 30540000
+              },
+              {
+                "op": "refresh",
+                "token": "t510",
+                "device": "phone",
+                "at": 30600000
+              },
+              {
+                "op": "refresh",
+                "token": "t511",
+                "device": "phone",
+                "at": 30660000
+              },
+              {
+                "op": "refresh",
+                "token": "t512",
+                "device": "phone",
+                "at": 30720000
+              },
+              {
+                "op": "refresh",
+                "token": "t513",
+                "device": "phone",
+                "at": 30780000
+              },
+              {
+                "op": "refresh",
+                "token": "t514",
+                "device": "phone",
+                "at": 30840000
+              },
+              {
+                "op": "refresh",
+                "token": "t515",
+                "device": "phone",
+                "at": 30900000
+              },
+              {
+                "op": "refresh",
+                "token": "t516",
+                "device": "phone",
+                "at": 30960000
+              },
+              {
+                "op": "refresh",
+                "token": "t517",
+                "device": "phone",
+                "at": 31020000
+              },
+              {
+                "op": "refresh",
+                "token": "t518",
+                "device": "phone",
+                "at": 31080000
+              },
+              {
+                "op": "refresh",
+                "token": "t519",
+                "device": "phone",
+                "at": 31140000
+              },
+              {
+                "op": "refresh",
+                "token": "t520",
+                "device": "phone",
+                "at": 31200000
+              },
+              {
+                "op": "refresh",
+                "token": "t521",
+                "device": "phone",
+                "at": 31260000
+              },
+              {
+                "op": "refresh",
+                "token": "t522",
+                "device": "phone",
+                "at": 31320000
+              },
+              {
+                "op": "refresh",
+                "token": "t523",
+                "device": "phone",
+                "at": 31380000
+              },
+              {
+                "op": "refresh",
+                "token": "t524",
+                "device": "phone",
+                "at": 31440000
+              },
+              {
+                "op": "refresh",
+                "token": "t525",
+                "device": "phone",
+                "at": 31500000
+              },
+              {
+                "op": "refresh",
+                "token": "t526",
+                "device": "phone",
+                "at": 31560000
+              },
+              {
+                "op": "refresh",
+                "token": "t527",
+                "device": "phone",
+                "at": 31620000
+              },
+              {
+                "op": "refresh",
+                "token": "t528",
+                "device": "phone",
+                "at": 31680000
+              },
+              {
+                "op": "refresh",
+                "token": "t529",
+                "device": "phone",
+                "at": 31740000
+              },
+              {
+                "op": "refresh",
+                "token": "t530",
+                "device": "phone",
+                "at": 31800000
+              },
+              {
+                "op": "refresh",
+                "token": "t531",
+                "device": "phone",
+                "at": 31860000
+              },
+              {
+                "op": "refresh",
+                "token": "t532",
+                "device": "phone",
+                "at": 31920000
+              },
+              {
+                "op": "refresh",
+                "token": "t533",
+                "device": "phone",
+                "at": 31980000
+              },
+              {
+                "op": "refresh",
+                "token": "t534",
+                "device": "phone",
+                "at": 32040000
+              },
+              {
+                "op": "refresh",
+                "token": "t535",
+                "device": "phone",
+                "at": 32100000
+              },
+              {
+                "op": "refresh",
+                "token": "t536",
+                "device": "phone",
+                "at": 32160000
+              },
+              {
+                "op": "refresh",
+                "token": "t537",
+                "device": "phone",
+                "at": 32220000
+              },
+              {
+                "op": "refresh",
+                "token": "t538",
+                "device": "phone",
+                "at": 32280000
+              },
+              {
+                "op": "refresh",
+                "token": "t539",
+                "device": "phone",
+                "at": 32340000
+              },
+              {
+                "op": "refresh",
+                "token": "t540",
+                "device": "phone",
+                "at": 32400000
+              },
+              {
+                "op": "refresh",
+                "token": "t541",
+                "device": "phone",
+                "at": 32460000
+              },
+              {
+                "op": "refresh",
+                "token": "t542",
+                "device": "phone",
+                "at": 32520000
+              },
+              {
+                "op": "refresh",
+                "token": "t543",
+                "device": "phone",
+                "at": 32580000
+              },
+              {
+                "op": "refresh",
+                "token": "t544",
+                "device": "phone",
+                "at": 32640000
+              },
+              {
+                "op": "refresh",
+                "token": "t545",
+                "device": "phone",
+                "at": 32700000
+              },
+              {
+                "op": "refresh",
+                "token": "t546",
+                "device": "phone",
+                "at": 32760000
+              },
+              {
+                "op": "refresh",
+                "token": "t547",
+                "device": "phone",
+                "at": 32820000
+              },
+              {
+                "op": "refresh",
+                "token": "t548",
+                "device": "phone",
+                "at": 32880000
+              },
+              {
+                "op": "refresh",
+                "token": "t549",
+                "device": "phone",
+                "at": 32940000
+              },
+              {
+                "op": "refresh",
+                "token": "t550",
+                "device": "phone",
+                "at": 33000000
+              },
+              {
+                "op": "refresh",
+                "token": "t550",
+                "device": "phone",
+                "at": 33002000
+              },
+              {
+                "op": "refresh",
+                "token": "t551",
+                "device": "phone",
+                "at": 33060000
+              },
+              {
+                "op": "refresh",
+                "token": "t552",
+                "device": "phone",
+                "at": 33120000
+              },
+              {
+                "op": "refresh",
+                "token": "t553",
+                "device": "phone",
+                "at": 33180000
+              },
+              {
+                "op": "refresh",
+                "token": "t554",
+                "device": "phone",
+                "at": 33240000
+              },
+              {
+                "op": "refresh",
+                "token": "t555",
+                "device": "phone",
+                "at": 33300000
+              },
+              {
+                "op": "refresh",
+                "token": "t556",
+                "device": "phone",
+                "at": 33360000
+              },
+              {
+                "op": "refresh",
+                "token": "t557",
+                "device": "phone",
+                "at": 33420000
+              },
+              {
+                "op": "refresh",
+                "token": "t558",
+                "device": "phone",
+                "at": 33480000
+              },
+              {
+                "op": "refresh",
+                "token": "t559",
+                "device": "phone",
+                "at": 33540000
+              },
+              {
+                "op": "refresh",
+                "token": "t560",
+                "device": "phone",
+                "at": 33600000
+              },
+              {
+                "op": "refresh",
+                "token": "t561",
+                "device": "phone",
+                "at": 33660000
+              },
+              {
+                "op": "refresh",
+                "token": "t562",
+                "device": "phone",
+                "at": 33720000
+              },
+              {
+                "op": "refresh",
+                "token": "t563",
+                "device": "phone",
+                "at": 33780000
+              },
+              {
+                "op": "refresh",
+                "token": "t564",
+                "device": "phone",
+                "at": 33840000
+              },
+              {
+                "op": "refresh",
+                "token": "t565",
+                "device": "phone",
+                "at": 33900000
+              },
+              {
+                "op": "refresh",
+                "token": "t566",
+                "device": "phone",
+                "at": 33960000
+              },
+              {
+                "op": "refresh",
+                "token": "t567",
+                "device": "phone",
+                "at": 34020000
+              },
+              {
+                "op": "refresh",
+                "token": "t568",
+                "device": "phone",
+                "at": 34080000
+              },
+              {
+                "op": "refresh",
+                "token": "t569",
+                "device": "phone",
+                "at": 34140000
+              },
+              {
+                "op": "refresh",
+                "token": "t570",
+                "device": "phone",
+                "at": 34200000
+              },
+              {
+                "op": "refresh",
+                "token": "t571",
+                "device": "phone",
+                "at": 34260000
+              },
+              {
+                "op": "refresh",
+                "token": "t572",
+                "device": "phone",
+                "at": 34320000
+              },
+              {
+                "op": "refresh",
+                "token": "t573",
+                "device": "phone",
+                "at": 34380000
+              },
+              {
+                "op": "refresh",
+                "token": "t574",
+                "device": "phone",
+                "at": 34440000
+              },
+              {
+                "op": "refresh",
+                "token": "t575",
+                "device": "phone",
+                "at": 34500000
+              },
+              {
+                "op": "refresh",
+                "token": "t576",
+                "device": "phone",
+                "at": 34560000
+              },
+              {
+                "op": "refresh",
+                "token": "t577",
+                "device": "phone",
+                "at": 34620000
+              },
+              {
+                "op": "refresh",
+                "token": "t578",
+                "device": "phone",
+                "at": 34680000
+              },
+              {
+                "op": "refresh",
+                "token": "t579",
+                "device": "phone",
+                "at": 34740000
+              },
+              {
+                "op": "refresh",
+                "token": "t580",
+                "device": "phone",
+                "at": 34800000
+              },
+              {
+                "op": "refresh",
+                "token": "t581",
+                "device": "phone",
+                "at": 34860000
+              },
+              {
+                "op": "refresh",
+                "token": "t582",
+                "device": "phone",
+                "at": 34920000
+              },
+              {
+                "op": "refresh",
+                "token": "t583",
+                "device": "phone",
+                "at": 34980000
+              },
+              {
+                "op": "refresh",
+                "token": "t584",
+                "device": "phone",
+                "at": 35040000
+              },
+              {
+                "op": "refresh",
+                "token": "t585",
+                "device": "phone",
+                "at": 35100000
+              },
+              {
+                "op": "refresh",
+                "token": "t586",
+                "device": "phone",
+                "at": 35160000
+              },
+              {
+                "op": "refresh",
+                "token": "t587",
+                "device": "phone",
+                "at": 35220000
+              },
+              {
+                "op": "refresh",
+                "token": "t588",
+                "device": "phone",
+                "at": 35280000
+              },
+              {
+                "op": "refresh",
+                "token": "t589",
+                "device": "phone",
+                "at": 35340000
+              },
+              {
+                "op": "refresh",
+                "token": "t590",
+                "device": "phone",
+                "at": 35400000
+              },
+              {
+                "op": "refresh",
+                "token": "t591",
+                "device": "phone",
+                "at": 35460000
+              },
+              {
+                "op": "refresh",
+                "token": "t592",
+                "device": "phone",
+                "at": 35520000
+              },
+              {
+                "op": "refresh",
+                "token": "t593",
+                "device": "phone",
+                "at": 35580000
+              },
+              {
+                "op": "refresh",
+                "token": "t594",
+                "device": "phone",
+                "at": 35640000
+              },
+              {
+                "op": "refresh",
+                "token": "t595",
+                "device": "phone",
+                "at": 35700000
+              },
+              {
+                "op": "refresh",
+                "token": "t596",
+                "device": "phone",
+                "at": 35760000
+              },
+              {
+                "op": "refresh",
+                "token": "t597",
+                "device": "phone",
+                "at": 35820000
+              },
+              {
+                "op": "refresh",
+                "token": "t598",
+                "device": "phone",
+                "at": 35880000
+              },
+              {
+                "op": "refresh",
+                "token": "t599",
+                "device": "phone",
+                "at": 35940000
+              },
+              {
+                "op": "refresh",
+                "token": "t600",
+                "device": "phone",
+                "at": 36000000
+              },
+              {
+                "op": "refresh",
+                "token": "t600",
+                "device": "phone",
+                "at": 36002000
+              },
+              {
+                "op": "refresh",
+                "token": "t601",
+                "device": "phone",
+                "at": 36060000
+              },
+              {
+                "op": "refresh",
+                "token": "t602",
+                "device": "phone",
+                "at": 36120000
+              },
+              {
+                "op": "refresh",
+                "token": "t603",
+                "device": "phone",
+                "at": 36180000
+              },
+              {
+                "op": "refresh",
+                "token": "t604",
+                "device": "phone",
+                "at": 36240000
+              },
+              {
+                "op": "refresh",
+                "token": "t605",
+                "device": "phone",
+                "at": 36300000
+              },
+              {
+                "op": "refresh",
+                "token": "t606",
+                "device": "phone",
+                "at": 36360000
+              },
+              {
+                "op": "refresh",
+                "token": "t607",
+                "device": "phone",
+                "at": 36420000
+              },
+              {
+                "op": "refresh",
+                "token": "t608",
+                "device": "phone",
+                "at": 36480000
+              },
+              {
+                "op": "refresh",
+                "token": "t609",
+                "device": "phone",
+                "at": 36540000
+              },
+              {
+                "op": "refresh",
+                "token": "t610",
+                "device": "phone",
+                "at": 36600000
+              },
+              {
+                "op": "refresh",
+                "token": "t611",
+                "device": "phone",
+                "at": 36660000
+              },
+              {
+                "op": "refresh",
+                "token": "t612",
+                "device": "phone",
+                "at": 36720000
+              },
+              {
+                "op": "refresh",
+                "token": "t613",
+                "device": "phone",
+                "at": 36780000
+              },
+              {
+                "op": "refresh",
+                "token": "t614",
+                "device": "phone",
+                "at": 36840000
+              },
+              {
+                "op": "refresh",
+                "token": "t615",
+                "device": "phone",
+                "at": 36900000
+              },
+              {
+                "op": "refresh",
+                "token": "t616",
+                "device": "phone",
+                "at": 36960000
+              },
+              {
+                "op": "refresh",
+                "token": "t617",
+                "device": "phone",
+                "at": 37020000
+              },
+              {
+                "op": "refresh",
+                "token": "t618",
+                "device": "phone",
+                "at": 37080000
+              },
+              {
+                "op": "refresh",
+                "token": "t619",
+                "device": "phone",
+                "at": 37140000
+              },
+              {
+                "op": "refresh",
+                "token": "t620",
+                "device": "phone",
+                "at": 37200000
+              },
+              {
+                "op": "refresh",
+                "token": "t621",
+                "device": "phone",
+                "at": 37260000
+              },
+              {
+                "op": "refresh",
+                "token": "t622",
+                "device": "phone",
+                "at": 37320000
+              },
+              {
+                "op": "refresh",
+                "token": "t623",
+                "device": "phone",
+                "at": 37380000
+              },
+              {
+                "op": "refresh",
+                "token": "t624",
+                "device": "phone",
+                "at": 37440000
+              },
+              {
+                "op": "refresh",
+                "token": "t625",
+                "device": "phone",
+                "at": 37500000
+              },
+              {
+                "op": "refresh",
+                "token": "t626",
+                "device": "phone",
+                "at": 37560000
+              },
+              {
+                "op": "refresh",
+                "token": "t627",
+                "device": "phone",
+                "at": 37620000
+              },
+              {
+                "op": "refresh",
+                "token": "t628",
+                "device": "phone",
+                "at": 37680000
+              },
+              {
+                "op": "refresh",
+                "token": "t629",
+                "device": "phone",
+                "at": 37740000
+              },
+              {
+                "op": "refresh",
+                "token": "t630",
+                "device": "phone",
+                "at": 37800000
+              },
+              {
+                "op": "refresh",
+                "token": "t631",
+                "device": "phone",
+                "at": 37860000
+              },
+              {
+                "op": "refresh",
+                "token": "t632",
+                "device": "phone",
+                "at": 37920000
+              },
+              {
+                "op": "refresh",
+                "token": "t633",
+                "device": "phone",
+                "at": 37980000
+              },
+              {
+                "op": "refresh",
+                "token": "t634",
+                "device": "phone",
+                "at": 38040000
+              },
+              {
+                "op": "refresh",
+                "token": "t635",
+                "device": "phone",
+                "at": 38100000
+              },
+              {
+                "op": "refresh",
+                "token": "t636",
+                "device": "phone",
+                "at": 38160000
+              },
+              {
+                "op": "refresh",
+                "token": "t637",
+                "device": "phone",
+                "at": 38220000
+              },
+              {
+                "op": "refresh",
+                "token": "t638",
+                "device": "phone",
+                "at": 38280000
+              },
+              {
+                "op": "refresh",
+                "token": "t639",
+                "device": "phone",
+                "at": 38340000
+              },
+              {
+                "op": "refresh",
+                "token": "t640",
+                "device": "phone",
+                "at": 38400000
+              },
+              {
+                "op": "refresh",
+                "token": "t641",
+                "device": "phone",
+                "at": 38460000
+              },
+              {
+                "op": "refresh",
+                "token": "t642",
+                "device": "phone",
+                "at": 38520000
+              },
+              {
+                "op": "refresh",
+                "token": "t643",
+                "device": "phone",
+                "at": 38580000
+              },
+              {
+                "op": "refresh",
+                "token": "t644",
+                "device": "phone",
+                "at": 38640000
+              },
+              {
+                "op": "refresh",
+                "token": "t645",
+                "device": "phone",
+                "at": 38700000
+              },
+              {
+                "op": "refresh",
+                "token": "t646",
+                "device": "phone",
+                "at": 38760000
+              },
+              {
+                "op": "refresh",
+                "token": "t647",
+                "device": "phone",
+                "at": 38820000
+              },
+              {
+                "op": "refresh",
+                "token": "t648",
+                "device": "phone",
+                "at": 38880000
+              },
+              {
+                "op": "refresh",
+                "token": "t649",
+                "device": "phone",
+                "at": 38940000
+              },
+              {
+                "op": "refresh",
+                "token": "t650",
+                "device": "phone",
+                "at": 39000000
+              },
+              {
+                "op": "refresh",
+                "token": "t650",
+                "device": "phone",
+                "at": 39002000
+              },
+              {
+                "op": "refresh",
+                "token": "t651",
+                "device": "phone",
+                "at": 39060000
+              },
+              {
+                "op": "refresh",
+                "token": "t652",
+                "device": "phone",
+                "at": 39120000
+              },
+              {
+                "op": "refresh",
+                "token": "t653",
+                "device": "phone",
+                "at": 39180000
+              },
+              {
+                "op": "refresh",
+                "token": "t654",
+                "device": "phone",
+                "at": 39240000
+              },
+              {
+                "op": "refresh",
+                "token": "t655",
+                "device": "phone",
+                "at": 39300000
+              },
+              {
+                "op": "refresh",
+                "token": "t656",
+                "device": "phone",
+                "at": 39360000
+              },
+              {
+                "op": "refresh",
+                "token": "t657",
+                "device": "phone",
+                "at": 39420000
+              },
+              {
+                "op": "refresh",
+                "token": "t658",
+                "device": "phone",
+                "at": 39480000
+              },
+              {
+                "op": "refresh",
+                "token": "t659",
+                "device": "phone",
+                "at": 39540000
+              },
+              {
+                "op": "refresh",
+                "token": "t660",
+                "device": "phone",
+                "at": 39600000
+              },
+              {
+                "op": "refresh",
+                "token": "t661",
+                "device": "phone",
+                "at": 39660000
+              },
+              {
+                "op": "refresh",
+                "token": "t662",
+                "device": "phone",
+                "at": 39720000
+              },
+              {
+                "op": "refresh",
+                "token": "t663",
+                "device": "phone",
+                "at": 39780000
+              },
+              {
+                "op": "refresh",
+                "token": "t664",
+                "device": "phone",
+                "at": 39840000
+              },
+              {
+                "op": "refresh",
+                "token": "t665",
+                "device": "phone",
+                "at": 39900000
+              },
+              {
+                "op": "refresh",
+                "token": "t666",
+                "device": "phone",
+                "at": 39960000
+              },
+              {
+                "op": "refresh",
+                "token": "t667",
+                "device": "phone",
+                "at": 40020000
+              },
+              {
+                "op": "refresh",
+                "token": "t668",
+                "device": "phone",
+                "at": 40080000
+              },
+              {
+                "op": "refresh",
+                "token": "t669",
+                "device": "phone",
+                "at": 40140000
+              },
+              {
+                "op": "refresh",
+                "token": "t670",
+                "device": "phone",
+                "at": 40200000
+              },
+              {
+                "op": "refresh",
+                "token": "t671",
+                "device": "phone",
+                "at": 40260000
+              },
+              {
+                "op": "refresh",
+                "token": "t672",
+                "device": "phone",
+                "at": 40320000
+              },
+              {
+                "op": "refresh",
+                "token": "t673",
+                "device": "phone",
+                "at": 40380000
+              },
+              {
+                "op": "refresh",
+                "token": "t674",
+                "device": "phone",
+                "at": 40440000
+              },
+              {
+                "op": "refresh",
+                "token": "t675",
+                "device": "phone",
+                "at": 40500000
+              },
+              {
+                "op": "refresh",
+                "token": "t676",
+                "device": "phone",
+                "at": 40560000
+              },
+              {
+                "op": "refresh",
+                "token": "t677",
+                "device": "phone",
+                "at": 40620000
+              },
+              {
+                "op": "refresh",
+                "token": "t678",
+                "device": "phone",
+                "at": 40680000
+              },
+              {
+                "op": "refresh",
+                "token": "t679",
+                "device": "phone",
+                "at": 40740000
+              },
+              {
+                "op": "refresh",
+                "token": "t680",
+                "device": "phone",
+                "at": 40800000
+              },
+              {
+                "op": "refresh",
+                "token": "t681",
+                "device": "phone",
+                "at": 40860000
+              },
+              {
+                "op": "refresh",
+                "token": "t682",
+                "device": "phone",
+                "at": 40920000
+              },
+              {
+                "op": "refresh",
+                "token": "t683",
+                "device": "phone",
+                "at": 40980000
+              },
+              {
+                "op": "refresh",
+                "token": "t684",
+                "device": "phone",
+                "at": 41040000
+              },
+              {
+                "op": "refresh",
+                "token": "t685",
+                "device": "phone",
+                "at": 41100000
+              },
+              {
+                "op": "refresh",
+                "token": "t686",
+                "device": "phone",
+                "at": 41160000
+              },
+              {
+                "op": "refresh",
+                "token": "t687",
+                "device": "phone",
+                "at": 41220000
+              },
+              {
+                "op": "refresh",
+                "token": "t688",
+                "device": "phone",
+                "at": 41280000
+              },
+              {
+                "op": "refresh",
+                "token": "t689",
+                "device": "phone",
+                "at": 41340000
+              },
+              {
+                "op": "refresh",
+                "token": "t690",
+                "device": "phone",
+                "at": 41400000
+              },
+              {
+                "op": "refresh",
+                "token": "t691",
+                "device": "phone",
+                "at": 41460000
+              },
+              {
+                "op": "refresh",
+                "token": "t692",
+                "device": "phone",
+                "at": 41520000
+              },
+              {
+                "op": "refresh",
+                "token": "t693",
+                "device": "phone",
+                "at": 41580000
+              },
+              {
+                "op": "refresh",
+                "token": "t694",
+                "device": "phone",
+                "at": 41640000
+              },
+              {
+                "op": "refresh",
+                "token": "t695",
+                "device": "phone",
+                "at": 41700000
+              },
+              {
+                "op": "refresh",
+                "token": "t696",
+                "device": "phone",
+                "at": 41760000
+              },
+              {
+                "op": "refresh",
+                "token": "t697",
+                "device": "phone",
+                "at": 41820000
+              },
+              {
+                "op": "refresh",
+                "token": "t698",
+                "device": "phone",
+                "at": 41880000
+              },
+              {
+                "op": "refresh",
+                "token": "t699",
+                "device": "phone",
+                "at": 41940000
+              },
+              {
+                "op": "refresh",
+                "token": "t700",
+                "device": "phone",
+                "at": 42000000
+              },
+              {
+                "op": "refresh",
+                "token": "t700",
+                "device": "phone",
+                "at": 42002000
+              },
+              {
+                "op": "refresh",
+                "token": "t701",
+                "device": "phone",
+                "at": 42060000
+              },
+              {
+                "op": "refresh",
+                "token": "t702",
+                "device": "phone",
+                "at": 42120000
+              },
+              {
+                "op": "refresh",
+                "token": "t703",
+                "device": "phone",
+                "at": 42180000
+              },
+              {
+                "op": "refresh",
+                "token": "t704",
+                "device": "phone",
+                "at": 42240000
+              },
+              {
+                "op": "refresh",
+                "token": "t705",
+                "device": "phone",
+                "at": 42300000
+              },
+              {
+                "op": "refresh",
+                "token": "t706",
+                "device": "phone",
+                "at": 42360000
+              },
+              {
+                "op": "refresh",
+                "token": "t707",
+                "device": "phone",
+                "at": 42420000
+              },
+              {
+                "op": "refresh",
+                "token": "t708",
+                "device": "phone",
+                "at": 42480000
+              },
+              {
+                "op": "refresh",
+                "token": "t709",
+                "device": "phone",
+                "at": 42540000
+              },
+              {
+                "op": "refresh",
+                "token": "t710",
+                "device": "phone",
+                "at": 42600000
+              },
+              {
+                "op": "refresh",
+                "token": "t711",
+                "device": "phone",
+                "at": 42660000
+              },
+              {
+                "op": "refresh",
+                "token": "t712",
+                "device": "phone",
+                "at": 42720000
+              },
+              {
+                "op": "refresh",
+                "token": "t713",
+                "device": "phone",
+                "at": 42780000
+              },
+              {
+                "op": "refresh",
+                "token": "t714",
+                "device": "phone",
+                "at": 42840000
+              },
+              {
+                "op": "refresh",
+                "token": "t715",
+                "device": "phone",
+                "at": 42900000
+              },
+              {
+                "op": "refresh",
+                "token": "t716",
+                "device": "phone",
+                "at": 42960000
+              },
+              {
+                "op": "refresh",
+                "token": "t717",
+                "device": "phone",
+                "at": 43020000
+              },
+              {
+                "op": "refresh",
+                "token": "t718",
+                "device": "phone",
+                "at": 43080000
+              },
+              {
+                "op": "refresh",
+                "token": "t719",
+                "device": "phone",
+                "at": 43140000
+              },
+              {
+                "op": "refresh",
+                "token": "t720",
+                "device": "phone",
+                "at": 43200000
+              },
+              {
+                "op": "refresh",
+                "token": "t721",
+                "device": "phone",
+                "at": 43260000
+              },
+              {
+                "op": "refresh",
+                "token": "t722",
+                "device": "phone",
+                "at": 43320000
+              },
+              {
+                "op": "refresh",
+                "token": "t723",
+                "device": "phone",
+                "at": 43380000
+              },
+              {
+                "op": "refresh",
+                "token": "t724",
+                "device": "phone",
+                "at": 43440000
+              },
+              {
+                "op": "refresh",
+                "token": "t725",
+                "device": "phone",
+                "at": 43500000
+              },
+              {
+                "op": "refresh",
+                "token": "t726",
+                "device": "phone",
+                "at": 43560000
+              },
+              {
+                "op": "refresh",
+                "token": "t727",
+                "device": "phone",
+                "at": 43620000
+              },
+              {
+                "op": "refresh",
+                "token": "t728",
+                "device": "phone",
+                "at": 43680000
+              },
+              {
+                "op": "refresh",
+                "token": "t729",
+                "device": "phone",
+                "at": 43740000
+              },
+              {
+                "op": "refresh",
+                "token": "t730",
+                "device": "phone",
+                "at": 43800000
+              },
+              {
+                "op": "refresh",
+                "token": "t731",
+                "device": "phone",
+                "at": 43860000
+              },
+              {
+                "op": "refresh",
+                "token": "t732",
+                "device": "phone",
+                "at": 43920000
+              },
+              {
+                "op": "refresh",
+                "token": "t733",
+                "device": "phone",
+                "at": 43980000
+              },
+              {
+                "op": "refresh",
+                "token": "t734",
+                "device": "phone",
+                "at": 44040000
+              },
+              {
+                "op": "refresh",
+                "token": "t735",
+                "device": "phone",
+                "at": 44100000
+              },
+              {
+                "op": "refresh",
+                "token": "t736",
+                "device": "phone",
+                "at": 44160000
+              },
+              {
+                "op": "refresh",
+                "token": "t737",
+                "device": "phone",
+                "at": 44220000
+              },
+              {
+                "op": "refresh",
+                "token": "t738",
+                "device": "phone",
+                "at": 44280000
+              },
+              {
+                "op": "refresh",
+                "token": "t739",
+                "device": "phone",
+                "at": 44340000
+              },
+              {
+                "op": "refresh",
+                "token": "t740",
+                "device": "phone",
+                "at": 44400000
+              },
+              {
+                "op": "refresh",
+                "token": "t741",
+                "device": "phone",
+                "at": 44460000
+              },
+              {
+                "op": "refresh",
+                "token": "t742",
+                "device": "phone",
+                "at": 44520000
+              },
+              {
+                "op": "refresh",
+                "token": "t743",
+                "device": "phone",
+                "at": 44580000
+              },
+              {
+                "op": "refresh",
+                "token": "t744",
+                "device": "phone",
+                "at": 44640000
+              },
+              {
+                "op": "refresh",
+                "token": "t745",
+                "device": "phone",
+                "at": 44700000
+              },
+              {
+                "op": "refresh",
+                "token": "t746",
+                "device": "phone",
+                "at": 44760000
+              },
+              {
+                "op": "refresh",
+                "token": "t747",
+                "device": "phone",
+                "at": 44820000
+              },
+              {
+                "op": "refresh",
+                "token": "t748",
+                "device": "phone",
+                "at": 44880000
+              },
+              {
+                "op": "refresh",
+                "token": "t749",
+                "device": "phone",
+                "at": 44940000
+              },
+              {
+                "op": "refresh",
+                "token": "t750",
+                "device": "phone",
+                "at": 45000000
+              },
+              {
+                "op": "refresh",
+                "token": "t750",
+                "device": "phone",
+                "at": 45002000
+              },
+              {
+                "op": "refresh",
+                "token": "t751",
+                "device": "phone",
+                "at": 45060000
+              },
+              {
+                "op": "refresh",
+                "token": "t752",
+                "device": "phone",
+                "at": 45120000
+              },
+              {
+                "op": "refresh",
+                "token": "t753",
+                "device": "phone",
+                "at": 45180000
+              },
+              {
+                "op": "refresh",
+                "token": "t754",
+                "device": "phone",
+                "at": 45240000
+              },
+              {
+                "op": "refresh",
+                "token": "t755",
+                "device": "phone",
+                "at": 45300000
+              },
+              {
+                "op": "refresh",
+                "token": "t756",
+                "device": "phone",
+                "at": 45360000
+              },
+              {
+                "op": "refresh",
+                "token": "t757",
+                "device": "phone",
+                "at": 45420000
+              },
+              {
+                "op": "refresh",
+                "token": "t758",
+                "device": "phone",
+                "at": 45480000
+              },
+              {
+                "op": "refresh",
+                "token": "t759",
+                "device": "phone",
+                "at": 45540000
+              },
+              {
+                "op": "refresh",
+                "token": "t760",
+                "device": "phone",
+                "at": 45600000
+              },
+              {
+                "op": "refresh",
+                "token": "t761",
+                "device": "phone",
+                "at": 45660000
+              },
+              {
+                "op": "refresh",
+                "token": "t762",
+                "device": "phone",
+                "at": 45720000
+              },
+              {
+                "op": "refresh",
+                "token": "t763",
+                "device": "phone",
+                "at": 45780000
+              },
+              {
+                "op": "refresh",
+                "token": "t764",
+                "device": "phone",
+                "at": 45840000
+              },
+              {
+                "op": "refresh",
+                "token": "t765",
+                "device": "phone",
+                "at": 45900000
+              },
+              {
+                "op": "refresh",
+                "token": "t766",
+                "device": "phone",
+                "at": 45960000
+              },
+              {
+                "op": "refresh",
+                "token": "t767",
+                "device": "phone",
+                "at": 46020000
+              },
+              {
+                "op": "refresh",
+                "token": "t768",
+                "device": "phone",
+                "at": 46080000
+              },
+              {
+                "op": "refresh",
+                "token": "t769",
+                "device": "phone",
+                "at": 46140000
+              },
+              {
+                "op": "refresh",
+                "token": "t770",
+                "device": "phone",
+                "at": 46200000
+              },
+              {
+                "op": "refresh",
+                "token": "t771",
+                "device": "phone",
+                "at": 46260000
+              },
+              {
+                "op": "refresh",
+                "token": "t772",
+                "device": "phone",
+                "at": 46320000
+              },
+              {
+                "op": "refresh",
+                "token": "t773",
+                "device": "phone",
+                "at": 46380000
+              },
+              {
+                "op": "refresh",
+                "token": "t774",
+                "device": "phone",
+                "at": 46440000
+              },
+              {
+                "op": "refresh",
+                "token": "t775",
+                "device": "phone",
+                "at": 46500000
+              },
+              {
+                "op": "refresh",
+                "token": "t776",
+                "device": "phone",
+                "at": 46560000
+              },
+              {
+                "op": "refresh",
+                "token": "t777",
+                "device": "phone",
+                "at": 46620000
+              },
+              {
+                "op": "refresh",
+                "token": "t778",
+                "device": "phone",
+                "at": 46680000
+              },
+              {
+                "op": "refresh",
+                "token": "t779",
+                "device": "phone",
+                "at": 46740000
+              },
+              {
+                "op": "refresh",
+                "token": "t780",
+                "device": "phone",
+                "at": 46800000
+              },
+              {
+                "op": "refresh",
+                "token": "t781",
+                "device": "phone",
+                "at": 46860000
+              },
+              {
+                "op": "refresh",
+                "token": "t782",
+                "device": "phone",
+                "at": 46920000
+              },
+              {
+                "op": "refresh",
+                "token": "t783",
+                "device": "phone",
+                "at": 46980000
+              },
+              {
+                "op": "refresh",
+                "token": "t784",
+                "device": "phone",
+                "at": 47040000
+              },
+              {
+                "op": "refresh",
+                "token": "t785",
+                "device": "phone",
+                "at": 47100000
+              },
+              {
+                "op": "refresh",
+                "token": "t786",
+                "device": "phone",
+                "at": 47160000
+              },
+              {
+                "op": "refresh",
+                "token": "t787",
+                "device": "phone",
+                "at": 47220000
+              },
+              {
+                "op": "refresh",
+                "token": "t788",
+                "device": "phone",
+                "at": 47280000
+              },
+              {
+                "op": "refresh",
+                "token": "t789",
+                "device": "phone",
+                "at": 47340000
+              },
+              {
+                "op": "refresh",
+                "token": "t790",
+                "device": "phone",
+                "at": 47400000
+              },
+              {
+                "op": "refresh",
+                "token": "t791",
+                "device": "phone",
+                "at": 47460000
+              },
+              {
+                "op": "refresh",
+                "token": "t792",
+                "device": "phone",
+                "at": 47520000
+              },
+              {
+                "op": "refresh",
+                "token": "t793",
+                "device": "phone",
+                "at": 47580000
+              },
+              {
+                "op": "refresh",
+                "token": "t794",
+                "device": "phone",
+                "at": 47640000
+              },
+              {
+                "op": "refresh",
+                "token": "t795",
+                "device": "phone",
+                "at": 47700000
+              },
+              {
+                "op": "refresh",
+                "token": "t796",
+                "device": "phone",
+                "at": 47760000
+              },
+              {
+                "op": "refresh",
+                "token": "t797",
+                "device": "phone",
+                "at": 47820000
+              },
+              {
+                "op": "refresh",
+                "token": "t798",
+                "device": "phone",
+                "at": 47880000
+              },
+              {
+                "op": "refresh",
+                "token": "t799",
+                "device": "phone",
+                "at": 47940000
+              },
+              {
+                "op": "refresh",
+                "token": "t800",
+                "device": "phone",
+                "at": 48000000
+              },
+              {
+                "op": "refresh",
+                "token": "t800",
+                "device": "phone",
+                "at": 48002000
+              },
+              {
+                "op": "refresh",
+                "token": "t801",
+                "device": "phone",
+                "at": 48060000
+              },
+              {
+                "op": "refresh",
+                "token": "t802",
+                "device": "phone",
+                "at": 48120000
+              },
+              {
+                "op": "refresh",
+                "token": "t803",
+                "device": "phone",
+                "at": 48180000
+              },
+              {
+                "op": "refresh",
+                "token": "t804",
+                "device": "phone",
+                "at": 48240000
+              },
+              {
+                "op": "refresh",
+                "token": "t805",
+                "device": "phone",
+                "at": 48300000
+              },
+              {
+                "op": "refresh",
+                "token": "t806",
+                "device": "phone",
+                "at": 48360000
+              },
+              {
+                "op": "refresh",
+                "token": "t807",
+                "device": "phone",
+                "at": 48420000
+              },
+              {
+                "op": "refresh",
+                "token": "t808",
+                "device": "phone",
+                "at": 48480000
+              },
+              {
+                "op": "refresh",
+                "token": "t809",
+                "device": "phone",
+                "at": 48540000
+              },
+              {
+                "op": "refresh",
+                "token": "t810",
+                "device": "phone",
+                "at": 48600000
+              },
+              {
+                "op": "refresh",
+                "token": "t811",
+                "device": "phone",
+                "at": 48660000
+              },
+              {
+                "op": "refresh",
+                "token": "t812",
+                "device": "phone",
+                "at": 48720000
+              },
+              {
+                "op": "refresh",
+                "token": "t813",
+                "device": "phone",
+                "at": 48780000
+              },
+              {
+                "op": "refresh",
+                "token": "t814",
+                "device": "phone",
+                "at": 48840000
+              },
+              {
+                "op": "refresh",
+                "token": "t815",
+                "device": "phone",
+                "at": 48900000
+              },
+              {
+                "op": "refresh",
+                "token": "t816",
+                "device": "phone",
+                "at": 48960000
+              },
+              {
+                "op": "refresh",
+                "token": "t817",
+                "device": "phone",
+                "at": 49020000
+              },
+              {
+                "op": "refresh",
+                "token": "t818",
+                "device": "phone",
+                "at": 49080000
+              },
+              {
+                "op": "refresh",
+                "token": "t819",
+                "device": "phone",
+                "at": 49140000
+              },
+              {
+                "op": "refresh",
+                "token": "t820",
+                "device": "phone",
+                "at": 49200000
+              },
+              {
+                "op": "refresh",
+                "token": "t821",
+                "device": "phone",
+                "at": 49260000
+              },
+              {
+                "op": "refresh",
+                "token": "t822",
+                "device": "phone",
+                "at": 49320000
+              },
+              {
+                "op": "refresh",
+                "token": "t823",
+                "device": "phone",
+                "at": 49380000
+              },
+              {
+                "op": "refresh",
+                "token": "t824",
+                "device": "phone",
+                "at": 49440000
+              },
+              {
+                "op": "refresh",
+                "token": "t825",
+                "device": "phone",
+                "at": 49500000
+              },
+              {
+                "op": "refresh",
+                "token": "t826",
+                "device": "phone",
+                "at": 49560000
+              },
+              {
+                "op": "refresh",
+                "token": "t827",
+                "device": "phone",
+                "at": 49620000
+              },
+              {
+                "op": "refresh",
+                "token": "t828",
+                "device": "phone",
+                "at": 49680000
+              },
+              {
+                "op": "refresh",
+                "token": "t829",
+                "device": "phone",
+                "at": 49740000
+              },
+              {
+                "op": "refresh",
+                "token": "t830",
+                "device": "phone",
+                "at": 49800000
+              },
+              {
+                "op": "refresh",
+                "token": "t831",
+                "device": "phone",
+                "at": 49860000
+              },
+              {
+                "op": "refresh",
+                "token": "t832",
+                "device": "phone",
+                "at": 49920000
+              },
+              {
+                "op": "refresh",
+                "token": "t833",
+                "device": "phone",
+                "at": 49980000
+              },
+              {
+                "op": "refresh",
+                "token": "t834",
+                "device": "phone",
+                "at": 50040000
+              },
+              {
+                "op": "refresh",
+                "token": "t835",
+                "device": "phone",
+                "at": 50100000
+              },
+              {
+                "op": "refresh",
+                "token": "t836",
+                "device": "phone",
+                "at": 50160000
+              },
+              {
+                "op": "refresh",
+                "token": "t837",
+                "device": "phone",
+                "at": 50220000
+              },
+              {
+                "op": "refresh",
+                "token": "t838",
+                "device": "phone",
+                "at": 50280000
+              },
+              {
+                "op": "refresh",
+                "token": "t839",
+                "device": "phone",
+                "at": 50340000
+              },
+              {
+                "op": "refresh",
+                "token": "t840",
+                "device": "phone",
+                "at": 50400000
+              },
+              {
+                "op": "refresh",
+                "token": "t841",
+                "device": "phone",
+                "at": 50460000
+              },
+              {
+                "op": "refresh",
+                "token": "t842",
+                "device": "phone",
+                "at": 50520000
+              },
+              {
+                "op": "refresh",
+                "token": "t843",
+                "device": "phone",
+                "at": 50580000
+              },
+              {
+                "op": "refresh",
+                "token": "t844",
+                "device": "phone",
+                "at": 50640000
+              },
+              {
+                "op": "refresh",
+                "token": "t845",
+                "device": "phone",
+                "at": 50700000
+              },
+              {
+                "op": "refresh",
+                "token": "t846",
+                "device": "phone",
+                "at": 50760000
+              },
+              {
+                "op": "refresh",
+                "token": "t847",
+                "device": "phone",
+                "at": 50820000
+              },
+              {
+                "op": "refresh",
+                "token": "t848",
+                "device": "phone",
+                "at": 50880000
+              },
+              {
+                "op": "refresh",
+                "token": "t849",
+                "device": "phone",
+                "at": 50940000
+              },
+              {
+                "op": "refresh",
+                "token": "t850",
+                "device": "phone",
+                "at": 51000000
+              },
+              {
+                "op": "refresh",
+                "token": "t850",
+                "device": "phone",
+                "at": 51002000
+              },
+              {
+                "op": "refresh",
+                "token": "t851",
+                "device": "phone",
+                "at": 51060000
+              },
+              {
+                "op": "refresh",
+                "token": "t852",
+                "device": "phone",
+                "at": 51120000
+              },
+              {
+                "op": "refresh",
+                "token": "t853",
+                "device": "phone",
+                "at": 51180000
+              },
+              {
+                "op": "refresh",
+                "token": "t854",
+                "device": "phone",
+                "at": 51240000
+              },
+              {
+                "op": "refresh",
+                "token": "t855",
+                "device": "phone",
+                "at": 51300000
+              },
+              {
+                "op": "refresh",
+                "token": "t856",
+                "device": "phone",
+                "at": 51360000
+              },
+              {
+                "op": "refresh",
+                "token": "t857",
+                "device": "phone",
+                "at": 51420000
+              },
+              {
+                "op": "refresh",
+                "token": "t858",
+                "device": "phone",
+                "at": 51480000
+              },
+              {
+                "op": "refresh",
+                "token": "t859",
+                "device": "phone",
+                "at": 51540000
+              },
+              {
+                "op": "refresh",
+                "token": "t860",
+                "device": "phone",
+                "at": 51600000
+              },
+              {
+                "op": "refresh",
+                "token": "t861",
+                "device": "phone",
+                "at": 51660000
+              },
+              {
+                "op": "refresh",
+                "token": "t862",
+                "device": "phone",
+                "at": 51720000
+              },
+              {
+                "op": "refresh",
+                "token": "t863",
+                "device": "phone",
+                "at": 51780000
+              },
+              {
+                "op": "refresh",
+                "token": "t864",
+                "device": "phone",
+                "at": 51840000
+              },
+              {
+                "op": "refresh",
+                "token": "t865",
+                "device": "phone",
+                "at": 51900000
+              },
+              {
+                "op": "refresh",
+                "token": "t866",
+                "device": "phone",
+                "at": 51960000
+              },
+              {
+                "op": "refresh",
+                "token": "t867",
+                "device": "phone",
+                "at": 52020000
+              },
+              {
+                "op": "refresh",
+                "token": "t868",
+                "device": "phone",
+                "at": 52080000
+              },
+              {
+                "op": "refresh",
+                "token": "t869",
+                "device": "phone",
+                "at": 52140000
+              },
+              {
+                "op": "refresh",
+                "token": "t870",
+                "device": "phone",
+                "at": 52200000
+              },
+              {
+                "op": "refresh",
+                "token": "t871",
+                "device": "phone",
+                "at": 52260000
+              },
+              {
+                "op": "refresh",
+                "token": "t872",
+                "device": "phone",
+                "at": 52320000
+              },
+              {
+                "op": "refresh",
+                "token": "t873",
+                "device": "phone",
+                "at": 52380000
+              },
+              {
+                "op": "refresh",
+                "token": "t874",
+                "device": "phone",
+                "at": 52440000
+              },
+              {
+                "op": "refresh",
+                "token": "t875",
+                "device": "phone",
+                "at": 52500000
+              },
+              {
+                "op": "refresh",
+                "token": "t876",
+                "device": "phone",
+                "at": 52560000
+              },
+              {
+                "op": "refresh",
+                "token": "t877",
+                "device": "phone",
+                "at": 52620000
+              },
+              {
+                "op": "refresh",
+                "token": "t878",
+                "device": "phone",
+                "at": 52680000
+              },
+              {
+                "op": "refresh",
+                "token": "t879",
+                "device": "phone",
+                "at": 52740000
+              },
+              {
+                "op": "refresh",
+                "token": "t880",
+                "device": "phone",
+                "at": 52800000
+              },
+              {
+                "op": "refresh",
+                "token": "t881",
+                "device": "phone",
+                "at": 52860000
+              },
+              {
+                "op": "refresh",
+                "token": "t882",
+                "device": "phone",
+                "at": 52920000
+              },
+              {
+                "op": "refresh",
+                "token": "t883",
+                "device": "phone",
+                "at": 52980000
+              },
+              {
+                "op": "refresh",
+                "token": "t884",
+                "device": "phone",
+                "at": 53040000
+              },
+              {
+                "op": "refresh",
+                "token": "t885",
+                "device": "phone",
+                "at": 53100000
+              },
+              {
+                "op": "refresh",
+                "token": "t886",
+                "device": "phone",
+                "at": 53160000
+              },
+              {
+                "op": "refresh",
+                "token": "t887",
+                "device": "phone",
+                "at": 53220000
+              },
+              {
+                "op": "refresh",
+                "token": "t888",
+                "device": "phone",
+                "at": 53280000
+              },
+              {
+                "op": "refresh",
+                "token": "t889",
+                "device": "phone",
+                "at": 53340000
+              },
+              {
+                "op": "refresh",
+                "token": "t890",
+                "device": "phone",
+                "at": 53400000
+              },
+              {
+                "op": "refresh",
+                "token": "t891",
+                "device": "phone",
+                "at": 53460000
+              },
+              {
+                "op": "refresh",
+                "token": "t892",
+                "device": "phone",
+                "at": 53520000
+              },
+              {
+                "op": "refresh",
+                "token": "t893",
+                "device": "phone",
+                "at": 53580000
+              },
+              {
+                "op": "refresh",
+                "token": "t894",
+                "device": "phone",
+                "at": 53640000
+              },
+              {
+                "op": "refresh",
+                "token": "t895",
+                "device": "phone",
+                "at": 53700000
+              },
+              {
+                "op": "refresh",
+                "token": "t896",
+                "device": "phone",
+                "at": 53760000
+              },
+              {
+                "op": "refresh",
+                "token": "t897",
+                "device": "phone",
+                "at": 53820000
+              },
+              {
+                "op": "refresh",
+                "token": "t898",
+                "device": "phone",
+                "at": 53880000
+              },
+              {
+                "op": "refresh",
+                "token": "t899",
+                "device": "phone",
+                "at": 53940000
+              },
+              {
+                "op": "refresh",
+                "token": "t900",
+                "device": "phone",
+                "at": 54000000
+              },
+              {
+                "op": "refresh",
+                "token": "t900",
+                "device": "phone",
+                "at": 54002000
+              },
+              {
+                "op": "refresh",
+                "token": "t500",
+                "device": "phone",
+                "at": 54060000
+              },
+              {
+                "op": "refresh",
+                "token": "t901",
+                "device": "phone",
+                "at": 54120000
+              }
+            ]
+          },
+          "expected": "statuses grace=18 replay_detected=1 revoked=1 rotated=900\nlast refresh t901 phone @54120000: revoked\nrows 901, live 0, revoked 901, events 1\nevent refresh_token_reuse user=u_8812 family=f1 token=r500 device=phone at=54060000",
+          "hidden": true,
+          "score": 3
+        }
+      ]
+    }
+  ]
+}

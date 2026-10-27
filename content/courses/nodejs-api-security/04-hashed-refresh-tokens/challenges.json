@@ -1,0 +1,4359 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nas_211",
+      "name": "hashed-refresh-tokens-quiz",
+      "type": "quiz",
+      "title": "What a hashed token store protects",
+      "description": "Two pieces of evidence from the leaked-backup incident: a review comment that asks for bcrypt, and an attacker replaying a value copied from the backup.",
+      "difficulty": "medium",
+      "outcomes": [
+        "rotation-revocation"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Pull request #911 \"auth: store refresh tokens as hashes\":\n\nconst token = randomBytes(32).toString(\"base64url\");\nconst tokenHash = createHash(\"sha256\").update(token).digest(\"hex\");\nawait db.query(\"INSERT INTO auth.refresh_tokens (id, family_id, user_id, device_id, token_hash, created_at, expires_at) VALUES ($1, $2, $3, $4, $5, now(), now() + interval '30 days')\", [id, familyId, userId, deviceId, tokenHash]);\n\nReview comment: \"SHA-256 is fast, so an attacker with the backup can brute-force these hashes. Use bcrypt with cost 12, like we do for passwords.\"\n\nStatement: \"The reviewer is right: with plain SHA-256, an attacker who has the backup can recover working refresh tokens from token_hash in practical time.\"",
+          "explanation": "False. A slow, salted hash protects secrets that people choose, because those have little entropy and can be guessed from a dictionary. This token is 32 bytes from a cryptographic random generator: 256 bits, so there is no dictionary and an exhaustive search is out of reach even at billions of SHA-256 per second. bcrypt would also break the design: its salt makes the same token hash differently each time, so the server could no longer find the row with WHERE token_hash = $1 and would have to bcrypt-compare against every row, at about 0.25 s each. The misconception is that \"fast hash\" is a weakness by itself; it is a weakness only for low-entropy secrets such as passwords. OWASP's Password Storage Cheat Sheet is about passwords, not about random tokens.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "After the fix, someone replays a value taken from the leaked backup (row rt_1842 of user u_ana):\n\n$ curl -s -X POST https://api.codedev.test/auth/refresh \\\n    -H 'Content-Type: application/json' \\\n    -d '{\"refreshToken\":\"9f2c4e0b7a1d...e85a\"}'      # 64 hex characters: the token_hash column of rt_1842\n{\"error\":\"invalid_grant\"}\n\nAPI log: refresh_token.rejected reason=malformed\n\nThe server's validate code checks the format (43 base64url characters), then runs SHA-256 over what it received and looks up WHERE token_hash = $1.\n\nStatement: \"Even if the format check were removed, this replay would fail, because the server would hash the 64 hex characters and SHA-256 of a hash matches no token_hash in the table.\"",
+          "explanation": "True. The table stores H(token) and the server always computes H(presented). Presenting H(token) makes the server look up H(H(token)), which is not in the table, so the lookup finds nothing and the result is \"unknown\". That is the whole point of storing hashes: what is at rest is not what a client sends. The format check is a cheap early rejection and keeps junk out of the logs and the database, but security does not depend on it. The misconception is that a stolen hash can be \"passed through\" like a password hash in a pass-the-hash attack; that only works when the server accepts the hash itself as the credential.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_nas_212",
+      "name": "store-refresh-tokens-as-hashes",
+      "type": "mini_coding",
+      "title": "Store refresh tokens as hashes",
+      "description": "A copy of the CodeDev auth database leaked from a backup bucket, and the refresh tokens in it still worked: the table stored them in plain text. Write the two functions of the new token store so that the table only ever holds SHA-256 hashes.\n\nissueRefreshToken(deps, userId, deviceId): create the token from deps.randomBytes(32).toString(\"base64url\") (43 characters). Take id = deps.newId(\"rt\") and then familyId = deps.newId(\"fam\") (every issue starts a new family here). Insert one row with deps.store.insert: tokenHash = SHA-256 of the token as lowercase hex, createdAt = deps.now(), expiresAt = createdAt + deps.ttlMs, usedAt, revokedAt and replacedBy null. Log { event: \"refresh_token.issued\", id, userId, deviceId } and return { token, id, familyId, expiresAt }.\n\nvalidateRefreshToken(deps, presented): presented comes straight from the request body and may be anything. Check in this order and return the first match: (1) not a string of exactly 43 characters from A-Z a-z 0-9 - _ -> { ok: false, reason: \"malformed\" } without touching the store; (2) hash it and call deps.store.findByHash(hash); no row, or a row whose tokenHash is not equal to the hash (compare the bytes with crypto.timingSafeEqual) -> \"unknown\"; (3) row.revokedAt is not null -> \"revoked\"; (4) deps.now() >= row.expiresAt -> \"expired\"; (5) otherwise { ok: true, id, familyId, userId, deviceId, expiresAt } of the row. Every rejection logs { event: \"refresh_token.rejected\", reason } with an id property added when a row was found (revoked, expired); a success logs { event: \"refresh_token.accepted\", id }. Log each event with these properties in this order.\n\nA token or a stored hash must never appear in the store as plain text, in a log event or in a validate result. The test runner prints every operation with its log events, then the store (tokenHash shown as sha256(#n) when it is the hash of the n-th issued token, PLAIN(#n) when it is the token itself) and a leak check over the store, the logs and the results. Do not change the types, the store or the runner.",
+      "difficulty": "medium",
+      "outcomes": [
+        "rotation-revocation"
+      ],
+      "points": 30,
+      "hints": [
+        "What exactly must the database hold so that a server can still recognise a token it issued, while a copy of the database gives an attacker nothing to send?",
+        "Look at three places: what you pass to store.insert (only tokenHash, never the token), the order of the checks in validate (format, lookup, revoked, expired), and every object you pass to deps.log or return from validate - none of them may carry the token or row.tokenHash.",
+        "A similar case with API keys: key = randomBytes(24).toString(\"base64url\") gives 32 characters; the table keeps createHash(\"sha256\").update(key).digest(\"hex\"). To check a key, hash what the client sent, look up that hash, then compare Buffer.from(row.keyHash, \"hex\") with Buffer.from(hash, \"hex\") using timingSafeEqual (both 32 bytes). A key that was disabled yesterday is rejected as disabled before anyone looks at its expiry."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Two devices sign in; both tokens validate and only their SHA-256 hashes are stored",
+          "input": {
+            "ttlMs": 2592000000,
+            "ops": [
+              {
+                "op": "issue",
+                "userId": "u_ana",
+                "deviceId": "phone"
+              },
+              {
+                "op": "issue",
+                "userId": "u_ana",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "validate",
+                "token": "#1"
+              },
+              {
+                "op": "validate",
+                "token": "#2"
+              }
+            ]
+          },
+          "expected": "issue u_ana/phone -> rt_1 fam_1 token #1 expires 2026-11-25T08:00:00.000Z  log {\"event\":\"refresh_token.issued\",\"id\":\"rt_1\",\"userId\":\"u_ana\",\"deviceId\":\"phone\"}\nissue u_ana/laptop -> rt_2 fam_2 token #2 expires 2026-11-25T08:00:00.000Z  log {\"event\":\"refresh_token.issued\",\"id\":\"rt_2\",\"userId\":\"u_ana\",\"deviceId\":\"laptop\"}\nvalidate #1 -> ok rt_1 fam_1 u_ana/phone until 2026-11-25T08:00:00.000Z  log {\"event\":\"refresh_token.accepted\",\"id\":\"rt_1\"}\nvalidate #2 -> ok rt_2 fam_2 u_ana/laptop until 2026-11-25T08:00:00.000Z  log {\"event\":\"refresh_token.accepted\",\"id\":\"rt_2\"}\nstore:\nrt_1 fam_1 u_ana/phone hash=sha256(#1) created 2026-10-26T08:00:00.000Z expires 2026-11-25T08:00:00.000Z revoked -\nrt_2 fam_2 u_ana/laptop hash=sha256(#2) created 2026-10-26T08:00:00.000Z expires 2026-11-25T08:00:00.000Z revoked -\nleaks: none",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Revoked, expired and unknown tokens are rejected with their reason and logged without secrets",
+          "input": {
+            "ttlMs": 2592000000,
+            "ops": [
+              {
+                "op": "issue",
+                "userId": "u_ana",
+                "deviceId": "phone"
+              },
+              {
+                "op": "issue",
+                "userId": "u_binh",
+                "deviceId": "web"
+              },
+              {
+                "op": "issue",
+                "userId": "u_chi",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "revoke",
+                "id": "rt_2"
+              },
+              {
+                "op": "advance",
+                "ms": 2591999999
+              },
+              {
+                "op": "validate",
+                "token": "#1"
+              },
+              {
+                "op": "validate",
+                "token": "#2"
+              },
+              {
+                "op": "advance",
+                "ms": 1
+              },
+              {
+                "op": "validate",
+                "token": "#1"
+              },
+              {
+                "op": "validate",
+                "token": "#3"
+              },
+              {
+                "op": "validate",
+                "token": "Zm9yZ2VkLXRva2VuLW5ldmVyLWlzc3VlZC1ieS11cyE"
+              }
+            ]
+          },
+          "expected": "issue u_ana/phone -> rt_1 fam_1 token #1 expires 2026-11-25T08:00:00.000Z  log {\"event\":\"refresh_token.issued\",\"id\":\"rt_1\",\"userId\":\"u_ana\",\"deviceId\":\"phone\"}\nissue u_binh/web -> rt_2 fam_2 token #2 expires 2026-11-25T08:00:00.000Z  log {\"event\":\"refresh_token.issued\",\"id\":\"rt_2\",\"userId\":\"u_binh\",\"deviceId\":\"web\"}\nissue u_chi/tablet -> rt_3 fam_3 token #3 expires 2026-11-25T08:00:00.000Z  log {\"event\":\"refresh_token.issued\",\"id\":\"rt_3\",\"userId\":\"u_chi\",\"deviceId\":\"tablet\"}\nrevoke rt_2\nadvance to 2026-11-25T07:59:59.999Z\nvalidate #1 -> ok rt_1 fam_1 u_ana/phone until 2026-11-25T08:00:00.000Z  log {\"event\":\"refresh_token.accepted\",\"id\":\"rt_1\"}\nvalidate #2 -> revoked  log {\"event\":\"refresh_token.rejected\",\"reason\":\"revoked\",\"id\":\"rt_2\"}\nadvance to 2026-11-25T08:00:00.000Z\nvalidate #1 -> expired  log {\"event\":\"refresh_token.rejected\",\"reason\":\"expired\",\"id\":\"rt_1\"}\nvalidate #3 -> expired  log {\"event\":\"refresh_token.rejected\",\"reason\":\"expired\",\"id\":\"rt_3\"}\nvalidate \"Zm9yZ2VkLXRva2VuLW5ldmVyLWlzc3VlZC1ieS11cyE\" -> unknown  log {\"event\":\"refresh_token.rejected\",\"reason\":\"unknown\"}\nstore:\nrt_1 fam_1 u_ana/phone hash=sha256(#1) created 2026-10-26T08:00:00.000Z expires 2026-11-25T08:00:00.000Z revoked -\nrt_2 fam_2 u_binh/web hash=sha256(#2) created 2026-10-26T08:00:00.000Z expires 2026-11-25T08:00:00.000Z revoked 2026-10-26T08:00:00.000Z\nrt_3 fam_3 u_chi/tablet hash=sha256(#3) created 2026-10-26T08:00:00.000Z expires 2026-11-25T08:00:00.000Z revoked -\nleaks: none",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "The backup replay: a tokenHash value presented as a token is rejected, the real token still works",
+          "input": {
+            "ttlMs": 2592000000,
+            "ops": [
+              {
+                "op": "issue",
+                "userId": "u_ana",
+                "deviceId": "phone"
+              },
+              {
+                "op": "validate",
+                "token": "hash:rt_1"
+              },
+              {
+                "op": "validate",
+                "token": "#1"
+              }
+            ]
+          },
+          "expected": "issue u_ana/phone -> rt_1 fam_1 token #1 expires 2026-11-25T08:00:00.000Z  log {\"event\":\"refresh_token.issued\",\"id\":\"rt_1\",\"userId\":\"u_ana\",\"deviceId\":\"phone\"}\nvalidate tokenHash of rt_1 (backup) -> malformed  log {\"event\":\"refresh_token.rejected\",\"reason\":\"malformed\"}\nvalidate #1 -> ok rt_1 fam_1 u_ana/phone until 2026-11-25T08:00:00.000Z  log {\"event\":\"refresh_token.accepted\",\"id\":\"rt_1\"}\nstore:\nrt_1 fam_1 u_ana/phone hash=sha256(#1) created 2026-10-26T08:00:00.000Z expires 2026-11-25T08:00:00.000Z revoked -\nleaks: none",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Expiry boundary with a 15-minute TTL: valid 1 ms before expiresAt, expired at expiresAt",
+          "input": {
+            "ttlMs": 900000,
+            "start": 1798761000000,
+            "ops": [
+              {
+                "op": "issue",
+                "userId": "u_dan",
+                "deviceId": "web"
+              },
+              {
+                "op": "advance",
+                "ms": 899999
+              },
+              {
+                "op": "validate",
+                "token": "#1"
+              },
+              {
+                "op": "advance",
+                "ms": 1
+              },
+              {
+                "op": "validate",
+                "token": "#1"
+              },
+              {
+                "op": "advance",
+                "ms": 86400000
+              },
+              {
+                "op": "validate",
+                "token": "#1"
+              }
+            ]
+          },
+          "expected": "issue u_dan/web -> rt_1 fam_1 token #1 expires 2027-01-01T00:05:00.000Z  log {\"event\":\"refresh_token.issued\",\"id\":\"rt_1\",\"userId\":\"u_dan\",\"deviceId\":\"web\"}\nadvance to 2027-01-01T00:04:59.999Z\nvalidate #1 -> ok rt_1 fam_1 u_dan/web until 2027-01-01T00:05:00.000Z  log {\"event\":\"refresh_token.accepted\",\"id\":\"rt_1\"}\nadvance to 2027-01-01T00:05:00.000Z\nvalidate #1 -> expired  log {\"event\":\"refresh_token.rejected\",\"reason\":\"expired\",\"id\":\"rt_1\"}\nadvance to 2027-01-02T00:05:00.000Z\nvalidate #1 -> expired  log {\"event\":\"refresh_token.rejected\",\"reason\":\"expired\",\"id\":\"rt_1\"}\nstore:\nrt_1 fam_1 u_dan/web hash=sha256(#1) created 2026-12-31T23:50:00.000Z expires 2027-01-01T00:05:00.000Z revoked -\nleaks: none",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Same user and device sign in twice: two families, two hashes; revoked wins over expired",
+          "input": {
+            "ttlMs": 604800000,
+            "ops": [
+              {
+                "op": "issue",
+                "userId": "u_ana",
+                "deviceId": "phone"
+              },
+              {
+                "op": "advance",
+                "ms": 3600000
+              },
+              {
+                "op": "issue",
+                "userId": "u_ana",
+                "deviceId": "phone"
+              },
+              {
+                "op": "revoke",
+                "id": "rt_1"
+              },
+              {
+                "op": "validate",
+                "token": "#1"
+              },
+              {
+                "op": "validate",
+                "token": "#2"
+              },
+              {
+                "op": "advance",
+                "ms": 691200000
+              },
+              {
+                "op": "validate",
+                "token": "#1"
+              },
+              {
+                "op": "validate",
+                "token": "#2"
+              },
+              {
+                "op": "validate",
+                "token": "hash:rt_2"
+              }
+            ]
+          },
+          "expected": "issue u_ana/phone -> rt_1 fam_1 token #1 expires 2026-11-02T08:00:00.000Z  log {\"event\":\"refresh_token.issued\",\"id\":\"rt_1\",\"userId\":\"u_ana\",\"deviceId\":\"phone\"}\nadvance to 2026-10-26T09:00:00.000Z\nissue u_ana/phone -> rt_2 fam_2 token #2 expires 2026-11-02T09:00:00.000Z  log {\"event\":\"refresh_token.issued\",\"id\":\"rt_2\",\"userId\":\"u_ana\",\"deviceId\":\"phone\"}\nrevoke rt_1\nvalidate #1 -> revoked  log {\"event\":\"refresh_token.rejected\",\"reason\":\"revoked\",\"id\":\"rt_1\"}\nvalidate #2 -> ok rt_2 fam_2 u_ana/phone until 2026-11-02T09:00:00.000Z  log {\"event\":\"refresh_token.accepted\",\"id\":\"rt_2\"}\nadvance to 2026-11-03T09:00:00.000Z\nvalidate #1 -> revoked  log {\"event\":\"refresh_token.rejected\",\"reason\":\"revoked\",\"id\":\"rt_1\"}\nvalidate #2 -> expired  log {\"event\":\"refresh_token.rejected\",\"reason\":\"expired\",\"id\":\"rt_2\"}\nvalidate tokenHash of rt_2 (backup) -> malformed  log {\"event\":\"refresh_token.rejected\",\"reason\":\"malformed\"}\nstore:\nrt_1 fam_1 u_ana/phone hash=sha256(#1) created 2026-10-26T08:00:00.000Z expires 2026-11-02T08:00:00.000Z revoked 2026-10-26T09:00:00.000Z\nrt_2 fam_2 u_ana/phone hash=sha256(#2) created 2026-10-26T09:00:00.000Z expires 2026-11-02T09:00:00.000Z revoked -\nleaks: none",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Invalid input: null, number, object, empty, bad length, padding, +/ are malformed; forged is unknown",
+          "input": {
+            "ttlMs": 2592000000,
+            "ops": [
+              {
+                "op": "issue",
+                "userId": "u_ana",
+                "deviceId": "phone"
+              },
+              {
+                "op": "validate",
+                "token": null
+              },
+              {
+                "op": "validate",
+                "token": 42
+              },
+              {
+                "op": "validate",
+                "token": ""
+              },
+              {
+                "op": "validate",
+                "token": "Zm9yZ2VkLXRva2VuLW5ldmVyLWlzc3VlZC1ieS11cyEA"
+              },
+              {
+                "op": "validate",
+                "token": "m9yZ2VkLXRva2VuLW5ldmVyLWlzc3VlZC1ieS11cyE"
+              },
+              {
+                "op": "validate",
+                "token": "m9yZ2VkLXRva2VuLW5ldmVyLWlzc3VlZC1ieS11cyE="
+              },
+              {
+                "op": "validate",
+                "token": "9yZ2VkLXRva2VuLW5ldmVyLWlzc3VlZC1ieS11cyE+/"
+              },
+              {
+                "op": "validate",
+                "token": "m9yZ2VkLXRva2VuLW5ldmVyLWlzc3VlZC1ieS11cyE "
+              },
+              {
+                "op": "validate",
+                "token": "Zm9yZ2VkLXRva2VuLW5ldmVyLWlzc3VlZC1ieS11cyE"
+              },
+              {
+                "op": "validate",
+                "token": {
+                  "token": "#1"
+                }
+              },
+              {
+                "op": "validate",
+                "token": "#1"
+              }
+            ]
+          },
+          "expected": "issue u_ana/phone -> rt_1 fam_1 token #1 expires 2026-11-25T08:00:00.000Z  log {\"event\":\"refresh_token.issued\",\"id\":\"rt_1\",\"userId\":\"u_ana\",\"deviceId\":\"phone\"}\nvalidate null -> malformed  log {\"event\":\"refresh_token.rejected\",\"reason\":\"malformed\"}\nvalidate 42 -> malformed  log {\"event\":\"refresh_token.rejected\",\"reason\":\"malformed\"}\nvalidate \"\" -> malformed  log {\"event\":\"refresh_token.rejected\",\"reason\":\"malformed\"}\nvalidate \"Zm9yZ2VkLXRva2VuLW5ldmVyLWlzc3VlZC1ieS11cyEA\" -> malformed  log {\"event\":\"refresh_token.rejected\",\"reason\":\"malformed\"}\nvalidate \"m9yZ2VkLXRva2VuLW5ldmVyLWlzc3VlZC1ieS11cyE\" -> malformed  log {\"event\":\"refresh_token.rejected\",\"reason\":\"malformed\"}\nvalidate \"m9yZ2VkLXRva2VuLW5ldmVyLWlzc3VlZC1ieS11cyE=\" -> malformed  log {\"event\":\"refresh_token.rejected\",\"reason\":\"malformed\"}\nvalidate \"9yZ2VkLXRva2VuLW5ldmVyLWlzc3VlZC1ieS11cyE+/\" -> malformed  log {\"event\":\"refresh_token.rejected\",\"reason\":\"malformed\"}\nvalidate \"m9yZ2VkLXRva2VuLW5ldmVyLWlzc3VlZC1ieS11cyE \" -> malformed  log {\"event\":\"refresh_token.rejected\",\"reason\":\"malformed\"}\nvalidate \"Zm9yZ2VkLXRva2VuLW5ldmVyLWlzc3VlZC1ieS11cyE\" -> unknown  log {\"event\":\"refresh_token.rejected\",\"reason\":\"unknown\"}\nvalidate {\"token\":\"#1\"} -> malformed  log {\"event\":\"refresh_token.rejected\",\"reason\":\"malformed\"}\nvalidate #1 -> ok rt_1 fam_1 u_ana/phone until 2026-11-25T08:00:00.000Z  log {\"event\":\"refresh_token.accepted\",\"id\":\"rt_1\"}\nstore:\nrt_1 fam_1 u_ana/phone hash=sha256(#1) created 2026-10-26T08:00:00.000Z expires 2026-11-25T08:00:00.000Z revoked -\nleaks: none",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Large: 290 tokens for 30 users and 8 devices, 20 revoked, 616 checks over 31 days",
+          "input": {
+            "ttlMs": 2592000000,
+            "quiet": true,
+            "ops": [
+              {
+                "op": "issue",
+                "userId": "u_001",
+                "deviceId": "phone"
+              },
+              {
+                "op": "issue",
+                "userId": "u_001",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "issue",
+                "userId": "u_001",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "issue",
+                "userId": "u_001",
+                "deviceId": "web"
+              },
+              {
+                "op": "issue",
+                "userId": "u_001",
+                "deviceId": "work-pc"
+              },
+              {
+                "op": "issue",
+                "userId": "u_001",
+                "deviceId": "ipad"
+              },
+              {
+                "op": "issue",
+                "userId": "u_001",
+                "deviceId": "tv"
+              },
+              {
+                "op": "issue",
+                "userId": "u_001",
+                "deviceId": "watch"
+              },
+              {
+                "op": "issue",
+                "userId": "u_002",
+                "deviceId": "phone"
+              },
+              {
+                "op": "issue",
+                "userId": "u_002",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "issue",
+                "userId": "u_002",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "issue",
+                "userId": "u_002",
+                "deviceId": "web"
+              },
+              {
+                "op": "issue",
+                "userId": "u_002",
+                "deviceId": "work-pc"
+              },
+              {
+                "op": "issue",
+                "userId": "u_002",
+                "deviceId": "ipad"
+              },
+              {
+                "op": "issue",
+                "userId": "u_002",
+                "deviceId": "tv"
+              },
+              {
+                "op": "issue",
+                "userId": "u_002",
+                "deviceId": "watch"
+              },
+              {
+                "op": "issue",
+                "userId": "u_003",
+                "deviceId": "phone"
+              },
+              {
+                "op": "issue",
+                "userId": "u_003",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "issue",
+                "userId": "u_003",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "issue",
+                "userId": "u_003",
+                "deviceId": "web"
+              },
+              {
+                "op": "issue",
+                "userId": "u_003",
+                "deviceId": "work-pc"
+              },
+              {
+                "op": "issue",
+                "userId": "u_003",
+                "deviceId": "ipad"
+              },
+              {
+                "op": "issue",
+                "userId": "u_003",
+                "deviceId": "tv"
+              },
+              {
+                "op": "issue",
+                "userId": "u_003",
+                "deviceId": "watch"
+              },
+              {
+                "op": "issue",
+                "userId": "u_004",
+                "deviceId": "phone"
+              },
+              {
+                "op": "issue",
+                "userId": "u_004",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "issue",
+                "userId": "u_004",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "issue",
+                "userId": "u_004",
+                "deviceId": "web"
+              },
+              {
+                "op": "issue",
+                "userId": "u_004",
+                "deviceId": "work-pc"
+              },
+              {
+                "op": "issue",
+                "userId": "u_004",
+                "deviceId": "ipad"
+              },
+              {
+                "op": "issue",
+                "userId": "u_004",
+                "deviceId": "tv"
+              },
+              {
+                "op": "issue",
+                "userId": "u_004",
+                "deviceId": "watch"
+              },
+              {
+                "op": "issue",
+                "userId": "u_005",
+                "deviceId": "phone"
+              },
+              {
+                "op": "issue",
+                "userId": "u_005",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "issue",
+                "userId": "u_005",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "issue",
+                "userId": "u_005",
+                "deviceId": "web"
+              },
+              {
+                "op": "issue",
+                "userId": "u_005",
+                "deviceId": "work-pc"
+              },
+              {
+                "op": "issue",
+                "userId": "u_005",
+                "deviceId": "ipad"
+              },
+              {
+                "op": "issue",
+                "userId": "u_005",
+                "deviceId": "tv"
+              },
+              {
+                "op": "issue",
+                "userId": "u_005",
+                "deviceId": "watch"
+              },
+              {
+                "op": "issue",
+                "userId": "u_006",
+                "deviceId": "phone"
+              },
+              {
+                "op": "issue",
+                "userId": "u_006",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "issue",
+                "userId": "u_006",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "issue",
+                "userId": "u_006",
+                "deviceId": "web"
+              },
+              {
+                "op": "issue",
+                "userId": "u_006",
+                "deviceId": "work-pc"
+              },
+              {
+                "op": "issue",
+                "userId": "u_006",
+                "deviceId": "ipad"
+              },
+              {
+                "op": "issue",
+                "userId": "u_006",
+                "deviceId": "tv"
+              },
+              {
+                "op": "issue",
+                "userId": "u_006",
+                "deviceId": "watch"
+              },
+              {
+                "op": "issue",
+                "userId": "u_007",
+                "deviceId": "phone"
+              },
+              {
+                "op": "issue",
+                "userId": "u_007",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "issue",
+                "userId": "u_007",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "issue",
+                "userId": "u_007",
+                "deviceId": "web"
+              },
+              {
+                "op": "issue",
+                "userId": "u_007",
+                "deviceId": "work-pc"
+              },
+              {
+                "op": "issue",
+                "userId": "u_007",
+                "deviceId": "ipad"
+              },
+              {
+                "op": "issue",
+                "userId": "u_007",
+                "deviceId": "tv"
+              },
+              {
+                "op": "issue",
+                "userId": "u_007",
+                "deviceId": "watch"
+              },
+              {
+                "op": "issue",
+                "userId": "u_008",
+                "deviceId": "phone"
+              },
+              {
+                "op": "issue",
+                "userId": "u_008",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "issue",
+                "userId": "u_008",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "issue",
+                "userId": "u_008",
+                "deviceId": "web"
+              },
+              {
+                "op": "issue",
+                "userId": "u_008",
+                "deviceId": "work-pc"
+              },
+              {
+                "op": "issue",
+                "userId": "u_008",
+                "deviceId": "ipad"
+              },
+              {
+                "op": "issue",
+                "userId": "u_008",
+                "deviceId": "tv"
+              },
+              {
+                "op": "issue",
+                "userId": "u_008",
+                "deviceId": "watch"
+              },
+              {
+                "op": "issue",
+                "userId": "u_009",
+                "deviceId": "phone"
+              },
+              {
+                "op": "issue",
+                "userId": "u_009",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "issue",
+                "userId": "u_009",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "issue",
+                "userId": "u_009",
+                "deviceId": "web"
+              },
+              {
+                "op": "issue",
+                "userId": "u_009",
+                "deviceId": "work-pc"
+              },
+              {
+                "op": "issue",
+                "userId": "u_009",
+                "deviceId": "ipad"
+              },
+              {
+                "op": "issue",
+                "userId": "u_009",
+                "deviceId": "tv"
+              },
+              {
+                "op": "issue",
+                "userId": "u_009",
+                "deviceId": "watch"
+              },
+              {
+                "op": "issue",
+                "userId": "u_010",
+                "deviceId": "phone"
+              },
+              {
+                "op": "issue",
+                "userId": "u_010",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "issue",
+                "userId": "u_010",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "issue",
+                "userId": "u_010",
+                "deviceId": "web"
+              },
+              {
+                "op": "issue",
+                "userId": "u_010",
+                "deviceId": "work-pc"
+              },
+              {
+                "op": "issue",
+                "userId": "u_010",
+                "deviceId": "ipad"
+              },
+              {
+                "op": "issue",
+                "userId": "u_010",
+                "deviceId": "tv"
+              },
+              {
+                "op": "issue",
+                "userId": "u_010",
+                "deviceId": "watch"
+              },
+              {
+                "op": "issue",
+                "userId": "u_011",
+                "deviceId": "phone"
+              },
+              {
+                "op": "issue",
+                "userId": "u_011",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "issue",
+                "userId": "u_011",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "issue",
+                "userId": "u_011",
+                "deviceId": "web"
+              },
+              {
+                "op": "issue",
+                "userId": "u_011",
+                "deviceId": "work-pc"
+              },
+              {
+                "op": "issue",
+                "userId": "u_011",
+                "deviceId": "ipad"
+              },
+              {
+                "op": "issue",
+                "userId": "u_011",
+                "deviceId": "tv"
+              },
+              {
+                "op": "issue",
+                "userId": "u_011",
+                "deviceId": "watch"
+              },
+              {
+                "op": "issue",
+                "userId": "u_012",
+                "deviceId": "phone"
+              },
+              {
+                "op": "issue",
+                "userId": "u_012",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "issue",
+                "userId": "u_012",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "issue",
+                "userId": "u_012",
+                "deviceId": "web"
+              },
+              {
+                "op": "issue",
+                "userId": "u_012",
+                "deviceId": "work-pc"
+              },
+              {
+                "op": "issue",
+                "userId": "u_012",
+                "deviceId": "ipad"
+              },
+              {
+                "op": "issue",
+                "userId": "u_012",
+                "deviceId": "tv"
+              },
+              {
+                "op": "issue",
+                "userId": "u_012",
+                "deviceId": "watch"
+              },
+              {
+                "op": "issue",
+                "userId": "u_013",
+                "deviceId": "phone"
+              },
+              {
+                "op": "issue",
+                "userId": "u_013",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "issue",
+                "userId": "u_013",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "issue",
+                "userId": "u_013",
+                "deviceId": "web"
+              },
+              {
+                "op": "issue",
+                "userId": "u_013",
+                "deviceId": "work-pc"
+              },
+              {
+                "op": "issue",
+                "userId": "u_013",
+                "deviceId": "ipad"
+              },
+              {
+                "op": "issue",
+                "userId": "u_013",
+                "deviceId": "tv"
+              },
+              {
+                "op": "issue",
+                "userId": "u_013",
+                "deviceId": "watch"
+              },
+              {
+                "op": "issue",
+                "userId": "u_014",
+                "deviceId": "phone"
+              },
+              {
+                "op": "issue",
+                "userId": "u_014",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "issue",
+                "userId": "u_014",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "issue",
+                "userId": "u_014",
+                "deviceId": "web"
+              },
+              {
+                "op": "issue",
+                "userId": "u_014",
+                "deviceId": "work-pc"
+              },
+              {
+                "op": "issue",
+                "userId": "u_014",
+                "deviceId": "ipad"
+              },
+              {
+                "op": "issue",
+                "userId": "u_014",
+                "deviceId": "tv"
+              },
+              {
+                "op": "issue",
+                "userId": "u_014",
+                "deviceId": "watch"
+              },
+              {
+                "op": "issue",
+                "userId": "u_015",
+                "deviceId": "phone"
+              },
+              {
+                "op": "issue",
+                "userId": "u_015",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "issue",
+                "userId": "u_015",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "issue",
+                "userId": "u_015",
+                "deviceId": "web"
+              },
+              {
+                "op": "issue",
+                "userId": "u_015",
+                "deviceId": "work-pc"
+              },
+              {
+                "op": "issue",
+                "userId": "u_015",
+                "deviceId": "ipad"
+              },
+              {
+                "op": "issue",
+                "userId": "u_015",
+                "deviceId": "tv"
+              },
+              {
+                "op": "issue",
+                "userId": "u_015",
+                "deviceId": "watch"
+              },
+              {
+                "op": "issue",
+                "userId": "u_016",
+                "deviceId": "phone"
+              },
+              {
+                "op": "issue",
+                "userId": "u_016",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "issue",
+                "userId": "u_016",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "issue",
+                "userId": "u_016",
+                "deviceId": "web"
+              },
+              {
+                "op": "issue",
+                "userId": "u_016",
+                "deviceId": "work-pc"
+              },
+              {
+                "op": "issue",
+                "userId": "u_016",
+                "deviceId": "ipad"
+              },
+              {
+                "op": "issue",
+                "userId": "u_016",
+                "deviceId": "tv"
+              },
+              {
+                "op": "issue",
+                "userId": "u_016",
+                "deviceId": "watch"
+              },
+              {
+                "op": "issue",
+                "userId": "u_017",
+                "deviceId": "phone"
+              },
+              {
+                "op": "issue",
+                "userId": "u_017",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "issue",
+                "userId": "u_017",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "issue",
+                "userId": "u_017",
+                "deviceId": "web"
+              },
+              {
+                "op": "issue",
+                "userId": "u_017",
+                "deviceId": "work-pc"
+              },
+              {
+                "op": "issue",
+                "userId": "u_017",
+                "deviceId": "ipad"
+              },
+              {
+                "op": "issue",
+                "userId": "u_017",
+                "deviceId": "tv"
+              },
+              {
+                "op": "issue",
+                "userId": "u_017",
+                "deviceId": "watch"
+              },
+              {
+                "op": "issue",
+                "userId": "u_018",
+                "deviceId": "phone"
+              },
+              {
+                "op": "issue",
+                "userId": "u_018",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "issue",
+                "userId": "u_018",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "issue",
+                "userId": "u_018",
+                "deviceId": "web"
+              },
+              {
+                "op": "issue",
+                "userId": "u_018",
+                "deviceId": "work-pc"
+              },
+              {
+                "op": "issue",
+                "userId": "u_018",
+                "deviceId": "ipad"
+              },
+              {
+                "op": "issue",
+                "userId": "u_018",
+                "deviceId": "tv"
+              },
+              {
+                "op": "issue",
+                "userId": "u_018",
+                "deviceId": "watch"
+              },
+              {
+                "op": "issue",
+                "userId": "u_019",
+                "deviceId": "phone"
+              },
+              {
+                "op": "issue",
+                "userId": "u_019",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "issue",
+                "userId": "u_019",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "issue",
+                "userId": "u_019",
+                "deviceId": "web"
+              },
+              {
+                "op": "issue",
+                "userId": "u_019",
+                "deviceId": "work-pc"
+              },
+              {
+                "op": "issue",
+                "userId": "u_019",
+                "deviceId": "ipad"
+              },
+              {
+                "op": "issue",
+                "userId": "u_019",
+                "deviceId": "tv"
+              },
+              {
+                "op": "issue",
+                "userId": "u_019",
+                "deviceId": "watch"
+              },
+              {
+                "op": "issue",
+                "userId": "u_020",
+                "deviceId": "phone"
+              },
+              {
+                "op": "issue",
+                "userId": "u_020",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "issue",
+                "userId": "u_020",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "issue",
+                "userId": "u_020",
+                "deviceId": "web"
+              },
+              {
+                "op": "issue",
+                "userId": "u_020",
+                "deviceId": "work-pc"
+              },
+              {
+                "op": "issue",
+                "userId": "u_020",
+                "deviceId": "ipad"
+              },
+              {
+                "op": "issue",
+                "userId": "u_020",
+                "deviceId": "tv"
+              },
+              {
+                "op": "issue",
+                "userId": "u_020",
+                "deviceId": "watch"
+              },
+              {
+                "op": "issue",
+                "userId": "u_021",
+                "deviceId": "phone"
+              },
+              {
+                "op": "issue",
+                "userId": "u_021",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "issue",
+                "userId": "u_021",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "issue",
+                "userId": "u_021",
+                "deviceId": "web"
+              },
+              {
+                "op": "issue",
+                "userId": "u_021",
+                "deviceId": "work-pc"
+              },
+              {
+                "op": "issue",
+                "userId": "u_021",
+                "deviceId": "ipad"
+              },
+              {
+                "op": "issue",
+                "userId": "u_021",
+                "deviceId": "tv"
+              },
+              {
+                "op": "issue",
+                "userId": "u_021",
+                "deviceId": "watch"
+              },
+              {
+                "op": "issue",
+                "userId": "u_022",
+                "deviceId": "phone"
+              },
+              {
+                "op": "issue",
+                "userId": "u_022",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "issue",
+                "userId": "u_022",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "issue",
+                "userId": "u_022",
+                "deviceId": "web"
+              },
+              {
+                "op": "issue",
+                "userId": "u_022",
+                "deviceId": "work-pc"
+              },
+              {
+                "op": "issue",
+                "userId": "u_022",
+                "deviceId": "ipad"
+              },
+              {
+                "op": "issue",
+                "userId": "u_022",
+                "deviceId": "tv"
+              },
+              {
+                "op": "issue",
+                "userId": "u_022",
+                "deviceId": "watch"
+              },
+              {
+                "op": "issue",
+                "userId": "u_023",
+                "deviceId": "phone"
+              },
+              {
+                "op": "issue",
+                "userId": "u_023",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "issue",
+                "userId": "u_023",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "issue",
+                "userId": "u_023",
+                "deviceId": "web"
+              },
+              {
+                "op": "issue",
+                "userId": "u_023",
+                "deviceId": "work-pc"
+              },
+              {
+                "op": "issue",
+                "userId": "u_023",
+                "deviceId": "ipad"
+              },
+              {
+                "op": "issue",
+                "userId": "u_023",
+                "deviceId": "tv"
+              },
+              {
+                "op": "issue",
+                "userId": "u_023",
+                "deviceId": "watch"
+              },
+              {
+                "op": "issue",
+                "userId": "u_024",
+                "deviceId": "phone"
+              },
+              {
+                "op": "issue",
+                "userId": "u_024",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "issue",
+                "userId": "u_024",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "issue",
+                "userId": "u_024",
+                "deviceId": "web"
+              },
+              {
+                "op": "issue",
+                "userId": "u_024",
+                "deviceId": "work-pc"
+              },
+              {
+                "op": "issue",
+                "userId": "u_024",
+                "deviceId": "ipad"
+              },
+              {
+                "op": "issue",
+                "userId": "u_024",
+                "deviceId": "tv"
+              },
+              {
+                "op": "issue",
+                "userId": "u_024",
+                "deviceId": "watch"
+              },
+              {
+                "op": "issue",
+                "userId": "u_025",
+                "deviceId": "phone"
+              },
+              {
+                "op": "issue",
+                "userId": "u_025",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "issue",
+                "userId": "u_025",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "issue",
+                "userId": "u_025",
+                "deviceId": "web"
+              },
+              {
+                "op": "issue",
+                "userId": "u_025",
+                "deviceId": "work-pc"
+              },
+              {
+                "op": "issue",
+                "userId": "u_025",
+                "deviceId": "ipad"
+              },
+              {
+                "op": "issue",
+                "userId": "u_025",
+                "deviceId": "tv"
+              },
+              {
+                "op": "issue",
+                "userId": "u_025",
+                "deviceId": "watch"
+              },
+              {
+                "op": "issue",
+                "userId": "u_026",
+                "deviceId": "phone"
+              },
+              {
+                "op": "issue",
+                "userId": "u_026",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "issue",
+                "userId": "u_026",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "issue",
+                "userId": "u_026",
+                "deviceId": "web"
+              },
+              {
+                "op": "issue",
+                "userId": "u_026",
+                "deviceId": "work-pc"
+              },
+              {
+                "op": "issue",
+                "userId": "u_026",
+                "deviceId": "ipad"
+              },
+              {
+                "op": "issue",
+                "userId": "u_026",
+                "deviceId": "tv"
+              },
+              {
+                "op": "issue",
+                "userId": "u_026",
+                "deviceId": "watch"
+              },
+              {
+                "op": "issue",
+                "userId": "u_027",
+                "deviceId": "phone"
+              },
+              {
+                "op": "issue",
+                "userId": "u_027",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "issue",
+                "userId": "u_027",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "issue",
+                "userId": "u_027",
+                "deviceId": "web"
+              },
+              {
+                "op": "issue",
+                "userId": "u_027",
+                "deviceId": "work-pc"
+              },
+              {
+                "op": "issue",
+                "userId": "u_027",
+                "deviceId": "ipad"
+              },
+              {
+                "op": "issue",
+                "userId": "u_027",
+                "deviceId": "tv"
+              },
+              {
+                "op": "issue",
+                "userId": "u_027",
+                "deviceId": "watch"
+              },
+              {
+                "op": "issue",
+                "userId": "u_028",
+                "deviceId": "phone"
+              },
+              {
+                "op": "issue",
+                "userId": "u_028",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "issue",
+                "userId": "u_028",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "issue",
+                "userId": "u_028",
+                "deviceId": "web"
+              },
+              {
+                "op": "issue",
+                "userId": "u_028",
+                "deviceId": "work-pc"
+              },
+              {
+                "op": "issue",
+                "userId": "u_028",
+                "deviceId": "ipad"
+              },
+              {
+                "op": "issue",
+                "userId": "u_028",
+                "deviceId": "tv"
+              },
+              {
+                "op": "issue",
+                "userId": "u_028",
+                "deviceId": "watch"
+              },
+              {
+                "op": "issue",
+                "userId": "u_029",
+                "deviceId": "phone"
+              },
+              {
+                "op": "issue",
+                "userId": "u_029",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "issue",
+                "userId": "u_029",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "issue",
+                "userId": "u_029",
+                "deviceId": "web"
+              },
+              {
+                "op": "issue",
+                "userId": "u_029",
+                "deviceId": "work-pc"
+              },
+              {
+                "op": "issue",
+                "userId": "u_029",
+                "deviceId": "ipad"
+              },
+              {
+                "op": "issue",
+                "userId": "u_029",
+                "deviceId": "tv"
+              },
+              {
+                "op": "issue",
+                "userId": "u_029",
+                "deviceId": "watch"
+              },
+              {
+                "op": "issue",
+                "userId": "u_030",
+                "deviceId": "phone"
+              },
+              {
+                "op": "issue",
+                "userId": "u_030",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "issue",
+                "userId": "u_030",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "issue",
+                "userId": "u_030",
+                "deviceId": "web"
+              },
+              {
+                "op": "issue",
+                "userId": "u_030",
+                "deviceId": "work-pc"
+              },
+              {
+                "op": "issue",
+                "userId": "u_030",
+                "deviceId": "ipad"
+              },
+              {
+                "op": "issue",
+                "userId": "u_030",
+                "deviceId": "tv"
+              },
+              {
+                "op": "issue",
+                "userId": "u_030",
+                "deviceId": "watch"
+              },
+              {
+                "op": "validate",
+                "token": "#1"
+              },
+              {
+                "op": "validate",
+                "token": "#2"
+              },
+              {
+                "op": "validate",
+                "token": "#3"
+              },
+              {
+                "op": "validate",
+                "token": "#4"
+              },
+              {
+                "op": "validate",
+                "token": "#5"
+              },
+              {
+                "op": "validate",
+                "token": "#6"
+              },
+              {
+                "op": "validate",
+                "token": "#7"
+              },
+              {
+                "op": "validate",
+                "token": "#8"
+              },
+              {
+                "op": "validate",
+                "token": "#9"
+              },
+              {
+                "op": "validate",
+                "token": "#10"
+              },
+              {
+                "op": "validate",
+                "token": "#11"
+              },
+              {
+                "op": "validate",
+                "token": "#12"
+              },
+              {
+                "op": "validate",
+                "token": "#13"
+              },
+              {
+                "op": "validate",
+                "token": "#14"
+              },
+              {
+                "op": "validate",
+                "token": "#15"
+              },
+              {
+                "op": "validate",
+                "token": "#16"
+              },
+              {
+                "op": "validate",
+                "token": "#17"
+              },
+              {
+                "op": "validate",
+                "token": "#18"
+              },
+              {
+                "op": "validate",
+                "token": "#19"
+              },
+              {
+                "op": "validate",
+                "token": "#20"
+              },
+              {
+                "op": "validate",
+                "token": "#21"
+              },
+              {
+                "op": "validate",
+                "token": "#22"
+              },
+              {
+                "op": "validate",
+                "token": "#23"
+              },
+              {
+                "op": "validate",
+                "token": "#24"
+              },
+              {
+                "op": "validate",
+                "token": "#25"
+              },
+              {
+                "op": "validate",
+                "token": "#26"
+              },
+              {
+                "op": "validate",
+                "token": "#27"
+              },
+              {
+                "op": "validate",
+                "token": "#28"
+              },
+              {
+                "op": "validate",
+                "token": "#29"
+              },
+              {
+                "op": "validate",
+                "token": "#30"
+              },
+              {
+                "op": "validate",
+                "token": "#31"
+              },
+              {
+                "op": "validate",
+                "token": "#32"
+              },
+              {
+                "op": "validate",
+                "token": "#33"
+              },
+              {
+                "op": "validate",
+                "token": "#34"
+              },
+              {
+                "op": "validate",
+                "token": "#35"
+              },
+              {
+                "op": "validate",
+                "token": "#36"
+              },
+              {
+                "op": "validate",
+                "token": "#37"
+              },
+              {
+                "op": "validate",
+                "token": "#38"
+              },
+              {
+                "op": "validate",
+                "token": "#39"
+              },
+              {
+                "op": "validate",
+                "token": "#40"
+              },
+              {
+                "op": "validate",
+                "token": "#41"
+              },
+              {
+                "op": "validate",
+                "token": "#42"
+              },
+              {
+                "op": "validate",
+                "token": "#43"
+              },
+              {
+                "op": "validate",
+                "token": "#44"
+              },
+              {
+                "op": "validate",
+                "token": "#45"
+              },
+              {
+                "op": "validate",
+                "token": "#46"
+              },
+              {
+                "op": "validate",
+                "token": "#47"
+              },
+              {
+                "op": "validate",
+                "token": "#48"
+              },
+              {
+                "op": "validate",
+                "token": "#49"
+              },
+              {
+                "op": "validate",
+                "token": "#50"
+              },
+              {
+                "op": "validate",
+                "token": "#51"
+              },
+              {
+                "op": "validate",
+                "token": "#52"
+              },
+              {
+                "op": "validate",
+                "token": "#53"
+              },
+              {
+                "op": "validate",
+                "token": "#54"
+              },
+              {
+                "op": "validate",
+                "token": "#55"
+              },
+              {
+                "op": "validate",
+                "token": "#56"
+              },
+              {
+                "op": "validate",
+                "token": "#57"
+              },
+              {
+                "op": "validate",
+                "token": "#58"
+              },
+              {
+                "op": "validate",
+                "token": "#59"
+              },
+              {
+                "op": "validate",
+                "token": "#60"
+              },
+              {
+                "op": "validate",
+                "token": "#61"
+              },
+              {
+                "op": "validate",
+                "token": "#62"
+              },
+              {
+                "op": "validate",
+                "token": "#63"
+              },
+              {
+                "op": "validate",
+                "token": "#64"
+              },
+              {
+                "op": "validate",
+                "token": "#65"
+              },
+              {
+                "op": "validate",
+                "token": "#66"
+              },
+              {
+                "op": "validate",
+                "token": "#67"
+              },
+              {
+                "op": "validate",
+                "token": "#68"
+              },
+              {
+                "op": "validate",
+                "token": "#69"
+              },
+              {
+                "op": "validate",
+                "token": "#70"
+              },
+              {
+                "op": "validate",
+                "token": "#71"
+              },
+              {
+                "op": "validate",
+                "token": "#72"
+              },
+              {
+                "op": "validate",
+                "token": "#73"
+              },
+              {
+                "op": "validate",
+                "token": "#74"
+              },
+              {
+                "op": "validate",
+                "token": "#75"
+              },
+              {
+                "op": "validate",
+                "token": "#76"
+              },
+              {
+                "op": "validate",
+                "token": "#77"
+              },
+              {
+                "op": "validate",
+                "token": "#78"
+              },
+              {
+                "op": "validate",
+                "token": "#79"
+              },
+              {
+                "op": "validate",
+                "token": "#80"
+              },
+              {
+                "op": "validate",
+                "token": "#81"
+              },
+              {
+                "op": "validate",
+                "token": "#82"
+              },
+              {
+                "op": "validate",
+                "token": "#83"
+              },
+              {
+                "op": "validate",
+                "token": "#84"
+              },
+              {
+                "op": "validate",
+                "token": "#85"
+              },
+              {
+                "op": "validate",
+                "token": "#86"
+              },
+              {
+                "op": "validate",
+                "token": "#87"
+              },
+              {
+                "op": "validate",
+                "token": "#88"
+              },
+              {
+                "op": "validate",
+                "token": "#89"
+              },
+              {
+                "op": "validate",
+                "token": "#90"
+              },
+              {
+                "op": "validate",
+                "token": "#91"
+              },
+              {
+                "op": "validate",
+                "token": "#92"
+              },
+              {
+                "op": "validate",
+                "token": "#93"
+              },
+              {
+                "op": "validate",
+                "token": "#94"
+              },
+              {
+                "op": "validate",
+                "token": "#95"
+              },
+              {
+                "op": "validate",
+                "token": "#96"
+              },
+              {
+                "op": "validate",
+                "token": "#97"
+              },
+              {
+                "op": "validate",
+                "token": "#98"
+              },
+              {
+                "op": "validate",
+                "token": "#99"
+              },
+              {
+                "op": "validate",
+                "token": "#100"
+              },
+              {
+                "op": "validate",
+                "token": "#101"
+              },
+              {
+                "op": "validate",
+                "token": "#102"
+              },
+              {
+                "op": "validate",
+                "token": "#103"
+              },
+              {
+                "op": "validate",
+                "token": "#104"
+              },
+              {
+                "op": "validate",
+                "token": "#105"
+              },
+              {
+                "op": "validate",
+                "token": "#106"
+              },
+              {
+                "op": "validate",
+                "token": "#107"
+              },
+              {
+                "op": "validate",
+                "token": "#108"
+              },
+              {
+                "op": "validate",
+                "token": "#109"
+              },
+              {
+                "op": "validate",
+                "token": "#110"
+              },
+              {
+                "op": "validate",
+                "token": "#111"
+              },
+              {
+                "op": "validate",
+                "token": "#112"
+              },
+              {
+                "op": "validate",
+                "token": "#113"
+              },
+              {
+                "op": "validate",
+                "token": "#114"
+              },
+              {
+                "op": "validate",
+                "token": "#115"
+              },
+              {
+                "op": "validate",
+                "token": "#116"
+              },
+              {
+                "op": "validate",
+                "token": "#117"
+              },
+              {
+                "op": "validate",
+                "token": "#118"
+              },
+              {
+                "op": "validate",
+                "token": "#119"
+              },
+              {
+                "op": "validate",
+                "token": "#120"
+              },
+              {
+                "op": "validate",
+                "token": "#121"
+              },
+              {
+                "op": "validate",
+                "token": "#122"
+              },
+              {
+                "op": "validate",
+                "token": "#123"
+              },
+              {
+                "op": "validate",
+                "token": "#124"
+              },
+              {
+                "op": "validate",
+                "token": "#125"
+              },
+              {
+                "op": "validate",
+                "token": "#126"
+              },
+              {
+                "op": "validate",
+                "token": "#127"
+              },
+              {
+                "op": "validate",
+                "token": "#128"
+              },
+              {
+                "op": "validate",
+                "token": "#129"
+              },
+              {
+                "op": "validate",
+                "token": "#130"
+              },
+              {
+                "op": "validate",
+                "token": "#131"
+              },
+              {
+                "op": "validate",
+                "token": "#132"
+              },
+              {
+                "op": "validate",
+                "token": "#133"
+              },
+              {
+                "op": "validate",
+                "token": "#134"
+              },
+              {
+                "op": "validate",
+                "token": "#135"
+              },
+              {
+                "op": "validate",
+                "token": "#136"
+              },
+              {
+                "op": "validate",
+                "token": "#137"
+              },
+              {
+                "op": "validate",
+                "token": "#138"
+              },
+              {
+                "op": "validate",
+                "token": "#139"
+              },
+              {
+                "op": "validate",
+                "token": "#140"
+              },
+              {
+                "op": "validate",
+                "token": "#141"
+              },
+              {
+                "op": "validate",
+                "token": "#142"
+              },
+              {
+                "op": "validate",
+                "token": "#143"
+              },
+              {
+                "op": "validate",
+                "token": "#144"
+              },
+              {
+                "op": "validate",
+                "token": "#145"
+              },
+              {
+                "op": "validate",
+                "token": "#146"
+              },
+              {
+                "op": "validate",
+                "token": "#147"
+              },
+              {
+                "op": "validate",
+                "token": "#148"
+              },
+              {
+                "op": "validate",
+                "token": "#149"
+              },
+              {
+                "op": "validate",
+                "token": "#150"
+              },
+              {
+                "op": "validate",
+                "token": "#151"
+              },
+              {
+                "op": "validate",
+                "token": "#152"
+              },
+              {
+                "op": "validate",
+                "token": "#153"
+              },
+              {
+                "op": "validate",
+                "token": "#154"
+              },
+              {
+                "op": "validate",
+                "token": "#155"
+              },
+              {
+                "op": "validate",
+                "token": "#156"
+              },
+              {
+                "op": "validate",
+                "token": "#157"
+              },
+              {
+                "op": "validate",
+                "token": "#158"
+              },
+              {
+                "op": "validate",
+                "token": "#159"
+              },
+              {
+                "op": "validate",
+                "token": "#160"
+              },
+              {
+                "op": "validate",
+                "token": "#161"
+              },
+              {
+                "op": "validate",
+                "token": "#162"
+              },
+              {
+                "op": "validate",
+                "token": "#163"
+              },
+              {
+                "op": "validate",
+                "token": "#164"
+              },
+              {
+                "op": "validate",
+                "token": "#165"
+              },
+              {
+                "op": "validate",
+                "token": "#166"
+              },
+              {
+                "op": "validate",
+                "token": "#167"
+              },
+              {
+                "op": "validate",
+                "token": "#168"
+              },
+              {
+                "op": "validate",
+                "token": "#169"
+              },
+              {
+                "op": "validate",
+                "token": "#170"
+              },
+              {
+                "op": "validate",
+                "token": "#171"
+              },
+              {
+                "op": "validate",
+                "token": "#172"
+              },
+              {
+                "op": "validate",
+                "token": "#173"
+              },
+              {
+                "op": "validate",
+                "token": "#174"
+              },
+              {
+                "op": "validate",
+                "token": "#175"
+              },
+              {
+                "op": "validate",
+                "token": "#176"
+              },
+              {
+                "op": "validate",
+                "token": "#177"
+              },
+              {
+                "op": "validate",
+                "token": "#178"
+              },
+              {
+                "op": "validate",
+                "token": "#179"
+              },
+              {
+                "op": "validate",
+                "token": "#180"
+              },
+              {
+                "op": "validate",
+                "token": "#181"
+              },
+              {
+                "op": "validate",
+                "token": "#182"
+              },
+              {
+                "op": "validate",
+                "token": "#183"
+              },
+              {
+                "op": "validate",
+                "token": "#184"
+              },
+              {
+                "op": "validate",
+                "token": "#185"
+              },
+              {
+                "op": "validate",
+                "token": "#186"
+              },
+              {
+                "op": "validate",
+                "token": "#187"
+              },
+              {
+                "op": "validate",
+                "token": "#188"
+              },
+              {
+                "op": "validate",
+                "token": "#189"
+              },
+              {
+                "op": "validate",
+                "token": "#190"
+              },
+              {
+                "op": "validate",
+                "token": "#191"
+              },
+              {
+                "op": "validate",
+                "token": "#192"
+              },
+              {
+                "op": "validate",
+                "token": "#193"
+              },
+              {
+                "op": "validate",
+                "token": "#194"
+              },
+              {
+                "op": "validate",
+                "token": "#195"
+              },
+              {
+                "op": "validate",
+                "token": "#196"
+              },
+              {
+                "op": "validate",
+                "token": "#197"
+              },
+              {
+                "op": "validate",
+                "token": "#198"
+              },
+              {
+                "op": "validate",
+                "token": "#199"
+              },
+              {
+                "op": "validate",
+                "token": "#200"
+              },
+              {
+                "op": "validate",
+                "token": "#201"
+              },
+              {
+                "op": "validate",
+                "token": "#202"
+              },
+              {
+                "op": "validate",
+                "token": "#203"
+              },
+              {
+                "op": "validate",
+                "token": "#204"
+              },
+              {
+                "op": "validate",
+                "token": "#205"
+              },
+              {
+                "op": "validate",
+                "token": "#206"
+              },
+              {
+                "op": "validate",
+                "token": "#207"
+              },
+              {
+                "op": "validate",
+                "token": "#208"
+              },
+              {
+                "op": "validate",
+                "token": "#209"
+              },
+              {
+                "op": "validate",
+                "token": "#210"
+              },
+              {
+                "op": "validate",
+                "token": "#211"
+              },
+              {
+                "op": "validate",
+                "token": "#212"
+              },
+              {
+                "op": "validate",
+                "token": "#213"
+              },
+              {
+                "op": "validate",
+                "token": "#214"
+              },
+              {
+                "op": "validate",
+                "token": "#215"
+              },
+              {
+                "op": "validate",
+                "token": "#216"
+              },
+              {
+                "op": "validate",
+                "token": "#217"
+              },
+              {
+                "op": "validate",
+                "token": "#218"
+              },
+              {
+                "op": "validate",
+                "token": "#219"
+              },
+              {
+                "op": "validate",
+                "token": "#220"
+              },
+              {
+                "op": "validate",
+                "token": "#221"
+              },
+              {
+                "op": "validate",
+                "token": "#222"
+              },
+              {
+                "op": "validate",
+                "token": "#223"
+              },
+              {
+                "op": "validate",
+                "token": "#224"
+              },
+              {
+                "op": "validate",
+                "token": "#225"
+              },
+              {
+                "op": "validate",
+                "token": "#226"
+              },
+              {
+                "op": "validate",
+                "token": "#227"
+              },
+              {
+                "op": "validate",
+                "token": "#228"
+              },
+              {
+                "op": "validate",
+                "token": "#229"
+              },
+              {
+                "op": "validate",
+                "token": "#230"
+              },
+              {
+                "op": "validate",
+                "token": "#231"
+              },
+              {
+                "op": "validate",
+                "token": "#232"
+              },
+              {
+                "op": "validate",
+                "token": "#233"
+              },
+              {
+                "op": "validate",
+                "token": "#234"
+              },
+              {
+                "op": "validate",
+                "token": "#235"
+              },
+              {
+                "op": "validate",
+                "token": "#236"
+              },
+              {
+                "op": "validate",
+                "token": "#237"
+              },
+              {
+                "op": "validate",
+                "token": "#238"
+              },
+              {
+                "op": "validate",
+                "token": "#239"
+              },
+              {
+                "op": "validate",
+                "token": "#240"
+              },
+              {
+                "op": "revoke",
+                "id": "rt_12"
+              },
+              {
+                "op": "revoke",
+                "id": "rt_24"
+              },
+              {
+                "op": "revoke",
+                "id": "rt_36"
+              },
+              {
+                "op": "revoke",
+                "id": "rt_48"
+              },
+              {
+                "op": "revoke",
+                "id": "rt_60"
+              },
+              {
+                "op": "revoke",
+                "id": "rt_72"
+              },
+              {
+                "op": "revoke",
+                "id": "rt_84"
+              },
+              {
+                "op": "revoke",
+                "id": "rt_96"
+              },
+              {
+                "op": "revoke",
+                "id": "rt_108"
+              },
+              {
+                "op": "revoke",
+                "id": "rt_120"
+              },
+              {
+                "op": "revoke",
+                "id": "rt_132"
+              },
+              {
+                "op": "revoke",
+                "id": "rt_144"
+              },
+              {
+                "op": "revoke",
+                "id": "rt_156"
+              },
+              {
+                "op": "revoke",
+                "id": "rt_168"
+              },
+              {
+                "op": "revoke",
+                "id": "rt_180"
+              },
+              {
+                "op": "revoke",
+                "id": "rt_192"
+              },
+              {
+                "op": "revoke",
+                "id": "rt_204"
+              },
+              {
+                "op": "revoke",
+                "id": "rt_216"
+              },
+              {
+                "op": "revoke",
+                "id": "rt_228"
+              },
+              {
+                "op": "revoke",
+                "id": "rt_240"
+              },
+              {
+                "op": "advance",
+                "ms": 1728000000
+              },
+              {
+                "op": "validate",
+                "token": "#1"
+              },
+              {
+                "op": "validate",
+                "token": "#4"
+              },
+              {
+                "op": "validate",
+                "token": "#7"
+              },
+              {
+                "op": "validate",
+                "token": "#10"
+              },
+              {
+                "op": "validate",
+                "token": "#13"
+              },
+              {
+                "op": "validate",
+                "token": "#16"
+              },
+              {
+                "op": "validate",
+                "token": "#19"
+              },
+              {
+                "op": "validate",
+                "token": "#22"
+              },
+              {
+                "op": "validate",
+                "token": "#25"
+              },
+              {
+                "op": "validate",
+                "token": "#28"
+              },
+              {
+                "op": "validate",
+                "token": "#31"
+              },
+              {
+                "op": "validate",
+                "token": "#34"
+              },
+              {
+                "op": "validate",
+                "token": "#37"
+              },
+              {
+                "op": "validate",
+                "token": "#40"
+              },
+              {
+                "op": "validate",
+                "token": "#43"
+              },
+              {
+                "op": "validate",
+                "token": "#46"
+              },
+              {
+                "op": "validate",
+                "token": "#49"
+              },
+              {
+                "op": "validate",
+                "token": "#52"
+              },
+              {
+                "op": "validate",
+                "token": "#55"
+              },
+              {
+                "op": "validate",
+                "token": "#58"
+              },
+              {
+                "op": "validate",
+                "token": "#61"
+              },
+              {
+                "op": "validate",
+                "token": "#64"
+              },
+              {
+                "op": "validate",
+                "token": "#67"
+              },
+              {
+                "op": "validate",
+                "token": "#70"
+              },
+              {
+                "op": "validate",
+                "token": "#73"
+              },
+              {
+                "op": "validate",
+                "token": "#76"
+              },
+              {
+                "op": "validate",
+                "token": "#79"
+              },
+              {
+                "op": "validate",
+                "token": "#82"
+              },
+              {
+                "op": "validate",
+                "token": "#85"
+              },
+              {
+                "op": "validate",
+                "token": "#88"
+              },
+              {
+                "op": "validate",
+                "token": "#91"
+              },
+              {
+                "op": "validate",
+                "token": "#94"
+              },
+              {
+                "op": "validate",
+                "token": "#97"
+              },
+              {
+                "op": "validate",
+                "token": "#100"
+              },
+              {
+                "op": "validate",
+                "token": "#103"
+              },
+              {
+                "op": "validate",
+                "token": "#106"
+              },
+              {
+                "op": "validate",
+                "token": "#109"
+              },
+              {
+                "op": "validate",
+                "token": "#112"
+              },
+              {
+                "op": "validate",
+                "token": "#115"
+              },
+              {
+                "op": "validate",
+                "token": "#118"
+              },
+              {
+                "op": "validate",
+                "token": "#121"
+              },
+              {
+                "op": "validate",
+                "token": "#124"
+              },
+              {
+                "op": "validate",
+                "token": "#127"
+              },
+              {
+                "op": "validate",
+                "token": "#130"
+              },
+              {
+                "op": "validate",
+                "token": "#133"
+              },
+              {
+                "op": "validate",
+                "token": "#136"
+              },
+              {
+                "op": "validate",
+                "token": "#139"
+              },
+              {
+                "op": "validate",
+                "token": "#142"
+              },
+              {
+                "op": "validate",
+                "token": "#145"
+              },
+              {
+                "op": "validate",
+                "token": "#148"
+              },
+              {
+                "op": "validate",
+                "token": "#151"
+              },
+              {
+                "op": "validate",
+                "token": "#154"
+              },
+              {
+                "op": "validate",
+                "token": "#157"
+              },
+              {
+                "op": "validate",
+                "token": "#160"
+              },
+              {
+                "op": "validate",
+                "token": "#163"
+              },
+              {
+                "op": "validate",
+                "token": "#166"
+              },
+              {
+                "op": "validate",
+                "token": "#169"
+              },
+              {
+                "op": "validate",
+                "token": "#172"
+              },
+              {
+                "op": "validate",
+                "token": "#175"
+              },
+              {
+                "op": "validate",
+                "token": "#178"
+              },
+              {
+                "op": "validate",
+                "token": "#181"
+              },
+              {
+                "op": "validate",
+                "token": "#184"
+              },
+              {
+                "op": "validate",
+                "token": "#187"
+              },
+              {
+                "op": "validate",
+                "token": "#190"
+              },
+              {
+                "op": "validate",
+                "token": "#193"
+              },
+              {
+                "op": "validate",
+                "token": "#196"
+              },
+              {
+                "op": "validate",
+                "token": "#199"
+              },
+              {
+                "op": "validate",
+                "token": "#202"
+              },
+              {
+                "op": "validate",
+                "token": "#205"
+              },
+              {
+                "op": "validate",
+                "token": "#208"
+              },
+              {
+                "op": "validate",
+                "token": "#211"
+              },
+              {
+                "op": "validate",
+                "token": "#214"
+              },
+              {
+                "op": "validate",
+                "token": "#217"
+              },
+              {
+                "op": "validate",
+                "token": "#220"
+              },
+              {
+                "op": "validate",
+                "token": "#223"
+              },
+              {
+                "op": "validate",
+                "token": "#226"
+              },
+              {
+                "op": "validate",
+                "token": "#229"
+              },
+              {
+                "op": "validate",
+                "token": "#232"
+              },
+              {
+                "op": "validate",
+                "token": "#235"
+              },
+              {
+                "op": "validate",
+                "token": "#238"
+              },
+              {
+                "op": "issue",
+                "userId": "u_001",
+                "deviceId": "phone"
+              },
+              {
+                "op": "issue",
+                "userId": "u_001",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "issue",
+                "userId": "u_001",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "issue",
+                "userId": "u_001",
+                "deviceId": "web"
+              },
+              {
+                "op": "issue",
+                "userId": "u_001",
+                "deviceId": "work-pc"
+              },
+              {
+                "op": "issue",
+                "userId": "u_002",
+                "deviceId": "phone"
+              },
+              {
+                "op": "issue",
+                "userId": "u_002",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "issue",
+                "userId": "u_002",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "issue",
+                "userId": "u_002",
+                "deviceId": "web"
+              },
+              {
+                "op": "issue",
+                "userId": "u_002",
+                "deviceId": "work-pc"
+              },
+              {
+                "op": "issue",
+                "userId": "u_003",
+                "deviceId": "phone"
+              },
+              {
+                "op": "issue",
+                "userId": "u_003",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "issue",
+                "userId": "u_003",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "issue",
+                "userId": "u_003",
+                "deviceId": "web"
+              },
+              {
+                "op": "issue",
+                "userId": "u_003",
+                "deviceId": "work-pc"
+              },
+              {
+                "op": "issue",
+                "userId": "u_004",
+                "deviceId": "phone"
+              },
+              {
+                "op": "issue",
+                "userId": "u_004",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "issue",
+                "userId": "u_004",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "issue",
+                "userId": "u_004",
+                "deviceId": "web"
+              },
+              {
+                "op": "issue",
+                "userId": "u_004",
+                "deviceId": "work-pc"
+              },
+              {
+                "op": "issue",
+                "userId": "u_005",
+                "deviceId": "phone"
+              },
+              {
+                "op": "issue",
+                "userId": "u_005",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "issue",
+                "userId": "u_005",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "issue",
+                "userId": "u_005",
+                "deviceId": "web"
+              },
+              {
+                "op": "issue",
+                "userId": "u_005",
+                "deviceId": "work-pc"
+              },
+              {
+                "op": "issue",
+                "userId": "u_006",
+                "deviceId": "phone"
+              },
+              {
+                "op": "issue",
+                "userId": "u_006",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "issue",
+                "userId": "u_006",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "issue",
+                "userId": "u_006",
+                "deviceId": "web"
+              },
+              {
+                "op": "issue",
+                "userId": "u_006",
+                "deviceId": "work-pc"
+              },
+              {
+                "op": "issue",
+                "userId": "u_007",
+                "deviceId": "phone"
+              },
+              {
+                "op": "issue",
+                "userId": "u_007",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "issue",
+                "userId": "u_007",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "issue",
+                "userId": "u_007",
+                "deviceId": "web"
+              },
+              {
+                "op": "issue",
+                "userId": "u_007",
+                "deviceId": "work-pc"
+              },
+              {
+                "op": "issue",
+                "userId": "u_008",
+                "deviceId": "phone"
+              },
+              {
+                "op": "issue",
+                "userId": "u_008",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "issue",
+                "userId": "u_008",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "issue",
+                "userId": "u_008",
+                "deviceId": "web"
+              },
+              {
+                "op": "issue",
+                "userId": "u_008",
+                "deviceId": "work-pc"
+              },
+              {
+                "op": "issue",
+                "userId": "u_009",
+                "deviceId": "phone"
+              },
+              {
+                "op": "issue",
+                "userId": "u_009",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "issue",
+                "userId": "u_009",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "issue",
+                "userId": "u_009",
+                "deviceId": "web"
+              },
+              {
+                "op": "issue",
+                "userId": "u_009",
+                "deviceId": "work-pc"
+              },
+              {
+                "op": "issue",
+                "userId": "u_010",
+                "deviceId": "phone"
+              },
+              {
+                "op": "issue",
+                "userId": "u_010",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "issue",
+                "userId": "u_010",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "issue",
+                "userId": "u_010",
+                "deviceId": "web"
+              },
+              {
+                "op": "issue",
+                "userId": "u_010",
+                "deviceId": "work-pc"
+              },
+              {
+                "op": "advance",
+                "ms": 950400000
+              },
+              {
+                "op": "validate",
+                "token": "#1"
+              },
+              {
+                "op": "validate",
+                "token": "#2"
+              },
+              {
+                "op": "validate",
+                "token": "#3"
+              },
+              {
+                "op": "validate",
+                "token": "#4"
+              },
+              {
+                "op": "validate",
+                "token": "#5"
+              },
+              {
+                "op": "validate",
+                "token": "#6"
+              },
+              {
+                "op": "validate",
+                "token": "#7"
+              },
+              {
+                "op": "validate",
+                "token": "#8"
+              },
+              {
+                "op": "validate",
+                "token": "#9"
+              },
+              {
+                "op": "validate",
+                "token": "#10"
+              },
+              {
+                "op": "validate",
+                "token": "#11"
+              },
+              {
+                "op": "validate",
+                "token": "#12"
+              },
+              {
+                "op": "validate",
+                "token": "#13"
+              },
+              {
+                "op": "validate",
+                "token": "#14"
+              },
+              {
+                "op": "validate",
+                "token": "#15"
+              },
+              {
+                "op": "validate",
+                "token": "#16"
+              },
+              {
+                "op": "validate",
+                "token": "#17"
+              },
+              {
+                "op": "validate",
+                "token": "#18"
+              },
+              {
+                "op": "validate",
+                "token": "#19"
+              },
+              {
+                "op": "validate",
+                "token": "#20"
+              },
+              {
+                "op": "validate",
+                "token": "#21"
+              },
+              {
+                "op": "validate",
+                "token": "#22"
+              },
+              {
+                "op": "validate",
+                "token": "#23"
+              },
+              {
+                "op": "validate",
+                "token": "#24"
+              },
+              {
+                "op": "validate",
+                "token": "#25"
+              },
+              {
+                "op": "validate",
+                "token": "#26"
+              },
+              {
+                "op": "validate",
+                "token": "#27"
+              },
+              {
+                "op": "validate",
+                "token": "#28"
+              },
+              {
+                "op": "validate",
+                "token": "#29"
+              },
+              {
+                "op": "validate",
+                "token": "#30"
+              },
+              {
+                "op": "validate",
+                "token": "#31"
+              },
+              {
+                "op": "validate",
+                "token": "#32"
+              },
+              {
+                "op": "validate",
+                "token": "#33"
+              },
+              {
+                "op": "validate",
+                "token": "#34"
+              },
+              {
+                "op": "validate",
+                "token": "#35"
+              },
+              {
+                "op": "validate",
+                "token": "#36"
+              },
+              {
+                "op": "validate",
+                "token": "#37"
+              },
+              {
+                "op": "validate",
+                "token": "#38"
+              },
+              {
+                "op": "validate",
+                "token": "#39"
+              },
+              {
+                "op": "validate",
+                "token": "#40"
+              },
+              {
+                "op": "validate",
+                "token": "#41"
+              },
+              {
+                "op": "validate",
+                "token": "#42"
+              },
+              {
+                "op": "validate",
+                "token": "#43"
+              },
+              {
+                "op": "validate",
+                "token": "#44"
+              },
+              {
+                "op": "validate",
+                "token": "#45"
+              },
+              {
+                "op": "validate",
+                "token": "#46"
+              },
+              {
+                "op": "validate",
+                "token": "#47"
+              },
+              {
+                "op": "validate",
+                "token": "#48"
+              },
+              {
+                "op": "validate",
+                "token": "#49"
+              },
+              {
+                "op": "validate",
+                "token": "#50"
+              },
+              {
+                "op": "validate",
+                "token": "#51"
+              },
+              {
+                "op": "validate",
+                "token": "#52"
+              },
+              {
+                "op": "validate",
+                "token": "#53"
+              },
+              {
+                "op": "validate",
+                "token": "#54"
+              },
+              {
+                "op": "validate",
+                "token": "#55"
+              },
+              {
+                "op": "validate",
+                "token": "#56"
+              },
+              {
+                "op": "validate",
+                "token": "#57"
+              },
+              {
+                "op": "validate",
+                "token": "#58"
+              },
+              {
+                "op": "validate",
+                "token": "#59"
+              },
+              {
+                "op": "validate",
+                "token": "#60"
+              },
+              {
+                "op": "validate",
+                "token": "#61"
+              },
+              {
+                "op": "validate",
+                "token": "#62"
+              },
+              {
+                "op": "validate",
+                "token": "#63"
+              },
+              {
+                "op": "validate",
+                "token": "#64"
+              },
+              {
+                "op": "validate",
+                "token": "#65"
+              },
+              {
+                "op": "validate",
+                "token": "#66"
+              },
+              {
+                "op": "validate",
+                "token": "#67"
+              },
+              {
+                "op": "validate",
+                "token": "#68"
+              },
+              {
+                "op": "validate",
+                "token": "#69"
+              },
+              {
+                "op": "validate",
+                "token": "#70"
+              },
+              {
+                "op": "validate",
+                "token": "#71"
+              },
+              {
+                "op": "validate",
+                "token": "#72"
+              },
+              {
+                "op": "validate",
+                "token": "#73"
+              },
+              {
+                "op": "validate",
+                "token": "#74"
+              },
+              {
+                "op": "validate",
+                "token": "#75"
+              },
+              {
+                "op": "validate",
+                "token": "#76"
+              },
+              {
+                "op": "validate",
+                "token": "#77"
+              },
+              {
+                "op": "validate",
+                "token": "#78"
+              },
+              {
+                "op": "validate",
+                "token": "#79"
+              },
+              {
+                "op": "validate",
+                "token": "#80"
+              },
+              {
+                "op": "validate",
+                "token": "#81"
+              },
+              {
+                "op": "validate",
+                "token": "#82"
+              },
+              {
+                "op": "validate",
+                "token": "#83"
+              },
+              {
+                "op": "validate",
+                "token": "#84"
+              },
+              {
+                "op": "validate",
+                "token": "#85"
+              },
+              {
+                "op": "validate",
+                "token": "#86"
+              },
+              {
+                "op": "validate",
+                "token": "#87"
+              },
+              {
+                "op": "validate",
+                "token": "#88"
+              },
+              {
+                "op": "validate",
+                "token": "#89"
+              },
+              {
+                "op": "validate",
+                "token": "#90"
+              },
+              {
+                "op": "validate",
+                "token": "#91"
+              },
+              {
+                "op": "validate",
+                "token": "#92"
+              },
+              {
+                "op": "validate",
+                "token": "#93"
+              },
+              {
+                "op": "validate",
+                "token": "#94"
+              },
+              {
+                "op": "validate",
+                "token": "#95"
+              },
+              {
+                "op": "validate",
+                "token": "#96"
+              },
+              {
+                "op": "validate",
+                "token": "#97"
+              },
+              {
+                "op": "validate",
+                "token": "#98"
+              },
+              {
+                "op": "validate",
+                "token": "#99"
+              },
+              {
+                "op": "validate",
+                "token": "#100"
+              },
+              {
+                "op": "validate",
+                "token": "#101"
+              },
+              {
+                "op": "validate",
+                "token": "#102"
+              },
+              {
+                "op": "validate",
+                "token": "#103"
+              },
+              {
+                "op": "validate",
+                "token": "#104"
+              },
+              {
+                "op": "validate",
+                "token": "#105"
+              },
+              {
+                "op": "validate",
+                "token": "#106"
+              },
+              {
+                "op": "validate",
+                "token": "#107"
+              },
+              {
+                "op": "validate",
+                "token": "#108"
+              },
+              {
+                "op": "validate",
+                "token": "#109"
+              },
+              {
+                "op": "validate",
+                "token": "#110"
+              },
+              {
+                "op": "validate",
+                "token": "#111"
+              },
+              {
+                "op": "validate",
+                "token": "#112"
+              },
+              {
+                "op": "validate",
+                "token": "#113"
+              },
+              {
+                "op": "validate",
+                "token": "#114"
+              },
+              {
+                "op": "validate",
+                "token": "#115"
+              },
+              {
+                "op": "validate",
+                "token": "#116"
+              },
+              {
+                "op": "validate",
+                "token": "#117"
+              },
+              {
+                "op": "validate",
+                "token": "#118"
+              },
+              {
+                "op": "validate",
+                "token": "#119"
+              },
+              {
+                "op": "validate",
+                "token": "#120"
+              },
+              {
+                "op": "validate",
+                "token": "#121"
+              },
+              {
+                "op": "validate",
+                "token": "#122"
+              },
+              {
+                "op": "validate",
+                "token": "#123"
+              },
+              {
+                "op": "validate",
+                "token": "#124"
+              },
+              {
+                "op": "validate",
+                "token": "#125"
+              },
+              {
+                "op": "validate",
+                "token": "#126"
+              },
+              {
+                "op": "validate",
+                "token": "#127"
+              },
+              {
+                "op": "validate",
+                "token": "#128"
+              },
+              {
+                "op": "validate",
+                "token": "#129"
+              },
+              {
+                "op": "validate",
+                "token": "#130"
+              },
+              {
+                "op": "validate",
+                "token": "#131"
+              },
+              {
+                "op": "validate",
+                "token": "#132"
+              },
+              {
+                "op": "validate",
+                "token": "#133"
+              },
+              {
+                "op": "validate",
+                "token": "#134"
+              },
+              {
+                "op": "validate",
+                "token": "#135"
+              },
+              {
+                "op": "validate",
+                "token": "#136"
+              },
+              {
+                "op": "validate",
+                "token": "#137"
+              },
+              {
+                "op": "validate",
+                "token": "#138"
+              },
+              {
+                "op": "validate",
+                "token": "#139"
+              },
+              {
+                "op": "validate",
+                "token": "#140"
+              },
+              {
+                "op": "validate",
+                "token": "#141"
+              },
+              {
+                "op": "validate",
+                "token": "#142"
+              },
+              {
+                "op": "validate",
+                "token": "#143"
+              },
+              {
+                "op": "validate",
+                "token": "#144"
+              },
+              {
+                "op": "validate",
+                "token": "#145"
+              },
+              {
+                "op": "validate",
+                "token": "#146"
+              },
+              {
+                "op": "validate",
+                "token": "#147"
+              },
+              {
+                "op": "validate",
+                "token": "#148"
+              },
+              {
+                "op": "validate",
+                "token": "#149"
+              },
+              {
+                "op": "validate",
+                "token": "#150"
+              },
+              {
+                "op": "validate",
+                "token": "#151"
+              },
+              {
+                "op": "validate",
+                "token": "#152"
+              },
+              {
+                "op": "validate",
+                "token": "#153"
+              },
+              {
+                "op": "validate",
+                "token": "#154"
+              },
+              {
+                "op": "validate",
+                "token": "#155"
+              },
+              {
+                "op": "validate",
+                "token": "#156"
+              },
+              {
+                "op": "validate",
+                "token": "#157"
+              },
+              {
+                "op": "validate",
+                "token": "#158"
+              },
+              {
+                "op": "validate",
+                "token": "#159"
+              },
+              {
+                "op": "validate",
+                "token": "#160"
+              },
+              {
+                "op": "validate",
+                "token": "#161"
+              },
+              {
+                "op": "validate",
+                "token": "#162"
+              },
+              {
+                "op": "validate",
+                "token": "#163"
+              },
+              {
+                "op": "validate",
+                "token": "#164"
+              },
+              {
+                "op": "validate",
+                "token": "#165"
+              },
+              {
+                "op": "validate",
+                "token": "#166"
+              },
+              {
+                "op": "validate",
+                "token": "#167"
+              },
+              {
+                "op": "validate",
+                "token": "#168"
+              },
+              {
+                "op": "validate",
+                "token": "#169"
+              },
+              {
+                "op": "validate",
+                "token": "#170"
+              },
+              {
+                "op": "validate",
+                "token": "#171"
+              },
+              {
+                "op": "validate",
+                "token": "#172"
+              },
+              {
+                "op": "validate",
+                "token": "#173"
+              },
+              {
+                "op": "validate",
+                "token": "#174"
+              },
+              {
+                "op": "validate",
+                "token": "#175"
+              },
+              {
+                "op": "validate",
+                "token": "#176"
+              },
+              {
+                "op": "validate",
+                "token": "#177"
+              },
+              {
+                "op": "validate",
+                "token": "#178"
+              },
+              {
+                "op": "validate",
+                "token": "#179"
+              },
+              {
+                "op": "validate",
+                "token": "#180"
+              },
+              {
+                "op": "validate",
+                "token": "#181"
+              },
+              {
+                "op": "validate",
+                "token": "#182"
+              },
+              {
+                "op": "validate",
+                "token": "#183"
+              },
+              {
+                "op": "validate",
+                "token": "#184"
+              },
+              {
+                "op": "validate",
+                "token": "#185"
+              },
+              {
+                "op": "validate",
+                "token": "#186"
+              },
+              {
+                "op": "validate",
+                "token": "#187"
+              },
+              {
+                "op": "validate",
+                "token": "#188"
+              },
+              {
+                "op": "validate",
+                "token": "#189"
+              },
+              {
+                "op": "validate",
+                "token": "#190"
+              },
+              {
+                "op": "validate",
+                "token": "#191"
+              },
+              {
+                "op": "validate",
+                "token": "#192"
+              },
+              {
+                "op": "validate",
+                "token": "#193"
+              },
+              {
+                "op": "validate",
+                "token": "#194"
+              },
+              {
+                "op": "validate",
+                "token": "#195"
+              },
+              {
+                "op": "validate",
+                "token": "#196"
+              },
+              {
+                "op": "validate",
+                "token": "#197"
+              },
+              {
+                "op": "validate",
+                "token": "#198"
+              },
+              {
+                "op": "validate",
+                "token": "#199"
+              },
+              {
+                "op": "validate",
+                "token": "#200"
+              },
+              {
+                "op": "validate",
+                "token": "#201"
+              },
+              {
+                "op": "validate",
+                "token": "#202"
+              },
+              {
+                "op": "validate",
+                "token": "#203"
+              },
+              {
+                "op": "validate",
+                "token": "#204"
+              },
+              {
+                "op": "validate",
+                "token": "#205"
+              },
+              {
+                "op": "validate",
+                "token": "#206"
+              },
+              {
+                "op": "validate",
+                "token": "#207"
+              },
+              {
+                "op": "validate",
+                "token": "#208"
+              },
+              {
+                "op": "validate",
+                "token": "#209"
+              },
+              {
+                "op": "validate",
+                "token": "#210"
+              },
+              {
+                "op": "validate",
+                "token": "#211"
+              },
+              {
+                "op": "validate",
+                "token": "#212"
+              },
+              {
+                "op": "validate",
+                "token": "#213"
+              },
+              {
+                "op": "validate",
+                "token": "#214"
+              },
+              {
+                "op": "validate",
+                "token": "#215"
+              },
+              {
+                "op": "validate",
+                "token": "#216"
+              },
+              {
+                "op": "validate",
+                "token": "#217"
+              },
+              {
+                "op": "validate",
+                "token": "#218"
+              },
+              {
+                "op": "validate",
+                "token": "#219"
+              },
+              {
+                "op": "validate",
+                "token": "#220"
+              },
+              {
+                "op": "validate",
+                "token": "#221"
+              },
+              {
+                "op": "validate",
+                "token": "#222"
+              },
+              {
+                "op": "validate",
+                "token": "#223"
+              },
+              {
+                "op": "validate",
+                "token": "#224"
+              },
+              {
+                "op": "validate",
+                "token": "#225"
+              },
+              {
+                "op": "validate",
+                "token": "#226"
+              },
+              {
+                "op": "validate",
+                "token": "#227"
+              },
+              {
+                "op": "validate",
+                "token": "#228"
+              },
+              {
+                "op": "validate",
+                "token": "#229"
+              },
+              {
+                "op": "validate",
+                "token": "#230"
+              },
+              {
+                "op": "validate",
+                "token": "#231"
+              },
+              {
+                "op": "validate",
+                "token": "#232"
+              },
+              {
+                "op": "validate",
+                "token": "#233"
+              },
+              {
+                "op": "validate",
+                "token": "#234"
+              },
+              {
+                "op": "validate",
+                "token": "#235"
+              },
+              {
+                "op": "validate",
+                "token": "#236"
+              },
+              {
+                "op": "validate",
+                "token": "#237"
+              },
+              {
+                "op": "validate",
+                "token": "#238"
+              },
+              {
+                "op": "validate",
+                "token": "#239"
+              },
+              {
+                "op": "validate",
+                "token": "#240"
+              },
+              {
+                "op": "validate",
+                "token": "#241"
+              },
+              {
+                "op": "validate",
+                "token": "#242"
+              },
+              {
+                "op": "validate",
+                "token": "#243"
+              },
+              {
+                "op": "validate",
+                "token": "#244"
+              },
+              {
+                "op": "validate",
+                "token": "#245"
+              },
+              {
+                "op": "validate",
+                "token": "#246"
+              },
+              {
+                "op": "validate",
+                "token": "#247"
+              },
+              {
+                "op": "validate",
+                "token": "#248"
+              },
+              {
+                "op": "validate",
+                "token": "#249"
+              },
+              {
+                "op": "validate",
+                "token": "#250"
+              },
+              {
+                "op": "validate",
+                "token": "#251"
+              },
+              {
+                "op": "validate",
+                "token": "#252"
+              },
+              {
+                "op": "validate",
+                "token": "#253"
+              },
+              {
+                "op": "validate",
+                "token": "#254"
+              },
+              {
+                "op": "validate",
+                "token": "#255"
+              },
+              {
+                "op": "validate",
+                "token": "#256"
+              },
+              {
+                "op": "validate",
+                "token": "#257"
+              },
+              {
+                "op": "validate",
+                "token": "#258"
+              },
+              {
+                "op": "validate",
+                "token": "#259"
+              },
+              {
+                "op": "validate",
+                "token": "#260"
+              },
+              {
+                "op": "validate",
+                "token": "#261"
+              },
+              {
+                "op": "validate",
+                "token": "#262"
+              },
+              {
+                "op": "validate",
+                "token": "#263"
+              },
+              {
+                "op": "validate",
+                "token": "#264"
+              },
+              {
+                "op": "validate",
+                "token": "#265"
+              },
+              {
+                "op": "validate",
+                "token": "#266"
+              },
+              {
+                "op": "validate",
+                "token": "#267"
+              },
+              {
+                "op": "validate",
+                "token": "#268"
+              },
+              {
+                "op": "validate",
+                "token": "#269"
+              },
+              {
+                "op": "validate",
+                "token": "#270"
+              },
+              {
+                "op": "validate",
+                "token": "#271"
+              },
+              {
+                "op": "validate",
+                "token": "#272"
+              },
+              {
+                "op": "validate",
+                "token": "#273"
+              },
+              {
+                "op": "validate",
+                "token": "#274"
+              },
+              {
+                "op": "validate",
+                "token": "#275"
+              },
+              {
+                "op": "validate",
+                "token": "#276"
+              },
+              {
+                "op": "validate",
+                "token": "#277"
+              },
+              {
+                "op": "validate",
+                "token": "#278"
+              },
+              {
+                "op": "validate",
+                "token": "#279"
+              },
+              {
+                "op": "validate",
+                "token": "#280"
+              },
+              {
+                "op": "validate",
+                "token": "#281"
+              },
+              {
+                "op": "validate",
+                "token": "#282"
+              },
+              {
+                "op": "validate",
+                "token": "#283"
+              },
+              {
+                "op": "validate",
+                "token": "#284"
+              },
+              {
+                "op": "validate",
+                "token": "#285"
+              },
+              {
+                "op": "validate",
+                "token": "#286"
+              },
+              {
+                "op": "validate",
+                "token": "#287"
+              },
+              {
+                "op": "validate",
+                "token": "#288"
+              },
+              {
+                "op": "validate",
+                "token": "#289"
+              },
+              {
+                "op": "validate",
+                "token": "#290"
+              },
+              {
+                "op": "validate",
+                "token": "hash:rt_1"
+              },
+              {
+                "op": "validate",
+                "token": "hash:rt_41"
+              },
+              {
+                "op": "validate",
+                "token": "hash:rt_81"
+              },
+              {
+                "op": "validate",
+                "token": "hash:rt_121"
+              },
+              {
+                "op": "validate",
+                "token": "hash:rt_161"
+              },
+              {
+                "op": "validate",
+                "token": "hash:rt_201"
+              }
+            ]
+          },
+          "expected": "issued: 290\nvalidate expired: 220\nvalidate malformed: 6\nvalidate ok: 370\nvalidate revoked: 20\nstore:\n290 rows, 290 with tokenHash = sha256(token), 20 revoked\nleaks: none",
+          "hidden": true,
+          "score": 4
+        }
+      ]
+    }
+  ]
+}

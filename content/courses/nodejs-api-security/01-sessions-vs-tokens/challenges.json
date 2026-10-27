@@ -1,0 +1,36 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nas_111",
+      "name": "sessions-vs-tokens-quiz",
+      "type": "quiz",
+      "title": "What logout and a password reset really revoke",
+      "description": "Two pieces of evidence from CodeDev sign-in: a fake-clock timeline of the new 15-minute access token after a password reset, and a server-side session logout handler with the sessions table after logout.",
+      "difficulty": "medium",
+      "outcomes": ["token-flow"],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The new design: access tokens live 15 minutes and are verified locally (signature and exp only); refresh tokens are opaque, hashed in auth.refresh_tokens and checked against the table on every refresh. An attacker copied both tokens of learner u_1042 right after the 14:00 refresh. Fake-clock test log:\n\n14:00:00 refresh -> new access token (iat 14:00:00, exp 14:15:00) + new refresh token\n14:05:41 POST /auth/password-reset 204\n         UPDATE auth.refresh_tokens SET revoked_at = now() WHERE user_id = 'u_1042' AND revoked_at IS NULL  -- 1 row\n14:09:00 GET /me/progress (access token from 14:00) -> 200\n14:10:00 POST /auth/refresh (refresh token from 14:00) -> 401 refresh_token_revoked\n14:15:00 GET /me/progress (access token from 14:00) -> 401 token_expired\n\nStatement: \"The attacker can call the API with the copied access token until 14:15 at the latest, and cannot obtain a new access token after the reset.\"",
+          "explanation": "True. The access token is verified without a lookup, so the reset cannot touch it: it keeps working until its exp at 14:15, as the 200 at 14:09 shows. Getting a new one requires the refresh token, and the refresh endpoint checks auth.refresh_tokens, where the reset set revoked_at on the only active row, hence the 401 at 14:10. That bounded window (at most the access token lifetime) is the whole point of the 15-minute access token plus refresh token design. The common misconception is that a password reset signs out a JWT immediately; it only stops the next refresh, so the access token lifetime is the length of the window you accept.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "An internal admin tool uses server-side sessions. Its logout handler:\n\n@Post(\"logout\")\n@HttpCode(204)\nlogout(@Res({ passthrough: true }) res: Response) {\n  res.clearCookie(\"sid\", { path: \"/\", secure: true, httpOnly: true });\n}\n\nResponse header: Set-Cookie: sid=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; Secure\n\nAfter the click on Logout:\n\nSELECT id, user_id, expires_at FROM admin.sessions WHERE user_id = 'u_7';\n--  id      | user_id |       expires_at\n-- 9f1c…e2  | u_7     | 2026-10-26 21:00:00+00\n\nStatement: \"Because the logout response cleared the sid cookie, a copy of the sid value taken before logout can no longer be used against the admin tool.\"",
+          "explanation": "False. clearCookie only tells this one browser to forget its copy. The session row 9f1c…e2 is still in admin.sessions with an expiry in the future, so any request that presents the old sid value, from curl or another browser, still finds a valid session until 21:00. Logout in a server-side session design must delete or revoke the row (DELETE FROM admin.sessions WHERE id = $1) and then clear the cookie; the OWASP Session Management Cheat Sheet asks for the session to be invalidated on the server side. The misconception is that logout is something the client does: the server's state decides whether a credential works.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        }
+      ]
+    }
+  ]
+}

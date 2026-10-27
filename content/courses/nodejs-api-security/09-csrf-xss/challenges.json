@@ -1,0 +1,66 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nas_331",
+      "name": "csrf-xss-cookies-tokens",
+      "type": "quiz",
+      "title": "CSRF & XSS: what the headers really protect",
+      "description": "Three statements on real Set-Cookie headers, a cross-site form, an injected script and a Content-Security-Policy: what SameSite stops, what HttpOnly and a CSRF token do not stop, and what CSP blocks.",
+      "difficulty": "medium",
+      "outcomes": [
+        "attack-mitigation"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Response from https://app.codedev.test after sign-in:\nSet-Cookie: sid=9f2c...; Path=/; HttpOnly; Secure; SameSite=Lax\n\nA page on https://free-certs.example, opened by a signed-in learner in a current Chrome or Firefox:\n<form method=\"POST\" action=\"https://app.codedev.test/settings/email\">\n  <input type=\"hidden\" name=\"email\" value=\"owner@free-certs.example\">\n</form>\n<script>document.forms[0].submit()</script>\n\nStatement: \"The browser sends this cross-site POST without the sid cookie, so the server handles it as a request from a signed-out visitor.\"",
+          "explanation": "True. free-certs.example and codedev.test are different sites, and SameSite=Lax withholds the cookie on cross-site requests except top-level navigations with a safe method such as GET. A form POST is a top-level navigation with an unsafe method, so sid is not attached. Two limits keep CSRF defences necessary anyway: Lax still sends the cookie on a cross-site GET navigation (so a GET that changes state is exposed), and SameSite does nothing against a page on another subdomain of codedev.test, which is the same site. Chrome's temporary exception that sends cookies on cross-site POSTs applies only to cookies set without a SameSite attribute, not to an explicit Lax.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A lesson comment on https://app.codedev.test is rendered with element.innerHTML = markdownToHtml(comment.body). The page has no Content-Security-Policy header. Cookies: sid with HttpOnly; Secure; SameSite=Strict. POST /settings/email requires the header X-CSRF-Token, whose value the page reads from <meta name=\"csrf\" content=\"...\">.\n\nStored comment:\n<img src=\"x\" onerror=\"fetch('/settings/email', { method: 'POST', headers: { 'X-CSRF-Token': document.querySelector('meta[name=csrf]').content, 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'owner@free-certs.example' }) })\">\n\nStatement: \"Because sid is HttpOnly and SameSite=Strict and the endpoint checks a CSRF token, the injected script cannot change the email of a learner who views the comment.\"",
+          "explanation": "False. The script runs inside https://app.codedev.test, so its fetch is a same-origin request: SameSite does not apply, the browser attaches sid as it does for the app's own requests, and the script reads the CSRF token from the page like the app does. HttpOnly only stops the script from reading the cookie's value; it does not stop the browser from sending it. CSRF defences protect against other sites, not against code running on your own origin. The misconception is that HttpOnly makes XSS harmless: the attacker cannot copy the session, but can act as the learner while the page is open, and changing the email is enough to take over the account through a password reset.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Response header on https://app.codedev.test:\nContent-Security-Policy: default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'\n\nThe stored comment <img src=\"x\" onerror=\"fetch('/settings/email', ...)\"> still reaches the DOM through innerHTML, and the image fails to load.\n\nStatement: \"With this policy, the browser does not run the onerror handler and reports a Content-Security-Policy violation in the console.\"",
+          "explanation": "True. An inline event handler is inline script. script-src 'self' allows script files from the page's own origin but no inline code, because it has neither 'unsafe-inline' nor a hash or nonce that matches. The image request is allowed (a same-origin URL), it fails, and the browser refuses to execute the handler, logging a violation such as \"Refused to execute inline event handler because it violates the following Content Security Policy directive\". CSP is a second line of defence: the comment is still injected HTML and must be fixed at the source by sanitising or escaping it, and a policy with 'unsafe-inline' would have let the handler run.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

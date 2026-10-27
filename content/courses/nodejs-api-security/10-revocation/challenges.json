@@ -1,0 +1,5724 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nas_411",
+      "name": "revocation-quiz",
+      "type": "quiz",
+      "title": "When does a signed-out session really stop?",
+      "description": "Two pieces of evidence from the stolen-laptop ticket: an access token that still worked after the family was revoked, and how long a deny-list entry has to live.",
+      "difficulty": "medium",
+      "outcomes": [
+        "rotation-revocation"
+      ],
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "POST /sessions/revoke-all (14:02) ran:\n\nUPDATE refresh_tokens SET revoked_at = now()\n WHERE user_id = 'u_5521' AND revoked_at IS NULL;   -- 3 rows\n\nThe access guard only verifies the signature and exp. API log afterwards:\n\n14:06:40 GET /courses/42/progress  200  sid=fam_812 iat=14:01:30 exp=14:16:30\n14:12:10 GET /me/certificates       200  sid=fam_812 iat=14:01:30 exp=14:16:30\n14:16:40 GET /me/certificates       401  token_expired\n14:16:41 POST /auth/refresh         401  refresh_token_revoked\n\nStatement: \"The laptop kept access until 14:16 because revoking the refresh-token rows does nothing to an access token that was already issued; to stop it earlier, the guard has to check something per request, such as the user's session version or a deny list of revoked families.\"",
+          "explanation": "True. An access token is self-contained: the guard checked the signature and exp, both fine until 14:16:30, and never looked at refresh_tokens. Revoking the rows only blocked the next refresh, which is exactly what the 14:16:41 line shows. To cut those 14 minutes, the guard needs a cheap per-request check: the token's ver claim against users.session_version (bumped by sign-out-all), or its sid against a deny list of revoked families. The misconception is that revoking a session in the database revokes the tokens already handed out.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Access tokens live 15 minutes, refresh tokens 14 days. Sign out this device does:\n\nUPDATE refresh_tokens SET revoked_at = now() WHERE family_id = $1 AND revoked_at IS NULL;\nawait redis.set(`deny:${familyId}`, \"1\", { PX: DENY_TTL_MS });\n\nand the access guard rejects a token when deny:<sid> exists. A reviewer proposes:\n\nconst DENY_TTL_MS = 14 * 24 * 60 * 60 * 1000;   // as long as the refresh token could live\n\nStatement: \"DENY_TTL_MS must be 14 days; with a shorter entry, an access token of the revoked family could start working again before the family's refresh token would have expired.\"",
+          "explanation": "False. After the UPDATE, the family can never refresh again, so no new access token is issued for it. Every access token it already has was issued before the revocation and expires at most 15 minutes later. An entry that lives 15 minutes (the access token lifetime, plus your allowed clock skew) covers all of them; after that the exp check rejects them by itself. Keeping entries for 14 days only makes the deny list grow with every sign-out, which is the cost you wanted to bound. The misconception is to tie the deny list to the refresh token lifetime instead of the access token lifetime.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_nas_412",
+      "name": "sign-out-one-device-or-all",
+      "type": "mini_coding",
+      "title": "Sign out one device or all devices",
+      "description": "The Settings page of https://app.codedev.test gets a Sessions section: a list of the learner's devices, \"Sign out\" next to each one, and \"Sign out of all devices\", which the password change also triggers. A session is a refresh token family: one familyId per sign-in on one device, rows shaped like { id, familyId, userId, deviceId, tokenHash, createdAt, expiresAt, usedAt, revokedAt, replacedBy }. Access tokens live 15 minutes (ACCESS_TTL_MS) and carry the decoded claims { sub, sid, ver, iat, exp }: sub = userId, sid = familyId, ver = the user's session version when the token was issued. Sign-in and rotation (with replay detection) are already written; write the five functions they rely on.\n\nrevokeFamily(s, userId, familyId, now): if no row of familyId belongs to userId (unknown family or another user's), return false and change nothing. Otherwise set revokedAt = now on every row of the family whose revokedAt is null; if at least one row changed, put the family on the deny list with s.deniedFamilies.set(familyId, now + ACCESS_TTL_MS). Return true (also for a family that was already revoked).\n\nsignOutAll(s, userId, now): bump the user's session version (s.sessionVersion, a missing user counts as 0) by 1, set revokedAt = now on every row of the user whose revokedAt is null, and add nothing to the deny list.\n\ncheckAccess(s, claims, now) runs on every API request and may use only the two maps, never s.rows: now >= claims.exp -> \"expired\"; claims.ver lower than the user's session version -> \"revoked\"; claims.sid on the deny list -> \"revoked\"; otherwise \"ok\".\n\npruneDenyList(s, now): delete every deny-list entry whose time is <= now. The runner calls it before every operation, so the list only holds families revoked in the last 15 minutes.\n\nlistSessions(s, userId, now): one entry per family of the user that has a live row (usedAt null, revokedAt null, now < expiresAt), with its deviceId, createdAt = the smallest createdAt of the family's rows and lastUsedAt = the largest. Sort by lastUsedAt, newest first, then by familyId ascending (plain string comparison).\n\nInput: a JSON list of operations in time order, with \"at\" in minutes on a fake clock (login, refresh, api, logout, revoke, logoutAll, passwordChanged, sessions, denylist; see the test runner). Output: one line per operation. Times are whole minutes; up to 1000 operations.",
+      "difficulty": "medium",
+      "outcomes": [
+        "rotation-revocation"
+      ],
+      "points": 30,
+      "hints": [
+        "Revoking rows in the table stops the next refresh. What stops an access token that was issued two minutes before the sign-out, and how long does that thing need to remember the family?",
+        "Look at what each operation must change: revokeFamily touches the family's rows and the deny list, signOutAll touches the user's rows and the session version, checkAccess only reads the two maps. In listSessions, group the user's rows by familyId before you decide whether a family is live.",
+        "A similar case on other data: a course pass is revoked at minute 40 and passes are valid for 10 minutes, so an entry in a revoked-passes map with time 40 + 10 = 50 is enough; at minute 50 the pass has expired by itself and the entry can go. A user-wide counter does the same job for \"revoke everything\": passes that carry an older counter value are rejected, with no entry per pass."
+      ],
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Sign out this device: its tokens stop at once, the other device keeps working",
+          "input": [
+            {
+              "at": 0,
+              "op": "login",
+              "user": "u1",
+              "device": "phone"
+            },
+            {
+              "at": 1,
+              "op": "login",
+              "user": "u1",
+              "device": "laptop"
+            },
+            {
+              "at": 2,
+              "op": "api",
+              "access": "A1"
+            },
+            {
+              "at": 3,
+              "op": "logout",
+              "access": "A1"
+            },
+            {
+              "at": 3,
+              "op": "api",
+              "access": "A1"
+            },
+            {
+              "at": 4,
+              "op": "refresh",
+              "refresh": "R1"
+            },
+            {
+              "at": 4,
+              "op": "api",
+              "access": "A2"
+            },
+            {
+              "at": 5,
+              "op": "sessions",
+              "access": "A2"
+            },
+            {
+              "at": 5,
+              "op": "denylist"
+            }
+          ],
+          "expected": "[0m] login u1 phone: fam_1, A1, R1\n[1m] login u1 laptop: fam_2, A2, R2\n[2m] api A1: 200\n[3m] logout A1: 204\n[3m] api A1: 401 revoked\n[4m] refresh R1: 401 revoked\n[4m] api A2: 200\n[5m] sessions A2: fam_2 laptop since 1m last 1m (this device)\n[5m] deny list: 1 (fam_1)",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Sessions list: device, sign-in and last refresh, newest first, only the caller's sessions",
+          "input": [
+            {
+              "at": 0,
+              "op": "login",
+              "user": "u1",
+              "device": "phone"
+            },
+            {
+              "at": 5,
+              "op": "login",
+              "user": "u1",
+              "device": "laptop"
+            },
+            {
+              "at": 6,
+              "op": "login",
+              "user": "u2",
+              "device": "tablet"
+            },
+            {
+              "at": 20,
+              "op": "sessions",
+              "access": "A3"
+            },
+            {
+              "at": 20,
+              "op": "refresh",
+              "refresh": "R1"
+            },
+            {
+              "at": 21,
+              "op": "sessions",
+              "access": "A4"
+            },
+            {
+              "at": 30,
+              "op": "refresh",
+              "refresh": "R2"
+            },
+            {
+              "at": 31,
+              "op": "sessions",
+              "access": "A5"
+            }
+          ],
+          "expected": "[0m] login u1 phone: fam_1, A1, R1\n[5m] login u1 laptop: fam_2, A2, R2\n[6m] login u2 tablet: fam_3, A3, R3\n[20m] sessions A3: fam_3 tablet since 6m last 6m (this device)\n[20m] refresh R1: A4, R4\n[21m] sessions A4: fam_1 phone since 0m last 20m (this device); fam_2 laptop since 5m last 5m\n[30m] refresh R2: A5, R5\n[31m] sessions A5: fam_2 laptop since 5m last 30m (this device); fam_1 phone since 0m last 20m",
+          "hidden": false,
+          "score": 3
+        },
+        {
+          "name": "Password change signs out every device of the user and adds nothing to the deny list",
+          "input": [
+            {
+              "at": 0,
+              "op": "login",
+              "user": "u1",
+              "device": "phone"
+            },
+            {
+              "at": 1,
+              "op": "login",
+              "user": "u1",
+              "device": "laptop"
+            },
+            {
+              "at": 2,
+              "op": "login",
+              "user": "u1",
+              "device": "tablet"
+            },
+            {
+              "at": 2,
+              "op": "login",
+              "user": "u2",
+              "device": "phone"
+            },
+            {
+              "at": 3,
+              "op": "refresh",
+              "refresh": "R1"
+            },
+            {
+              "at": 4,
+              "op": "passwordChanged",
+              "user": "u1"
+            },
+            {
+              "at": 4,
+              "op": "api",
+              "access": "A5"
+            },
+            {
+              "at": 4,
+              "op": "api",
+              "access": "A2"
+            },
+            {
+              "at": 4,
+              "op": "api",
+              "access": "A3"
+            },
+            {
+              "at": 5,
+              "op": "refresh",
+              "refresh": "R5"
+            },
+            {
+              "at": 5,
+              "op": "refresh",
+              "refresh": "R2"
+            },
+            {
+              "at": 5,
+              "op": "refresh",
+              "refresh": "R3"
+            },
+            {
+              "at": 5,
+              "op": "api",
+              "access": "A4"
+            },
+            {
+              "at": 5,
+              "op": "denylist"
+            },
+            {
+              "at": 6,
+              "op": "login",
+              "user": "u1",
+              "device": "phone"
+            },
+            {
+              "at": 6,
+              "op": "api",
+              "access": "A6"
+            },
+            {
+              "at": 6,
+              "op": "sessions",
+              "access": "A6"
+            },
+            {
+              "at": 7,
+              "op": "logoutAll",
+              "access": "A6"
+            },
+            {
+              "at": 7,
+              "op": "api",
+              "access": "A6"
+            },
+            {
+              "at": 7,
+              "op": "refresh",
+              "refresh": "R6"
+            },
+            {
+              "at": 7,
+              "op": "api",
+              "access": "A4"
+            },
+            {
+              "at": 7,
+              "op": "denylist"
+            }
+          ],
+          "expected": "[0m] login u1 phone: fam_1, A1, R1\n[1m] login u1 laptop: fam_2, A2, R2\n[2m] login u1 tablet: fam_3, A3, R3\n[2m] login u2 phone: fam_4, A4, R4\n[3m] refresh R1: A5, R5\n[4m] password changed u1\n[4m] api A5: 401 revoked\n[4m] api A2: 401 revoked\n[4m] api A3: 401 revoked\n[5m] refresh R5: 401 revoked\n[5m] refresh R2: 401 revoked\n[5m] refresh R3: 401 revoked\n[5m] api A4: 200\n[5m] deny list: 0\n[6m] login u1 phone: fam_5, A6, R6\n[6m] api A6: 200\n[6m] sessions A6: fam_5 phone since 6m last 6m (this device)\n[7m] logoutAll A6: 204\n[7m] api A6: 401 revoked\n[7m] refresh R6: 401 revoked\n[7m] api A4: 200\n[7m] deny list: 0",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Revoking another user's session or an unknown family returns 404 and changes nothing",
+          "input": [
+            {
+              "at": 0,
+              "op": "login",
+              "user": "u1",
+              "device": "phone"
+            },
+            {
+              "at": 0,
+              "op": "login",
+              "user": "u2",
+              "device": "laptop"
+            },
+            {
+              "at": 1,
+              "op": "login",
+              "user": "u1",
+              "device": "laptop"
+            },
+            {
+              "at": 2,
+              "op": "revoke",
+              "access": "A1",
+              "family": "fam_2"
+            },
+            {
+              "at": 2,
+              "op": "api",
+              "access": "A2"
+            },
+            {
+              "at": 2,
+              "op": "refresh",
+              "refresh": "R2"
+            },
+            {
+              "at": 2,
+              "op": "revoke",
+              "access": "A1",
+              "family": "fam_99"
+            },
+            {
+              "at": 3,
+              "op": "revoke",
+              "access": "A1",
+              "family": "fam_3"
+            },
+            {
+              "at": 3,
+              "op": "api",
+              "access": "A3"
+            },
+            {
+              "at": 4,
+              "op": "revoke",
+              "access": "A1",
+              "family": "fam_3"
+            },
+            {
+              "at": 4,
+              "op": "denylist"
+            },
+            {
+              "at": 4,
+              "op": "sessions",
+              "access": "A1"
+            },
+            {
+              "at": 4,
+              "op": "sessions",
+              "access": "A4"
+            },
+            {
+              "at": 17,
+              "op": "denylist"
+            },
+            {
+              "at": 18,
+              "op": "denylist"
+            }
+          ],
+          "expected": "[0m] login u1 phone: fam_1, A1, R1\n[0m] login u2 laptop: fam_2, A2, R2\n[1m] login u1 laptop: fam_3, A3, R3\n[2m] revoke A1 fam_2: 404\n[2m] api A2: 200\n[2m] refresh R2: A4, R4\n[2m] revoke A1 fam_99: 404\n[3m] revoke A1 fam_3: 204\n[3m] api A3: 401 revoked\n[4m] revoke A1 fam_3: 204\n[4m] deny list: 1 (fam_3)\n[4m] sessions A1: fam_1 phone since 0m last 0m (this device)\n[4m] sessions A4: fam_2 laptop since 0m last 2m (this device)\n[17m] deny list: 1 (fam_3)\n[18m] deny list: 0",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "A deny-list entry lives exactly 15 minutes, then the old access token fails as expired",
+          "input": [
+            {
+              "at": 0,
+              "op": "login",
+              "user": "u1",
+              "device": "phone"
+            },
+            {
+              "at": 10,
+              "op": "refresh",
+              "refresh": "R1"
+            },
+            {
+              "at": 10,
+              "op": "login",
+              "user": "u1",
+              "device": "laptop"
+            },
+            {
+              "at": 10,
+              "op": "logout",
+              "access": "A2"
+            },
+            {
+              "at": 24,
+              "op": "api",
+              "access": "A2"
+            },
+            {
+              "at": 24,
+              "op": "api",
+              "access": "A3"
+            },
+            {
+              "at": 24,
+              "op": "denylist"
+            },
+            {
+              "at": 24,
+              "op": "logout",
+              "access": "A3"
+            },
+            {
+              "at": 25,
+              "op": "denylist"
+            },
+            {
+              "at": 25,
+              "op": "api",
+              "access": "A2"
+            },
+            {
+              "at": 38,
+              "op": "denylist"
+            },
+            {
+              "at": 39,
+              "op": "denylist"
+            }
+          ],
+          "expected": "[0m] login u1 phone: fam_1, A1, R1\n[10m] refresh R1: A2, R2\n[10m] login u1 laptop: fam_2, A3, R3\n[10m] logout A2: 204\n[24m] api A2: 401 revoked\n[24m] api A3: 200\n[24m] deny list: 1 (fam_1)\n[24m] logout A3: 204\n[25m] deny list: 1 (fam_2)\n[25m] api A2: 401 expired\n[38m] deny list: 1 (fam_2)\n[39m] deny list: 0",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "A replayed refresh token revokes its family, including the access token just issued",
+          "input": [
+            {
+              "at": 0,
+              "op": "login",
+              "user": "u1",
+              "device": "phone"
+            },
+            {
+              "at": 0,
+              "op": "login",
+              "user": "u1",
+              "device": "laptop"
+            },
+            {
+              "at": 5,
+              "op": "refresh",
+              "refresh": "R1"
+            },
+            {
+              "at": 6,
+              "op": "refresh",
+              "refresh": "R1"
+            },
+            {
+              "at": 6,
+              "op": "api",
+              "access": "A3"
+            },
+            {
+              "at": 7,
+              "op": "refresh",
+              "refresh": "R3"
+            },
+            {
+              "at": 7,
+              "op": "denylist"
+            },
+            {
+              "at": 7,
+              "op": "sessions",
+              "access": "A2"
+            },
+            {
+              "at": 7,
+              "op": "api",
+              "access": "A2"
+            }
+          ],
+          "expected": "[0m] login u1 phone: fam_1, A1, R1\n[0m] login u1 laptop: fam_2, A2, R2\n[5m] refresh R1: A3, R3\n[6m] refresh R1: 401 replay\n[6m] api A3: 401 revoked\n[7m] refresh R3: 401 revoked\n[7m] deny list: 1 (fam_1)\n[7m] sessions A2: fam_2 laptop since 0m last 0m (this device)\n[7m] api A2: 200",
+          "hidden": true,
+          "score": 3
+        },
+        {
+          "name": "Refresh tokens expire after 14 days and their session leaves the list",
+          "input": [
+            {
+              "at": 0,
+              "op": "login",
+              "user": "u1",
+              "device": "phone"
+            },
+            {
+              "at": 10000,
+              "op": "login",
+              "user": "u1",
+              "device": "laptop"
+            },
+            {
+              "at": 20000,
+              "op": "refresh",
+              "refresh": "R2"
+            },
+            {
+              "at": 20150,
+              "op": "refresh",
+              "refresh": "R3"
+            },
+            {
+              "at": 20159,
+              "op": "sessions",
+              "access": "A4"
+            },
+            {
+              "at": 20160,
+              "op": "sessions",
+              "access": "A4"
+            },
+            {
+              "at": 20160,
+              "op": "refresh",
+              "refresh": "R1"
+            },
+            {
+              "at": 20161,
+              "op": "refresh",
+              "refresh": "R4"
+            }
+          ],
+          "expected": "[0m] login u1 phone: fam_1, A1, R1\n[10000m] login u1 laptop: fam_2, A2, R2\n[20000m] refresh R2: A3, R3\n[20150m] refresh R3: A4, R4\n[20159m] sessions A4: fam_2 laptop since 10000m last 20150m (this device); fam_1 phone since 0m last 0m\n[20160m] sessions A4: fam_2 laptop since 10000m last 20150m (this device)\n[20160m] refresh R1: 401 expired\n[20161m] refresh R4: A5, R5",
+          "hidden": true,
+          "score": 2
+        },
+        {
+          "name": "Large: 40 users, 1000 operations over several hours",
+          "input": [
+            {
+              "at": 0,
+              "op": "login",
+              "user": "u8",
+              "device": "desktop"
+            },
+            {
+              "at": 0,
+              "op": "login",
+              "user": "u38",
+              "device": "desktop"
+            },
+            {
+              "at": 0,
+              "op": "login",
+              "user": "u35",
+              "device": "laptop"
+            },
+            {
+              "at": 1,
+              "op": "login",
+              "user": "u40",
+              "device": "laptop"
+            },
+            {
+              "at": 1,
+              "op": "login",
+              "user": "u20",
+              "device": "desktop"
+            },
+            {
+              "at": 1,
+              "op": "login",
+              "user": "u17",
+              "device": "desktop"
+            },
+            {
+              "at": 1,
+              "op": "login",
+              "user": "u29",
+              "device": "tablet"
+            },
+            {
+              "at": 1,
+              "op": "login",
+              "user": "u26",
+              "device": "laptop"
+            },
+            {
+              "at": 1,
+              "op": "login",
+              "user": "u16",
+              "device": "phone"
+            },
+            {
+              "at": 1,
+              "op": "login",
+              "user": "u9",
+              "device": "laptop"
+            },
+            {
+              "at": 2,
+              "op": "login",
+              "user": "u23",
+              "device": "phone"
+            },
+            {
+              "at": 2,
+              "op": "login",
+              "user": "u38",
+              "device": "phone"
+            },
+            {
+              "at": 2,
+              "op": "login",
+              "user": "u3",
+              "device": "tablet"
+            },
+            {
+              "at": 3,
+              "op": "login",
+              "user": "u18",
+              "device": "phone"
+            },
+            {
+              "at": 4,
+              "op": "login",
+              "user": "u36",
+              "device": "laptop"
+            },
+            {
+              "at": 4,
+              "op": "login",
+              "user": "u24",
+              "device": "phone"
+            },
+            {
+              "at": 4,
+              "op": "login",
+              "user": "u24",
+              "device": "tablet"
+            },
+            {
+              "at": 5,
+              "op": "login",
+              "user": "u3",
+              "device": "desktop"
+            },
+            {
+              "at": 5,
+              "op": "login",
+              "user": "u1",
+              "device": "desktop"
+            },
+            {
+              "at": 6,
+              "op": "login",
+              "user": "u18",
+              "device": "phone"
+            },
+            {
+              "at": 6,
+              "op": "login",
+              "user": "u30",
+              "device": "laptop"
+            },
+            {
+              "at": 6,
+              "op": "login",
+              "user": "u35",
+              "device": "desktop"
+            },
+            {
+              "at": 6,
+              "op": "login",
+              "user": "u30",
+              "device": "laptop"
+            },
+            {
+              "at": 6,
+              "op": "login",
+              "user": "u13",
+              "device": "desktop"
+            },
+            {
+              "at": 6,
+              "op": "login",
+              "user": "u26",
+              "device": "phone"
+            },
+            {
+              "at": 6,
+              "op": "login",
+              "user": "u38",
+              "device": "laptop"
+            },
+            {
+              "at": 6,
+              "op": "login",
+              "user": "u29",
+              "device": "phone"
+            },
+            {
+              "at": 6,
+              "op": "login",
+              "user": "u19",
+              "device": "laptop"
+            },
+            {
+              "at": 6,
+              "op": "login",
+              "user": "u13",
+              "device": "laptop"
+            },
+            {
+              "at": 6,
+              "op": "login",
+              "user": "u6",
+              "device": "laptop"
+            },
+            {
+              "at": 7,
+              "op": "login",
+              "user": "u11",
+              "device": "tablet"
+            },
+            {
+              "at": 7,
+              "op": "login",
+              "user": "u30",
+              "device": "desktop"
+            },
+            {
+              "at": 8,
+              "op": "login",
+              "user": "u18",
+              "device": "laptop"
+            },
+            {
+              "at": 9,
+              "op": "login",
+              "user": "u27",
+              "device": "laptop"
+            },
+            {
+              "at": 9,
+              "op": "login",
+              "user": "u20",
+              "device": "phone"
+            },
+            {
+              "at": 9,
+              "op": "login",
+              "user": "u29",
+              "device": "phone"
+            },
+            {
+              "at": 9,
+              "op": "login",
+              "user": "u9",
+              "device": "tablet"
+            },
+            {
+              "at": 10,
+              "op": "login",
+              "user": "u16",
+              "device": "tablet"
+            },
+            {
+              "at": 10,
+              "op": "login",
+              "user": "u28",
+              "device": "laptop"
+            },
+            {
+              "at": 10,
+              "op": "login",
+              "user": "u16",
+              "device": "phone"
+            },
+            {
+              "at": 10,
+              "op": "denylist"
+            },
+            {
+              "at": 10,
+              "op": "refresh",
+              "refresh": "R31"
+            },
+            {
+              "at": 10,
+              "op": "sessions",
+              "access": "A38"
+            },
+            {
+              "at": 10,
+              "op": "api",
+              "access": "A19"
+            },
+            {
+              "at": 10,
+              "op": "api",
+              "access": "A18"
+            },
+            {
+              "at": 10,
+              "op": "refresh",
+              "refresh": "R16"
+            },
+            {
+              "at": 10,
+              "op": "login",
+              "user": "u21",
+              "device": "phone"
+            },
+            {
+              "at": 10,
+              "op": "api",
+              "access": "A32"
+            },
+            {
+              "at": 10,
+              "op": "sessions",
+              "access": "A24"
+            },
+            {
+              "at": 10,
+              "op": "revoke",
+              "access": "A25",
+              "family": "fam_20"
+            },
+            {
+              "at": 10,
+              "op": "api",
+              "access": "A35"
+            },
+            {
+              "at": 10,
+              "op": "api",
+              "access": "A34"
+            },
+            {
+              "at": 10,
+              "op": "refresh",
+              "refresh": "R18"
+            },
+            {
+              "at": 10,
+              "op": "refresh",
+              "refresh": "R39"
+            },
+            {
+              "at": 10,
+              "op": "api",
+              "access": "A34"
+            },
+            {
+              "at": 11,
+              "op": "api",
+              "access": "A35"
+            },
+            {
+              "at": 12,
+              "op": "refresh",
+              "refresh": "R22"
+            },
+            {
+              "at": 12,
+              "op": "refresh",
+              "refresh": "R29"
+            },
+            {
+              "at": 13,
+              "op": "api",
+              "access": "A32"
+            },
+            {
+              "at": 13,
+              "op": "login",
+              "user": "u33",
+              "device": "tablet"
+            },
+            {
+              "at": 13,
+              "op": "login",
+              "user": "u24",
+              "device": "laptop"
+            },
+            {
+              "at": 13,
+              "op": "logoutAll",
+              "access": "A27"
+            },
+            {
+              "at": 13,
+              "op": "logoutAll",
+              "access": "A33"
+            },
+            {
+              "at": 13,
+              "op": "revoke",
+              "access": "A37",
+              "family": "fam_19"
+            },
+            {
+              "at": 14,
+              "op": "refresh",
+              "refresh": "R21"
+            },
+            {
+              "at": 15,
+              "op": "revoke",
+              "access": "A26",
+              "family": "fam_3"
+            },
+            {
+              "at": 15,
+              "op": "api",
+              "access": "A30"
+            },
+            {
+              "at": 16,
+              "op": "denylist"
+            },
+            {
+              "at": 17,
+              "op": "login",
+              "user": "u37",
+              "device": "desktop"
+            },
+            {
+              "at": 18,
+              "op": "login",
+              "user": "u37",
+              "device": "phone"
+            },
+            {
+              "at": 18,
+              "op": "revoke",
+              "access": "A38",
+              "family": "fam_23"
+            },
+            {
+              "at": 18,
+              "op": "api",
+              "access": "A33"
+            },
+            {
+              "at": 18,
+              "op": "refresh",
+              "refresh": "R17"
+            },
+            {
+              "at": 18,
+              "op": "login",
+              "user": "u3",
+              "device": "laptop"
+            },
+            {
+              "at": 18,
+              "op": "logout",
+              "access": "A23"
+            },
+            {
+              "at": 18,
+              "op": "refresh",
+              "refresh": "R19"
+            },
+            {
+              "at": 18,
+              "op": "refresh",
+              "refresh": "R38"
+            },
+            {
+              "at": 18,
+              "op": "api",
+              "access": "A32"
+            },
+            {
+              "at": 18,
+              "op": "api",
+              "access": "A32"
+            },
+            {
+              "at": 18,
+              "op": "login",
+              "user": "u36",
+              "device": "tablet"
+            },
+            {
+              "at": 19,
+              "op": "refresh",
+              "refresh": "R28"
+            },
+            {
+              "at": 20,
+              "op": "login",
+              "user": "u14",
+              "device": "laptop"
+            },
+            {
+              "at": 21,
+              "op": "api",
+              "access": "A52"
+            },
+            {
+              "at": 21,
+              "op": "api",
+              "access": "A57"
+            },
+            {
+              "at": 21,
+              "op": "refresh",
+              "refresh": "R23"
+            },
+            {
+              "at": 22,
+              "op": "sessions",
+              "access": "A35"
+            },
+            {
+              "at": 22,
+              "op": "api",
+              "access": "A30"
+            },
+            {
+              "at": 22,
+              "op": "login",
+              "user": "u2",
+              "device": "laptop"
+            },
+            {
+              "at": 22,
+              "op": "login",
+              "user": "u39",
+              "device": "desktop"
+            },
+            {
+              "at": 22,
+              "op": "refresh",
+              "refresh": "R41"
+            },
+            {
+              "at": 22,
+              "op": "refresh",
+              "refresh": "R32"
+            },
+            {
+              "at": 23,
+              "op": "refresh",
+              "refresh": "R52"
+            },
+            {
+              "at": 23,
+              "op": "login",
+              "user": "u37",
+              "device": "desktop"
+            },
+            {
+              "at": 23,
+              "op": "refresh",
+              "refresh": "R26"
+            },
+            {
+              "at": 23,
+              "op": "refresh",
+              "refresh": "R49"
+            },
+            {
+              "at": 23,
+              "op": "api",
+              "access": "A43"
+            },
+            {
+              "at": 23,
+              "op": "api",
+              "access": "A36"
+            },
+            {
+              "at": 23,
+              "op": "api",
+              "access": "A54"
+            },
+            {
+              "at": 24,
+              "op": "refresh",
+              "refresh": "R30"
+            },
+            {
+              "at": 24,
+              "op": "api",
+              "access": "A36"
+            },
+            {
+              "at": 24,
+              "op": "api",
+              "access": "A57"
+            },
+            {
+              "at": 24,
+              "op": "revoke",
+              "access": "A54",
+              "family": "fam_46"
+            },
+            {
+              "at": 24,
+              "op": "logoutAll",
+              "access": "A47"
+            },
+            {
+              "at": 24,
+              "op": "api",
+              "access": "A33"
+            },
+            {
+              "at": 25,
+              "op": "refresh",
+              "refresh": "R40"
+            },
+            {
+              "at": 25,
+              "op": "refresh",
+              "refresh": "R45"
+            },
+            {
+              "at": 25,
+              "op": "refresh",
+              "refresh": "R24"
+            },
+            {
+              "at": 25,
+              "op": "refresh",
+              "refresh": "R54"
+            },
+            {
+              "at": 25,
+              "op": "refresh",
+              "refresh": "R34"
+            },
+            {
+              "at": 25,
+              "op": "api",
+              "access": "A43"
+            },
+            {
+              "at": 26,
+              "op": "revoke",
+              "access": "A56",
+              "family": "fam_44"
+            },
+            {
+              "at": 26,
+              "op": "api",
+              "access": "A33"
+            },
+            {
+              "at": 26,
+              "op": "revoke",
+              "access": "A48",
+              "family": "fam_6"
+            },
+            {
+              "at": 27,
+              "op": "refresh",
+              "refresh": "R57"
+            },
+            {
+              "at": 28,
+              "op": "api",
+              "access": "A56"
+            },
+            {
+              "at": 28,
+              "op": "refresh",
+              "refresh": "R48"
+            },
+            {
+              "at": 28,
+              "op": "login",
+              "user": "u6",
+              "device": "tablet"
+            },
+            {
+              "at": 28,
+              "op": "login",
+              "user": "u31",
+              "device": "tablet"
+            },
+            {
+              "at": 28,
+              "op": "sessions",
+              "access": "A33"
+            },
+            {
+              "at": 29,
+              "op": "revoke",
+              "access": "A27",
+              "family": "fam_42"
+            },
+            {
+              "at": 29,
+              "op": "refresh",
+              "refresh": "R33"
+            },
+            {
+              "at": 30,
+              "op": "denylist"
+            },
+            {
+              "at": 30,
+              "op": "api",
+              "access": "A62"
+            },
+            {
+              "at": 31,
+              "op": "logout",
+              "access": "A51"
+            },
+            {
+              "at": 31,
+              "op": "refresh",
+              "refresh": "R51"
+            },
+            {
+              "at": 31,
+              "op": "api",
+              "access": "A68"
+            },
+            {
+              "at": 31,
+              "op": "login",
+              "user": "u13",
+              "device": "tablet"
+            },
+            {
+              "at": 32,
+              "op": "revoke",
+              "access": "A37",
+              "family": "fam_51"
+            },
+            {
+              "at": 32,
+              "op": "api",
+              "access": "A35"
+            },
+            {
+              "at": 33,
+              "op": "login",
+              "user": "u35",
+              "device": "phone"
+            },
+            {
+              "at": 33,
+              "op": "api",
+              "access": "A68"
+            },
+            {
+              "at": 33,
+              "op": "login",
+              "user": "u22",
+              "device": "desktop"
+            },
+            {
+              "at": 34,
+              "op": "login",
+              "user": "u37",
+              "device": "desktop"
+            },
+            {
+              "at": 34,
+              "op": "refresh",
+              "refresh": "R62"
+            },
+            {
+              "at": 34,
+              "op": "login",
+              "user": "u30",
+              "device": "tablet"
+            },
+            {
+              "at": 34,
+              "op": "login",
+              "user": "u35",
+              "device": "phone"
+            },
+            {
+              "at": 34,
+              "op": "denylist"
+            },
+            {
+              "at": 35,
+              "op": "refresh",
+              "refresh": "R43"
+            },
+            {
+              "at": 35,
+              "op": "revoke",
+              "access": "A63",
+              "family": "fam_5"
+            },
+            {
+              "at": 35,
+              "op": "sessions",
+              "access": "A69"
+            },
+            {
+              "at": 36,
+              "op": "refresh",
+              "refresh": "R74"
+            },
+            {
+              "at": 36,
+              "op": "refresh",
+              "refresh": "R64"
+            },
+            {
+              "at": 36,
+              "op": "api",
+              "access": "A59"
+            },
+            {
+              "at": 36,
+              "op": "api",
+              "access": "A36"
+            },
+            {
+              "at": 37,
+              "op": "api",
+              "access": "A35"
+            },
+            {
+              "at": 37,
+              "op": "logout",
+              "access": "A61"
+            },
+            {
+              "at": 37,
+              "op": "api",
+              "access": "A60"
+            },
+            {
+              "at": 37,
+              "op": "refresh",
+              "refresh": "R54"
+            },
+            {
+              "at": 37,
+              "op": "revoke",
+              "access": "A73",
+              "family": "fam_50"
+            },
+            {
+              "at": 38,
+              "op": "refresh",
+              "refresh": "R60"
+            },
+            {
+              "at": 38,
+              "op": "refresh",
+              "refresh": "R36"
+            },
+            {
+              "at": 39,
+              "op": "api",
+              "access": "A71"
+            },
+            {
+              "at": 39,
+              "op": "logout",
+              "access": "A70"
+            },
+            {
+              "at": 39,
+              "op": "api",
+              "access": "A71"
+            },
+            {
+              "at": 39,
+              "op": "refresh",
+              "refresh": "R72"
+            },
+            {
+              "at": 39,
+              "op": "api",
+              "access": "A63"
+            },
+            {
+              "at": 39,
+              "op": "refresh",
+              "refresh": "R61"
+            },
+            {
+              "at": 40,
+              "op": "denylist"
+            },
+            {
+              "at": 40,
+              "op": "refresh",
+              "refresh": "R70"
+            },
+            {
+              "at": 40,
+              "op": "logout",
+              "access": "A37"
+            },
+            {
+              "at": 40,
+              "op": "api",
+              "access": "A79"
+            },
+            {
+              "at": 40,
+              "op": "refresh",
+              "refresh": "R87"
+            },
+            {
+              "at": 40,
+              "op": "refresh",
+              "refresh": "R86"
+            },
+            {
+              "at": 40,
+              "op": "api",
+              "access": "A76"
+            },
+            {
+              "at": 40,
+              "op": "sessions",
+              "access": "A84"
+            },
+            {
+              "at": 40,
+              "op": "refresh",
+              "refresh": "R51"
+            },
+            {
+              "at": 41,
+              "op": "refresh",
+              "refresh": "R38"
+            },
+            {
+              "at": 41,
+              "op": "refresh",
+              "refresh": "R37"
+            },
+            {
+              "at": 42,
+              "op": "sessions",
+              "access": "A78"
+            },
+            {
+              "at": 42,
+              "op": "refresh",
+              "refresh": "R70"
+            },
+            {
+              "at": 43,
+              "op": "refresh",
+              "refresh": "R36"
+            },
+            {
+              "at": 43,
+              "op": "denylist"
+            },
+            {
+              "at": 43,
+              "op": "refresh",
+              "refresh": "R75"
+            },
+            {
+              "at": 44,
+              "op": "api",
+              "access": "A59"
+            },
+            {
+              "at": 44,
+              "op": "sessions",
+              "access": "A67"
+            },
+            {
+              "at": 44,
+              "op": "api",
+              "access": "A78"
+            },
+            {
+              "at": 44,
+              "op": "revoke",
+              "access": "A81",
+              "family": "fam_26"
+            },
+            {
+              "at": 44,
+              "op": "sessions",
+              "access": "A82"
+            },
+            {
+              "at": 44,
+              "op": "api",
+              "access": "A35"
+            },
+            {
+              "at": 45,
+              "op": "logoutAll",
+              "access": "A65"
+            },
+            {
+              "at": 46,
+              "op": "api",
+              "access": "A79"
+            },
+            {
+              "at": 47,
+              "op": "sessions",
+              "access": "A83"
+            },
+            {
+              "at": 48,
+              "op": "api",
+              "access": "A85"
+            },
+            {
+              "at": 48,
+              "op": "sessions",
+              "access": "A67"
+            },
+            {
+              "at": 48,
+              "op": "login",
+              "user": "u25",
+              "device": "laptop"
+            },
+            {
+              "at": 48,
+              "op": "denylist"
+            },
+            {
+              "at": 48,
+              "op": "logout",
+              "access": "A35"
+            },
+            {
+              "at": 48,
+              "op": "refresh",
+              "refresh": "R73"
+            },
+            {
+              "at": 48,
+              "op": "sessions",
+              "access": "A59"
+            },
+            {
+              "at": 48,
+              "op": "api",
+              "access": "A67"
+            },
+            {
+              "at": 48,
+              "op": "sessions",
+              "access": "A59"
+            },
+            {
+              "at": 48,
+              "op": "logout",
+              "access": "A84"
+            },
+            {
+              "at": 48,
+              "op": "api",
+              "access": "A88"
+            },
+            {
+              "at": 48,
+              "op": "refresh",
+              "refresh": "R76"
+            },
+            {
+              "at": 49,
+              "op": "api",
+              "access": "A54"
+            },
+            {
+              "at": 49,
+              "op": "sessions",
+              "access": "A65"
+            },
+            {
+              "at": 49,
+              "op": "revoke",
+              "access": "A67",
+              "family": "fam_8"
+            },
+            {
+              "at": 49,
+              "op": "refresh",
+              "refresh": "R78"
+            },
+            {
+              "at": 50,
+              "op": "refresh",
+              "refresh": "R81"
+            },
+            {
+              "at": 50,
+              "op": "logout",
+              "access": "A88"
+            },
+            {
+              "at": 50,
+              "op": "api",
+              "access": "A51"
+            },
+            {
+              "at": 50,
+              "op": "api",
+              "access": "A69"
+            },
+            {
+              "at": 50,
+              "op": "refresh",
+              "refresh": "R83"
+            },
+            {
+              "at": 51,
+              "op": "sessions",
+              "access": "A96"
+            },
+            {
+              "at": 51,
+              "op": "refresh",
+              "refresh": "R82"
+            },
+            {
+              "at": 51,
+              "op": "refresh",
+              "refresh": "R79"
+            },
+            {
+              "at": 51,
+              "op": "refresh",
+              "refresh": "R97"
+            },
+            {
+              "at": 51,
+              "op": "refresh",
+              "refresh": "R94"
+            },
+            {
+              "at": 51,
+              "op": "login",
+              "user": "u31",
+              "device": "laptop"
+            },
+            {
+              "at": 51,
+              "op": "api",
+              "access": "A84"
+            },
+            {
+              "at": 51,
+              "op": "sessions",
+              "access": "A36"
+            },
+            {
+              "at": 51,
+              "op": "refresh",
+              "refresh": "R76"
+            },
+            {
+              "at": 51,
+              "op": "refresh",
+              "refresh": "R93"
+            },
+            {
+              "at": 51,
+              "op": "sessions",
+              "access": "A54"
+            },
+            {
+              "at": 51,
+              "op": "sessions",
+              "access": "A90"
+            },
+            {
+              "at": 51,
+              "op": "login",
+              "user": "u25",
+              "device": "desktop"
+            },
+            {
+              "at": 51,
+              "op": "refresh",
+              "refresh": "R59"
+            },
+            {
+              "at": 52,
+              "op": "refresh",
+              "refresh": "R70"
+            },
+            {
+              "at": 53,
+              "op": "denylist"
+            },
+            {
+              "at": 54,
+              "op": "denylist"
+            },
+            {
+              "at": 55,
+              "op": "refresh",
+              "refresh": "R52"
+            },
+            {
+              "at": 56,
+              "op": "api",
+              "access": "A85"
+            },
+            {
+              "at": 56,
+              "op": "refresh",
+              "refresh": "R69"
+            },
+            {
+              "at": 57,
+              "op": "api",
+              "access": "A56"
+            },
+            {
+              "at": 57,
+              "op": "refresh",
+              "refresh": "R65"
+            },
+            {
+              "at": 58,
+              "op": "refresh",
+              "refresh": "R85"
+            },
+            {
+              "at": 58,
+              "op": "login",
+              "user": "u13",
+              "device": "laptop"
+            },
+            {
+              "at": 58,
+              "op": "revoke",
+              "access": "A51",
+              "family": "fam_28"
+            },
+            {
+              "at": 58,
+              "op": "refresh",
+              "refresh": "R90"
+            },
+            {
+              "at": 59,
+              "op": "sessions",
+              "access": "A51"
+            },
+            {
+              "at": 59,
+              "op": "api",
+              "access": "A51"
+            },
+            {
+              "at": 59,
+              "op": "refresh",
+              "refresh": "R77"
+            },
+            {
+              "at": 59,
+              "op": "login",
+              "user": "u40",
+              "device": "phone"
+            },
+            {
+              "at": 59,
+              "op": "sessions",
+              "access": "A67"
+            },
+            {
+              "at": 59,
+              "op": "refresh",
+              "refresh": "R67"
+            },
+            {
+              "at": 60,
+              "op": "api",
+              "access": "A54"
+            },
+            {
+              "at": 61,
+              "op": "revoke",
+              "access": "A54",
+              "family": "fam_42"
+            },
+            {
+              "at": 61,
+              "op": "api",
+              "access": "A89"
+            },
+            {
+              "at": 61,
+              "op": "denylist"
+            },
+            {
+              "at": 61,
+              "op": "refresh",
+              "refresh": "R84"
+            },
+            {
+              "at": 61,
+              "op": "refresh",
+              "refresh": "R84"
+            },
+            {
+              "at": 62,
+              "op": "api",
+              "access": "A51"
+            },
+            {
+              "at": 63,
+              "op": "refresh",
+              "refresh": "R88"
+            },
+            {
+              "at": 64,
+              "op": "refresh",
+              "refresh": "R51"
+            },
+            {
+              "at": 64,
+              "op": "login",
+              "user": "u7",
+              "device": "desktop"
+            },
+            {
+              "at": 64,
+              "op": "passwordChanged",
+              "user": "u37"
+            },
+            {
+              "at": 64,
+              "op": "api",
+              "access": "A103"
+            },
+            {
+              "at": 65,
+              "op": "refresh",
+              "refresh": "R103"
+            },
+            {
+              "at": 66,
+              "op": "refresh",
+              "refresh": "R54"
+            },
+            {
+              "at": 66,
+              "op": "api",
+              "access": "A105"
+            },
+            {
+              "at": 66,
+              "op": "api",
+              "access": "A107"
+            },
+            {
+              "at": 67,
+              "op": "refresh",
+              "refresh": "R100"
+            },
+            {
+              "at": 67,
+              "op": "login",
+              "user": "u6",
+              "device": "laptop"
+            },
+            {
+              "at": 67,
+              "op": "login",
+              "user": "u20",
+              "device": "phone"
+            },
+            {
+              "at": 67,
+              "op": "refresh",
+              "refresh": "R85"
+            },
+            {
+              "at": 67,
+              "op": "logout",
+              "access": "A110"
+            },
+            {
+              "at": 68,
+              "op": "login",
+              "user": "u31",
+              "device": "phone"
+            },
+            {
+              "at": 68,
+              "op": "api",
+              "access": "A95"
+            },
+            {
+              "at": 68,
+              "op": "sessions",
+              "access": "A104"
+            },
+            {
+              "at": 69,
+              "op": "refresh",
+              "refresh": "R89"
+            },
+            {
+              "at": 69,
+              "op": "api",
+              "access": "A95"
+            },
+            {
+              "at": 70,
+              "op": "sessions",
+              "access": "A92"
+            },
+            {
+              "at": 71,
+              "op": "refresh",
+              "refresh": "R107"
+            },
+            {
+              "at": 71,
+              "op": "sessions",
+              "access": "A102"
+            },
+            {
+              "at": 72,
+              "op": "api",
+              "access": "A95"
+            },
+            {
+              "at": 72,
+              "op": "revoke",
+              "access": "A102",
+              "family": "fam_27"
+            },
+            {
+              "at": 72,
+              "op": "api",
+              "access": "A109"
+            },
+            {
+              "at": 72,
+              "op": "refresh",
+              "refresh": "R102"
+            },
+            {
+              "at": 73,
+              "op": "refresh",
+              "refresh": "R108"
+            },
+            {
+              "at": 73,
+              "op": "api",
+              "access": "A110"
+            },
+            {
+              "at": 73,
+              "op": "refresh",
+              "refresh": "R95"
+            },
+            {
+              "at": 74,
+              "op": "revoke",
+              "access": "A98",
+              "family": "fam_36"
+            },
+            {
+              "at": 74,
+              "op": "refresh",
+              "refresh": "R86"
+            },
+            {
+              "at": 74,
+              "op": "refresh",
+              "refresh": "R92"
+            },
+            {
+              "at": 74,
+              "op": "login",
+              "user": "u28",
+              "device": "phone"
+            },
+            {
+              "at": 74,
+              "op": "refresh",
+              "refresh": "R109"
+            },
+            {
+              "at": 75,
+              "op": "sessions",
+              "access": "A98"
+            },
+            {
+              "at": 75,
+              "op": "login",
+              "user": "u23",
+              "device": "tablet"
+            },
+            {
+              "at": 75,
+              "op": "revoke",
+              "access": "A110",
+              "family": "fam_15"
+            },
+            {
+              "at": 75,
+              "op": "refresh",
+              "refresh": "R106"
+            },
+            {
+              "at": 75,
+              "op": "refresh",
+              "refresh": "R119"
+            },
+            {
+              "at": 75,
+              "op": "refresh",
+              "refresh": "R88"
+            },
+            {
+              "at": 75,
+              "op": "api",
+              "access": "A125"
+            },
+            {
+              "at": 75,
+              "op": "login",
+              "user": "u15",
+              "device": "tablet"
+            },
+            {
+              "at": 75,
+              "op": "refresh",
+              "refresh": "R126"
+            },
+            {
+              "at": 76,
+              "op": "api",
+              "access": "A104"
+            },
+            {
+              "at": 77,
+              "op": "refresh",
+              "refresh": "R125"
+            },
+            {
+              "at": 78,
+              "op": "api",
+              "access": "A114"
+            },
+            {
+              "at": 78,
+              "op": "api",
+              "access": "A122"
+            },
+            {
+              "at": 79,
+              "op": "logout",
+              "access": "A100"
+            },
+            {
+              "at": 80,
+              "op": "refresh",
+              "refresh": "R103"
+            },
+            {
+              "at": 80,
+              "op": "revoke",
+              "access": "A112",
+              "family": "fam_68"
+            },
+            {
+              "at": 80,
+              "op": "api",
+              "access": "A116"
+            },
+            {
+              "at": 81,
+              "op": "refresh",
+              "refresh": "R123"
+            },
+            {
+              "at": 81,
+              "op": "api",
+              "access": "A101"
+            },
+            {
+              "at": 81,
+              "op": "login",
+              "user": "u27",
+              "device": "phone"
+            },
+            {
+              "at": 81,
+              "op": "refresh",
+              "refresh": "R122"
+            },
+            {
+              "at": 82,
+              "op": "login",
+              "user": "u39",
+              "device": "laptop"
+            },
+            {
+              "at": 82,
+              "op": "refresh",
+              "refresh": "R108"
+            },
+            {
+              "at": 82,
+              "op": "api",
+              "access": "A111"
+            },
+            {
+              "at": 82,
+              "op": "logout",
+              "access": "A104"
+            },
+            {
+              "at": 82,
+              "op": "api",
+              "access": "A115"
+            },
+            {
+              "at": 83,
+              "op": "sessions",
+              "access": "A112"
+            },
+            {
+              "at": 83,
+              "op": "refresh",
+              "refresh": "R105"
+            },
+            {
+              "at": 83,
+              "op": "refresh",
+              "refresh": "R99"
+            },
+            {
+              "at": 83,
+              "op": "refresh",
+              "refresh": "R77"
+            },
+            {
+              "at": 83,
+              "op": "refresh",
+              "refresh": "R54"
+            },
+            {
+              "at": 84,
+              "op": "login",
+              "user": "u9",
+              "device": "desktop"
+            },
+            {
+              "at": 84,
+              "op": "refresh",
+              "refresh": "R79"
+            },
+            {
+              "at": 85,
+              "op": "login",
+              "user": "u37",
+              "device": "phone"
+            },
+            {
+              "at": 85,
+              "op": "revoke",
+              "access": "A110",
+              "family": "fam_38"
+            },
+            {
+              "at": 86,
+              "op": "refresh",
+              "refresh": "R111"
+            },
+            {
+              "at": 86,
+              "op": "logout",
+              "access": "A118"
+            },
+            {
+              "at": 87,
+              "op": "logout",
+              "access": "A116"
+            },
+            {
+              "at": 88,
+              "op": "refresh",
+              "refresh": "R110"
+            },
+            {
+              "at": 89,
+              "op": "login",
+              "user": "u19",
+              "device": "laptop"
+            },
+            {
+              "at": 90,
+              "op": "api",
+              "access": "A100"
+            },
+            {
+              "at": 91,
+              "op": "revoke",
+              "access": "A117",
+              "family": "fam_10"
+            },
+            {
+              "at": 91,
+              "op": "api",
+              "access": "A117"
+            },
+            {
+              "at": 91,
+              "op": "api",
+              "access": "A104"
+            },
+            {
+              "at": 91,
+              "op": "refresh",
+              "refresh": "R118"
+            },
+            {
+              "at": 92,
+              "op": "denylist"
+            },
+            {
+              "at": 92,
+              "op": "revoke",
+              "access": "A115",
+              "family": "fam_4"
+            },
+            {
+              "at": 93,
+              "op": "api",
+              "access": "A130"
+            },
+            {
+              "at": 93,
+              "op": "api",
+              "access": "A136"
+            },
+            {
+              "at": 94,
+              "op": "api",
+              "access": "A101"
+            },
+            {
+              "at": 95,
+              "op": "refresh",
+              "refresh": "R136"
+            },
+            {
+              "at": 95,
+              "op": "login",
+              "user": "u33",
+              "device": "tablet"
+            },
+            {
+              "at": 95,
+              "op": "api",
+              "access": "A117"
+            },
+            {
+              "at": 95,
+              "op": "refresh",
+              "refresh": "R115"
+            },
+            {
+              "at": 95,
+              "op": "revoke",
+              "access": "A138",
+              "family": "fam_8"
+            },
+            {
+              "at": 95,
+              "op": "sessions",
+              "access": "A112"
+            },
+            {
+              "at": 95,
+              "op": "sessions",
+              "access": "A134"
+            },
+            {
+              "at": 95,
+              "op": "refresh",
+              "refresh": "R135"
+            },
+            {
+              "at": 96,
+              "op": "refresh",
+              "refresh": "R84"
+            },
+            {
+              "at": 96,
+              "op": "api",
+              "access": "A137"
+            },
+            {
+              "at": 96,
+              "op": "api",
+              "access": "A124"
+            },
+            {
+              "at": 96,
+              "op": "refresh",
+              "refresh": "R97"
+            },
+            {
+              "at": 96,
+              "op": "api",
+              "access": "A101"
+            },
+            {
+              "at": 96,
+              "op": "refresh",
+              "refresh": "R133"
+            },
+            {
+              "at": 96,
+              "op": "refresh",
+              "refresh": "R137"
+            },
+            {
+              "at": 96,
+              "op": "logout",
+              "access": "A138"
+            },
+            {
+              "at": 96,
+              "op": "refresh",
+              "refresh": "R116"
+            },
+            {
+              "at": 96,
+              "op": "logout",
+              "access": "A104"
+            },
+            {
+              "at": 97,
+              "op": "sessions",
+              "access": "A134"
+            },
+            {
+              "at": 97,
+              "op": "refresh",
+              "refresh": "R139"
+            },
+            {
+              "at": 97,
+              "op": "refresh",
+              "refresh": "R124"
+            },
+            {
+              "at": 97,
+              "op": "api",
+              "access": "A95"
+            },
+            {
+              "at": 98,
+              "op": "api",
+              "access": "A134"
+            },
+            {
+              "at": 98,
+              "op": "denylist"
+            },
+            {
+              "at": 99,
+              "op": "refresh",
+              "refresh": "R96"
+            },
+            {
+              "at": 99,
+              "op": "denylist"
+            },
+            {
+              "at": 99,
+              "op": "refresh",
+              "refresh": "R131"
+            },
+            {
+              "at": 99,
+              "op": "denylist"
+            },
+            {
+              "at": 99,
+              "op": "refresh",
+              "refresh": "R134"
+            },
+            {
+              "at": 100,
+              "op": "refresh",
+              "refresh": "R104"
+            },
+            {
+              "at": 100,
+              "op": "refresh",
+              "refresh": "R101"
+            },
+            {
+              "at": 100,
+              "op": "refresh",
+              "refresh": "R117"
+            },
+            {
+              "at": 100,
+              "op": "login",
+              "user": "u39",
+              "device": "laptop"
+            },
+            {
+              "at": 100,
+              "op": "login",
+              "user": "u8",
+              "device": "tablet"
+            },
+            {
+              "at": 100,
+              "op": "sessions",
+              "access": "A101"
+            },
+            {
+              "at": 100,
+              "op": "api",
+              "access": "A140"
+            },
+            {
+              "at": 100,
+              "op": "api",
+              "access": "A111"
+            },
+            {
+              "at": 100,
+              "op": "login",
+              "user": "u33",
+              "device": "phone"
+            },
+            {
+              "at": 100,
+              "op": "api",
+              "access": "A146"
+            },
+            {
+              "at": 100,
+              "op": "api",
+              "access": "A155"
+            },
+            {
+              "at": 101,
+              "op": "refresh",
+              "refresh": "R141"
+            },
+            {
+              "at": 101,
+              "op": "refresh",
+              "refresh": "R137"
+            },
+            {
+              "at": 101,
+              "op": "refresh",
+              "refresh": "R111"
+            },
+            {
+              "at": 101,
+              "op": "api",
+              "access": "A140"
+            },
+            {
+              "at": 102,
+              "op": "api",
+              "access": "A154"
+            },
+            {
+              "at": 102,
+              "op": "api",
+              "access": "A128"
+            },
+            {
+              "at": 102,
+              "op": "api",
+              "access": "A132"
+            },
+            {
+              "at": 102,
+              "op": "api",
+              "access": "A140"
+            },
+            {
+              "at": 103,
+              "op": "refresh",
+              "refresh": "R114"
+            },
+            {
+              "at": 103,
+              "op": "revoke",
+              "access": "A142",
+              "family": "fam_54"
+            },
+            {
+              "at": 104,
+              "op": "api",
+              "access": "A149"
+            },
+            {
+              "at": 104,
+              "op": "refresh",
+              "refresh": "R123"
+            },
+            {
+              "at": 105,
+              "op": "api",
+              "access": "A149"
+            },
+            {
+              "at": 105,
+              "op": "login",
+              "user": "u34",
+              "device": "phone"
+            },
+            {
+              "at": 105,
+              "op": "sessions",
+              "access": "A149"
+            },
+            {
+              "at": 105,
+              "op": "refresh",
+              "refresh": "R149"
+            },
+            {
+              "at": 105,
+              "op": "api",
+              "access": "A112"
+            },
+            {
+              "at": 106,
+              "op": "sessions",
+              "access": "A115"
+            },
+            {
+              "at": 106,
+              "op": "denylist"
+            },
+            {
+              "at": 107,
+              "op": "refresh",
+              "refresh": "R125"
+            },
+            {
+              "at": 107,
+              "op": "refresh",
+              "refresh": "R130"
+            },
+            {
+              "at": 107,
+              "op": "refresh",
+              "refresh": "R153"
+            },
+            {
+              "at": 107,
+              "op": "revoke",
+              "access": "A146",
+              "family": "fam_60"
+            },
+            {
+              "at": 108,
+              "op": "api",
+              "access": "A112"
+            },
+            {
+              "at": 108,
+              "op": "refresh",
+              "refresh": "R112"
+            },
+            {
+              "at": 109,
+              "op": "login",
+              "user": "u33",
+              "device": "phone"
+            },
+            {
+              "at": 110,
+              "op": "api",
+              "access": "A150"
+            },
+            {
+              "at": 110,
+              "op": "refresh",
+              "refresh": "R140"
+            },
+            {
+              "at": 110,
+              "op": "api",
+              "access": "A143"
+            },
+            {
+              "at": 111,
+              "op": "denylist"
+            },
+            {
+              "at": 111,
+              "op": "api",
+              "access": "A155"
+            },
+            {
+              "at": 111,
+              "op": "api",
+              "access": "A142"
+            },
+            {
+              "at": 112,
+              "op": "logout",
+              "access": "A115"
+            },
+            {
+              "at": 112,
+              "op": "api",
+              "access": "A147"
+            },
+            {
+              "at": 112,
+              "op": "logout",
+              "access": "A138"
+            },
+            {
+              "at": 112,
+              "op": "refresh",
+              "refresh": "R142"
+            },
+            {
+              "at": 113,
+              "op": "api",
+              "access": "A163"
+            },
+            {
+              "at": 114,
+              "op": "sessions",
+              "access": "A158"
+            },
+            {
+              "at": 114,
+              "op": "refresh",
+              "refresh": "R158"
+            },
+            {
+              "at": 114,
+              "op": "api",
+              "access": "A130"
+            },
+            {
+              "at": 115,
+              "op": "refresh",
+              "refresh": "R130"
+            },
+            {
+              "at": 115,
+              "op": "api",
+              "access": "A162"
+            },
+            {
+              "at": 115,
+              "op": "login",
+              "user": "u21",
+              "device": "desktop"
+            },
+            {
+              "at": 115,
+              "op": "denylist"
+            },
+            {
+              "at": 115,
+              "op": "api",
+              "access": "A162"
+            },
+            {
+              "at": 116,
+              "op": "api",
+              "access": "A115"
+            },
+            {
+              "at": 116,
+              "op": "api",
+              "access": "A155"
+            },
+            {
+              "at": 117,
+              "op": "api",
+              "access": "A155"
+            },
+            {
+              "at": 117,
+              "op": "api",
+              "access": "A132"
+            },
+            {
+              "at": 118,
+              "op": "refresh",
+              "refresh": "R161"
+            },
+            {
+              "at": 118,
+              "op": "logout",
+              "access": "A154"
+            },
+            {
+              "at": 118,
+              "op": "refresh",
+              "refresh": "R101"
+            },
+            {
+              "at": 118,
+              "op": "refresh",
+              "refresh": "R155"
+            },
+            {
+              "at": 119,
+              "op": "sessions",
+              "access": "A154"
+            },
+            {
+              "at": 119,
+              "op": "refresh",
+              "refresh": "R139"
+            },
+            {
+              "at": 119,
+              "op": "refresh",
+              "refresh": "R93"
+            },
+            {
+              "at": 119,
+              "op": "sessions",
+              "access": "A154"
+            },
+            {
+              "at": 120,
+              "op": "api",
+              "access": "A162"
+            },
+            {
+              "at": 121,
+              "op": "refresh",
+              "refresh": "R134"
+            },
+            {
+              "at": 122,
+              "op": "sessions",
+              "access": "A157"
+            },
+            {
+              "at": 122,
+              "op": "logout",
+              "access": "A151"
+            },
+            {
+              "at": 123,
+              "op": "refresh",
+              "refresh": "R162"
+            },
+            {
+              "at": 123,
+              "op": "passwordChanged",
+              "user": "u33"
+            },
+            {
+              "at": 123,
+              "op": "api",
+              "access": "A159"
+            },
+            {
+              "at": 123,
+              "op": "api",
+              "access": "A138"
+            },
+            {
+              "at": 124,
+              "op": "api",
+              "access": "A151"
+            },
+            {
+              "at": 124,
+              "op": "refresh",
+              "refresh": "R128"
+            },
+            {
+              "at": 125,
+              "op": "refresh",
+              "refresh": "R157"
+            },
+            {
+              "at": 126,
+              "op": "refresh",
+              "refresh": "R147"
+            },
+            {
+              "at": 126,
+              "op": "api",
+              "access": "A115"
+            },
+            {
+              "at": 126,
+              "op": "login",
+              "user": "u30",
+              "device": "laptop"
+            },
+            {
+              "at": 126,
+              "op": "api",
+              "access": "A164"
+            },
+            {
+              "at": 126,
+              "op": "refresh",
+              "refresh": "R143"
+            },
+            {
+              "at": 127,
+              "op": "denylist"
+            },
+            {
+              "at": 128,
+              "op": "api",
+              "access": "A146"
+            },
+            {
+              "at": 128,
+              "op": "sessions",
+              "access": "A167"
+            },
+            {
+              "at": 129,
+              "op": "denylist"
+            },
+            {
+              "at": 129,
+              "op": "refresh",
+              "refresh": "R170"
+            },
+            {
+              "at": 129,
+              "op": "refresh",
+              "refresh": "R146"
+            },
+            {
+              "at": 130,
+              "op": "refresh",
+              "refresh": "R164"
+            },
+            {
+              "at": 131,
+              "op": "revoke",
+              "access": "A145",
+              "family": "fam_46"
+            },
+            {
+              "at": 131,
+              "op": "api",
+              "access": "A130"
+            },
+            {
+              "at": 131,
+              "op": "logout",
+              "access": "A152"
+            },
+            {
+              "at": 131,
+              "op": "login",
+              "user": "u22",
+              "device": "laptop"
+            },
+            {
+              "at": 132,
+              "op": "sessions",
+              "access": "A166"
+            },
+            {
+              "at": 133,
+              "op": "api",
+              "access": "A150"
+            },
+            {
+              "at": 134,
+              "op": "login",
+              "user": "u25",
+              "device": "tablet"
+            },
+            {
+              "at": 135,
+              "op": "revoke",
+              "access": "A159",
+              "family": "fam_67"
+            },
+            {
+              "at": 135,
+              "op": "refresh",
+              "refresh": "R171"
+            },
+            {
+              "at": 135,
+              "op": "api",
+              "access": "A151"
+            },
+            {
+              "at": 135,
+              "op": "api",
+              "access": "A152"
+            },
+            {
+              "at": 135,
+              "op": "refresh",
+              "refresh": "R132"
+            },
+            {
+              "at": 135,
+              "op": "revoke",
+              "access": "A166",
+              "family": "fam_21"
+            },
+            {
+              "at": 135,
+              "op": "refresh",
+              "refresh": "R173"
+            },
+            {
+              "at": 135,
+              "op": "refresh",
+              "refresh": "R148"
+            },
+            {
+              "at": 136,
+              "op": "refresh",
+              "refresh": "R165"
+            },
+            {
+              "at": 136,
+              "op": "refresh",
+              "refresh": "R168"
+            },
+            {
+              "at": 136,
+              "op": "refresh",
+              "refresh": "R166"
+            },
+            {
+              "at": 137,
+              "op": "denylist"
+            },
+            {
+              "at": 137,
+              "op": "denylist"
+            },
+            {
+              "at": 138,
+              "op": "refresh",
+              "refresh": "R150"
+            },
+            {
+              "at": 139,
+              "op": "refresh",
+              "refresh": "R174"
+            },
+            {
+              "at": 139,
+              "op": "login",
+              "user": "u34",
+              "device": "phone"
+            },
+            {
+              "at": 140,
+              "op": "revoke",
+              "access": "A169",
+              "family": "fam_56"
+            },
+            {
+              "at": 140,
+              "op": "api",
+              "access": "A147"
+            },
+            {
+              "at": 140,
+              "op": "api",
+              "access": "A152"
+            },
+            {
+              "at": 140,
+              "op": "refresh",
+              "refresh": "R163"
+            },
+            {
+              "at": 140,
+              "op": "revoke",
+              "access": "A159",
+              "family": "fam_67"
+            },
+            {
+              "at": 140,
+              "op": "api",
+              "access": "A156"
+            },
+            {
+              "at": 140,
+              "op": "refresh",
+              "refresh": "R154"
+            },
+            {
+              "at": 140,
+              "op": "refresh",
+              "refresh": "R167"
+            },
+            {
+              "at": 140,
+              "op": "refresh",
+              "refresh": "R159"
+            },
+            {
+              "at": 140,
+              "op": "refresh",
+              "refresh": "R151"
+            },
+            {
+              "at": 140,
+              "op": "refresh",
+              "refresh": "R138"
+            },
+            {
+              "at": 140,
+              "op": "refresh",
+              "refresh": "R183"
+            },
+            {
+              "at": 140,
+              "op": "refresh",
+              "refresh": "R181"
+            },
+            {
+              "at": 141,
+              "op": "api",
+              "access": "A187"
+            },
+            {
+              "at": 142,
+              "op": "api",
+              "access": "A182"
+            },
+            {
+              "at": 143,
+              "op": "api",
+              "access": "A176"
+            },
+            {
+              "at": 143,
+              "op": "refresh",
+              "refresh": "R190"
+            },
+            {
+              "at": 143,
+              "op": "refresh",
+              "refresh": "R176"
+            },
+            {
+              "at": 143,
+              "op": "passwordChanged",
+              "user": "u33"
+            },
+            {
+              "at": 144,
+              "op": "refresh",
+              "refresh": "R175"
+            },
+            {
+              "at": 144,
+              "op": "api",
+              "access": "A184"
+            },
+            {
+              "at": 144,
+              "op": "api",
+              "access": "A185"
+            },
+            {
+              "at": 145,
+              "op": "refresh",
+              "refresh": "R137"
+            },
+            {
+              "at": 145,
+              "op": "logoutAll",
+              "access": "A179"
+            },
+            {
+              "at": 145,
+              "op": "refresh",
+              "refresh": "R189"
+            },
+            {
+              "at": 146,
+              "op": "refresh",
+              "refresh": "R156"
+            },
+            {
+              "at": 147,
+              "op": "refresh",
+              "refresh": "R177"
+            },
+            {
+              "at": 147,
+              "op": "refresh",
+              "refresh": "R178"
+            },
+            {
+              "at": 147,
+              "op": "refresh",
+              "refresh": "R173"
+            },
+            {
+              "at": 147,
+              "op": "refresh",
+              "refresh": "R147"
+            },
+            {
+              "at": 148,
+              "op": "refresh",
+              "refresh": "R169"
+            },
+            {
+              "at": 148,
+              "op": "logout",
+              "access": "A184"
+            },
+            {
+              "at": 148,
+              "op": "sessions",
+              "access": "A130"
+            },
+            {
+              "at": 148,
+              "op": "refresh",
+              "refresh": "R180"
+            },
+            {
+              "at": 148,
+              "op": "refresh",
+              "refresh": "R150"
+            },
+            {
+              "at": 148,
+              "op": "api",
+              "access": "A138"
+            },
+            {
+              "at": 148,
+              "op": "api",
+              "access": "A184"
+            },
+            {
+              "at": 149,
+              "op": "refresh",
+              "refresh": "R187"
+            },
+            {
+              "at": 149,
+              "op": "api",
+              "access": "A182"
+            },
+            {
+              "at": 150,
+              "op": "refresh",
+              "refresh": "R134"
+            },
+            {
+              "at": 150,
+              "op": "denylist"
+            },
+            {
+              "at": 150,
+              "op": "api",
+              "access": "A163"
+            },
+            {
+              "at": 150,
+              "op": "login",
+              "user": "u19",
+              "device": "desktop"
+            },
+            {
+              "at": 150,
+              "op": "login",
+              "user": "u7",
+              "device": "desktop"
+            },
+            {
+              "at": 151,
+              "op": "login",
+              "user": "u27",
+              "device": "desktop"
+            },
+            {
+              "at": 152,
+              "op": "api",
+              "access": "A165"
+            },
+            {
+              "at": 153,
+              "op": "revoke",
+              "access": "A138",
+              "family": "fam_35"
+            },
+            {
+              "at": 153,
+              "op": "revoke",
+              "access": "A130",
+              "family": "fam_31"
+            },
+            {
+              "at": 153,
+              "op": "api",
+              "access": "A179"
+            },
+            {
+              "at": 153,
+              "op": "api",
+              "access": "A138"
+            },
+            {
+              "at": 153,
+              "op": "refresh",
+              "refresh": "R130"
+            },
+            {
+              "at": 154,
+              "op": "refresh",
+              "refresh": "R145"
+            },
+            {
+              "at": 155,
+              "op": "refresh",
+              "refresh": "R150"
+            },
+            {
+              "at": 155,
+              "op": "denylist"
+            },
+            {
+              "at": 155,
+              "op": "refresh",
+              "refresh": "R193"
+            },
+            {
+              "at": 156,
+              "op": "api",
+              "access": "A184"
+            },
+            {
+              "at": 156,
+              "op": "refresh",
+              "refresh": "R147"
+            },
+            {
+              "at": 156,
+              "op": "login",
+              "user": "u20",
+              "device": "phone"
+            },
+            {
+              "at": 156,
+              "op": "refresh",
+              "refresh": "R192"
+            },
+            {
+              "at": 156,
+              "op": "revoke",
+              "access": "A151",
+              "family": "fam_44"
+            },
+            {
+              "at": 156,
+              "op": "api",
+              "access": "A202"
+            },
+            {
+              "at": 157,
+              "op": "api",
+              "access": "A156"
+            },
+            {
+              "at": 157,
+              "op": "api",
+              "access": "A179"
+            },
+            {
+              "at": 157,
+              "op": "refresh",
+              "refresh": "R202"
+            },
+            {
+              "at": 157,
+              "op": "api",
+              "access": "A130"
+            },
+            {
+              "at": 157,
+              "op": "api",
+              "access": "A182"
+            },
+            {
+              "at": 158,
+              "op": "api",
+              "access": "A200"
+            },
+            {
+              "at": 159,
+              "op": "api",
+              "access": "A199"
+            },
+            {
+              "at": 160,
+              "op": "api",
+              "access": "A182"
+            },
+            {
+              "at": 160,
+              "op": "api",
+              "access": "A204"
+            },
+            {
+              "at": 160,
+              "op": "refresh",
+              "refresh": "R182"
+            },
+            {
+              "at": 160,
+              "op": "refresh",
+              "refresh": "R199"
+            },
+            {
+              "at": 160,
+              "op": "login",
+              "user": "u9",
+              "device": "laptop"
+            },
+            {
+              "at": 160,
+              "op": "refresh",
+              "refresh": "R201"
+            },
+            {
+              "at": 160,
+              "op": "refresh",
+              "refresh": "R180"
+            },
+            {
+              "at": 160,
+              "op": "login",
+              "user": "u28",
+              "device": "desktop"
+            },
+            {
+              "at": 160,
+              "op": "revoke",
+              "access": "A163",
+              "family": "fam_21"
+            },
+            {
+              "at": 161,
+              "op": "api",
+              "access": "A196"
+            },
+            {
+              "at": 161,
+              "op": "refresh",
+              "refresh": "R203"
+            },
+            {
+              "at": 161,
+              "op": "refresh",
+              "refresh": "R194"
+            },
+            {
+              "at": 161,
+              "op": "api",
+              "access": "A138"
+            },
+            {
+              "at": 161,
+              "op": "denylist"
+            },
+            {
+              "at": 161,
+              "op": "refresh",
+              "refresh": "R138"
+            },
+            {
+              "at": 161,
+              "op": "denylist"
+            },
+            {
+              "at": 162,
+              "op": "api",
+              "access": "A184"
+            },
+            {
+              "at": 162,
+              "op": "api",
+              "access": "A188"
+            },
+            {
+              "at": 162,
+              "op": "login",
+              "user": "u2",
+              "device": "tablet"
+            },
+            {
+              "at": 162,
+              "op": "revoke",
+              "access": "A184",
+              "family": "fam_73"
+            },
+            {
+              "at": 163,
+              "op": "login",
+              "user": "u28",
+              "device": "tablet"
+            },
+            {
+              "at": 163,
+              "op": "api",
+              "access": "A130"
+            },
+            {
+              "at": 163,
+              "op": "api",
+              "access": "A200"
+            },
+            {
+              "at": 163,
+              "op": "refresh",
+              "refresh": "R210"
+            },
+            {
+              "at": 163,
+              "op": "api",
+              "access": "A138"
+            },
+            {
+              "at": 163,
+              "op": "login",
+              "user": "u24",
+              "device": "laptop"
+            },
+            {
+              "at": 163,
+              "op": "refresh",
+              "refresh": "R207"
+            },
+            {
+              "at": 163,
+              "op": "logout",
+              "access": "A182"
+            },
+            {
+              "at": 163,
+              "op": "logoutAll",
+              "access": "A204"
+            },
+            {
+              "at": 163,
+              "op": "login",
+              "user": "u5",
+              "device": "desktop"
+            },
+            {
+              "at": 163,
+              "op": "refresh",
+              "refresh": "R196"
+            },
+            {
+              "at": 163,
+              "op": "api",
+              "access": "A151"
+            },
+            {
+              "at": 163,
+              "op": "logout",
+              "access": "A205"
+            },
+            {
+              "at": 163,
+              "op": "refresh",
+              "refresh": "R151"
+            },
+            {
+              "at": 163,
+              "op": "denylist"
+            },
+            {
+              "at": 163,
+              "op": "denylist"
+            },
+            {
+              "at": 163,
+              "op": "refresh",
+              "refresh": "R208"
+            },
+            {
+              "at": 163,
+              "op": "refresh",
+              "refresh": "R209"
+            },
+            {
+              "at": 163,
+              "op": "api",
+              "access": "A206"
+            },
+            {
+              "at": 163,
+              "op": "refresh",
+              "refresh": "R204"
+            },
+            {
+              "at": 163,
+              "op": "api",
+              "access": "A165"
+            },
+            {
+              "at": 163,
+              "op": "passwordChanged",
+              "user": "u37"
+            },
+            {
+              "at": 163,
+              "op": "revoke",
+              "access": "A188",
+              "family": "fam_7"
+            },
+            {
+              "at": 163,
+              "op": "refresh",
+              "refresh": "R215"
+            },
+            {
+              "at": 164,
+              "op": "refresh",
+              "refresh": "R165"
+            },
+            {
+              "at": 164,
+              "op": "refresh",
+              "refresh": "R145"
+            },
+            {
+              "at": 164,
+              "op": "refresh",
+              "refresh": "R147"
+            },
+            {
+              "at": 165,
+              "op": "refresh",
+              "refresh": "R182"
+            },
+            {
+              "at": 165,
+              "op": "refresh",
+              "refresh": "R216"
+            },
+            {
+              "at": 165,
+              "op": "api",
+              "access": "A179"
+            },
+            {
+              "at": 165,
+              "op": "api",
+              "access": "A138"
+            },
+            {
+              "at": 165,
+              "op": "refresh",
+              "refresh": "R179"
+            },
+            {
+              "at": 165,
+              "op": "denylist"
+            },
+            {
+              "at": 165,
+              "op": "refresh",
+              "refresh": "R205"
+            },
+            {
+              "at": 165,
+              "op": "login",
+              "user": "u22",
+              "device": "tablet"
+            },
+            {
+              "at": 166,
+              "op": "refresh",
+              "refresh": "R203"
+            },
+            {
+              "at": 166,
+              "op": "login",
+              "user": "u7",
+              "device": "laptop"
+            },
+            {
+              "at": 167,
+              "op": "refresh",
+              "refresh": "R178"
+            },
+            {
+              "at": 167,
+              "op": "refresh",
+              "refresh": "R211"
+            },
+            {
+              "at": 167,
+              "op": "api",
+              "access": "A206"
+            },
+            {
+              "at": 167,
+              "op": "api",
+              "access": "A213"
+            },
+            {
+              "at": 167,
+              "op": "api",
+              "access": "A156"
+            },
+            {
+              "at": 168,
+              "op": "logoutAll",
+              "access": "A138"
+            },
+            {
+              "at": 168,
+              "op": "refresh",
+              "refresh": "R221"
+            },
+            {
+              "at": 169,
+              "op": "api",
+              "access": "A225"
+            },
+            {
+              "at": 170,
+              "op": "sessions",
+              "access": "A206"
+            },
+            {
+              "at": 171,
+              "op": "refresh",
+              "refresh": "R188"
+            },
+            {
+              "at": 171,
+              "op": "refresh",
+              "refresh": "R138"
+            },
+            {
+              "at": 171,
+              "op": "refresh",
+              "refresh": "R182"
+            },
+            {
+              "at": 171,
+              "op": "refresh",
+              "refresh": "R165"
+            },
+            {
+              "at": 171,
+              "op": "refresh",
+              "refresh": "R225"
+            },
+            {
+              "at": 171,
+              "op": "sessions",
+              "access": "A218"
+            },
+            {
+              "at": 172,
+              "op": "refresh",
+              "refresh": "R224"
+            },
+            {
+              "at": 173,
+              "op": "api",
+              "access": "A220"
+            },
+            {
+              "at": 173,
+              "op": "api",
+              "access": "A179"
+            },
+            {
+              "at": 173,
+              "op": "passwordChanged",
+              "user": "u20"
+            },
+            {
+              "at": 174,
+              "op": "refresh",
+              "refresh": "R179"
+            },
+            {
+              "at": 175,
+              "op": "revoke",
+              "access": "A206",
+              "family": "fam_6"
+            },
+            {
+              "at": 175,
+              "op": "denylist"
+            },
+            {
+              "at": 175,
+              "op": "login",
+              "user": "u18",
+              "device": "laptop"
+            },
+            {
+              "at": 175,
+              "op": "login",
+              "user": "u15",
+              "device": "tablet"
+            },
+            {
+              "at": 176,
+              "op": "revoke",
+              "access": "A217",
+              "family": "fam_11"
+            },
+            {
+              "at": 176,
+              "op": "api",
+              "access": "A204"
+            },
+            {
+              "at": 176,
+              "op": "refresh",
+              "refresh": "R147"
+            },
+            {
+              "at": 176,
+              "op": "login",
+              "user": "u23",
+              "device": "desktop"
+            },
+            {
+              "at": 176,
+              "op": "api",
+              "access": "A163"
+            },
+            {
+              "at": 176,
+              "op": "refresh",
+              "refresh": "R223"
+            },
+            {
+              "at": 176,
+              "op": "refresh",
+              "refresh": "R217"
+            },
+            {
+              "at": 177,
+              "op": "api",
+              "access": "A222"
+            },
+            {
+              "at": 177,
+              "op": "refresh",
+              "refresh": "R198"
+            },
+            {
+              "at": 177,
+              "op": "api",
+              "access": "A204"
+            },
+            {
+              "at": 178,
+              "op": "login",
+              "user": "u3",
+              "device": "laptop"
+            },
+            {
+              "at": 178,
+              "op": "denylist"
+            },
+            {
+              "at": 179,
+              "op": "api",
+              "access": "A206"
+            },
+            {
+              "at": 180,
+              "op": "denylist"
+            },
+            {
+              "at": 180,
+              "op": "refresh",
+              "refresh": "R212"
+            },
+            {
+              "at": 180,
+              "op": "denylist"
+            },
+            {
+              "at": 180,
+              "op": "login",
+              "user": "u1",
+              "device": "desktop"
+            },
+            {
+              "at": 181,
+              "op": "refresh",
+              "refresh": "R163"
+            },
+            {
+              "at": 181,
+              "op": "sessions",
+              "access": "A206"
+            },
+            {
+              "at": 181,
+              "op": "login",
+              "user": "u1",
+              "device": "tablet"
+            },
+            {
+              "at": 181,
+              "op": "api",
+              "access": "A204"
+            },
+            {
+              "at": 181,
+              "op": "login",
+              "user": "u13",
+              "device": "laptop"
+            },
+            {
+              "at": 181,
+              "op": "logoutAll",
+              "access": "A238"
+            },
+            {
+              "at": 182,
+              "op": "api",
+              "access": "A220"
+            },
+            {
+              "at": 183,
+              "op": "denylist"
+            },
+            {
+              "at": 183,
+              "op": "logout",
+              "access": "A198"
+            },
+            {
+              "at": 183,
+              "op": "logout",
+              "access": "A234"
+            },
+            {
+              "at": 184,
+              "op": "sessions",
+              "access": "A218"
+            },
+            {
+              "at": 184,
+              "op": "logoutAll",
+              "access": "A213"
+            },
+            {
+              "at": 184,
+              "op": "revoke",
+              "access": "A198",
+              "family": "fam_51"
+            },
+            {
+              "at": 184,
+              "op": "api",
+              "access": "A239"
+            },
+            {
+              "at": 184,
+              "op": "sessions",
+              "access": "A228"
+            },
+            {
+              "at": 184,
+              "op": "logout",
+              "access": "A182"
+            },
+            {
+              "at": 185,
+              "op": "api",
+              "access": "A213"
+            },
+            {
+              "at": 186,
+              "op": "api",
+              "access": "A226"
+            },
+            {
+              "at": 187,
+              "op": "refresh",
+              "refresh": "R198"
+            },
+            {
+              "at": 188,
+              "op": "sessions",
+              "access": "A163"
+            },
+            {
+              "at": 189,
+              "op": "logout",
+              "access": "A233"
+            },
+            {
+              "at": 189,
+              "op": "logout",
+              "access": "A218"
+            },
+            {
+              "at": 189,
+              "op": "refresh",
+              "refresh": "R242"
+            },
+            {
+              "at": 189,
+              "op": "refresh",
+              "refresh": "R179"
+            },
+            {
+              "at": 189,
+              "op": "logoutAll",
+              "access": "A222"
+            },
+            {
+              "at": 189,
+              "op": "revoke",
+              "access": "A238",
+              "family": "fam_96"
+            },
+            {
+              "at": 189,
+              "op": "api",
+              "access": "A239"
+            },
+            {
+              "at": 190,
+              "op": "login",
+              "user": "u13",
+              "device": "desktop"
+            },
+            {
+              "at": 191,
+              "op": "refresh",
+              "refresh": "R206"
+            },
+            {
+              "at": 191,
+              "op": "api",
+              "access": "A237"
+            },
+            {
+              "at": 191,
+              "op": "api",
+              "access": "A204"
+            },
+            {
+              "at": 192,
+              "op": "api",
+              "access": "A238"
+            },
+            {
+              "at": 193,
+              "op": "login",
+              "user": "u11",
+              "device": "desktop"
+            },
+            {
+              "at": 193,
+              "op": "login",
+              "user": "u1",
+              "device": "desktop"
+            },
+            {
+              "at": 193,
+              "op": "refresh",
+              "refresh": "R234"
+            },
+            {
+              "at": 194,
+              "op": "refresh",
+              "refresh": "R227"
+            },
+            {
+              "at": 195,
+              "op": "refresh",
+              "refresh": "R231"
+            },
+            {
+              "at": 195,
+              "op": "passwordChanged",
+              "user": "u19"
+            },
+            {
+              "at": 195,
+              "op": "api",
+              "access": "A226"
+            },
+            {
+              "at": 196,
+              "op": "sessions",
+              "access": "A237"
+            },
+            {
+              "at": 197,
+              "op": "refresh",
+              "refresh": "R233"
+            },
+            {
+              "at": 197,
+              "op": "login",
+              "user": "u11",
+              "device": "laptop"
+            },
+            {
+              "at": 197,
+              "op": "refresh",
+              "refresh": "R182"
+            },
+            {
+              "at": 197,
+              "op": "revoke",
+              "access": "A235",
+              "family": "fam_15"
+            },
+            {
+              "at": 197,
+              "op": "login",
+              "user": "u17",
+              "device": "laptop"
+            },
+            {
+              "at": 197,
+              "op": "refresh",
+              "refresh": "R228"
+            },
+            {
+              "at": 197,
+              "op": "denylist"
+            },
+            {
+              "at": 197,
+              "op": "refresh",
+              "refresh": "R232"
+            },
+            {
+              "at": 197,
+              "op": "api",
+              "access": "A226"
+            },
+            {
+              "at": 197,
+              "op": "logout",
+              "access": "A213"
+            },
+            {
+              "at": 198,
+              "op": "api",
+              "access": "A220"
+            },
+            {
+              "at": 198,
+              "op": "revoke",
+              "access": "A241",
+              "family": "fam_67"
+            },
+            {
+              "at": 199,
+              "op": "refresh",
+              "refresh": "R233"
+            },
+            {
+              "at": 199,
+              "op": "logoutAll",
+              "access": "A222"
+            },
+            {
+              "at": 200,
+              "op": "sessions",
+              "access": "A204"
+            },
+            {
+              "at": 200,
+              "op": "login",
+              "user": "u5",
+              "device": "tablet"
+            },
+            {
+              "at": 200,
+              "op": "api",
+              "access": "A213"
+            },
+            {
+              "at": 201,
+              "op": "sessions",
+              "access": "A240"
+            },
+            {
+              "at": 201,
+              "op": "refresh",
+              "refresh": "R245"
+            },
+            {
+              "at": 201,
+              "op": "refresh",
+              "refresh": "R244"
+            },
+            {
+              "at": 201,
+              "op": "api",
+              "access": "A238"
+            },
+            {
+              "at": 202,
+              "op": "refresh",
+              "refresh": "R243"
+            },
+            {
+              "at": 202,
+              "op": "login",
+              "user": "u29",
+              "device": "desktop"
+            },
+            {
+              "at": 202,
+              "op": "refresh",
+              "refresh": "R238"
+            },
+            {
+              "at": 202,
+              "op": "refresh",
+              "refresh": "R246"
+            },
+            {
+              "at": 202,
+              "op": "sessions",
+              "access": "A204"
+            },
+            {
+              "at": 202,
+              "op": "revoke",
+              "access": "A248",
+              "family": "fam_87"
+            },
+            {
+              "at": 202,
+              "op": "revoke",
+              "access": "A237",
+              "family": "fam_31"
+            },
+            {
+              "at": 202,
+              "op": "refresh",
+              "refresh": "R241"
+            },
+            {
+              "at": 202,
+              "op": "refresh",
+              "refresh": "R237"
+            },
+            {
+              "at": 202,
+              "op": "api",
+              "access": "A206"
+            },
+            {
+              "at": 202,
+              "op": "sessions",
+              "access": "A218"
+            },
+            {
+              "at": 203,
+              "op": "revoke",
+              "access": "A222",
+              "family": "fam_65"
+            },
+            {
+              "at": 203,
+              "op": "api",
+              "access": "A239"
+            },
+            {
+              "at": 204,
+              "op": "login",
+              "user": "u20",
+              "device": "phone"
+            },
+            {
+              "at": 204,
+              "op": "api",
+              "access": "A213"
+            },
+            {
+              "at": 204,
+              "op": "api",
+              "access": "A234"
+            },
+            {
+              "at": 204,
+              "op": "api",
+              "access": "A220"
+            },
+            {
+              "at": 204,
+              "op": "refresh",
+              "refresh": "R240"
+            },
+            {
+              "at": 204,
+              "op": "denylist"
+            },
+            {
+              "at": 205,
+              "op": "logout",
+              "access": "A222"
+            },
+            {
+              "at": 206,
+              "op": "revoke",
+              "access": "A247",
+              "family": "fam_9"
+            },
+            {
+              "at": 206,
+              "op": "sessions",
+              "access": "A204"
+            },
+            {
+              "at": 206,
+              "op": "refresh",
+              "refresh": "R247"
+            },
+            {
+              "at": 207,
+              "op": "refresh",
+              "refresh": "R206"
+            },
+            {
+              "at": 207,
+              "op": "api",
+              "access": "A218"
+            },
+            {
+              "at": 207,
+              "op": "api",
+              "access": "A235"
+            },
+            {
+              "at": 208,
+              "op": "refresh",
+              "refresh": "R263"
+            },
+            {
+              "at": 208,
+              "op": "refresh",
+              "refresh": "R233"
+            },
+            {
+              "at": 208,
+              "op": "passwordChanged",
+              "user": "u13"
+            },
+            {
+              "at": 209,
+              "op": "refresh",
+              "refresh": "R255"
+            },
+            {
+              "at": 210,
+              "op": "sessions",
+              "access": "A250"
+            },
+            {
+              "at": 210,
+              "op": "login",
+              "user": "u8",
+              "device": "phone"
+            },
+            {
+              "at": 210,
+              "op": "api",
+              "access": "A204"
+            },
+            {
+              "at": 211,
+              "op": "api",
+              "access": "A256"
+            },
+            {
+              "at": 212,
+              "op": "api",
+              "access": "A252"
+            },
+            {
+              "at": 212,
+              "op": "refresh",
+              "refresh": "R250"
+            },
+            {
+              "at": 212,
+              "op": "refresh",
+              "refresh": "R261"
+            },
+            {
+              "at": 213,
+              "op": "login",
+              "user": "u29",
+              "device": "phone"
+            },
+            {
+              "at": 213,
+              "op": "login",
+              "user": "u39",
+              "device": "laptop"
+            },
+            {
+              "at": 213,
+              "op": "api",
+              "access": "A206"
+            },
+            {
+              "at": 213,
+              "op": "revoke",
+              "access": "A249",
+              "family": "fam_73"
+            },
+            {
+              "at": 214,
+              "op": "refresh",
+              "refresh": "R260"
+            },
+            {
+              "at": 214,
+              "op": "refresh",
+              "refresh": "R258"
+            },
+            {
+              "at": 214,
+              "op": "refresh",
+              "refresh": "R254"
+            },
+            {
+              "at": 214,
+              "op": "api",
+              "access": "A257"
+            },
+            {
+              "at": 214,
+              "op": "login",
+              "user": "u35",
+              "device": "desktop"
+            },
+            {
+              "at": 214,
+              "op": "refresh",
+              "refresh": "R235"
+            },
+            {
+              "at": 215,
+              "op": "revoke",
+              "access": "A234",
+              "family": "fam_30"
+            },
+            {
+              "at": 216,
+              "op": "refresh",
+              "refresh": "R234"
+            },
+            {
+              "at": 217,
+              "op": "login",
+              "user": "u31",
+              "device": "desktop"
+            },
+            {
+              "at": 217,
+              "op": "logout",
+              "access": "A206"
+            },
+            {
+              "at": 217,
+              "op": "sessions",
+              "access": "A256"
+            },
+            {
+              "at": 217,
+              "op": "api",
+              "access": "A257"
+            },
+            {
+              "at": 218,
+              "op": "refresh",
+              "refresh": "R239"
+            },
+            {
+              "at": 218,
+              "op": "passwordChanged",
+              "user": "u1"
+            },
+            {
+              "at": 218,
+              "op": "refresh",
+              "refresh": "R241"
+            },
+            {
+              "at": 218,
+              "op": "sessions",
+              "access": "A218"
+            },
+            {
+              "at": 218,
+              "op": "passwordChanged",
+              "user": "u2"
+            },
+            {
+              "at": 218,
+              "op": "api",
+              "access": "A253"
+            },
+            {
+              "at": 219,
+              "op": "refresh",
+              "refresh": "R259"
+            },
+            {
+              "at": 219,
+              "op": "denylist"
+            },
+            {
+              "at": 220,
+              "op": "revoke",
+              "access": "A238",
+              "family": "fam_19"
+            },
+            {
+              "at": 220,
+              "op": "api",
+              "access": "A206"
+            },
+            {
+              "at": 220,
+              "op": "logout",
+              "access": "A226"
+            },
+            {
+              "at": 221,
+              "op": "passwordChanged",
+              "user": "u11"
+            },
+            {
+              "at": 222,
+              "op": "refresh",
+              "refresh": "R257"
+            },
+            {
+              "at": 222,
+              "op": "refresh",
+              "refresh": "R262"
+            },
+            {
+              "at": 223,
+              "op": "api",
+              "access": "A265"
+            },
+            {
+              "at": 223,
+              "op": "denylist"
+            },
+            {
+              "at": 223,
+              "op": "login",
+              "user": "u8",
+              "device": "desktop"
+            },
+            {
+              "at": 223,
+              "op": "refresh",
+              "refresh": "R235"
+            },
+            {
+              "at": 223,
+              "op": "refresh",
+              "refresh": "R265"
+            },
+            {
+              "at": 223,
+              "op": "revoke",
+              "access": "A256",
+              "family": "fam_9"
+            },
+            {
+              "at": 224,
+              "op": "refresh",
+              "refresh": "R272"
+            },
+            {
+              "at": 225,
+              "op": "sessions",
+              "access": "A226"
+            },
+            {
+              "at": 225,
+              "op": "refresh",
+              "refresh": "R264"
+            },
+            {
+              "at": 225,
+              "op": "api",
+              "access": "A274"
+            },
+            {
+              "at": 225,
+              "op": "refresh",
+              "refresh": "R249"
+            },
+            {
+              "at": 226,
+              "op": "refresh",
+              "refresh": "R271"
+            },
+            {
+              "at": 226,
+              "op": "api",
+              "access": "A253"
+            },
+            {
+              "at": 227,
+              "op": "api",
+              "access": "A267"
+            },
+            {
+              "at": 227,
+              "op": "api",
+              "access": "A269"
+            },
+            {
+              "at": 228,
+              "op": "refresh",
+              "refresh": "R267"
+            },
+            {
+              "at": 228,
+              "op": "refresh",
+              "refresh": "R218"
+            },
+            {
+              "at": 229,
+              "op": "api",
+              "access": "A238"
+            },
+            {
+              "at": 230,
+              "op": "denylist"
+            },
+            {
+              "at": 230,
+              "op": "login",
+              "user": "u8",
+              "device": "desktop"
+            },
+            {
+              "at": 231,
+              "op": "sessions",
+              "access": "A256"
+            },
+            {
+              "at": 231,
+              "op": "login",
+              "user": "u2",
+              "device": "phone"
+            },
+            {
+              "at": 231,
+              "op": "refresh",
+              "refresh": "R253"
+            },
+            {
+              "at": 232,
+              "op": "sessions",
+              "access": "A269"
+            },
+            {
+              "at": 232,
+              "op": "api",
+              "access": "A255"
+            },
+            {
+              "at": 232,
+              "op": "api",
+              "access": "A275"
+            },
+            {
+              "at": 232,
+              "op": "sessions",
+              "access": "A268"
+            },
+            {
+              "at": 233,
+              "op": "refresh",
+              "refresh": "R255"
+            },
+            {
+              "at": 234,
+              "op": "api",
+              "access": "A269"
+            },
+            {
+              "at": 235,
+              "op": "api",
+              "access": "A259"
+            },
+            {
+              "at": 235,
+              "op": "refresh",
+              "refresh": "R248"
+            },
+            {
+              "at": 236,
+              "op": "refresh",
+              "refresh": "R238"
+            },
+            {
+              "at": 236,
+              "op": "refresh",
+              "refresh": "R269"
+            },
+            {
+              "at": 236,
+              "op": "api",
+              "access": "A268"
+            },
+            {
+              "at": 236,
+              "op": "refresh",
+              "refresh": "R266"
+            },
+            {
+              "at": 236,
+              "op": "api",
+              "access": "A226"
+            },
+            {
+              "at": 237,
+              "op": "api",
+              "access": "A234"
+            },
+            {
+              "at": 237,
+              "op": "refresh",
+              "refresh": "R255"
+            },
+            {
+              "at": 237,
+              "op": "refresh",
+              "refresh": "R258"
+            },
+            {
+              "at": 237,
+              "op": "revoke",
+              "access": "A279",
+              "family": "fam_106"
+            },
+            {
+              "at": 237,
+              "op": "refresh",
+              "refresh": "R256"
+            },
+            {
+              "at": 237,
+              "op": "refresh",
+              "refresh": "R277"
+            },
+            {
+              "at": 237,
+              "op": "refresh",
+              "refresh": "R274"
+            },
+            {
+              "at": 237,
+              "op": "refresh",
+              "refresh": "R281"
+            },
+            {
+              "at": 237,
+              "op": "denylist"
+            },
+            {
+              "at": 237,
+              "op": "refresh",
+              "refresh": "R269"
+            },
+            {
+              "at": 237,
+              "op": "api",
+              "access": "A284"
+            },
+            {
+              "at": 237,
+              "op": "api",
+              "access": "A238"
+            },
+            {
+              "at": 238,
+              "op": "api",
+              "access": "A226"
+            },
+            {
+              "at": 239,
+              "op": "refresh",
+              "refresh": "R284"
+            },
+            {
+              "at": 239,
+              "op": "refresh",
+              "refresh": "R246"
+            },
+            {
+              "at": 240,
+              "op": "api",
+              "access": "A268"
+            },
+            {
+              "at": 240,
+              "op": "api",
+              "access": "A259"
+            },
+            {
+              "at": 240,
+              "op": "api",
+              "access": "A233"
+            },
+            {
+              "at": 240,
+              "op": "refresh",
+              "refresh": "R288"
+            },
+            {
+              "at": 240,
+              "op": "denylist"
+            },
+            {
+              "at": 240,
+              "op": "denylist"
+            },
+            {
+              "at": 240,
+              "op": "sessions",
+              "access": "A249"
+            },
+            {
+              "at": 240,
+              "op": "api",
+              "access": "A287"
+            },
+            {
+              "at": 240,
+              "op": "revoke",
+              "access": "A262",
+              "family": "fam_35"
+            },
+            {
+              "at": 240,
+              "op": "refresh",
+              "refresh": "R272"
+            },
+            {
+              "at": 240,
+              "op": "denylist"
+            },
+            {
+              "at": 240,
+              "op": "sessions",
+              "access": "A280"
+            },
+            {
+              "at": 241,
+              "op": "refresh",
+              "refresh": "R262"
+            },
+            {
+              "at": 242,
+              "op": "login",
+              "user": "u38",
+              "device": "laptop"
+            },
+            {
+              "at": 243,
+              "op": "api",
+              "access": "A275"
+            },
+            {
+              "at": 243,
+              "op": "revoke",
+              "access": "A273",
+              "family": "fam_29"
+            },
+            {
+              "at": 243,
+              "op": "api",
+              "access": "A249"
+            },
+            {
+              "at": 243,
+              "op": "api",
+              "access": "A275"
+            },
+            {
+              "at": 243,
+              "op": "login",
+              "user": "u36",
+              "device": "phone"
+            },
+            {
+              "at": 243,
+              "op": "refresh",
+              "refresh": "R268"
+            },
+            {
+              "at": 243,
+              "op": "refresh",
+              "refresh": "R285"
+            },
+            {
+              "at": 243,
+              "op": "refresh",
+              "refresh": "R233"
+            },
+            {
+              "at": 243,
+              "op": "sessions",
+              "access": "A238"
+            },
+            {
+              "at": 243,
+              "op": "login",
+              "user": "u20",
+              "device": "laptop"
+            },
+            {
+              "at": 244,
+              "op": "refresh",
+              "refresh": "R246"
+            },
+            {
+              "at": 244,
+              "op": "api",
+              "access": "A249"
+            },
+            {
+              "at": 244,
+              "op": "api",
+              "access": "A255"
+            },
+            {
+              "at": 245,
+              "op": "revoke",
+              "access": "A255",
+              "family": "fam_1"
+            },
+            {
+              "at": 245,
+              "op": "refresh",
+              "refresh": "R287"
+            },
+            {
+              "at": 246,
+              "op": "refresh",
+              "refresh": "R255"
+            },
+            {
+              "at": 246,
+              "op": "login",
+              "user": "u9",
+              "device": "desktop"
+            },
+            {
+              "at": 247,
+              "op": "refresh",
+              "refresh": "R297"
+            },
+            {
+              "at": 248,
+              "op": "login",
+              "user": "u27",
+              "device": "desktop"
+            },
+            {
+              "at": 248,
+              "op": "api",
+              "access": "A274"
+            },
+            {
+              "at": 248,
+              "op": "api",
+              "access": "A289"
+            },
+            {
+              "at": 248,
+              "op": "refresh",
+              "refresh": "R259"
+            },
+            {
+              "at": 248,
+              "op": "refresh",
+              "refresh": "R234"
+            },
+            {
+              "at": 248,
+              "op": "refresh",
+              "refresh": "R277"
+            },
+            {
+              "at": 248,
+              "op": "sessions",
+              "access": "A278"
+            },
+            {
+              "at": 249,
+              "op": "refresh",
+              "refresh": "R290"
+            },
+            {
+              "at": 249,
+              "op": "logout",
+              "access": "A262"
+            },
+            {
+              "at": 249,
+              "op": "sessions",
+              "access": "A295"
+            },
+            {
+              "at": 249,
+              "op": "refresh",
+              "refresh": "R295"
+            },
+            {
+              "at": 250,
+              "op": "api",
+              "access": "A278"
+            },
+            {
+              "at": 250,
+              "op": "api",
+              "access": "A238"
+            },
+            {
+              "at": 250,
+              "op": "refresh",
+              "refresh": "R291"
+            },
+            {
+              "at": 250,
+              "op": "sessions",
+              "access": "A275"
+            },
+            {
+              "at": 250,
+              "op": "refresh",
+              "refresh": "R289"
+            },
+            {
+              "at": 251,
+              "op": "login",
+              "user": "u35",
+              "device": "laptop"
+            },
+            {
+              "at": 252,
+              "op": "login",
+              "user": "u20",
+              "device": "tablet"
+            },
+            {
+              "at": 252,
+              "op": "refresh",
+              "refresh": "R283"
+            },
+            {
+              "at": 253,
+              "op": "refresh",
+              "refresh": "R294"
+            },
+            {
+              "at": 254,
+              "op": "api",
+              "access": "A238"
+            },
+            {
+              "at": 254,
+              "op": "refresh",
+              "refresh": "R275"
+            },
+            {
+              "at": 255,
+              "op": "refresh",
+              "refresh": "R246"
+            },
+            {
+              "at": 255,
+              "op": "api",
+              "access": "A278"
+            },
+            {
+              "at": 256,
+              "op": "api",
+              "access": "A278"
+            },
+            {
+              "at": 256,
+              "op": "api",
+              "access": "A256"
+            },
+            {
+              "at": 256,
+              "op": "api",
+              "access": "A296"
+            },
+            {
+              "at": 257,
+              "op": "refresh",
+              "refresh": "R256"
+            },
+            {
+              "at": 257,
+              "op": "sessions",
+              "access": "A262"
+            },
+            {
+              "at": 257,
+              "op": "refresh",
+              "refresh": "R272"
+            },
+            {
+              "at": 257,
+              "op": "api",
+              "access": "A292"
+            },
+            {
+              "at": 257,
+              "op": "refresh",
+              "refresh": "R273"
+            },
+            {
+              "at": 257,
+              "op": "api",
+              "access": "A293"
+            },
+            {
+              "at": 257,
+              "op": "refresh",
+              "refresh": "R296"
+            },
+            {
+              "at": 257,
+              "op": "denylist"
+            },
+            {
+              "at": 257,
+              "op": "refresh",
+              "refresh": "R300"
+            },
+            {
+              "at": 257,
+              "op": "refresh",
+              "refresh": "R310"
+            },
+            {
+              "at": 257,
+              "op": "api",
+              "access": "A279"
+            },
+            {
+              "at": 257,
+              "op": "refresh",
+              "refresh": "R289"
+            },
+            {
+              "at": 257,
+              "op": "denylist"
+            },
+            {
+              "at": 257,
+              "op": "refresh",
+              "refresh": "R302"
+            },
+            {
+              "at": 257,
+              "op": "api",
+              "access": "A279"
+            },
+            {
+              "at": 257,
+              "op": "refresh",
+              "refresh": "R278"
+            },
+            {
+              "at": 257,
+              "op": "api",
+              "access": "A304"
+            },
+            {
+              "at": 258,
+              "op": "refresh",
+              "refresh": "R307"
+            },
+            {
+              "at": 258,
+              "op": "api",
+              "access": "A249"
+            },
+            {
+              "at": 258,
+              "op": "refresh",
+              "refresh": "R309"
+            },
+            {
+              "at": 258,
+              "op": "logout",
+              "access": "A305"
+            },
+            {
+              "at": 259,
+              "op": "api",
+              "access": "A272"
+            },
+            {
+              "at": 259,
+              "op": "refresh",
+              "refresh": "R279"
+            },
+            {
+              "at": 259,
+              "op": "logout",
+              "access": "A304"
+            },
+            {
+              "at": 259,
+              "op": "api",
+              "access": "A293"
+            },
+            {
+              "at": 259,
+              "op": "login",
+              "user": "u27",
+              "device": "tablet"
+            },
+            {
+              "at": 259,
+              "op": "login",
+              "user": "u19",
+              "device": "phone"
+            },
+            {
+              "at": 259,
+              "op": "refresh",
+              "refresh": "R308"
+            },
+            {
+              "at": 259,
+              "op": "revoke",
+              "access": "A304",
+              "family": "fam_18"
+            },
+            {
+              "at": 260,
+              "op": "revoke",
+              "access": "A255",
+              "family": "fam_114"
+            },
+            {
+              "at": 261,
+              "op": "api",
+              "access": "A256"
+            },
+            {
+              "at": 262,
+              "op": "api",
+              "access": "A304"
+            },
+            {
+              "at": 263,
+              "op": "api",
+              "access": "A271"
+            },
+            {
+              "at": 264,
+              "op": "api",
+              "access": "A259"
+            },
+            {
+              "at": 264,
+              "op": "revoke",
+              "access": "A305",
+              "family": "fam_26"
+            },
+            {
+              "at": 265,
+              "op": "refresh",
+              "refresh": "R287"
+            },
+            {
+              "at": 265,
+              "op": "refresh",
+              "refresh": "R272"
+            },
+            {
+              "at": 266,
+              "op": "refresh",
+              "refresh": "R293"
+            },
+            {
+              "at": 267,
+              "op": "refresh",
+              "refresh": "R299"
+            },
+            {
+              "at": 268,
+              "op": "denylist"
+            },
+            {
+              "at": 268,
+              "op": "refresh",
+              "refresh": "R249"
+            },
+            {
+              "at": 268,
+              "op": "login",
+              "user": "u14",
+              "device": "desktop"
+            },
+            {
+              "at": 268,
+              "op": "logoutAll",
+              "access": "A301"
+            },
+            {
+              "at": 269,
+              "op": "login",
+              "user": "u36",
+              "device": "desktop"
+            },
+            {
+              "at": 269,
+              "op": "api",
+              "access": "A301"
+            },
+            {
+              "at": 269,
+              "op": "logout",
+              "access": "A301"
+            },
+            {
+              "at": 270,
+              "op": "login",
+              "user": "u18",
+              "device": "laptop"
+            },
+            {
+              "at": 270,
+              "op": "login",
+              "user": "u39",
+              "device": "phone"
+            },
+            {
+              "at": 271,
+              "op": "refresh",
+              "refresh": "R303"
+            },
+            {
+              "at": 271,
+              "op": "refresh",
+              "refresh": "R249"
+            },
+            {
+              "at": 271,
+              "op": "api",
+              "access": "A321"
+            },
+            {
+              "at": 272,
+              "op": "api",
+              "access": "A305"
+            },
+            {
+              "at": 272,
+              "op": "sessions",
+              "access": "A289"
+            },
+            {
+              "at": 272,
+              "op": "denylist"
+            },
+            {
+              "at": 273,
+              "op": "api",
+              "access": "A325"
+            },
+            {
+              "at": 273,
+              "op": "sessions",
+              "access": "A325"
+            },
+            {
+              "at": 274,
+              "op": "login",
+              "user": "u4",
+              "device": "tablet"
+            },
+            {
+              "at": 274,
+              "op": "login",
+              "user": "u2",
+              "device": "tablet"
+            },
+            {
+              "at": 274,
+              "op": "refresh",
+              "refresh": "R301"
+            },
+            {
+              "at": 275,
+              "op": "sessions",
+              "access": "A313"
+            },
+            {
+              "at": 275,
+              "op": "refresh",
+              "refresh": "R323"
+            },
+            {
+              "at": 275,
+              "op": "revoke",
+              "access": "A287",
+              "family": "fam_132"
+            },
+            {
+              "at": 275,
+              "op": "refresh",
+              "refresh": "R306"
+            },
+            {
+              "at": 275,
+              "op": "api",
+              "access": "A320"
+            },
+            {
+              "at": 275,
+              "op": "refresh",
+              "refresh": "R315"
+            },
+            {
+              "at": 276,
+              "op": "api",
+              "access": "A292"
+            },
+            {
+              "at": 276,
+              "op": "refresh",
+              "refresh": "R314"
+            },
+            {
+              "at": 277,
+              "op": "logout",
+              "access": "A289"
+            },
+            {
+              "at": 277,
+              "op": "refresh",
+              "refresh": "R324"
+            },
+            {
+              "at": 278,
+              "op": "login",
+              "user": "u30",
+              "device": "desktop"
+            },
+            {
+              "at": 279,
+              "op": "refresh",
+              "refresh": "R316"
+            },
+            {
+              "at": 279,
+              "op": "refresh",
+              "refresh": "R325"
+            },
+            {
+              "at": 279,
+              "op": "refresh",
+              "refresh": "R287"
+            },
+            {
+              "at": 279,
+              "op": "api",
+              "access": "A322"
+            },
+            {
+              "at": 279,
+              "op": "api",
+              "access": "A313"
+            },
+            {
+              "at": 279,
+              "op": "denylist"
+            },
+            {
+              "at": 279,
+              "op": "revoke",
+              "access": "A305",
+              "family": "fam_85"
+            },
+            {
+              "at": 279,
+              "op": "refresh",
+              "refresh": "R312"
+            },
+            {
+              "at": 279,
+              "op": "api",
+              "access": "A292"
+            },
+            {
+              "at": 279,
+              "op": "logoutAll",
+              "access": "A319"
+            },
+            {
+              "at": 279,
+              "op": "refresh",
+              "refresh": "R292"
+            },
+            {
+              "at": 279,
+              "op": "api",
+              "access": "A318"
+            },
+            {
+              "at": 279,
+              "op": "api",
+              "access": "A313"
+            },
+            {
+              "at": 279,
+              "op": "api",
+              "access": "A318"
+            },
+            {
+              "at": 279,
+              "op": "api",
+              "access": "A319"
+            },
+            {
+              "at": 280,
+              "op": "login",
+              "user": "u3",
+              "device": "phone"
+            },
+            {
+              "at": 280,
+              "op": "denylist"
+            },
+            {
+              "at": 280,
+              "op": "refresh",
+              "refresh": "R319"
+            },
+            {
+              "at": 281,
+              "op": "refresh",
+              "refresh": "R334"
+            },
+            {
+              "at": 282,
+              "op": "login",
+              "user": "u30",
+              "device": "laptop"
+            },
+            {
+              "at": 282,
+              "op": "login",
+              "user": "u17",
+              "device": "tablet"
+            },
+            {
+              "at": 282,
+              "op": "api",
+              "access": "A341"
+            },
+            {
+              "at": 282,
+              "op": "api",
+              "access": "A318"
+            },
+            {
+              "at": 283,
+              "op": "refresh",
+              "refresh": "R298"
+            },
+            {
+              "at": 283,
+              "op": "api",
+              "access": "A335"
+            },
+            {
+              "at": 284,
+              "op": "revoke",
+              "access": "A318",
+              "family": "fam_71"
+            },
+            {
+              "at": 285,
+              "op": "login",
+              "user": "u6",
+              "device": "phone"
+            },
+            {
+              "at": 286,
+              "op": "refresh",
+              "refresh": "R341"
+            },
+            {
+              "at": 287,
+              "op": "api",
+              "access": "A336"
+            },
+            {
+              "at": 287,
+              "op": "refresh",
+              "refresh": "R297"
+            },
+            {
+              "at": 287,
+              "op": "passwordChanged",
+              "user": "u2"
+            },
+            {
+              "at": 287,
+              "op": "refresh",
+              "refresh": "R337"
+            },
+            {
+              "at": 287,
+              "op": "denylist"
+            },
+            {
+              "at": 288,
+              "op": "refresh",
+              "refresh": "R332"
+            },
+            {
+              "at": 289,
+              "op": "refresh",
+              "refresh": "R336"
+            },
+            {
+              "at": 290,
+              "op": "login",
+              "user": "u9",
+              "device": "desktop"
+            },
+            {
+              "at": 290,
+              "op": "sessions",
+              "access": "A328"
+            },
+            {
+              "at": 290,
+              "op": "sessions",
+              "access": "A311"
+            },
+            {
+              "at": 290,
+              "op": "api",
+              "access": "A338"
+            },
+            {
+              "at": 290,
+              "op": "refresh",
+              "refresh": "R331"
+            },
+            {
+              "at": 290,
+              "op": "refresh",
+              "refresh": "R287"
+            },
+            {
+              "at": 290,
+              "op": "logout",
+              "access": "A322"
+            },
+            {
+              "at": 290,
+              "op": "api",
+              "access": "A311"
+            },
+            {
+              "at": 291,
+              "op": "sessions",
+              "access": "A321"
+            },
+            {
+              "at": 292,
+              "op": "denylist"
+            },
+            {
+              "at": 292,
+              "op": "refresh",
+              "refresh": "R299"
+            },
+            {
+              "at": 293,
+              "op": "logout",
+              "access": "A326"
+            },
+            {
+              "at": 293,
+              "op": "api",
+              "access": "A305"
+            },
+            {
+              "at": 294,
+              "op": "login",
+              "user": "u33",
+              "device": "desktop"
+            },
+            {
+              "at": 294,
+              "op": "refresh",
+              "refresh": "R291"
+            },
+            {
+              "at": 294,
+              "op": "refresh",
+              "refresh": "R333"
+            },
+            {
+              "at": 294,
+              "op": "api",
+              "access": "A304"
+            },
+            {
+              "at": 294,
+              "op": "refresh",
+              "refresh": "R327"
+            },
+            {
+              "at": 294,
+              "op": "refresh",
+              "refresh": "R326"
+            },
+            {
+              "at": 294,
+              "op": "api",
+              "access": "A305"
+            },
+            {
+              "at": 294,
+              "op": "revoke",
+              "access": "A318",
+              "family": "fam_55"
+            },
+            {
+              "at": 295,
+              "op": "refresh",
+              "refresh": "R313"
+            }
+          ],
+          "expected": "[0m] login u8 desktop: fam_1, A1, R1\n[0m] login u38 desktop: fam_2, A2, R2\n[0m] login u35 laptop: fam_3, A3, R3\n[1m] login u40 laptop: fam_4, A4, R4\n[1m] login u20 desktop: fam_5, A5, R5\n[1m] login u17 desktop: fam_6, A6, R6\n[1m] login u29 tablet: fam_7, A7, R7\n[1m] login u26 laptop: fam_8, A8, R8\n[1m] login u16 phone: fam_9, A9, R9\n[1m] login u9 laptop: fam_10, A10, R10\n[2m] login u23 phone: fam_11, A11, R11\n[2m] login u38 phone: fam_12, A12, R12\n[2m] login u3 tablet: fam_13, A13, R13\n[3m] login u18 phone: fam_14, A14, R14\n[4m] login u36 laptop: fam_15, A15, R15\n[4m] login u24 phone: fam_16, A16, R16\n[4m] login u24 tablet: fam_17, A17, R17\n[5m] login u3 desktop: fam_18, A18, R18\n[5m] login u1 desktop: fam_19, A19, R19\n[6m] login u18 phone: fam_20, A20, R20\n[6m] login u30 laptop: fam_21, A21, R21\n[6m] login u35 desktop: fam_22, A22, R22\n[6m] login u30 laptop: fam_23, A23, R23\n[6m] login u13 desktop: fam_24, A24, R24\n[6m] login u26 phone: fam_25, A25, R25\n[6m] login u38 laptop: fam_26, A26, R26\n[6m] login u29 phone: fam_27, A27, R27\n[6m] login u19 laptop: fam_28, A28, R28\n[6m] login u13 laptop: fam_29, A29, R29\n[6m] login u6 laptop: fam_30, A30, R30\n[7m] login u11 tablet: fam_31, A31, R31\n[7m] login u30 desktop: fam_32, A32, R32\n[8m] login u18 laptop: fam_33, A33, R33\n[9m] login u27 laptop: fam_34, A34, R34\n[9m] login u20 phone: fam_35, A35, R35\n[9m] login u29 phone: fam_36, A36, R36\n[9m] login u9 tablet: fam_37, A37, R37\n[10m] login u16 tablet: fam_38, A38, R38\n[10m] login u28 laptop: fam_39, A39, R39\n[10m] login u16 phone: fam_40, A40, R40\n[10m] deny list: 0\n[10m] refresh R31: A41, R41\n[10m] sessions A38: fam_38 tablet since 10m last 10m (this device); fam_40 phone since 10m last 10m; fam_9 phone since 1m last 1m\n[10m] api A19: 200\n[10m] api A18: 200\n[10m] refresh R16: A42, R42\n[10m] login u21 phone: fam_41, A43, R43\n[10m] api A32: 200\n[10m] sessions A24: fam_24 desktop since 6m last 6m (this device); fam_29 laptop since 6m last 6m\n[10m] revoke A25 fam_20: 404\n[10m] api A35: 200\n[10m] api A34: 200\n[10m] refresh R18: A44, R44\n[10m] refresh R39: A45, R45\n[10m] api A34: 200\n[11m] api A35: 200\n[12m] refresh R22: A46, R46\n[12m] refresh R29: A47, R47\n[13m] api A32: 200\n[13m] login u33 tablet: fam_42, A48, R48\n[13m] login u24 laptop: fam_43, A49, R49\n[13m] logoutAll A27: 204\n[13m] logoutAll A33: 204\n[13m] revoke A37 fam_19: 404\n[14m] refresh R21: A50, R50\n[15m] revoke A26 fam_3: 404\n[15m] api A30: 200\n[16m] deny list: 0\n[17m] login u37 desktop: fam_44, A51, R51\n[18m] login u37 phone: fam_45, A52, R52\n[18m] revoke A38 fam_23: 404\n[18m] api A33: 401 revoked\n[18m] refresh R17: A53, R53\n[18m] login u3 laptop: fam_46, A54, R54\n[18m] logout A23: 204\n[18m] refresh R19: A55, R55\n[18m] refresh R38: A56, R56\n[18m] api A32: 200\n[18m] api A32: 200\n[18m] login u36 tablet: fam_47, A57, R57\n[19m] refresh R28: A58, R58\n[20m] login u14 laptop: fam_48, A59, R59\n[21m] api A52: 200\n[21m] api A57: 200\n[21m] refresh R23: 401 revoked\n[22m] sessions A35: fam_35 phone since 9m last 9m (this device); fam_5 desktop since 1m last 1m\n[22m] api A30: 401 expired\n[22m] login u2 laptop: fam_49, A60, R60\n[22m] login u39 desktop: fam_50, A61, R61\n[22m] refresh R41: A62, R62\n[22m] refresh R32: A63, R63\n[23m] refresh R52: A64, R64\n[23m] login u37 desktop: fam_51, A65, R65\n[23m] refresh R26: A66, R66\n[23m] refresh R49: A67, R67\n[23m] api A43: 200\n[23m] api A36: 401 revoked\n[23m] api A54: 200\n[24m] refresh R30: A68, R68\n[24m] api A36: 401 expired\n[24m] api A57: 200\n[24m] revoke A54 fam_46: 204\n[24m] logoutAll A47: 204\n[24m] api A33: 401 expired\n[25m] refresh R40: A69, R69\n[25m] refresh R45: A70, R70\n[25m] refresh R24: 401 revoked\n[25m] refresh R54: 401 revoked\n[25m] refresh R34: A71, R71\n[25m] api A43: 401 expired\n[26m] revoke A56 fam_44: 404\n[26m] api A33: 401 expired\n[26m] revoke A48 fam_6: 404\n[27m] refresh R57: A72, R72\n[28m] api A56: 200\n[28m] refresh R48: A73, R73\n[28m] login u6 tablet: fam_52, A74, R74\n[28m] login u31 tablet: fam_53, A75, R75\n[28m] sessions A33: 401 expired\n[29m] revoke A27 fam_42: 401 expired\n[29m] refresh R33: 401 revoked\n[30m] deny list: 2 (fam_23, fam_46)\n[30m] api A62: 200\n[31m] logout A51: 204\n[31m] refresh R51: 401 revoked\n[31m] api A68: 200\n[31m] login u13 tablet: fam_54, A76, R76\n[32m] revoke A37 fam_51: 401 expired\n[32m] api A35: 401 expired\n[33m] login u35 phone: fam_55, A77, R77\n[33m] api A68: 200\n[33m] login u22 desktop: fam_56, A78, R78\n[34m] login u37 desktop: fam_57, A79, R79\n[34m] refresh R62: A80, R80\n[34m] login u30 tablet: fam_58, A81, R81\n[34m] login u35 phone: fam_59, A82, R82\n[34m] deny list: 2 (fam_44, fam_46)\n[35m] refresh R43: A83, R83\n[35m] revoke A63 fam_5: 404\n[35m] sessions A69: fam_40 phone since 10m last 25m (this device); fam_38 tablet since 10m last 18m; fam_9 phone since 1m last 1m\n[36m] refresh R74: A84, R84\n[36m] refresh R64: A85, R85\n[36m] api A59: 401 expired\n[36m] api A36: 401 expired\n[37m] api A35: 401 expired\n[37m] logout A61: 401 expired\n[37m] api A60: 401 expired\n[37m] refresh R54: 401 revoked\n[37m] revoke A73 fam_50: 404\n[38m] refresh R60: A86, R86\n[38m] refresh R36: 401 revoked\n[39m] api A71: 200\n[39m] logout A70: 204\n[39m] api A71: 200\n[39m] refresh R72: A87, R87\n[39m] api A63: 401 expired\n[39m] refresh R61: A88, R88\n[40m] deny list: 2 (fam_39, fam_44)\n[40m] refresh R70: 401 revoked\n[40m] logout A37: 401 expired\n[40m] api A79: 200\n[40m] refresh R87: A89, R89\n[40m] refresh R86: A90, R90\n[40m] api A76: 200\n[40m] sessions A84: fam_52 tablet since 28m last 36m (this device); fam_30 laptop since 6m last 24m\n[40m] refresh R51: 401 revoked\n[41m] refresh R38: 401 replay\n[41m] refresh R37: A91, R91\n[42m] sessions A78: fam_56 desktop since 33m last 33m (this device)\n[42m] refresh R70: 401 revoked\n[43m] refresh R36: 401 revoked\n[43m] deny list: 3 (fam_38, fam_39, fam_44)\n[43m] refresh R75: A92, R92\n[44m] api A59: 401 expired\n[44m] sessions A67: 401 expired\n[44m] api A78: 200\n[44m] revoke A81 fam_26: 404\n[44m] sessions A82: fam_59 phone since 34m last 34m (this device); fam_55 phone since 33m last 33m; fam_22 desktop since 6m last 12m; fam_3 laptop since 0m last 0m\n[44m] api A35: 401 expired\n[45m] logoutAll A65: 401 expired\n[46m] api A79: 200\n[47m] sessions A83: fam_41 phone since 10m last 35m (this device)\n[48m] api A85: 200\n[48m] sessions A67: 401 expired\n[48m] login u25 laptop: fam_60, A93, R93\n[48m] deny list: 2 (fam_38, fam_39)\n[48m] logout A35: 401 expired\n[48m] refresh R73: A94, R94\n[48m] sessions A59: 401 expired\n[48m] api A67: 401 expired\n[48m] sessions A59: 401 expired\n[48m] logout A84: 204\n[48m] api A88: 200\n[48m] refresh R76: A95, R95\n[49m] api A54: 401 expired\n[49m] sessions A65: 401 expired\n[49m] revoke A67 fam_8: 401 expired\n[49m] refresh R78: A96, R96\n[50m] refresh R81: A97, R97\n[50m] logout A88: 204\n[50m] api A51: 401 expired\n[50m] api A69: 401 expired\n[50m] refresh R83: A98, R98\n[51m] sessions A96: fam_56 desktop since 33m last 49m (this device)\n[51m] refresh R82: A99, R99\n[51m] refresh R79: A100, R100\n[51m] refresh R97: A101, R101\n[51m] refresh R94: A102, R102\n[51m] login u31 laptop: fam_61, A103, R103\n[51m] api A84: 401 expired\n[51m] sessions A36: 401 expired\n[51m] refresh R76: 401 replay\n[51m] refresh R93: A104, R104\n[51m] sessions A54: 401 expired\n[51m] sessions A90: fam_49 laptop since 22m last 40m (this device)\n[51m] login u25 desktop: fam_62, A105, R105\n[51m] refresh R59: A106, R106\n[52m] refresh R70: 401 revoked\n[53m] deny list: 5 (fam_38, fam_39, fam_50, fam_52, fam_54)\n[54m] deny list: 4 (fam_38, fam_50, fam_52, fam_54)\n[55m] refresh R52: 401 replay\n[56m] api A85: 401 expired\n[56m] refresh R69: A107, R107\n[57m] api A56: 401 expired\n[57m] refresh R65: A108, R108\n[58m] refresh R85: 401 revoked\n[58m] login u13 laptop: fam_63, A109, R109\n[58m] revoke A51 fam_28: 401 expired\n[58m] refresh R90: A110, R110\n[59m] sessions A51: 401 expired\n[59m] api A51: 401 expired\n[59m] refresh R77: A111, R111\n[59m] login u40 phone: fam_64, A112, R112\n[59m] sessions A67: 401 expired\n[59m] refresh R67: A113, R113\n[60m] api A54: 401 expired\n[61m] revoke A54 fam_42: 401 expired\n[61m] api A89: 401 expired\n[61m] deny list: 4 (fam_45, fam_50, fam_52, fam_54)\n[61m] refresh R84: 401 revoked\n[61m] refresh R84: 401 revoked\n[62m] api A51: 401 expired\n[63m] refresh R88: 401 revoked\n[64m] refresh R51: 401 revoked\n[64m] login u7 desktop: fam_65, A114, R114\n[64m] password changed u37\n[64m] api A103: 200\n[65m] refresh R103: A115, R115\n[66m] refresh R54: 401 revoked\n[66m] api A105: 401 expired\n[66m] api A107: 200\n[67m] refresh R100: 401 revoked\n[67m] login u6 laptop: fam_66, A116, R116\n[67m] login u20 phone: fam_67, A117, R117\n[67m] refresh R85: 401 revoked\n[67m] logout A110: 204\n[68m] login u31 phone: fam_68, A118, R118\n[68m] api A95: 401 expired\n[68m] sessions A104: 401 expired\n[69m] refresh R89: A119, R119\n[69m] api A95: 401 expired\n[70m] sessions A92: 401 expired\n[71m] refresh R107: A120, R120\n[71m] sessions A102: 401 expired\n[72m] api A95: 401 expired\n[72m] revoke A102 fam_27: 401 expired\n[72m] api A109: 200\n[72m] refresh R102: A121, R121\n[73m] refresh R108: 401 revoked\n[73m] api A110: 401 expired\n[73m] refresh R95: 401 revoked\n[74m] revoke A98 fam_36: 401 expired\n[74m] refresh R86: 401 revoked\n[74m] refresh R92: A122, R122\n[74m] login u28 phone: fam_69, A123, R123\n[74m] refresh R109: A124, R124\n[75m] sessions A98: 401 expired\n[75m] login u23 tablet: fam_70, A125, R125\n[75m] revoke A110 fam_15: 401 expired\n[75m] refresh R106: A126, R126\n[75m] refresh R119: A127, R127\n[75m] refresh R88: 401 revoked\n[75m] api A125: 200\n[75m] login u15 tablet: fam_71, A128, R128\n[75m] refresh R126: A129, R129\n[76m] api A104: 401 expired\n[77m] refresh R125: A130, R130\n[78m] api A114: 200\n[78m] api A122: 200\n[79m] logout A100: 401 expired\n[80m] refresh R103: 401 replay\n[80m] revoke A112 fam_68: 401 expired\n[80m] api A116: 200\n[81m] refresh R123: A131, R131\n[81m] api A101: 401 expired\n[81m] login u27 phone: fam_72, A132, R132\n[81m] refresh R122: A133, R133\n[82m] login u39 laptop: fam_73, A134, R134\n[82m] refresh R108: 401 revoked\n[82m] api A111: 401 expired\n[82m] logout A104: 401 expired\n[82m] api A115: 401 expired\n[83m] sessions A112: 401 expired\n[83m] refresh R105: A135, R135\n[83m] refresh R99: A136, R136\n[83m] refresh R77: 401 replay\n[83m] refresh R54: 401 revoked\n[84m] login u9 desktop: fam_74, A137, R137\n[84m] refresh R79: 401 revoked\n[85m] login u37 phone: fam_75, A138, R138\n[85m] revoke A110 fam_38: 401 expired\n[86m] refresh R111: 401 revoked\n[86m] logout A118: 401 expired\n[87m] logout A116: 401 expired\n[88m] refresh R110: 401 revoked\n[89m] login u19 laptop: fam_76, A139, R139\n[90m] api A100: 401 expired\n[91m] revoke A117 fam_10: 401 expired\n[91m] api A117: 401 expired\n[91m] api A104: 401 expired\n[91m] refresh R118: A140, R140\n[92m] deny list: 2 (fam_55, fam_61)\n[92m] revoke A115 fam_4: 401 expired\n[93m] api A130: 401 expired\n[93m] api A136: 200\n[94m] api A101: 401 expired\n[95m] refresh R136: A141, R141\n[95m] login u33 tablet: fam_77, A142, R142\n[95m] api A117: 401 expired\n[95m] refresh R115: 401 revoked\n[95m] revoke A138 fam_8: 404\n[95m] sessions A112: 401 expired\n[95m] sessions A134: fam_73 laptop since 82m last 82m (this device)\n[95m] refresh R135: A143, R143\n[96m] refresh R84: 401 revoked\n[96m] api A137: 200\n[96m] api A124: 401 expired\n[96m] refresh R97: 401 replay\n[96m] api A101: 401 expired\n[96m] refresh R133: A144, R144\n[96m] refresh R137: A145, R145\n[96m] logout A138: 204\n[96m] refresh R116: A146, R146\n[96m] logout A104: 401 expired\n[97m] sessions A134: 401 expired\n[97m] refresh R139: A147, R147\n[97m] refresh R124: A148, R148\n[97m] api A95: 401 expired\n[98m] api A134: 401 expired\n[98m] deny list: 2 (fam_58, fam_75)\n[99m] refresh R96: A149, R149\n[99m] deny list: 2 (fam_58, fam_75)\n[99m] refresh R131: A150, R150\n[99m] deny list: 2 (fam_58, fam_75)\n[99m] refresh R134: A151, R151\n[100m] refresh R104: A152, R152\n[100m] refresh R101: 401 revoked\n[100m] refresh R117: A153, R153\n[100m] login u39 laptop: fam_78, A154, R154\n[100m] login u8 tablet: fam_79, A155, R155\n[100m] sessions A101: 401 expired\n[100m] api A140: 200\n[100m] api A111: 401 expired\n[100m] login u33 phone: fam_80, A156, R156\n[100m] api A146: 200\n[100m] api A155: 200\n[101m] refresh R141: A157, R157\n[101m] refresh R137: 401 replay\n[101m] refresh R111: 401 revoked\n[101m] api A140: 200\n[102m] api A154: 200\n[102m] api A128: 401 expired\n[102m] api A132: 401 expired\n[102m] api A140: 200\n[103m] refresh R114: A158, R158\n[103m] revoke A142 fam_54: 404\n[104m] api A149: 200\n[104m] refresh R123: 401 replay\n[105m] api A149: 200\n[105m] login u34 phone: fam_81, A159, R159\n[105m] sessions A149: fam_56 desktop since 33m last 99m (this device)\n[105m] refresh R149: A160, R160\n[105m] api A112: 401 expired\n[106m] sessions A115: 401 expired\n[106m] deny list: 4 (fam_58, fam_69, fam_74, fam_75)\n[107m] refresh R125: 401 replay\n[107m] refresh R130: 401 revoked\n[107m] refresh R153: A161, R161\n[107m] revoke A146 fam_60: 404\n[108m] api A112: 401 expired\n[108m] refresh R112: A162, R162\n[109m] login u33 phone: fam_82, A163, R163\n[110m] api A150: 401 revoked\n[110m] refresh R140: A164, R164\n[110m] api A143: 401 expired\n[111m] deny list: 3 (fam_69, fam_70, fam_74)\n[111m] api A155: 200\n[111m] api A142: 401 expired\n[112m] logout A115: 401 expired\n[112m] api A147: 401 expired\n[112m] logout A138: 401 expired\n[112m] refresh R142: A165, R165\n[113m] api A163: 200\n[114m] sessions A158: fam_65 desktop since 64m last 103m (this device)\n[114m] refresh R158: A166, R166\n[114m] api A130: 401 expired\n[115m] refresh R130: 401 revoked\n[115m] api A162: 200\n[115m] login u21 desktop: fam_83, A167, R167\n[115m] deny list: 3 (fam_69, fam_70, fam_74)\n[115m] api A162: 200\n[116m] api A115: 401 expired\n[116m] api A155: 401 expired\n[117m] api A155: 401 expired\n[117m] api A132: 401 expired\n[118m] refresh R161: A168, R168\n[118m] logout A154: 401 expired\n[118m] refresh R101: 401 revoked\n[118m] refresh R155: A169, R169\n[119m] sessions A154: 401 expired\n[119m] refresh R139: 401 replay\n[119m] refresh R93: 401 replay\n[119m] sessions A154: 401 expired\n[120m] api A162: 200\n[121m] refresh R134: 401 replay\n[122m] sessions A157: 401 expired\n[122m] logout A151: 401 expired\n[123m] refresh R162: A170, R170\n[123m] password changed u33\n[123m] api A159: 401 expired\n[123m] api A138: 401 expired\n[124m] api A151: 401 expired\n[124m] refresh R128: A171, R171\n[125m] refresh R157: A172, R172\n[126m] refresh R147: 401 revoked\n[126m] api A115: 401 expired\n[126m] login u30 laptop: fam_84, A173, R173\n[126m] api A164: 401 expired\n[126m] refresh R143: A174, R174\n[127m] deny list: 3 (fam_60, fam_73, fam_76)\n[128m] api A146: 401 expired\n[128m] sessions A167: fam_83 desktop since 115m last 115m (this device); fam_41 phone since 10m last 50m\n[129m] deny list: 3 (fam_60, fam_73, fam_76)\n[129m] refresh R170: A175, R175\n[129m] refresh R146: A176, R176\n[130m] refresh R164: A177, R177\n[131m] revoke A145 fam_46: 401 expired\n[131m] api A130: 401 expired\n[131m] logout A152: 401 expired\n[131m] login u22 laptop: fam_85, A178, R178\n[132m] sessions A166: 401 expired\n[133m] api A150: 401 expired\n[134m] login u25 tablet: fam_86, A179, R179\n[135m] revoke A159 fam_67: 401 expired\n[135m] refresh R171: A180, R180\n[135m] api A151: 401 expired\n[135m] api A152: 401 expired\n[135m] refresh R132: A181, R181\n[135m] revoke A166 fam_21: 401 expired\n[135m] refresh R173: A182, R182\n[135m] refresh R148: A183, R183\n[136m] refresh R165: 401 revoked\n[136m] refresh R168: A184, R184\n[136m] refresh R166: A185, R185\n[137m] deny list: 0\n[137m] deny list: 0\n[138m] refresh R150: 401 revoked\n[139m] refresh R174: A186, R186\n[139m] login u34 phone: fam_87, A187, R187\n[140m] revoke A169 fam_56: 401 expired\n[140m] api A147: 401 expired\n[140m] api A152: 401 expired\n[140m] refresh R163: 401 revoked\n[140m] revoke A159 fam_67: 401 expired\n[140m] api A156: 401 expired\n[140m] refresh R154: A188, R188\n[140m] refresh R167: A189, R189\n[140m] refresh R159: A190, R190\n[140m] refresh R151: 401 revoked\n[140m] refresh R138: 401 revoked\n[140m] refresh R183: A191, R191\n[140m] refresh R181: A192, R192\n[141m] api A187: 200\n[142m] api A182: 200\n[143m] api A176: 200\n[143m] refresh R190: A193, R193\n[143m] refresh R176: A194, R194\n[143m] password changed u33\n[144m] refresh R175: A195, R195\n[144m] api A184: 200\n[144m] api A185: 200\n[145m] refresh R137: 401 revoked\n[145m] logoutAll A179: 204\n[145m] refresh R189: A196, R196\n[146m] refresh R156: 401 revoked\n[147m] refresh R177: A197, R197\n[147m] refresh R178: A198, R198\n[147m] refresh R173: 401 replay\n[147m] refresh R147: 401 revoked\n[148m] refresh R169: A199, R199\n[148m] logout A184: 204\n[148m] sessions A130: 401 expired\n[148m] refresh R180: A200, R200\n[148m] refresh R150: 401 revoked\n[148m] api A138: 401 expired\n[148m] api A184: 401 revoked\n[149m] refresh R187: A201, R201\n[149m] api A182: 401 revoked\n[150m] refresh R134: 401 revoked\n[150m] deny list: 2 (fam_67, fam_84)\n[150m] api A163: 401 expired\n[150m] login u19 desktop: fam_88, A202, R202\n[150m] login u7 desktop: fam_89, A203, R203\n[151m] login u27 desktop: fam_90, A204, R204\n[152m] api A165: 401 expired\n[153m] revoke A138 fam_35: 401 expired\n[153m] revoke A130 fam_31: 401 expired\n[153m] api A179: 401 expired\n[153m] api A138: 401 expired\n[153m] refresh R130: 401 revoked\n[154m] refresh R145: 401 revoked\n[155m] refresh R150: 401 revoked\n[155m] deny list: 2 (fam_67, fam_84)\n[155m] refresh R193: A205, R205\n[156m] api A184: 401 expired\n[156m] refresh R147: 401 revoked\n[156m] login u20 phone: fam_91, A206, R206\n[156m] refresh R192: A207, R207\n[156m] revoke A151 fam_44: 401 expired\n[156m] api A202: 200\n[157m] api A156: 401 expired\n[157m] api A179: 401 expired\n[157m] refresh R202: A208, R208\n[157m] api A130: 401 expired\n[157m] api A182: 401 expired\n[158m] api A200: 200\n[159m] api A199: 200\n[160m] api A182: 401 expired\n[160m] api A204: 200\n[160m] refresh R182: 401 revoked\n[160m] refresh R199: A209, R209\n[160m] login u9 laptop: fam_92, A210, R210\n[160m] refresh R201: A211, R211\n[160m] refresh R180: 401 replay\n[160m] login u28 desktop: fam_93, A212, R212\n[160m] revoke A163 fam_21: 401 expired\n[161m] api A196: 401 expired\n[161m] refresh R203: A213, R213\n[161m] refresh R194: A214, R214\n[161m] api A138: 401 expired\n[161m] deny list: 3 (fam_67, fam_71, fam_84)\n[161m] refresh R138: 401 revoked\n[161m] deny list: 3 (fam_67, fam_71, fam_84)\n[162m] api A184: 401 expired\n[162m] api A188: 401 expired\n[162m] login u2 tablet: fam_94, A215, R215\n[162m] revoke A184 fam_73: 401 expired\n[163m] login u28 tablet: fam_95, A216, R216\n[163m] api A130: 401 expired\n[163m] api A200: 401 expired\n[163m] refresh R210: A217, R217\n[163m] api A138: 401 expired\n[163m] login u24 laptop: fam_96, A218, R218\n[163m] refresh R207: A219, R219\n[163m] logout A182: 401 expired\n[163m] logoutAll A204: 204\n[163m] login u5 desktop: fam_97, A220, R220\n[163m] refresh R196: A221, R221\n[163m] api A151: 401 expired\n[163m] logout A205: 204\n[163m] refresh R151: 401 revoked\n[163m] deny list: 2 (fam_71, fam_81)\n[163m] deny list: 2 (fam_71, fam_81)\n[163m] refresh R208: A222, R222\n[163m] refresh R209: A223, R223\n[163m] api A206: 200\n[163m] refresh R204: 401 revoked\n[163m] api A165: 401 expired\n[163m] password changed u37\n[163m] revoke A188 fam_7: 401 expired\n[163m] refresh R215: A224, R224\n[164m] refresh R165: 401 revoked\n[164m] refresh R145: 401 revoked\n[164m] refresh R147: 401 revoked\n[165m] refresh R182: 401 revoked\n[165m] refresh R216: A225, R225\n[165m] api A179: 401 expired\n[165m] api A138: 401 expired\n[165m] refresh R179: 401 revoked\n[165m] deny list: 2 (fam_71, fam_81)\n[165m] refresh R205: 401 revoked\n[165m] login u22 tablet: fam_98, A226, R226\n[166m] refresh R203: 401 replay\n[166m] login u7 laptop: fam_99, A227, R227\n[167m] refresh R178: 401 replay\n[167m] refresh R211: A228, R228\n[167m] api A206: 200\n[167m] api A213: 401 revoked\n[167m] api A156: 401 expired\n[168m] logoutAll A138: 401 expired\n[168m] refresh R221: A229, R229\n[169m] api A225: 200\n[170m] sessions A206: fam_91 phone since 156m last 156m (this device); fam_35 phone since 9m last 9m; fam_5 desktop since 1m last 1m\n[171m] refresh R188: A230, R230\n[171m] refresh R138: 401 revoked\n[171m] refresh R182: 401 revoked\n[171m] refresh R165: 401 revoked\n[171m] refresh R225: A231, R231\n[171m] sessions A218: fam_96 laptop since 163m last 163m (this device); fam_43 laptop since 13m last 59m; fam_17 tablet since 4m last 18m; fam_16 phone since 4m last 10m\n[172m] refresh R224: A232, R232\n[173m] api A220: 200\n[173m] api A179: 401 expired\n[173m] password changed u20\n[174m] refresh R179: 401 revoked\n[175m] revoke A206 fam_6: 401 expired\n[175m] deny list: 3 (fam_81, fam_85, fam_89)\n[175m] login u18 laptop: fam_100, A233, R233\n[175m] login u15 tablet: fam_101, A234, R234\n[176m] revoke A217 fam_11: 404\n[176m] api A204: 401 expired\n[176m] refresh R147: 401 revoked\n[176m] login u23 desktop: fam_102, A235, R235\n[176m] api A163: 401 expired\n[176m] refresh R223: A236, R236\n[176m] refresh R217: A237, R237\n[177m] api A222: 200\n[177m] refresh R198: 401 revoked\n[177m] api A204: 401 expired\n[178m] login u3 laptop: fam_103, A238, R238\n[178m] deny list: 2 (fam_85, fam_89)\n[179m] api A206: 401 expired\n[180m] deny list: 2 (fam_85, fam_89)\n[180m] refresh R212: A239, R239\n[180m] deny list: 2 (fam_85, fam_89)\n[180m] login u1 desktop: fam_104, A240, R240\n[181m] refresh R163: 401 revoked\n[181m] sessions A206: 401 expired\n[181m] login u1 tablet: fam_105, A241, R241\n[181m] api A204: 401 expired\n[181m] login u13 laptop: fam_106, A242, R242\n[181m] logoutAll A238: 204\n[182m] api A220: 401 expired\n[183m] deny list: 0\n[183m] logout A198: 401 expired\n[183m] logout A234: 204\n[184m] sessions A218: 401 expired\n[184m] logoutAll A213: 401 expired\n[184m] revoke A198 fam_51: 401 expired\n[184m] api A239: 200\n[184m] sessions A228: 401 expired\n[184m] logout A182: 401 expired\n[185m] api A213: 401 expired\n[186m] api A226: 401 expired\n[187m] refresh R198: 401 revoked\n[188m] sessions A163: 401 expired\n[189m] logout A233: 204\n[189m] logout A218: 401 expired\n[189m] refresh R242: A243, R243\n[189m] refresh R179: 401 revoked\n[189m] logoutAll A222: 401 expired\n[189m] revoke A238 fam_96: 401 revoked\n[189m] api A239: 200\n[190m] login u13 desktop: fam_107, A244, R244\n[191m] refresh R206: 401 revoked\n[191m] api A237: 401 expired\n[191m] api A204: 401 expired\n[192m] api A238: 401 revoked\n[193m] login u11 desktop: fam_108, A245, R245\n[193m] login u1 desktop: fam_109, A246, R246\n[193m] refresh R234: 401 revoked\n[194m] refresh R227: A247, R247\n[195m] refresh R231: A248, R248\n[195m] password changed u19\n[195m] api A226: 401 expired\n[196m] sessions A237: 401 expired\n[197m] refresh R233: 401 revoked\n[197m] login u11 laptop: fam_110, A249, R249\n[197m] refresh R182: 401 revoked\n[197m] revoke A235 fam_15: 401 expired\n[197m] login u17 laptop: fam_111, A250, R250\n[197m] refresh R228: A251, R251\n[197m] deny list: 2 (fam_100, fam_101)\n[197m] refresh R232: A252, R252\n[197m] api A226: 401 expired\n[197m] logout A213: 401 expired\n[198m] api A220: 401 expired\n[198m] revoke A241 fam_67: 401 expired\n[199m] refresh R233: 401 revoked\n[199m] logoutAll A222: 401 expired\n[200m] sessions A204: 401 expired\n[200m] login u5 tablet: fam_112, A253, R253\n[200m] api A213: 401 expired\n[201m] sessions A240: 401 expired\n[201m] refresh R245: A254, R254\n[201m] refresh R244: A255, R255\n[201m] api A238: 401 expired\n[202m] refresh R243: A256, R256\n[202m] login u29 desktop: fam_113, A257, R257\n[202m] refresh R238: 401 revoked\n[202m] refresh R246: A258, R258\n[202m] sessions A204: 401 expired\n[202m] revoke A248 fam_87: 404\n[202m] revoke A237 fam_31: 401 expired\n[202m] refresh R241: A259, R259\n[202m] refresh R237: A260, R260\n[202m] api A206: 401 expired\n[202m] sessions A218: 401 expired\n[203m] revoke A222 fam_65: 401 expired\n[203m] api A239: 401 expired\n[204m] login u20 phone: fam_114, A261, R261\n[204m] api A213: 401 expired\n[204m] api A234: 401 expired\n[204m] api A220: 401 expired\n[204m] refresh R240: A262, R262\n[204m] deny list: 0\n[205m] logout A222: 401 expired\n[206m] revoke A247 fam_9: 404\n[206m] sessions A204: 401 expired\n[206m] refresh R247: A263, R263\n[207m] refresh R206: 401 revoked\n[207m] api A218: 401 expired\n[207m] api A235: 401 expired\n[208m] refresh R263: A264, R264\n[208m] refresh R233: 401 revoked\n[208m] password changed u13\n[209m] refresh R255: 401 revoked\n[210m] sessions A250: fam_111 laptop since 197m last 197m (this device); fam_6 desktop since 1m last 1m\n[210m] login u8 phone: fam_115, A265, R265\n[210m] api A204: 401 expired\n[211m] api A256: 401 revoked\n[212m] api A252: 401 expired\n[212m] refresh R250: A266, R266\n[212m] refresh R261: A267, R267\n[213m] login u29 phone: fam_116, A268, R268\n[213m] login u39 laptop: fam_117, A269, R269\n[213m] api A206: 401 expired\n[213m] revoke A249 fam_73: 401 expired\n[214m] refresh R260: A270, R270\n[214m] refresh R258: A271, R271\n[214m] refresh R254: A272, R272\n[214m] api A257: 200\n[214m] login u35 desktop: fam_118, A273, R273\n[214m] refresh R235: A274, R274\n[215m] revoke A234 fam_30: 401 expired\n[216m] refresh R234: 401 revoked\n[217m] login u31 desktop: fam_119, A275, R275\n[217m] logout A206: 401 expired\n[217m] sessions A256: 401 expired\n[217m] api A257: 401 expired\n[218m] refresh R239: A276, R276\n[218m] password changed u1\n[218m] refresh R241: 401 revoked\n[218m] sessions A218: 401 expired\n[218m] password changed u2\n[218m] api A253: 401 expired\n[219m] refresh R259: 401 revoked\n[219m] deny list: 0\n[220m] revoke A238 fam_19: 401 expired\n[220m] api A206: 401 expired\n[220m] logout A226: 401 expired\n[221m] password changed u11\n[222m] refresh R257: A277, R277\n[222m] refresh R262: 401 revoked\n[223m] api A265: 200\n[223m] deny list: 0\n[223m] login u8 desktop: fam_120, A278, R278\n[223m] refresh R235: 401 replay\n[223m] refresh R265: A279, R279\n[223m] revoke A256 fam_9: 401 expired\n[224m] refresh R272: 401 revoked\n[225m] sessions A226: 401 expired\n[225m] refresh R264: A280, R280\n[225m] api A274: 401 revoked\n[225m] refresh R249: 401 revoked\n[226m] refresh R271: 401 revoked\n[226m] api A253: 401 expired\n[227m] api A267: 401 expired\n[227m] api A269: 200\n[228m] refresh R267: A281, R281\n[228m] refresh R218: A282, R282\n[229m] api A238: 401 expired\n[230m] deny list: 1 (fam_102)\n[230m] login u8 desktop: fam_121, A283, R283\n[231m] sessions A256: 401 expired\n[231m] login u2 phone: fam_122, A284, R284\n[231m] refresh R253: A285, R285\n[232m] sessions A269: 401 expired\n[232m] api A255: 401 expired\n[232m] api A275: 401 expired\n[232m] sessions A268: 401 expired\n[233m] refresh R255: 401 revoked\n[234m] api A269: 401 expired\n[235m] api A259: 401 expired\n[235m] refresh R248: A286, R286\n[236m] refresh R238: 401 revoked\n[236m] refresh R269: A287, R287\n[236m] api A268: 401 expired\n[236m] refresh R266: A288, R288\n[236m] api A226: 401 expired\n[237m] api A234: 401 expired\n[237m] refresh R255: 401 revoked\n[237m] refresh R258: 401 revoked\n[237m] revoke A279 fam_106: 404\n[237m] refresh R256: 401 revoked\n[237m] refresh R277: A289, R289\n[237m] refresh R274: 401 revoked\n[237m] refresh R281: A290, R290\n[237m] deny list: 1 (fam_102)\n[237m] refresh R269: 401 replay\n[237m] api A284: 200\n[237m] api A238: 401 expired\n[238m] api A226: 401 expired\n[239m] refresh R284: A291, R291\n[239m] refresh R246: 401 revoked\n[240m] api A268: 401 expired\n[240m] api A259: 401 expired\n[240m] api A233: 401 expired\n[240m] refresh R288: A292, R292\n[240m] deny list: 1 (fam_117)\n[240m] deny list: 1 (fam_117)\n[240m] sessions A249: 401 expired\n[240m] api A287: 401 revoked\n[240m] revoke A262 fam_35: 401 expired\n[240m] refresh R272: 401 revoked\n[240m] deny list: 1 (fam_117)\n[240m] sessions A280: 401 expired\n[241m] refresh R262: 401 revoked\n[242m] login u38 laptop: fam_123, A293, R293\n[243m] api A275: 401 expired\n[243m] revoke A273 fam_29: 401 expired\n[243m] api A249: 401 expired\n[243m] api A275: 401 expired\n[243m] login u36 phone: fam_124, A294, R294\n[243m] refresh R268: A295, R295\n[243m] refresh R285: A296, R296\n[243m] refresh R233: 401 revoked\n[243m] sessions A238: 401 expired\n[243m] login u20 laptop: fam_125, A297, R297\n[244m] refresh R246: 401 revoked\n[244m] api A249: 401 expired\n[244m] api A255: 401 expired\n[245m] revoke A255 fam_1: 401 expired\n[245m] refresh R287: 401 revoked\n[246m] refresh R255: 401 revoked\n[246m] login u9 desktop: fam_126, A298, R298\n[247m] refresh R297: A299, R299\n[248m] login u27 desktop: fam_127, A300, R300\n[248m] api A274: 401 expired\n[248m] api A289: 200\n[248m] refresh R259: 401 revoked\n[248m] refresh R234: 401 revoked\n[248m] refresh R277: 401 replay\n[248m] sessions A278: 401 expired\n[249m] refresh R290: A301, R301\n[249m] logout A262: 401 expired\n[249m] sessions A295: fam_116 phone since 213m last 243m (this device)\n[249m] refresh R295: A302, R302\n[250m] api A278: 401 expired\n[250m] api A238: 401 expired\n[250m] refresh R291: A303, R303\n[250m] sessions A275: 401 expired\n[250m] refresh R289: 401 revoked\n[251m] login u35 laptop: fam_128, A304, R304\n[252m] login u20 tablet: fam_129, A305, R305\n[252m] refresh R283: A306, R306\n[253m] refresh R294: A307, R307\n[254m] api A238: 401 expired\n[254m] refresh R275: A308, R308\n[255m] refresh R246: 401 revoked\n[255m] api A278: 401 expired\n[256m] api A278: 401 expired\n[256m] api A256: 401 expired\n[256m] api A296: 200\n[257m] refresh R256: 401 revoked\n[257m] sessions A262: 401 expired\n[257m] refresh R272: 401 revoked\n[257m] api A292: 401 expired\n[257m] refresh R273: A309, R309\n[257m] api A293: 401 expired\n[257m] refresh R296: A310, R310\n[257m] deny list: 1 (fam_113)\n[257m] refresh R300: A311, R311\n[257m] refresh R310: A312, R312\n[257m] api A279: 401 expired\n[257m] refresh R289: 401 revoked\n[257m] deny list: 1 (fam_113)\n[257m] refresh R302: A313, R313\n[257m] api A279: 401 expired\n[257m] refresh R278: A314, R314\n[257m] api A304: 200\n[258m] refresh R307: A315, R315\n[258m] api A249: 401 expired\n[258m] refresh R309: A316, R316\n[258m] logout A305: 204\n[259m] api A272: 401 expired\n[259m] refresh R279: A317, R317\n[259m] logout A304: 204\n[259m] api A293: 401 expired\n[259m] login u27 tablet: fam_130, A318, R318\n[259m] login u19 phone: fam_131, A319, R319\n[259m] refresh R308: A320, R320\n[259m] revoke A304 fam_18: 401 revoked\n[260m] revoke A255 fam_114: 401 expired\n[261m] api A256: 401 expired\n[262m] api A304: 401 revoked\n[263m] api A271: 401 expired\n[264m] api A259: 401 expired\n[264m] revoke A305 fam_26: 401 revoked\n[265m] refresh R287: 401 revoked\n[265m] refresh R272: 401 revoked\n[266m] refresh R293: A321, R321\n[267m] refresh R299: A322, R322\n[268m] deny list: 2 (fam_128, fam_129)\n[268m] refresh R249: 401 revoked\n[268m] login u14 desktop: fam_132, A323, R323\n[268m] logoutAll A301: 401 expired\n[269m] login u36 desktop: fam_133, A324, R324\n[269m] api A301: 401 expired\n[269m] logout A301: 401 expired\n[270m] login u18 laptop: fam_134, A325, R325\n[270m] login u39 phone: fam_135, A326, R326\n[271m] refresh R303: A327, R327\n[271m] refresh R249: 401 revoked\n[271m] api A321: 200\n[272m] api A305: 401 expired\n[272m] sessions A289: 401 expired\n[272m] deny list: 2 (fam_128, fam_129)\n[273m] api A325: 200\n[273m] sessions A325: fam_134 laptop since 270m last 270m (this device)\n[274m] login u4 tablet: fam_136, A328, R328\n[274m] login u2 tablet: fam_137, A329, R329\n[274m] refresh R301: A330, R330\n[275m] sessions A313: 401 expired\n[275m] refresh R323: A331, R331\n[275m] revoke A287 fam_132: 401 expired\n[275m] refresh R306: A332, R332\n[275m] api A320: 401 expired\n[275m] refresh R315: A333, R333\n[276m] api A292: 401 expired\n[276m] refresh R314: A334, R334\n[277m] logout A289: 401 expired\n[277m] refresh R324: A335, R335\n[278m] login u30 desktop: fam_138, A336, R336\n[279m] refresh R316: A337, R337\n[279m] refresh R325: A338, R338\n[279m] refresh R287: 401 revoked\n[279m] api A322: 200\n[279m] api A313: 401 expired\n[279m] deny list: 0\n[279m] revoke A305 fam_85: 401 expired\n[279m] refresh R312: A339, R339\n[279m] api A292: 401 expired\n[279m] logoutAll A319: 401 expired\n[279m] refresh R292: A340, R340\n[279m] api A318: 401 expired\n[279m] api A313: 401 expired\n[279m] api A318: 401 expired\n[279m] api A319: 401 expired\n[280m] login u3 phone: fam_139, A341, R341\n[280m] deny list: 0\n[280m] refresh R319: A342, R342\n[281m] refresh R334: A343, R343\n[282m] login u30 laptop: fam_140, A344, R344\n[282m] login u17 tablet: fam_141, A345, R345\n[282m] api A341: 200\n[282m] api A318: 401 expired\n[283m] refresh R298: A346, R346\n[283m] api A335: 200\n[284m] revoke A318 fam_71: 401 expired\n[285m] login u6 phone: fam_142, A347, R347\n[286m] refresh R341: A348, R348\n[287m] api A336: 200\n[287m] refresh R297: 401 replay\n[287m] password changed u2\n[287m] refresh R337: A349, R349\n[287m] deny list: 1 (fam_125)\n[288m] refresh R332: A350, R350\n[289m] refresh R336: A351, R351\n[290m] login u9 desktop: fam_143, A352, R352\n[290m] sessions A328: 401 expired\n[290m] sessions A311: 401 expired\n[290m] api A338: 200\n[290m] refresh R331: A353, R353\n[290m] refresh R287: 401 revoked\n[290m] logout A322: 401 expired\n[290m] api A311: 401 expired\n[291m] sessions A321: 401 expired\n[292m] deny list: 1 (fam_125)\n[292m] refresh R299: 401 revoked\n[293m] logout A326: 401 expired\n[293m] api A305: 401 expired\n[294m] login u33 desktop: fam_144, A354, R354\n[294m] refresh R291: 401 revoked\n[294m] refresh R333: A355, R355\n[294m] api A304: 401 expired\n[294m] refresh R327: 401 revoked\n[294m] refresh R326: A356, R356\n[294m] api A305: 401 expired\n[294m] revoke A318 fam_55: 401 expired\n[295m] refresh R313: A357, R357",
+          "hidden": true,
+          "score": 2
+        }
+      ]
+    }
+  ]
+}
