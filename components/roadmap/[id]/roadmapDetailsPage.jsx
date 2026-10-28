@@ -147,12 +147,11 @@ function NodeDetailsPanel({ node, stepNumber, onClose = null }) {
 
             {nextCourse?.id && (
                 <div className="shrink-0 border-t p-4">
+                    {/* A short label: the course title is in the list above, and a long one was cut off mid-word. */}
                     <Button asChild className="w-full">
-                        <Link href={`/course/${nextCourse.id}`}>
+                        <Link href={`/course/${nextCourse.id}`} aria-label={`${nextIsReview ? 'Review' : 'Open'} ${nextCourse.title}`}>
                             {nextIsReview ? <LuRotateCcw /> : <LuArrowRight />}
-                            <span className="truncate">
-                                {nextIsReview ? 'Review' : 'Open'} {nextCourse.title}
-                            </span>
+                            {nextIsReview ? 'Review the course' : 'Open the next course'}
                         </Link>
                     </Button>
                 </div>
@@ -204,6 +203,12 @@ export default function RoadmapDetailsPage({ params, initialData = null }) {
     const nextUpIndex = nodeProgress.findIndex((p) => p.status === 'in_progress' || p.status === 'not_started');
     const defaultNode = nodes[nextUpIndex >= 0 ? nextUpIndex : 0] || null;
     const selectedNode = nodes.find((node) => node.id === selectedNodeId) || defaultNode;
+    // The stage the learner should open now (-1 once every step is done); its marker takes the brand hue.
+    const nextStageIndex = nextUpIndex >= 0
+        ? stages.findIndex((stage) => stage.nodes.some((node) => node.id === nodes[nextUpIndex].id))
+        : -1;
+    const nextProgress = nextUpIndex >= 0 ? nodeProgress[nextUpIndex] : null;
+    const nextCourse = nextProgress?.courses.find((course) => !getCourseProgress(course).isComplete) || null;
     const selectedStepNumber = selectedNode
         ? stages.findIndex((stage) => stage.nodes.some((node) => node.id === selectedNode.id)) + 1
         : 0;
@@ -344,7 +349,7 @@ export default function RoadmapDetailsPage({ params, initialData = null }) {
                         <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-6 sm:px-6 lg:py-8">
                             <section className="space-y-4" aria-labelledby="roadmap-title">
                                 <div className="space-y-2">
-                                    <h1 id="roadmap-title" className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+                                    <h1 id="roadmap-title" className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
                                         {title}
                                     </h1>
                                     {roadmapData?.description && (
@@ -369,6 +374,34 @@ export default function RoadmapDetailsPage({ params, initialData = null }) {
                                         </div>
                                     ))}
                                 </dl>
+
+                                {/* The screen's answer: where to continue. On large screens the step panel holds the action. */}
+                                {hasNodes && (
+                                    <div className="flex flex-wrap items-center gap-x-4 gap-y-3 rounded-lg border bg-card px-4 py-3">
+                                        <StageMarker status={nextStageIndex >= 0 ? 'next' : 'completed'} number={nextStageIndex + 1} />
+                                        <div className="min-w-0 flex-1">
+                                            {nextStageIndex >= 0 ? (
+                                                <>
+                                                    <p className="text-xs text-muted-foreground tabular">Next up &middot; Step {nextStageIndex + 1}</p>
+                                                    <p className="truncate text-sm font-semibold text-foreground">{nodes[nextUpIndex].title}</p>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <p className="text-xs text-muted-foreground">Path complete</p>
+                                                    <p className="text-sm font-semibold text-foreground">You finished all {totalSteps} steps of this roadmap</p>
+                                                </>
+                                            )}
+                                        </div>
+                                        {nextCourse?.id && (
+                                            <Button asChild className="max-sm:w-full lg:hidden">
+                                                <Link href={`/course/${nextCourse.id}`} aria-label={`Continue with ${nextCourse.title}`}>
+                                                    <LuArrowRight />
+                                                    Continue
+                                                </Link>
+                                            </Button>
+                                        )}
+                                    </div>
+                                )}
                             </section>
 
                             {hasNodes ? (
@@ -393,8 +426,17 @@ export default function RoadmapDetailsPage({ params, initialData = null }) {
                                             return (
                                                 <li key={`${stage.order ?? 'stage'}-${stageIndex}`} className="flex gap-3 sm:gap-4">
                                                     <div className="flex w-7 shrink-0 flex-col items-center">
-                                                        <StageMarker status={stageStatus(stage)} number={stepNumber} />
-                                                        {!isLast && <span className="mt-1 w-px flex-1 bg-border" aria-hidden="true" />}
+                                                        <StageMarker
+                                                            status={stageIndex === nextStageIndex && stageStatus(stage) === 'not_started' ? 'next' : stageStatus(stage)}
+                                                            number={stepNumber}
+                                                        />
+                                                        {/* The rail fills with the brand hue up to the last finished step. */}
+                                                        {!isLast && (
+                                                            <span
+                                                                className={cn('mt-1 flex-1', stageStatus(stage) === 'completed' ? 'w-0.5 bg-primary' : 'w-px bg-border')}
+                                                                aria-hidden="true"
+                                                            />
+                                                        )}
                                                     </div>
 
                                                     <div className={isLast ? 'min-w-0 flex-1' : 'min-w-0 flex-1 pb-6'}>

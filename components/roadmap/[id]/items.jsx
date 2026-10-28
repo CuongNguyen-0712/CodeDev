@@ -64,14 +64,17 @@ export function getNodeProgress(node) {
     };
 }
 
+// `next` is the step the learner should open now: the one place on the path that takes the brand hue
+// before any progress exists.
 export function StageMarker({ status, number }) {
     return (
         <span
             aria-hidden="true"
             className={cn(
                 'flex size-7 shrink-0 items-center justify-center rounded-full border bg-background text-xs font-medium text-muted-foreground tabular',
-                status === 'completed' && 'border-success/30 bg-success-soft text-success',
-                status === 'in_progress' && 'border-primary/40 bg-primary-soft text-primary-soft-foreground'
+                status === 'completed' && 'border-primary bg-primary text-primary-foreground',
+                status === 'in_progress' && 'border-primary bg-primary-soft text-primary-soft-foreground',
+                status === 'next' && 'border-2 border-primary text-primary-ink'
             )}
         >
             {status === 'completed' ? <LuCheck className="size-3.5" /> : number}
@@ -92,7 +95,7 @@ export default function Node({ data, handleNodeClick, isSelected = false, ...pro
             aria-current={isSelected ? 'true' : undefined}
             data-roadmap-node={data.id}
             className={cn(
-                'group flex w-full flex-col gap-2 rounded-lg border border-border bg-card px-3.5 py-3 text-left outline-none transition-all duration-150',
+                'group flex w-full flex-col gap-2 rounded-lg border border-border bg-card px-3.5 py-3 text-left outline-none transition-[border-color,background-color,box-shadow] duration-150',
                 'hover:border-primary/50 hover:shadow-xs hover:bg-accent/30 active:bg-accent',
                 'focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50',
                 isSelected && 'border-primary/60 bg-primary-soft/50 shadow-xs hover:border-primary/70 hover:bg-primary-soft/60'
@@ -101,7 +104,10 @@ export default function Node({ data, handleNodeClick, isSelected = false, ...pro
         >
             <span className="flex w-full items-start justify-between gap-3">
                 <span className="min-w-0 text-sm font-semibold text-foreground">{title}</span>
-                <Badge variant={status.variant} className="mt-px">{status.label}</Badge>
+                {/* "Not started" is the default and would repeat on every step; only progress gets a badge. */}
+                {progress.status !== 'not_started' && (
+                    <Badge variant={status.variant} className="mt-px">{status.label}</Badge>
+                )}
             </span>
 
             {description && (

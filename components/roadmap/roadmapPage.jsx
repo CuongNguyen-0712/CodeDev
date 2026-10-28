@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { Fragment, useMemo } from 'react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { useQuery } from '@tanstack/react-query';
@@ -32,14 +32,18 @@ const FALLBACK_LOGO = '/image/static/no_image.png';
 
 function RoadmapRowSkeleton() {
     return (
-        <li className="flex items-start gap-4 px-4 py-4">
+        <li className="flex items-start gap-4 px-4 py-4 lg:gap-6">
             <Skeleton className="h-9 w-23 shrink-0 rounded-md" />
             <div className="min-w-0 flex-1 space-y-2">
                 <Skeleton className="h-4 w-56 max-w-[60vw]" />
                 <Skeleton className="h-3 w-full max-w-md" />
                 <Skeleton className="h-3 w-2/3 max-w-sm" />
             </div>
-            <Skeleton className="h-5 w-20 max-sm:hidden" />
+            <div className="hidden w-44 shrink-0 space-y-2 self-center xl:block">
+                <Skeleton className="h-2.5 w-36" />
+                <Skeleton className="h-3 w-24" />
+            </div>
+            <Skeleton className="h-5 w-20 self-center max-lg:hidden" />
         </li>
     );
 }
@@ -91,6 +95,22 @@ function LanguageStack({ languages }) {
                     +{extra}
                 </span>
             )}
+        </span>
+    );
+}
+
+// The path drawn as one dot per step, so a 6-step and a 10-step roadmap differ at a glance.
+// The first dot takes the brand hue: where the learner starts. The text beside it carries the count.
+function PathStrip({ steps }) {
+    if (steps < 1) return null;
+    return (
+        <span aria-hidden="true" className="flex h-3 items-center">
+            {Array.from({ length: steps }, (_, index) => (
+                <Fragment key={index}>
+                    {index > 0 && <span className="h-px w-2.5 bg-border" />}
+                    <span className={index === 0 ? 'size-2.5 rounded-full bg-primary' : 'size-1.5 rounded-full bg-muted-foreground/50'} />
+                </Fragment>
+            ))}
         </span>
     );
 }
@@ -196,7 +216,7 @@ export default function RoadmapPage() {
     return (
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pt-6 pb-10 sm:px-6 lg:pt-10">
             <header className="space-y-2">
-                <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+                <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
                     Roadmaps
                 </h1>
                 <p className="max-w-[60ch] text-sm text-muted-foreground">
@@ -258,38 +278,51 @@ export default function RoadmapPage() {
                                 const levelKey = roadmap.level?.toLowerCase();
                                 const levelLabel = levelMapping[levelKey]?.label || roadmap.level || 'All levels';
                                 const nodeCount = parseInt(roadmap.nodes, 10) || 0;
+                                const courseCount = parseInt(roadmap.courses, 10) || 0;
                                 const languages = Array.isArray(roadmap.languages) ? roadmap.languages : [];
 
                                 return (
                                     <li key={roadmap.id} className="animate-enter" style={{ '--enter-index': index % 20 }}>
                                         <Link
                                             href={`/roadmap/${roadmap.id}`}
-                                            // Phones: logos on their own row so the text gets the full width; sm+: logos | text | level.
-                                            className="group grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 gap-y-3 px-4 py-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] outline-none transition-colors hover:bg-accent/60 focus-visible:bg-accent/60 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset active:bg-accent"
+                                            // Below lg (phones, and tablets beside the open sidebar): logos, text, route stacked. lg: logos | text over route | level.
+                                            // xl: logos | text | route | level, so the route fills what used to be a blank band.
+                                            className="group grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 gap-y-3 px-4 py-4 lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:gap-y-2.5 xl:grid-cols-[auto_minmax(0,1fr)_11rem_auto] xl:gap-x-6 outline-none transition-colors hover:bg-accent/60 focus-visible:bg-accent/60 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset active:bg-accent"
                                         >
-                                            <LanguageStack languages={languages} />
+                                            <span className="lg:row-span-2 xl:row-span-1">
+                                                <LanguageStack languages={languages} />
+                                            </span>
 
-                                            <div className="min-w-0 space-y-1 max-sm:col-start-1 max-sm:row-start-2">
+                                            <div className="min-w-0 space-y-1 max-lg:col-start-1 max-lg:row-start-2">
                                                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                                                    <h3 className="text-sm font-semibold text-foreground group-hover:text-primary-ink">
+                                                    <h3 className="text-base font-semibold text-foreground group-hover:text-primary-ink">
                                                         {roadmap.title}
                                                     </h3>
-                                                    <Badge variant="muted" className="sm:hidden">{levelLabel}</Badge>
+                                                    <Badge variant="muted" className="lg:hidden">{levelLabel}</Badge>
                                                 </div>
                                                 {roadmap.description && (
                                                     <p className="line-clamp-2 max-w-[72ch] text-sm text-muted-foreground">
                                                         {roadmap.description}
                                                     </p>
                                                 )}
-                                                <p className="flex items-center gap-1.5 pt-0.5 text-xs text-muted-foreground tabular">
-                                                    <LuRoute className="size-3.5" aria-hidden="true" />
+                                                {roadmap.first_step && (
+                                                    <p className="pt-0.5 text-sm text-muted-foreground">
+                                                        Starts with <span className="font-medium text-foreground">{roadmap.first_step}</span>
+                                                    </p>
+                                                )}
+                                            </div>
+
+                                            <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 max-lg:col-start-1 max-lg:row-start-3 lg:col-start-2 lg:row-start-2 xl:col-start-3 xl:row-start-1 xl:flex-col xl:items-start xl:self-center">
+                                                <PathStrip steps={nodeCount} />
+                                                <p className="text-xs text-muted-foreground tabular">
                                                     {nodeCount} {nodeCount === 1 ? 'step' : 'steps'}
+                                                    {courseCount > 0 && <> &middot; {courseCount} {courseCount === 1 ? 'course' : 'courses'}</>}
                                                 </p>
                                             </div>
 
                                             {/* Fixed width: "Beginner" and "Intermediate" rows keep the same text column. */}
-                                            <div className="flex shrink-0 items-center justify-end gap-3 self-center sm:w-32 max-sm:col-start-2 max-sm:row-span-2 max-sm:row-start-1">
-                                                <Badge variant="muted" className="max-sm:hidden">{levelLabel}</Badge>
+                                            <div className="flex shrink-0 items-center justify-end gap-3 self-center max-lg:col-start-2 max-lg:row-span-3 max-lg:row-start-1 lg:col-start-3 lg:row-span-2 lg:row-start-1 lg:w-32 xl:col-start-4 xl:row-span-1">
+                                                <Badge variant="muted" className="max-lg:hidden">{levelLabel}</Badge>
                                                 <LuChevronRight
                                                     className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground"
                                                     aria-hidden="true"

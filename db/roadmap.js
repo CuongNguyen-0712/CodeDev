@@ -10,6 +10,14 @@ export const roadmapDb = {
                 r.description AS description,
                 r.level AS level,
                 COUNT(DISTINCT n.id) AS nodes,
+                COUNT(DISTINCT c.id) AS courses,
+                -- Where the path starts: the list shows it so each roadmap reads as a route, not a name.
+                (
+                    SELECT f.title FROM roadmap.nodes f
+                    WHERE f.roadmap_id = r.id
+                    ORDER BY f.order_index ASC, f.id ASC
+                    LIMIT 1
+                ) AS first_step,
                 COALESCE(
                     jsonb_agg(
                         DISTINCT jsonb_build_object(
