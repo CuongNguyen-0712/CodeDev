@@ -1,6 +1,5 @@
 'use client'
 
-import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
 import { courseQueries } from "@/queries/course.query";
@@ -9,63 +8,53 @@ import { cn } from "@/lib/utils";
 
 import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
+import { Popover, PopoverContent, PopoverHeader, PopoverTitle, PopoverTrigger } from "@/components/shadcn/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 
-import { PriceTag } from "@/components/commerce/priceTag";
 import { PurchaseActions } from "@/components/commerce/purchaseActions";
-import { isPremium } from "@/components/commerce/format";
 
-import { LuLink } from "react-icons/lu";
+import { LuBriefcase, LuChevronDown, LuLink, LuSparkles } from "react-icons/lu";
 
-function ChipGroup({ label, items, renderItem }) {
+// One compact button ("4 skills") that opens the full list, instead of a row of chips.
+function TopicPopover({ icon: Icon, count, noun, title, items }) {
     if (!items.length) return null;
     return (
-        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-            <dt className="mr-0.5 text-xs font-medium text-muted-foreground">{label}</dt>
-            {items.map((item) => (
-                <dd key={item.code ?? item.id}>{renderItem(item)}</dd>
-            ))}
-        </div>
+        <Popover>
+            <PopoverTrigger asChild>
+                <Button type="button" variant="outline" size="sm" className="text-muted-foreground">
+                    <Icon aria-hidden="true" />
+                    <span className="tabular">{count}</span> {count === 1 ? noun : `${noun}s`}
+                    <LuChevronDown className="size-3.5" aria-hidden="true" />
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-auto max-w-[min(20rem,calc(100vw-2rem))]">
+                <PopoverHeader>
+                    <PopoverTitle>{title}</PopoverTitle>
+                </PopoverHeader>
+                <ul className="mt-3 flex list-none flex-wrap gap-1.5 p-0">
+                    {items.map((item) => (
+                        <li key={item.code ?? item.id}>
+                            <Badge variant="outline" className="whitespace-normal text-muted-foreground">{item.name}</Badge>
+                        </li>
+                    ))}
+                </ul>
+            </PopoverContent>
+        </Popover>
     );
 }
 
-// Price, skills, roles and prerequisites, shown under the action row.
-function CourseCommerceMeta({ course }) {
+// Skills and roles under the action row, each behind a button so the header stays calm.
+// Price is in the header badge and prerequisites in the course information card.
+function CourseTopics({ course }) {
     const skills = Array.isArray(course?.skills) ? course.skills : [];
     const roles = Array.isArray(course?.career_roles) ? course.career_roles : [];
-    const prerequisites = Array.isArray(course?.prerequisites) ? course.prerequisites : [];
-
-    if (!course) return null;
-    if (!isPremium(course) && !skills.length && !roles.length && !prerequisites.length) return null;
+    if (!skills.length && !roles.length) return null;
 
     return (
-        <dl className="order-last flex basis-full flex-col gap-2 pt-1" aria-label="Course pricing and topics">
-            {isPremium(course) && (
-                <div className="flex flex-wrap items-center gap-1.5">
-                    <dt className="sr-only">Price</dt>
-                    <dd><PriceTag course={course} /></dd>
-                </div>
-            )}
-            <ChipGroup
-                label="Skills"
-                items={skills}
-                renderItem={(skill) => <Badge variant="outline" className="text-muted-foreground">{skill.name}</Badge>}
-            />
-            <ChipGroup
-                label="Roles"
-                items={roles}
-                renderItem={(role) => <Badge variant="muted">{role.name}</Badge>}
-            />
-            <ChipGroup
-                label="Prerequisites"
-                items={prerequisites}
-                renderItem={(course) => (
-                    <Badge asChild variant="link" className="px-0">
-                        <Link href={`/course/${course.id}`}>{course.title}</Link>
-                    </Badge>
-                )}
-            />
-        </dl>
+        <div className="order-last flex basis-full flex-wrap items-center gap-2 pt-1">
+            <TopicPopover icon={LuSparkles} count={skills.length} noun="skill" title="Skills you practise" items={skills} />
+            <TopicPopover icon={LuBriefcase} count={roles.length} noun="role" title="Built for these roles" items={roles} />
+        </div>
     );
 }
 
@@ -114,7 +103,7 @@ export default function FooterPreview({ courseId, loading = false, className }) 
                 <TooltipContent>Copy course link</TooltipContent>
             </Tooltip>
 
-            <CourseCommerceMeta course={data} />
+            <CourseTopics course={data} />
         </div>
     );
 }

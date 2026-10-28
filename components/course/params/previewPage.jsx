@@ -2,6 +2,7 @@
 import Link from "next/link";
 
 import { ErrorReload } from "../../ui/error";
+import ExpandableText from "../../ui/expandableText";
 
 import FooterPreview from "./footerPreview";
 import CommentPage from "./commentPage";
@@ -218,6 +219,7 @@ export default function PreviewPage({ params } = {}) {
     const isFavoritePending = useFavorite.isPending || useUnfavorite.isPending;
 
     const modules = Array.isArray(data?.modules) ? data.modules : [];
+    const prerequisites = Array.isArray(data?.prerequisites) ? data.prerequisites : [];
     const level = levelMapping?.[data?.level];
     const LevelIcon = LEVEL_ICON[data?.level] || LuSignalLow;
     // Prices live in commerce offers (catalog.course.cost is deprecated).
@@ -324,9 +326,9 @@ export default function PreviewPage({ params } = {}) {
                                     {data.title}
                                 </h1>
                                 {data.concept && (
-                                    <p className="max-w-[70ch] text-base leading-relaxed text-muted-foreground">
+                                    <ExpandableText clampClass="line-clamp-3" className="max-w-[70ch] text-base leading-relaxed text-muted-foreground">
                                         {data.concept}
-                                    </p>
+                                    </ExpandableText>
                                 )}
                             </div>
 
@@ -437,15 +439,37 @@ export default function PreviewPage({ params } = {}) {
                                         </div>
                                     </div>
                                 </div>
+
+                                {prerequisites.length > 0 && (
+                                    // A list, not chips: long course titles wrap inside the card instead of overflowing the row.
+                                    <section aria-labelledby="course-prerequisites-heading" className="rounded-lg border bg-card px-4 py-3">
+                                        <h2 id="course-prerequisites-heading" className="text-xs text-muted-foreground">
+                                            Take these first
+                                        </h2>
+                                        <ul className="mt-2 flex list-none flex-col gap-1 p-0">
+                                            {prerequisites.map((course) => (
+                                                <li key={course.id}>
+                                                    <Link
+                                                        href={`/course/${course.id}`}
+                                                        className="group/prereq flex items-start gap-1.5 rounded-sm py-1 text-sm font-medium text-foreground outline-none hover:text-primary-ink focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                                                    >
+                                                        <span className="min-w-0 flex-1 text-pretty">{course.title}</span>
+                                                        <LuChevronRight className="mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform group-hover/prereq:translate-x-0.5" aria-hidden="true" />
+                                                    </Link>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </section>
+                                )}
                             </aside>
 
                             <div className="flex min-w-0 flex-col gap-10">
                                 <section aria-labelledby="course-about-heading" className="space-y-3">
                                     <h2 id="course-about-heading" className="text-base font-semibold">About this course</h2>
                                     {data.description ? (
-                                        <p className="max-w-[70ch] text-sm leading-relaxed whitespace-pre-line text-foreground">
+                                        <ExpandableText clampClass="line-clamp-6" className="max-w-[70ch] text-sm leading-relaxed whitespace-pre-line text-foreground">
                                             {data.description}
-                                        </p>
+                                        </ExpandableText>
                                     ) : (
                                         <p className="text-sm text-muted-foreground">
                                             No description has been written for this course yet.
