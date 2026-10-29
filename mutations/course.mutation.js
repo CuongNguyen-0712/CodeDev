@@ -150,53 +150,62 @@ export const useCourseSubmitLesson = () => {
     });
 };
 
-export const useCourseFavorite = () => {
+// Optimistic favourite: the heart flips at once on the course page and in My learning; a failure
+// puts every snapshot back, and the server's answer replaces the guess once it lands.
+function useFavoriteMutation(action, isFavorite) {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async (data) => {
-            return callAction(favoriteCourseAction, data);
-        },
+        mutationFn: async (data) => callAction(action, data),
 
-        onSuccess: (_, variables) => {
+        onMutate: async (variables) => {
             const courseId = extractId(variables);
+            if (!courseId) return undefined;
 
-            queryClient.invalidateQueries({
-                queryKey: userKeys.courseProgress(),
+            const detailsKey = courseKeys.details(courseId);
+            const listKey = userKeys.courseProgress();
+            await Promise.all([
+                queryClient.cancelQueries({ queryKey: detailsKey }),
+                queryClient.cancelQueries({ queryKey: listKey }),
+            ]);
+
+            const snapshots = [
+                ...queryClient.getQueriesData({ queryKey: detailsKey }),
+                ...queryClient.getQueriesData({ queryKey: listKey }),
+            ];
+
+            queryClient.setQueryData(detailsKey, (old) => (old && typeof old === 'object' ? { ...old, is_favorite: isFavorite } : old));
+            queryClient.setQueriesData({ queryKey: listKey }, (old) => {
+                if (!old?.pages) return old;
+                return {
+                    ...old,
+                    pages: old.pages.map((page) => ({
+                        ...page,
+                        data: Array.isArray(page?.data)
+                            ? page.data.map((item) => (item.id === courseId ? { ...item, is_favorite: isFavorite } : item))
+                            : page?.data,
+                    })),
+                };
             });
 
-            if (courseId) {
-                queryClient.invalidateQueries({
-                    queryKey: courseKeys.details(courseId),
-                });
-            }
-        }
-    });
-};
-
-export const useCourseUnfavorite = () => {
-    const queryClient = useQueryClient();
-
-    return useMutation({
-        mutationFn: async (data) => {
-            return callAction(unfavoriteCourseAction, data);
+            return { snapshots };
         },
 
-        onSuccess: (_, variables) => {
+        onError: (_, __, context) => {
+            context?.snapshots?.forEach(([queryKey, data]) => queryClient.setQueryData(queryKey, data));
+        },
+
+        onSettled: (_, __, variables) => {
             const courseId = extractId(variables);
-
-            queryClient.invalidateQueries({
-                queryKey: userKeys.courseProgress(),
-            });
-
-            if (courseId) {
-                queryClient.invalidateQueries({
-                    queryKey: courseKeys.details(courseId),
-                });
-            }
-        }
+            queryClient.invalidateQueries({ queryKey: userKeys.courseProgress() });
+            if (courseId) queryClient.invalidateQueries({ queryKey: courseKeys.details(courseId) });
+        },
     });
-};
+}
+
+export const useCourseFavorite = () => useFavoriteMutation(favoriteCourseAction, true);
+
+export const useCourseUnfavorite = () => useFavoriteMutation(unfavoriteCourseAction, false);
 
 export const useCourseComment = () => {
     const queryClient = useQueryClient();

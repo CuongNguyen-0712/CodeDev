@@ -4,11 +4,12 @@ import Link from "next/link";
 
 import { useCourseVotingComment } from "@/mutations/course.mutation";
 import { cn } from "@/lib/utils";
+import { useApp } from "@/contexts/appContext";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/shadcn/avatar";
 import { Button } from "@/components/shadcn/button";
 
-import { LuThumbsDown, LuThumbsUp } from "react-icons/lu";
+import { LuHeart } from "react-icons/lu";
 
 const formatDate = (str) => {
     if (!str) return 'Recently';
@@ -35,27 +36,27 @@ const formatDate = (str) => {
     }
 };
 
-const activeVote = "bg-primary-soft text-primary-soft-foreground hover:bg-primary-soft/70 hover:text-primary-soft-foreground";
 
 const CommentItem = ({ data, courseId }) => {
     const { data: session } = useSession();
     const useVoting = useCourseVotingComment();
+    const { showAlert } = useApp();
 
     const formattedDate = useMemo(() => formatDate(data.created_at), [data.created_at]);
 
-    const handleVoting = async (voteType) => {
-        if (!session || useVoting.isPending) return;
+    // A like is an upvote on the server; a learner's old downvote is replaced by it.
+    const isLiked = data.vote === 'upvote';
+    const likes = Number(data.upvotes) || 0;
 
-        await useVoting.mutateAsync({
-            commentId: data.id,
-            courseId: courseId,
-            vote: voteType === data.vote ? null : voteType,
-        });
+    const handleLike = () => {
+        if (!session || useVoting.isPending) return;
+        useVoting.mutate(
+            { commentId: data.id, courseId, vote: isLiked ? null : 'upvote' },
+            { onError: () => showAlert(500, "Could not update your like. Please try again.") }
+        );
     };
 
     const username = data.username || 'Anonymous';
-    const isUpvoted = data.vote === 'upvote';
-    const isDownvoted = data.vote === 'downvote';
 
     const identity = (
         <>
@@ -99,37 +100,22 @@ const CommentItem = ({ data, courseId }) => {
                 {data.comment}
             </p>
 
-            <div className="flex items-center gap-1 pl-[38px]">
+            {/* One like per learner, shown as a heart with its count. The count moves on click
+                (optimistic, see useCourseVotingComment) and goes back if the server refuses. */}
+            <div className="flex items-center pl-[38px]">
                 <Button
                     type="button"
                     variant="ghost"
                     size="xs"
-                    name="upvote"
-                    onClick={() => handleVoting('upvote')}
-                    className={cn("text-muted-foreground", isUpvoted && activeVote)}
-                    disabled={useVoting.isPending || !session}
-                    title={!session ? "Sign in to vote" : undefined}
-                    aria-label={isUpvoted ? `Remove upvote, ${Number(data.upvotes) || 0} upvotes` : `Upvote, ${Number(data.upvotes) || 0} upvotes`}
-                    aria-pressed={isUpvoted}
+                    onClick={handleLike}
+                    className={cn("text-muted-foreground", isLiked && "text-destructive hover:text-destructive")}
+                    disabled={!session}
+                    title={!session ? "Sign in to like comments" : undefined}
+                    aria-label={`${isLiked ? 'Unlike' : 'Like'} this comment, ${likes} ${likes === 1 ? 'like' : 'likes'}`}
+                    aria-pressed={isLiked}
                 >
-                    <LuThumbsUp className={cn(isUpvoted && "fill-current")} aria-hidden="true" />
-                    <span className="tabular">{Number(data.upvotes) || 0}</span>
-                </Button>
-
-                <Button
-                    type="button"
-                    variant="ghost"
-                    size="xs"
-                    name="downvote"
-                    onClick={() => handleVoting('downvote')}
-                    className={cn("text-muted-foreground", isDownvoted && activeVote)}
-                    disabled={useVoting.isPending || !session}
-                    title={!session ? "Sign in to vote" : undefined}
-                    aria-label={isDownvoted ? `Remove downvote, ${Number(data.downvotes) || 0} downvotes` : `Downvote, ${Number(data.downvotes) || 0} downvotes`}
-                    aria-pressed={isDownvoted}
-                >
-                    <LuThumbsDown className={cn(isDownvoted && "fill-current")} aria-hidden="true" />
-                    <span className="tabular">{Number(data.downvotes) || 0}</span>
+                    <LuHeart className={cn("transition-transform duration-150 active:scale-90", isLiked && "fill-current")} aria-hidden="true" />
+                    <span className="tabular">{likes}</span>
                 </Button>
             </div>
         </article>

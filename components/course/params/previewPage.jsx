@@ -18,6 +18,7 @@ import { useCourseFavorite, useCourseUnfavorite } from "@/mutations/course.mutat
 
 import { levelMapping } from "@/constants/constants";
 import { fitCover } from "@/lib/coverFit";
+import { cn } from "@/lib/utils";
 import { formatMoney, formatPoints, isPremium, offersOf } from "@/components/commerce/format";
 
 import { Avatar, AvatarFallback } from "@/components/shadcn/avatar";
@@ -44,7 +45,6 @@ import {
     LuFileText,
     LuHeart,
     LuLibrary,
-    LuLoaderCircle,
     LuSearchX,
     LuSignalLow,
     LuStar,
@@ -203,20 +203,16 @@ export default function PreviewPage({ params } = {}) {
     const { navigateBack } = useRouterActions();
     const { status: authStatus } = useSession();
 
-    const handleSubmitFavorite = async () => {
-        try {
-            if (data?.is_favorite) {
-                await useUnfavorite.mutateAsync({ courseId: params.id });
-            } else {
-                await useFavorite.mutateAsync({ courseId: params.id });
-            }
-        } catch (err) {
-            alert(500, err?.message || "An unexpected error occurred, please try again later");
-        }
+    const handleSubmitFavorite = () => {
+        // One request at a time; the cache already shows the new state.
+        if (useFavorite.isPending || useUnfavorite.isPending) return;
+        const mutation = data?.is_favorite ? useUnfavorite : useFavorite;
+        mutation.mutate({ courseId: params.id }, {
+            onError: () => alert(500, "Could not update your favorites. Please try again."),
+        });
     };
 
     const isFavorite = Boolean(data?.is_favorite);
-    const isFavoritePending = useFavorite.isPending || useUnfavorite.isPending;
 
     const modules = Array.isArray(data?.modules) ? data.modules : [];
     const prerequisites = Array.isArray(data?.prerequisites) ? data.prerequisites : [];
@@ -373,18 +369,17 @@ export default function PreviewPage({ params } = {}) {
                                 />
 
                                 {authStatus === 'authenticated' && (
+                                    // Optimistic: the heart flips on click; a failure flips it back and says so.
                                     <Button
                                         type="button"
                                         variant="outline"
                                         onClick={handleSubmitFavorite}
-                                        disabled={isFavoritePending}
                                         aria-pressed={isFavorite}
                                     >
-                                        {isFavoritePending ? (
-                                            <LuLoaderCircle className="animate-spin" aria-hidden="true" />
-                                        ) : (
-                                            <LuHeart className={isFavorite ? 'fill-destructive text-destructive' : undefined} aria-hidden="true" />
-                                        )}
+                                        <LuHeart
+                                            className={cn('transition-transform duration-150 active:scale-90', isFavorite && 'fill-destructive text-destructive')}
+                                            aria-hidden="true"
+                                        />
                                         {isFavorite ? 'Favorited' : 'Add to favorites'}
                                     </Button>
                                 )}
