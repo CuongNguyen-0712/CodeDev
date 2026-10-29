@@ -20,6 +20,7 @@ import { splitDisplayName, usernameBase } from "@/lib/username";
 
 import { accountLinkService } from "@/services/accountLink.service";
 import { authService } from "@/services/auth.service";
+import { userDb } from "@/db/user.db";
 
 import { SESSION_ERROR, isFatalSessionError } from "@/constants/auth";
 
@@ -84,6 +85,20 @@ async function connectFromSettings({ intent, account, profile, meta }) {
         // One account per provider (accounts_user_provider_uq): a second one is refused.
         const { providers } = await accountLinkService.listMethods(intent.userId);
         if (providers.some((p) => p.provider === provider)) return settingsResult(`linkError=AlreadyConnected&provider=${provider}`);
+
+        // A provider account nobody has linked yet, whose verified email belongs to another verified
+        // CodeDev account, is refused: that email is the other account's identity. The learner
+        // connects one with a different email. (Already linked to someone: the CD409 path below.)
+        if (providerEmail) {
+            const [owned, emailOwner] = await Promise.all([
+                accountLinkService.linkConflict({ userId: intent.userId, provider, providerAccountId: account.providerAccountId }),
+                userDb.emailOwnedByOther({ userId: intent.userId, email: providerEmail }),
+            ]);
+            if (!owned && emailOwner?.verified) {
+                auditAuth("account.link_refused", { userId: intent.userId, sessionId: intent.sessionId, ip: meta.ip, provider, reason: "email_in_use" });
+                return settingsResult(`linkError=EmailInUse&provider=${provider}`);
+            }
+        }
 
         await linkWithRetry({ userId: intent.userId, provider, providerAccountId: account.providerAccountId, providerEmail });
     } catch (err) {

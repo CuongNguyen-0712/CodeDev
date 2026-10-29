@@ -283,11 +283,14 @@ function useProfileForm({ data, fields, onSaved, successMessage }) {
                 alert(200, successMessage);
                 await onSaved();
                 reset();
+            } else if (response.code === 'EMAIL_IN_USE') {
+                // Tied to the field it is about, and it stays until the email is changed.
+                setErrors((prev) => ({ ...prev, email: response.message }));
             } else {
                 alert(response.status || 500, response.message || 'Failed to update your information');
             }
         } catch (err) {
-            alert(err.response?.status || 500, err.response?.data?.message || 'Failed to update your information');
+            alert(err?.status || 500, err?.message || 'Failed to update your information');
         } finally {
             setPending(false);
         }

@@ -418,6 +418,17 @@ export const userDb = {
         return await sql(query, params);
     },
 
+    /** Another account already holds this email (unique on lower(email)); returns whether it is verified, or null. */
+    emailOwnedByOther: async ({ userId, email }) => {
+        const result = await sql(
+            `SELECT email_verified FROM identity.users
+             WHERE lower(email) = lower($2) AND public_id IS DISTINCT FROM $1
+             LIMIT 1;`,
+            [userId, email]
+        );
+        return result.rows?.[0] ? { verified: result.rows[0].email_verified === true } : null;
+    },
+
     updateProfile: async ({ userId, nickname = null, surname = null, phone = null, name = null, email = null, image = null, bio = null }) => {
         const params = [];
         const conditions = [];

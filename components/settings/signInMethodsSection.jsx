@@ -28,6 +28,7 @@ const LABEL = { github: "GitHub", google: "Google" };
 
 const LINK_ERROR = {
     OAuthAccountInUse: (label) => `This ${label} account is already linked to another CodeDev account.`,
+    EmailInUse: (label) => `The email on this ${label} account belongs to another verified CodeDev account. Connect a ${label} account with a different email.`,
     LinkExpired: () => "The connect request expired. Try again.",
     AlreadyConnected: (label) => `A ${label} account is already connected. Disconnect it first to use another one.`,
     Callback: (label) => `Could not connect ${label}. Please try again.`,

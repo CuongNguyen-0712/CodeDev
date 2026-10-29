@@ -1,6 +1,7 @@
 'use server';
 
 import { userService } from "@/services/user.service";
+import { userDb } from "@/db/user.db";
 import { emailVerificationService } from "@/services/emailVerification.service";
 import { ApiError } from "@/lib/error/apiError";
 import { rateLimiters } from "@/lib/rateLimit";
@@ -24,6 +25,11 @@ export async function updateUserProfileAction(data) {
         }
         if (email && !EMAIL_PATTERN.test(email)) {
             throw new ApiError("Email is invalid", 422);
+        }
+        // An email belongs to one account: a verified owner keeps it, and an unverified one holds it
+        // until it is verified or purged. Either way this account must use another address.
+        if (email && await userDb.emailOwnedByOther({ userId, email })) {
+            throw new ApiError("This email is already used by another CodeDev account. Use a different email.", 409, { code: "EMAIL_IN_USE" });
         }
         // Each email change mails the new address: share the resend budget (3 / 15 min per user)
         // so the form cannot be used to mail arbitrary addresses.
