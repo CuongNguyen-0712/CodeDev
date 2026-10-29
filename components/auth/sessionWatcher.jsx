@@ -18,6 +18,7 @@ import {
 } from "@/lib/authRefresh";
 
 import { UserRealtimeBridge } from "@/components/realtime/userRealtimeBridge";
+import { devLog } from "@/lib/userMessage";
 
 /**
  * Client side of the session lifecycle:
@@ -115,7 +116,7 @@ export function SessionWatcher() {
             if (getKnownAccessExpiry() - Date.now() > REFRESH_MARGIN_MS) return;
             refreshSession().catch((error) => {
                 // Terminal failures are broadcast as `signed-out`; transient ones retry on demand.
-                if (!error?.terminal) console.warn("[auth] Session refresh failed:", error?.message);
+                if (!error?.terminal) devLog("[auth] Session refresh failed:", error?.message);
             });
         };
 

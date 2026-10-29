@@ -2,6 +2,7 @@
 import { toast } from "sonner";
 
 import { Toaster } from "@/components/shadcn/sonner";
+import { userMessage } from "@/lib/userMessage";
 
 /**
  * App-wide toasts (Sonner). `notify` is what useApp().showAlert(status, message, callback, options)
@@ -20,6 +21,8 @@ import { Toaster } from "@/components/shadcn/sonner";
  */
 export function notify(status, message, { callback, id } = {}) {
     if (typeof message !== 'string' || message.trim() === '') return undefined;
+    // Last net for errors: a technical message (network, driver, framework) never reaches a toast.
+    if (status !== 200 && status !== 201 && status !== 0) message = userMessage(message);
 
     const options = typeof callback === 'function'
         ? { action: { label: 'Continue', onClick: callback }, duration: 8000 }

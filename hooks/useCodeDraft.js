@@ -1,5 +1,6 @@
 'use client';
 
+import { devLog } from "@/lib/userMessage";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
     draftKey,
@@ -68,7 +69,7 @@ export default function useCodeDraft({
             setOverQuota(Boolean(result?.overQuota));
             setStatus("saved");
         } catch (error) {
-            console.error("[drafts] Failed to save draft:", error);
+            devLog("[drafts] Failed to save draft:", error);
             setStatus("error");
         } finally {
             if (codeRef.current === value) {
@@ -120,7 +121,7 @@ export default function useCodeDraft({
             try {
                 draft = await getDraft(key);
             } catch (error) {
-                console.error("[drafts] Failed to read draft:", error);
+                devLog("[drafts] Failed to read draft:", error);
             }
 
             if (cancelled) return;
@@ -205,7 +206,7 @@ export default function useCodeDraft({
             await flush();
             await markDraftSubmitted({ key, code: submittedCode, submissionId, submittedAt });
         } catch (error) {
-            console.error("[drafts] Failed to update draft after submit:", error);
+            devLog("[drafts] Failed to update draft after submit:", error);
         }
     }, [key, flush]);
 

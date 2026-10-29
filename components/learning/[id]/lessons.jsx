@@ -22,6 +22,7 @@ const lessonBlockTypes = {
 };
 
 import "@/styles/learning/[id]/lesson.css"
+import { devLog } from "@/lib/userMessage";
 
 // `blocked`: challenges of this lesson are not all passed yet (the server enforces the same rule).
 export function SubmitLessonButton({ lessonId, courseId, onSubmitted, blocked = false }) {
@@ -39,7 +40,7 @@ export function SubmitLessonButton({ lessonId, courseId, onSubmitted, blocked = 
             onSubmitted?.();
         }
         catch (error) {
-            console.error("Failed to submit lesson:", error);
+            devLog("Failed to submit lesson:", error);
             alert(error?.status || 500, error?.message || "Failed to submit lesson. Please try again.");
         }
     };

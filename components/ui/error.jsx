@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouterActions } from "@/router/useRouterActions";
 import { cn } from "@/lib/utils";
+import { userMessage } from "@/lib/userMessage";
 
 import { Button } from "@/components/shadcn/button";
 
@@ -13,9 +14,8 @@ function describe(data, title) {
         ? (data?.status || data?.statusCode || data?.response?.status || 500)
         : 500;
 
-    const message = typeof data === 'string'
-        ? data
-        : (data?.message || data?.error || "An unexpected error occurred. Please try again.");
+    // The status picks the heading; it is never shown (a learner cannot act on "HTTP 500").
+    const message = userMessage(typeof data === 'string' ? data : (data?.message || data?.error));
 
     const heading = title || (
         status === 404
@@ -37,7 +37,7 @@ export function ErrorReload({
 }) {
     if (data === null || data === undefined) return null;
 
-    const { status, message, heading } = describe(data, title);
+    const { message, heading } = describe(data, title);
 
     return (
         <div
@@ -57,9 +57,6 @@ export function ErrorReload({
             <div className={cn("min-w-0 space-y-1", compact && "flex-1")}>
                 <p className="text-sm font-semibold text-foreground">{heading}</p>
                 <p className="text-sm text-muted-foreground">{message}</p>
-                {status && (
-                    <p className="text-xs text-muted-foreground tabular">HTTP {status}</p>
-                )}
             </div>
 
             {(refetch || callback) && (

@@ -3,12 +3,13 @@
 import { useEffect } from "react";
 
 import { PageError } from "@/components/ui/error";
+import { devLog } from "@/lib/userMessage";
 
 // Route error boundary: an uncaught render error in any page shows this inside the root layout
 // (providers, toasts and theme keep working). redirect() and notFound() are not caught here.
 export default function RouteError({ error, reset }) {
     useEffect(() => {
-        console.error(error);
+        devLog(error);
     }, [error]);
 
     return (

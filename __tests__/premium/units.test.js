@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { normaliseProfile, rankCourses, scoreCourse } from "@/services/recommendation.service";
 import { computeSignature, signatureHeader, verifySignatureHeader } from "@/services/payments/signature";
@@ -163,5 +163,17 @@ describe("request validation and error mapping", () => {
         const error = Object.assign(new Error("Not enough points"), { code: "CD402" });
         expect(toSafeError(error)).toEqual({ status: 402, message: "Not enough points", code: "INSUFFICIENT_POINTS" });
         expect(Object.keys(DB_BUSINESS_ERRORS)).toEqual(expect.arrayContaining(["CD403", "CD409", "CD422"]));
+    });
+
+    it("never returns a raw Postgres message, even for a 4xx driver error", () => {
+        const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+        const unique = Object.assign(new Error('duplicate key value violates unique constraint "users_email_lower_uq"'), { code: "23505" });
+        const safe = toSafeError(unique);
+        expect(safe.status).toBe(409);
+        expect(safe.message).not.toMatch(/duplicate key|constraint|users_email/);
+        // Messages our SQL functions raise for users (P0001) still pass through.
+        const raised = Object.assign(new Error("This offer is no longer available"), { code: "P0001" });
+        expect(toSafeError(raised).message).toBe("This offer is no longer available");
+        spy.mockRestore();
     });
 });

@@ -1,4 +1,5 @@
 import { errorCode } from "@/clients/premium.client";
+import { userMessage } from "@/lib/userMessage";
 
 // Display helpers shared by the commerce components. Formatting uses a fixed locale so the
 // server render and the browser render produce the same text (no hydration mismatch).
@@ -98,7 +99,7 @@ export function commerceErrorMessage(error, fallback = "Something went wrong. Pl
     const code = errorCode(error);
     if (code && ERROR_MESSAGES[code]) return ERROR_MESSAGES[code];
     if (error?.status === 429) return "Too many requests. Please wait a moment and try again.";
-    return error?.message || fallback;
+    return userMessage(error, fallback);
 }
 
 /** Only same-origin paths or http(s) provider URLs are followed. */

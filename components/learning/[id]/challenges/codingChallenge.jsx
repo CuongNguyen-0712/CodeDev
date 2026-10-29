@@ -1,5 +1,6 @@
 'use client';
 
+import { devLog } from "@/lib/userMessage";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
@@ -262,7 +263,7 @@ export default function CodingChallenge({ challenge, onPassed, onExhausted }) {
             );
         } catch (error) {
             setLastRun(null);
-            console.error("Run failed:", error);
+            devLog("Run failed:", error);
             alert(error.status || 500, error.status ? error.message : "Could not run your code in this browser.");
         } finally {
             setPhase("idle");

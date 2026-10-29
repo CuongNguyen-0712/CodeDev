@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 
 import { acquireChannel, getPusherClient, releaseChannel } from "@/lib/pusherClient";
+import { devLog } from "@/lib/userMessage";
 
 /**
  * Subscribes to a Pusher channel for the lifetime of the component.
@@ -36,7 +37,7 @@ export function usePusherChannel(channelName, handlers, { onReconnect } = {}) {
         });
 
         const onSubscriptionError = (status) => {
-            console.warn(`[Pusher] Subscription to ${channelName} failed:`, status?.status ?? status);
+            devLog(`[Pusher] Subscription to ${channelName} failed:`, status?.status ?? status);
         };
         channel.bind("pusher:subscription_error", onSubscriptionError);
 

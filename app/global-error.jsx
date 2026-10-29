@@ -5,12 +5,13 @@ import './globals.css';
 import { useEffect } from "react";
 
 import { fontVariables } from './fonts';
+import { devLog } from "@/lib/userMessage";
 
 // Last-resort boundary for errors in the root layout itself, so it renders its own <html>
 // without the app providers. Kept dependency-free on purpose.
 export default function GlobalError({ error, reset }) {
     useEffect(() => {
-        console.error(error);
+        devLog(error);
     }, [error]);
 
     return (

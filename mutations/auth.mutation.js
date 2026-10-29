@@ -4,6 +4,7 @@ import { signOut } from "next-auth/react";
 import { authClient } from "@/clients/auth.client";
 import { markSigningOut } from "@/lib/authSignal";
 import { announceLoggedOut } from "@/lib/authRefresh";
+import { devLog } from "@/lib/userMessage";
 
 export function useLogin() {
     return useMutation({
@@ -31,7 +32,7 @@ export function useLogOut() {
                 await authClient.logout();
             } catch (error) {
                 revoked = false;
-                console.error("[auth] Server logout failed, clearing the local session anyway:", error?.message);
+                devLog("[auth] Server logout failed, clearing the local session anyway:", error?.message);
             }
 
             await signOut({ redirect: false });
