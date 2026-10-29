@@ -107,7 +107,7 @@ function StepHeading({ id, headingRef, title, description }) {
 
 function ValidationHint({ id, problems, show }) {
     return (
-        <div id={id} aria-live="polite" className="min-h-5">
+        <div id={id} aria-live="polite" className="[&:has(li)]:mb-2.5">
             {show && problems.length > 0 && (
                 <ul className="m-0 list-none space-y-0.5 p-0 text-sm text-muted-foreground">
                     {problems.map((problem) => (
@@ -143,7 +143,7 @@ function ProgressHeader({ slide }) {
                             <span
                                 className={cn(
                                     "block h-full rounded-full bg-primary transition-[width] duration-300 ease-out motion-reduce:transition-none",
-                                    state === "done" ? "w-full" : state === "current" ? "w-1/2" : "w-0"
+                                    state === "todo" ? "w-0" : "w-full"
                                 )}
                             />
                             <span className="sr-only">
@@ -400,7 +400,7 @@ function OnboardingWizard({ catalog, state, sessionStatus }) {
     const languageValue = draft.preferredLanguageId != null ? String(draft.preferredLanguageId) : NO_LANGUAGE;
 
     return (
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 pt-6 pb-12 sm:px-6 lg:pt-10">
+        <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 pt-6 pb-20 sm:px-6 sm:pb-12 lg:pt-10">
             <header className="flex items-center justify-between gap-3">
                 {/* Not a link: /home sends unfinished onboarding straight back here. */}
                 <span className="flex items-center gap-2">
@@ -435,12 +435,12 @@ function OnboardingWizard({ catalog, state, sessionStatus }) {
                     onEdit={() => goTo("review", "back")}
                 />
             ) : (
-                <form onSubmit={handleSubmit} noValidate className="flex flex-col rounded-lg border bg-card">
+                <form onSubmit={handleSubmit} noValidate className="flex flex-col rounded-lg border bg-card sm:h-[clamp(26rem,calc(100dvh-17rem),40rem)]">
                     {/* One question at a time; keyed by slide so each enters with a short slide from its side. */}
                     <div
                         key={slide}
                         className={cn(
-                            "flex min-h-80 flex-col gap-5 p-4 animate-in fade-in duration-200 ease-out motion-reduce:animate-none sm:p-6",
+                            "flex min-h-0 flex-1 flex-col gap-5 p-4 animate-in fade-in duration-200 ease-out motion-reduce:animate-none sm:overflow-y-auto sm:p-6",
                             direction === "forward" ? "slide-in-from-right-6" : "slide-in-from-left-6"
                         )}
                     >
@@ -602,10 +602,11 @@ function OnboardingWizard({ catalog, state, sessionStatus }) {
                         )}
                     </div>
 
-                    {/* Sticks to the bottom of the screen so Continue is always one tap away, however long the question. */}
-                    <div className="sticky bottom-0 z-10 flex flex-col gap-3 rounded-b-lg border-t bg-card px-4 py-3.5 sm:px-6">
+                    {/* Phones: a bar fixed across the bottom of the screen, always one thumb away. sm+: the foot of a
+                        fixed-height card, so Back and Continue stay in the same place on every question. */}
+                    <div className="fixed inset-x-0 bottom-0 z-20 flex flex-col border-t bg-background px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:static sm:z-auto sm:rounded-b-lg sm:bg-card sm:px-6 sm:py-3.5">
                         <ValidationHint id={hintId} problems={problems} show={!isValid} />
-                        <div id={errorId} role="alert" aria-live="assertive" className="empty:hidden">
+                        <div id={errorId} role="alert" aria-live="assertive" className="[&:has(p)]:mb-2.5">
                             {error && (
                                 <p className="flex items-start gap-1.5 text-sm text-destructive">
                                     <LuCircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
@@ -614,11 +615,11 @@ function OnboardingWizard({ catalog, state, sessionStatus }) {
                             )}
                         </div>
                         <div className="flex items-center justify-between gap-2">
-                            <Button type="button" variant="ghost" onClick={handleBack} disabled={slideIndex === 0 || busy}>
+                            <Button type="button" variant="ghost" onClick={handleBack} disabled={slideIndex === 0 || busy} className="max-sm:h-11">
                                 <LuArrowLeft />
                                 Back
                             </Button>
-                            <Button type="submit" disabled={!isValid || busy} aria-describedby={`${hintId} ${errorId}`}>
+                            <Button type="submit" disabled={!isValid || busy} aria-describedby={`${hintId} ${errorId}`} className="max-sm:h-11 max-sm:flex-1 sm:min-w-36">
                                 {(saveStep.isPending || complete.isPending) && <Spinner aria-hidden="true" />}
                                 {nextLabel}
                                 {!busy && (slide === "review" ? <LuCheck /> : <LuArrowRight />)}

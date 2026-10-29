@@ -47,7 +47,7 @@ export function ChoiceRadioGroup({ idPrefix, options, value, onChange, disabled,
             disabled={disabled}
             aria-invalid={invalid || undefined}
             aria-describedby={describedBy}
-            className={cn("grid gap-2", dense ? "grid-cols-2 lg:grid-cols-3" : cn(columns === 2 && "sm:grid-cols-2", columns === 3 && "sm:grid-cols-2 lg:grid-cols-3"))}
+            className={cn("grid auto-rows-fr gap-2", dense ? "grid-cols-2 lg:grid-cols-3" : cn(columns === 2 && "sm:grid-cols-2", columns === 3 && "sm:grid-cols-2 lg:grid-cols-3"))}
         >
             {options.map((option) => {
                 const id = `${idPrefix}-${option.value}`;
@@ -80,7 +80,7 @@ export function ChoiceCheckboxGroup({ idPrefix, options, values, onChange, disab
         <div
             data-slot="checkbox-group"
             aria-describedby={describedBy}
-            className={cn("grid gap-2", dense ? "grid-cols-2 lg:grid-cols-3" : cn(columns === 2 && "sm:grid-cols-2", columns === 3 && "sm:grid-cols-2 lg:grid-cols-3"))}
+            className={cn("grid auto-rows-fr gap-2", dense ? "grid-cols-2 lg:grid-cols-3" : cn(columns === 2 && "sm:grid-cols-2", columns === 3 && "sm:grid-cols-2 lg:grid-cols-3"))}
         >
             {options.map((option) => {
                 const id = `${idPrefix}-${option.value}`;
