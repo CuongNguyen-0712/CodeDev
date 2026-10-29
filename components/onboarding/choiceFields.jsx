@@ -39,7 +39,7 @@ export function toggleValue(list, value, checked) {
  * Single choice rendered as selectable cards. `options` = [{ value, label, description? }].
  * The surrounding <fieldset>/<legend> names the group.
  */
-export function ChoiceRadioGroup({ idPrefix, options, value, onChange, disabled, invalid, describedBy, columns = 2 }) {
+export function ChoiceRadioGroup({ idPrefix, options, value, onChange, disabled, invalid, describedBy, columns = 2, dense = false }) {
     return (
         <RadioGroup
             value={value ?? ""}
@@ -47,13 +47,13 @@ export function ChoiceRadioGroup({ idPrefix, options, value, onChange, disabled,
             disabled={disabled}
             aria-invalid={invalid || undefined}
             aria-describedby={describedBy}
-            className={cn("grid gap-2", columns === 2 && "sm:grid-cols-2")}
+            className={cn("grid gap-2", dense ? "grid-cols-2 lg:grid-cols-3" : cn(columns === 2 && "sm:grid-cols-2", columns === 3 && "sm:grid-cols-2 lg:grid-cols-3"))}
         >
             {options.map((option) => {
                 const id = `${idPrefix}-${option.value}`;
                 return (
                     <FieldLabel key={option.value} htmlFor={id} className="w-full cursor-pointer">
-                        <Field orientation="horizontal" className="gap-3 p-3!">
+                        <Field orientation="horizontal" className={dense ? "gap-2.5 p-2.5!" : "gap-3 p-3!"}>
                             <RadioGroupItem
                                 value={option.value}
                                 id={id}
@@ -75,19 +75,19 @@ export function ChoiceRadioGroup({ idPrefix, options, value, onChange, disabled,
 }
 
 /** Multiple choice rendered as selectable cards with checkboxes. */
-export function ChoiceCheckboxGroup({ idPrefix, options, values, onChange, disabled, invalid, describedBy, columns = 2 }) {
+export function ChoiceCheckboxGroup({ idPrefix, options, values, onChange, disabled, invalid, describedBy, columns = 2, dense = false }) {
     return (
         <div
             data-slot="checkbox-group"
             aria-describedby={describedBy}
-            className={cn("grid gap-2", columns === 2 && "sm:grid-cols-2", columns === 3 && "sm:grid-cols-2 lg:grid-cols-3")}
+            className={cn("grid gap-2", dense ? "grid-cols-2 lg:grid-cols-3" : cn(columns === 2 && "sm:grid-cols-2", columns === 3 && "sm:grid-cols-2 lg:grid-cols-3"))}
         >
             {options.map((option) => {
                 const id = `${idPrefix}-${option.value}`;
                 const checked = values.includes(option.value);
                 return (
                     <FieldLabel key={option.value} htmlFor={id} className="w-full cursor-pointer">
-                        <Field orientation="horizontal" className="gap-3 p-3!">
+                        <Field orientation="horizontal" className={dense ? "gap-2.5 p-2.5!" : "gap-3 p-3!"}>
                             <Checkbox
                                 id={id}
                                 checked={checked}

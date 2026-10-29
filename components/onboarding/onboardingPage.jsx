@@ -7,6 +7,7 @@ import { useSession } from "next-auth/react";
 import { useQuery } from "@tanstack/react-query";
 
 import { useApp } from "@/contexts/appContext";
+import { cn } from "@/lib/utils";
 import { onboardingQueries } from "@/queries/premium.query";
 import { useCompleteOnboarding, useSaveOnboardingStep, useSkipOnboarding } from "@/mutations/premium.mutation";
 
@@ -16,10 +17,7 @@ import { ChoiceCheckboxGroup, ChoiceRadioGroup, levelHint, levelLabel } from "@/
 import { RecommendationCard, RecommendationCardSkeleton } from "@/components/onboarding/recommendationCard";
 
 import { Button } from "@/components/shadcn/button";
-import { FieldDescription, FieldLegend, FieldSet } from "@/components/shadcn/field";
-import { Label } from "@/components/shadcn/label";
-import { Progress } from "@/components/shadcn/progress";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/shadcn/select";
+import { FieldLegend, FieldSet } from "@/components/shadcn/field";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Spinner } from "@/components/shadcn/spinner";
 
@@ -34,20 +32,26 @@ import {
     LuUser,
 } from "react-icons/lu";
 
-const STEPS = [
-    { key: "role", label: "Role" },
-    { key: "industry", label: "Industry" },
-    { key: "level_goals", label: "Level and goals" },
-    { key: "review", label: "Review" },
+// One question per slide. `step` is the server's onboarding step the answer belongs to: level, goals
+// and language are separate slides but one saved step (level_goals), so resuming and the API stay as
+// they were.
+const SLIDES = [
+    { key: "role", step: "role", label: "Role" },
+    { key: "industry", step: "industry", label: "Industry" },
+    { key: "level", step: "level_goals", label: "Level" },
+    { key: "goals", step: "level_goals", label: "Goals" },
+    { key: "language", step: "level_goals", label: "Language" },
+    { key: "review", step: "review", label: "Review" },
 ];
-const STEP_KEYS = STEPS.map((step) => step.key);
+const SLIDE_KEYS = SLIDES.map((slide) => slide.key);
 const NO_LANGUAGE = "none";
 
-function initialStep(state) {
+function initialSlide(state) {
     if (state?.status === "completed") return "recommendations";
     const current = state?.currentStep;
     if (current === "recommendations") return "review";
-    return STEP_KEYS.includes(current) ? current : "role";
+    // A saved step resumes on its first slide.
+    return SLIDES.find((slide) => slide.step === current)?.key || "role";
 }
 
 function initialDraft(preferences, catalog) {
@@ -66,11 +70,11 @@ function initialDraft(preferences, catalog) {
     };
 }
 
-function stepProblems(step, draft) {
+function slideProblems(slide, draft) {
     const problems = [];
-    if ((step === "role" || step === "review") && !draft.roleCode) problems.push("Choose a role to continue.");
-    if ((step === "level_goals" || step === "review") && !draft.experienceLevel) problems.push("Choose your experience level.");
-    if ((step === "level_goals" || step === "review") && draft.goalCodes.length === 0) problems.push("Choose at least one goal.");
+    if ((slide === "role" || slide === "review") && !draft.roleCode) problems.push("Choose a role to continue.");
+    if ((slide === "level" || slide === "language" || slide === "review") && !draft.experienceLevel) problems.push("Choose your experience level.");
+    if ((slide === "goals" || slide === "language" || slide === "review") && draft.goalCodes.length === 0) problems.push("Choose at least one goal.");
     return problems;
 }
 
@@ -118,39 +122,32 @@ function ValidationHint({ id, problems, show }) {
     );
 }
 
-function ProgressHeader({ step }) {
-    const index = STEP_KEYS.indexOf(step);
-    const done = step === "recommendations";
-    const value = done ? 100 : ((index + 1) / STEPS.length) * 100;
+// One segment per slide: answered slides fill with the brand hue, the current one is half-filled.
+function ProgressHeader({ slide }) {
+    const index = SLIDE_KEYS.indexOf(slide);
+    const done = slide === "recommendations";
 
     return (
-        <div className="space-y-3">
-            <div className="flex items-center justify-between gap-3 text-sm">
-                <p className="font-medium text-foreground">
-                    {done ? "All set" : `Step ${index + 1} of ${STEPS.length}`}
+        <div className="space-y-2.5">
+            <div className="flex items-baseline justify-between gap-3 text-sm">
+                <p className="font-medium text-foreground tabular" aria-live="polite">
+                    {done ? "All set" : `Question ${index + 1} of ${SLIDES.length}`}
                 </p>
-                {!done && <p className="text-muted-foreground">{STEPS[index].label}</p>}
+                {!done && <p className="text-muted-foreground">{SLIDES[index].label}</p>}
             </div>
-            <Progress value={value} aria-hidden="true" />
-            <ol className="m-0 hidden list-none grid-cols-4 gap-2 p-0 text-xs sm:grid" aria-label="Onboarding steps">
-                {STEPS.map((item, itemIndex) => {
+            <ol className="m-0 grid list-none gap-1.5 p-0" style={{ gridTemplateColumns: `repeat(${SLIDES.length}, minmax(0, 1fr))` }} aria-label="Onboarding questions">
+                {SLIDES.map((item, itemIndex) => {
                     const state = done || itemIndex < index ? "done" : itemIndex === index ? "current" : "todo";
                     return (
-                        <li
-                            key={item.key}
-                            aria-current={state === "current" ? "step" : undefined}
-                            className={
-                                state === "current"
-                                    ? "font-medium text-foreground"
-                                    : state === "done"
-                                        ? "text-muted-foreground"
-                                        : "text-muted-foreground"
-                            }
-                        >
-                            <span className="flex items-center gap-1">
-                                {state === "done" && <LuCheck className="size-3.5 text-success" aria-hidden="true" />}
-                                {item.label}
-                                {state === "done" && <span className="sr-only">(completed)</span>}
+                        <li key={item.key} aria-current={state === "current" ? "step" : undefined} className="h-1.5 overflow-hidden rounded-full bg-muted">
+                            <span
+                                className={cn(
+                                    "block h-full rounded-full bg-primary transition-[width] duration-300 ease-out motion-reduce:transition-none",
+                                    state === "done" ? "w-full" : state === "current" ? "w-1/2" : "w-0"
+                                )}
+                            />
+                            <span className="sr-only">
+                                {item.label}{state === "done" ? " (answered)" : state === "current" ? " (current)" : ""}
                             </span>
                         </li>
                     );
@@ -256,7 +253,9 @@ function OnboardingWizard({ catalog, state, sessionStatus }) {
     const router = useRouter();
     const { showAlert } = useApp();
 
-    const [step, setStep] = useState(() => initialStep(state));
+    const [slide, setSlide] = useState(() => initialSlide(state));
+    // Which way the last move went, so the next question slides in from the matching side.
+    const [direction, setDirection] = useState("forward");
     const [draft, setDraft] = useState(() => initialDraft(state?.preferences, catalog));
     const [returnToReview, setReturnToReview] = useState(false);
     const [error, setError] = useState(null);
@@ -267,21 +266,24 @@ function OnboardingWizard({ catalog, state, sessionStatus }) {
     const busy = saveStep.isPending || complete.isPending || skip.isPending;
 
     const headingRef = useRef(null);
-    const previousStep = useRef(step);
+    const previousSlide = useRef(slide);
 
-    // Move focus to the new step's heading so keyboard and screen reader users land on it.
+    // Move focus to the new question so keyboard and screen reader users land on it.
     useEffect(() => {
-        if (previousStep.current === step) return;
-        previousStep.current = step;
+        if (previousSlide.current === slide) return;
+        previousSlide.current = slide;
         headingRef.current?.focus();
-    }, [step]);
+    }, [slide]);
 
     const options = useMemo(() => ({
         roles: (catalog?.roles || []).map((role) => ({ value: role.code, label: role.name, description: role.description })),
         industries: (catalog?.industries || []).map((item) => ({ value: item.code, label: item.name })),
         goals: (catalog?.goals || []).map((goal) => ({ value: goal.code, label: goal.name })),
         levels: (catalog?.levels || []).map((level) => ({ value: level, label: levelLabel(level), description: levelHint(level) })),
-        languages: catalog?.languages || [],
+        languages: [
+            { value: NO_LANGUAGE, label: "No preference", description: "Courses in every language" },
+            ...(catalog?.languages || []).map((lang) => ({ value: String(lang.id), label: lang.name })),
+        ],
     }), [catalog]);
 
     const names = useMemo(() => ({
@@ -296,14 +298,16 @@ function OnboardingWizard({ catalog, state, sessionStatus }) {
         setError(null);
     };
 
-    const goTo = (next) => {
+    const goTo = (next, way = "forward") => {
         setError(null);
-        setStep(next);
+        setDirection(way);
+        setSlide(next);
     };
 
-    const problems = stepProblems(step, draft);
+    const problems = slideProblems(slide, draft);
     const isValid = problems.length === 0;
-    const stepIndex = STEP_KEYS.indexOf(step);
+    const slideIndex = SLIDE_KEYS.indexOf(slide);
+    const current = SLIDES[slideIndex];
     const isCompleted = state?.status === "completed";
 
     const reportError = (err, fallback) => {
@@ -312,11 +316,16 @@ function OnboardingWizard({ catalog, state, sessionStatus }) {
         showAlert(err?.status || 500, message);
     };
 
+    // Level and goals are saved together with the language (one server step), on the language slide,
+    // or straight away when they were edited from the review.
+    const savesOnLeave = (key) =>
+        key === "role" || key === "industry" || key === "language" || (returnToReview && (key === "level" || key === "goals"));
+
     const handleNext = async () => {
         if (!isValid || busy) return;
         setError(null);
 
-        if (step === "review") {
+        if (slide === "review") {
             try {
                 await complete.mutateAsync();
                 setReturnToReview(false);
@@ -327,29 +336,38 @@ function OnboardingWizard({ catalog, state, sessionStatus }) {
             return;
         }
 
-        try {
-            await saveStep.mutateAsync(stepPayload(step, draft));
-            if (returnToReview) {
-                setReturnToReview(false);
-                goTo("review");
-            } else {
-                goTo(STEP_KEYS[stepIndex + 1]);
+        if (savesOnLeave(slide)) {
+            // level_goals needs a level and a goal; editing only the level from the review has both.
+            if (current.step === "level_goals" && slideProblems("language", draft).length > 0) {
+                goTo(SLIDE_KEYS[slideIndex + 1]);
+                return;
             }
-        } catch (err) {
-            // The selections stay in the draft so the user can retry without re-entering them.
-            reportError(err, "Could not save your answers. Please try again.");
+            try {
+                await saveStep.mutateAsync(stepPayload(current.step, draft));
+            } catch (err) {
+                // The answers stay in the draft so the learner can retry without choosing again.
+                reportError(err, "Could not save your answers. Please try again.");
+                return;
+            }
+        }
+
+        if (returnToReview) {
+            setReturnToReview(false);
+            goTo("review");
+        } else {
+            goTo(SLIDE_KEYS[slideIndex + 1]);
         }
     };
 
     const handleBack = () => {
-        if (stepIndex <= 0 || busy) return;
+        if (slideIndex <= 0 || busy) return;
         setReturnToReview(false);
-        goTo(STEP_KEYS[stepIndex - 1]);
+        goTo(SLIDE_KEYS[slideIndex - 1], "back");
     };
 
     const handleEdit = (target) => {
         setReturnToReview(true);
-        goTo(target);
+        goTo(target, "back");
     };
 
     const handleSkip = async () => {
@@ -369,13 +387,15 @@ function OnboardingWizard({ catalog, state, sessionStatus }) {
 
     const hintId = "onboarding-step-hint";
     const errorId = "onboarding-step-error";
-    const nextLabel = step === "review"
+    const nextLabel = slide === "review"
         ? (complete.isPending ? "Finishing..." : "Finish")
         : saveStep.isPending
             ? "Saving..."
             : returnToReview
                 ? "Save and return to review"
-                : "Continue";
+                : slide === "industry" && draft.industryCodes.length === 0
+                    ? "Skip this question"
+                    : "Continue";
 
     const languageValue = draft.preferredLanguageId != null ? String(draft.preferredLanguageId) : NO_LANGUAGE;
 
@@ -387,7 +407,7 @@ function OnboardingWizard({ catalog, state, sessionStatus }) {
                     <LogoMark size={28} aria-hidden="true" />
                     <span className="sr-only">CodeDev</span>
                 </span>
-                {!isCompleted && step !== "recommendations" && (
+                {!isCompleted && slide !== "recommendations" && (
                     <Button type="button" variant="ghost" size="sm" onClick={handleSkip} disabled={busy}>
                         {skip.isPending && <Spinner aria-hidden="true" />}
                         {skip.isPending ? "Skipping..." : "Skip for now"}
@@ -396,182 +416,196 @@ function OnboardingWizard({ catalog, state, sessionStatus }) {
             </header>
 
             <div className="space-y-1">
-                <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-                    {step === "recommendations" ? "You are all set" : "Set up your learning profile"}
+                <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+                    {slide === "recommendations" ? "You are all set" : "Set up your learning profile"}
                 </h1>
                 <p className="max-w-[60ch] text-sm text-muted-foreground">
-                    {step === "recommendations"
+                    {slide === "recommendations"
                         ? "Here is where we suggest you start."
-                        : "A few questions so we can recommend the right courses. It takes about a minute and you can change your answers later."}
+                        : "Six short questions so we can recommend the right courses. You can change your answers later in Settings."}
                 </p>
             </div>
 
-            <ProgressHeader step={step} />
+            <ProgressHeader slide={slide} />
 
-            {step === "recommendations" ? (
+            {slide === "recommendations" ? (
                 <RecommendationsStep
                     sessionStatus={sessionStatus}
                     headingRef={headingRef}
-                    onEdit={() => goTo("review")}
+                    onEdit={() => goTo("review", "back")}
                 />
             ) : (
-                <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-6 rounded-lg border bg-card p-4 sm:p-6">
-                    {step === "role" && (
-                        <>
-                            <StepHeading
-                                headingRef={headingRef}
-                                title="What best describes the role you are aiming for?"
-                                description="We use it to suggest courses that build the skills this role needs."
-                            />
-                            <FieldSet disabled={busy}>
-                                <FieldLegend variant="label">Choose one role</FieldLegend>
-                                {options.roles.length === 0 ? (
-                                    <p className="text-sm text-muted-foreground">No roles are available yet. You can skip this step.</p>
-                                ) : (
+                <form onSubmit={handleSubmit} noValidate className="flex flex-col rounded-lg border bg-card">
+                    {/* One question at a time; keyed by slide so each enters with a short slide from its side. */}
+                    <div
+                        key={slide}
+                        className={cn(
+                            "flex min-h-80 flex-col gap-5 p-4 animate-in fade-in duration-200 ease-out motion-reduce:animate-none sm:p-6",
+                            direction === "forward" ? "slide-in-from-right-6" : "slide-in-from-left-6"
+                        )}
+                    >
+                        {slide === "role" && (
+                            <>
+                                <StepHeading
+                                    headingRef={headingRef}
+                                    title="What role are you aiming for?"
+                                    description="We suggest courses that build the skills this role needs."
+                                />
+                                <FieldSet disabled={busy}>
+                                    <FieldLegend className="sr-only">Choose one role</FieldLegend>
+                                    {options.roles.length === 0 ? (
+                                        <p className="text-sm text-muted-foreground">No roles are available yet. You can skip this question.</p>
+                                    ) : (
+                                        <ChoiceRadioGroup
+                                            idPrefix="onboarding-role"
+                                            options={options.roles}
+                                            value={draft.roleCode}
+                                            onChange={(value) => update({ roleCode: value })}
+                                            disabled={busy}
+                                            describedBy={hintId}
+                                        />
+                                    )}
+                                </FieldSet>
+                            </>
+                        )}
+
+                        {slide === "industry" && (
+                            <>
+                                <StepHeading
+                                    headingRef={headingRef}
+                                    title="Which industries interest you?"
+                                    description="Optional. Pick any that apply, or skip this question."
+                                />
+                                <FieldSet disabled={busy}>
+                                    <FieldLegend className="sr-only">Industries (optional)</FieldLegend>
+                                    {options.industries.length === 0 ? (
+                                        <p className="text-sm text-muted-foreground">No industries are available yet.</p>
+                                    ) : (
+                                        <ChoiceCheckboxGroup
+                                            idPrefix="onboarding-industry"
+                                            options={options.industries}
+                                            values={draft.industryCodes}
+                                            onChange={(values) => update({ industryCodes: values })}
+                                            disabled={busy}
+                                            dense
+                                        />
+                                    )}
+                                </FieldSet>
+                            </>
+                        )}
+
+                        {slide === "level" && (
+                            <>
+                                <StepHeading
+                                    headingRef={headingRef}
+                                    title="How much programming have you done?"
+                                    description="Recommendations start at this difficulty."
+                                />
+                                <FieldSet disabled={busy}>
+                                    <FieldLegend className="sr-only">Experience level</FieldLegend>
                                     <ChoiceRadioGroup
-                                        idPrefix="onboarding-role"
-                                        options={options.roles}
-                                        value={draft.roleCode}
-                                        onChange={(value) => update({ roleCode: value })}
+                                        idPrefix="onboarding-level"
+                                        options={options.levels}
+                                        value={draft.experienceLevel}
+                                        onChange={(value) => update({ experienceLevel: value })}
                                         disabled={busy}
                                         describedBy={hintId}
                                     />
-                                )}
-                            </FieldSet>
-                        </>
-                    )}
+                                </FieldSet>
+                            </>
+                        )}
 
-                    {step === "industry" && (
-                        <>
-                            <StepHeading
-                                headingRef={headingRef}
-                                title="Which industries interest you?"
-                                description="Optional. Pick any that apply, or continue without choosing."
-                            />
-                            <FieldSet disabled={busy}>
-                                <FieldLegend variant="label">Industries (optional)</FieldLegend>
-                                {options.industries.length === 0 ? (
-                                    <p className="text-sm text-muted-foreground">No industries are available yet.</p>
-                                ) : (
+                        {slide === "goals" && (
+                            <>
+                                <StepHeading
+                                    headingRef={headingRef}
+                                    title="What do you want to get out of it?"
+                                    description="Choose at least one. Courses that serve these goals come first."
+                                />
+                                <FieldSet disabled={busy}>
+                                    <FieldLegend className="sr-only">Goals (choose at least one)</FieldLegend>
                                     <ChoiceCheckboxGroup
-                                        idPrefix="onboarding-industry"
-                                        options={options.industries}
-                                        values={draft.industryCodes}
-                                        onChange={(values) => update({ industryCodes: values })}
+                                        idPrefix="onboarding-goal"
+                                        options={options.goals}
+                                        values={draft.goalCodes}
+                                        onChange={(values) => update({ goalCodes: values })}
                                         disabled={busy}
-                                        columns={3}
+                                        describedBy={hintId}
                                     />
-                                )}
-                            </FieldSet>
-                        </>
-                    )}
+                                </FieldSet>
+                            </>
+                        )}
 
-                    {step === "level_goals" && (
-                        <>
-                            <StepHeading
-                                headingRef={headingRef}
-                                title="Your experience and goals"
-                                description="This keeps recommendations at the right difficulty and focused on what you want."
-                            />
-                            <FieldSet disabled={busy}>
-                                <FieldLegend variant="label">Experience level</FieldLegend>
-                                <ChoiceRadioGroup
-                                    idPrefix="onboarding-level"
-                                    options={options.levels}
-                                    value={draft.experienceLevel}
-                                    onChange={(value) => update({ experienceLevel: value })}
-                                    disabled={busy}
-                                    describedBy={hintId}
+                        {slide === "language" && (
+                            <>
+                                <StepHeading
+                                    headingRef={headingRef}
+                                    title="Do you have a favourite language?"
+                                    description="Optional. Courses in this language are ranked first."
                                 />
-                            </FieldSet>
-                            <FieldSet disabled={busy}>
-                                <FieldLegend variant="label">Goals (choose at least one)</FieldLegend>
-                                <ChoiceCheckboxGroup
-                                    idPrefix="onboarding-goal"
-                                    options={options.goals}
-                                    values={draft.goalCodes}
-                                    onChange={(values) => update({ goalCodes: values })}
-                                    disabled={busy}
-                                    describedBy={hintId}
+                                <FieldSet disabled={busy}>
+                                    <FieldLegend className="sr-only">Preferred programming language</FieldLegend>
+                                    <ChoiceRadioGroup
+                                        idPrefix="onboarding-language"
+                                        options={options.languages}
+                                        value={languageValue}
+                                        onChange={(value) => update({ preferredLanguageId: value === NO_LANGUAGE ? null : Number(value) })}
+                                        disabled={busy}
+                                        dense
+                                    />
+                                </FieldSet>
+                            </>
+                        )}
+
+                        {slide === "review" && (
+                            <>
+                                <StepHeading
+                                    headingRef={headingRef}
+                                    title="Check your answers"
+                                    description="Edit any of them, then finish to see your recommendations."
                                 />
-                            </FieldSet>
-                            <FieldSet disabled={busy} className="gap-2">
-                                <FieldLegend variant="label" className="mb-1">Preferred programming language (optional)</FieldLegend>
-                                <Label htmlFor="onboarding-language" className="sr-only">Preferred programming language</Label>
-                                <Select
-                                    value={languageValue}
-                                    onValueChange={(value) => update({ preferredLanguageId: value === NO_LANGUAGE ? null : Number(value) })}
-                                    disabled={busy}
-                                >
-                                    <SelectTrigger id="onboarding-language" className="w-full sm:w-72" aria-describedby="onboarding-language-note">
-                                        <SelectValue placeholder="No preference" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value={NO_LANGUAGE}>No preference</SelectItem>
-                                        {options.languages.map((lang) => (
-                                            <SelectItem key={lang.id} value={String(lang.id)}>{lang.name}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                                <FieldDescription id="onboarding-language-note" className="text-xs">
-                                    Used to rank recommendations: courses in this language appear first.
-                                </FieldDescription>
-                            </FieldSet>
-                        </>
-                    )}
+                                <FieldSet disabled={busy}>
+                                    <FieldLegend className="sr-only">Your answers</FieldLegend>
+                                    <dl className="m-0 divide-y rounded-lg border">
+                                        <ReviewRow label="Role" value={names.role.get(draft.roleCode) || "Not chosen"} onEdit={() => handleEdit("role")} disabled={busy} />
+                                        <ReviewRow
+                                            label="Industries"
+                                            value={draft.industryCodes.length
+                                                ? draft.industryCodes.map((code) => names.industry.get(code) || code).join(", ")
+                                                : "None selected"}
+                                            onEdit={() => handleEdit("industry")}
+                                            disabled={busy}
+                                        />
+                                        <ReviewRow
+                                            label="Experience level"
+                                            value={draft.experienceLevel ? levelLabel(draft.experienceLevel) : "Not chosen"}
+                                            onEdit={() => handleEdit("level")}
+                                            disabled={busy}
+                                        />
+                                        <ReviewRow
+                                            label="Goals"
+                                            value={draft.goalCodes.length
+                                                ? draft.goalCodes.map((code) => names.goal.get(code) || code).join(", ")
+                                                : "Not chosen"}
+                                            onEdit={() => handleEdit("goals")}
+                                            disabled={busy}
+                                        />
+                                        <ReviewRow
+                                            label="Preferred language"
+                                            value={names.language.get(draft.preferredLanguageId) || "No preference"}
+                                            onEdit={() => handleEdit("language")}
+                                            disabled={busy}
+                                        />
+                                    </dl>
+                                </FieldSet>
+                            </>
+                        )}
+                    </div>
 
-                    {step === "review" && (
-                        <>
-                            <StepHeading
-                                headingRef={headingRef}
-                                title="Review your answers"
-                                description="Check everything looks right, then finish to see your recommendations."
-                            />
-                            <FieldSet disabled={busy}>
-                                <FieldLegend className="sr-only">Your answers</FieldLegend>
-                                <dl className="m-0 divide-y rounded-lg border">
-                                    <ReviewRow
-                                        label="Role"
-                                        value={names.role.get(draft.roleCode) || "Not chosen"}
-                                        onEdit={() => handleEdit("role")}
-                                        disabled={busy}
-                                    />
-                                    <ReviewRow
-                                        label="Industries"
-                                        value={draft.industryCodes.length
-                                            ? draft.industryCodes.map((code) => names.industry.get(code) || code).join(", ")
-                                            : "None selected"}
-                                        onEdit={() => handleEdit("industry")}
-                                        disabled={busy}
-                                    />
-                                    <ReviewRow
-                                        label="Experience level"
-                                        value={draft.experienceLevel ? levelLabel(draft.experienceLevel) : "Not chosen"}
-                                        onEdit={() => handleEdit("level_goals")}
-                                        disabled={busy}
-                                    />
-                                    <ReviewRow
-                                        label="Goals"
-                                        value={draft.goalCodes.length
-                                            ? draft.goalCodes.map((code) => names.goal.get(code) || code).join(", ")
-                                            : "Not chosen"}
-                                        onEdit={() => handleEdit("level_goals")}
-                                        disabled={busy}
-                                    />
-                                    <ReviewRow
-                                        label="Preferred language"
-                                        value={names.language.get(draft.preferredLanguageId) || "No preference"}
-                                        onEdit={() => handleEdit("level_goals")}
-                                        disabled={busy}
-                                    />
-                                </dl>
-                            </FieldSet>
-                        </>
-                    )}
-
-                    <div className="flex flex-col gap-3 border-t pt-4">
+                    {/* Sticks to the bottom of the screen so Continue is always one tap away, however long the question. */}
+                    <div className="sticky bottom-0 z-10 flex flex-col gap-3 rounded-b-lg border-t bg-card px-4 py-3.5 sm:px-6">
                         <ValidationHint id={hintId} problems={problems} show={!isValid} />
-                        <div id={errorId} role="alert" aria-live="assertive">
+                        <div id={errorId} role="alert" aria-live="assertive" className="empty:hidden">
                             {error && (
                                 <p className="flex items-start gap-1.5 text-sm text-destructive">
                                     <LuCircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
@@ -579,24 +613,15 @@ function OnboardingWizard({ catalog, state, sessionStatus }) {
                                 </p>
                             )}
                         </div>
-                        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={handleBack}
-                                disabled={stepIndex === 0 || busy}
-                            >
+                        <div className="flex items-center justify-between gap-2">
+                            <Button type="button" variant="ghost" onClick={handleBack} disabled={slideIndex === 0 || busy}>
                                 <LuArrowLeft />
                                 Back
                             </Button>
-                            <Button
-                                type="submit"
-                                disabled={!isValid || busy}
-                                aria-describedby={`${hintId} ${errorId}`}
-                            >
+                            <Button type="submit" disabled={!isValid || busy} aria-describedby={`${hintId} ${errorId}`}>
                                 {(saveStep.isPending || complete.isPending) && <Spinner aria-hidden="true" />}
                                 {nextLabel}
-                                {!busy && (step === "review" ? <LuCheck /> : <LuArrowRight />)}
+                                {!busy && (slide === "review" ? <LuCheck /> : <LuArrowRight />)}
                             </Button>
                         </div>
                     </div>
