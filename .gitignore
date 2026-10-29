@@ -72,3 +72,6 @@ sanity.config.js
 
 # Playwright MCP snapshots, logs & screenshots
 /.playwright-mcp
+
+# Others
+future-plan.txt
