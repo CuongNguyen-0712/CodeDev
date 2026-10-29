@@ -10,7 +10,6 @@ import { commerceQueries } from "@/queries/premium.query";
 import { invalidateOwnership, newIdempotencyKey, useCheckout } from "@/mutations/premium.mutation";
 import { useCourseRegister } from "@/mutations/course.mutation";
 import { errorCode } from "@/clients/premium.client";
-import { useApp } from "@/contexts/appContext";
 import { cn } from "@/lib/utils";
 
 import { Button } from "@/components/shadcn/button";
@@ -18,6 +17,7 @@ import { Skeleton } from "@/components/shadcn/skeleton";
 
 import {
     LuArrowRight,
+    LuCircleAlert,
     LuCoins,
     LuCreditCard,
     LuInfo,
@@ -27,6 +27,7 @@ import {
     LuPlus,
     LuRotateCcw,
     LuRotateCw,
+    LuX,
 } from "react-icons/lu";
 
 import { commerceErrorMessage, formatMoney, formatPoints, isPremium, isSafeCheckoutUrl, offersOf } from "./format";
@@ -47,7 +48,7 @@ function Note({ children, tone = "muted", role = "note" }) {
         <p
             role={role}
             className={cn(
-                "flex basis-full items-start gap-2 text-sm",
+                "order-1 flex basis-full items-start gap-2 text-sm",
                 tone === "warning" ? "text-warning" : "text-muted-foreground"
             )}
         >
@@ -55,6 +56,41 @@ function Note({ children, tone = "muted", role = "note" }) {
             <span>{children}</span>
         </p>
     );
+}
+
+/**
+ * A purchase or enrolment that failed, shown under the buttons until the learner acts on it.
+ * It replaced a 4-second toast that disappeared before it could be read and offered no next step.
+ */
+function PurchaseProblem({ title, message, children, onDismiss }) {
+    return (
+        <div role="alert" className="order-1 flex max-w-xl basis-full items-start gap-3 rounded-lg border border-destructive/25 bg-destructive-soft/50 px-3.5 py-3">
+            <LuCircleAlert className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden="true" />
+            <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-foreground">{title}</p>
+                {message && <p className="mt-0.5 text-sm text-muted-foreground">{message}</p>}
+                {children && <div className="mt-2.5 flex flex-wrap gap-2">{children}</div>}
+            </div>
+            {onDismiss && (
+                <Button type="button" variant="ghost" size="icon-sm" className="-mt-1 -mr-1.5 text-muted-foreground" onClick={onDismiss} aria-label="Dismiss">
+                    <LuX />
+                </Button>
+            )}
+        </div>
+    );
+}
+
+// What went wrong, in the learner's words, by the server's error code (the action is chosen at render).
+function describeProblem(err, kind) {
+    const code = errorCode(err);
+    if (code === 'ALREADY_OWNED') return { code, title: 'You already own this course', message: 'Your access is ready. Open the course to start learning.' };
+    if (code === 'OFFER_UNAVAILABLE' || code === 'COURSE_UNAVAILABLE') return { code, title: 'The price has changed', message: commerceErrorMessage(err) };
+    if (code === 'IDEMPOTENCY_CONFLICT') return { code, title: 'An earlier checkout is still open', message: 'Finish or cancel it in Orders and points, then try again.' };
+    if (code === 'PROVIDER_UNAVAILABLE') return { code, title: 'The payment provider is not responding', message: 'Nothing was charged. Try again in a moment.' };
+    if (err?.status === 429) return { code: 'RATE_LIMITED', title: 'Too many attempts', message: 'Wait a minute, then try again.' };
+    return kind === 'enrol'
+        ? { code, title: 'We could not enroll you', message: commerceErrorMessage(err, 'Please try again.') }
+        : { code, title: 'We could not open the payment page', message: commerceErrorMessage(err, 'Nothing was charged. Please try again.') };
 }
 
 /**
@@ -72,10 +108,10 @@ export function PurchaseActions({ courseId, course, isLoading = false, error = n
     const router = useRouter();
     const queryClient = useQueryClient();
     const { status: authStatus } = useSession();
-    const { showAlert } = useApp();
 
     const [redeemOpen, setRedeemOpen] = useState(false);
     const [checkoutNote, setCheckoutNote] = useState(null);
+    const [problem, setProblem] = useState(null);
     const [isNavigating, startTransition] = useTransition();
     const checkoutKey = useRef(null);
 
@@ -114,14 +150,15 @@ export function PurchaseActions({ courseId, course, isLoading = false, error = n
 
     if (error || !course) {
         return (
-            <div role="alert" className={cn("flex flex-wrap items-center gap-2 text-sm text-muted-foreground", className)}>
-                <span>Could not load purchase options.</span>
-                {onRetry && (
-                    <Button type="button" variant="outline" size="sm" onClick={() => onRetry()}>
-                        <LuRotateCw aria-hidden="true" />
-                        Retry
-                    </Button>
-                )}
+            <div className={cn("flex w-full max-w-xl flex-wrap", className)}>
+                <PurchaseProblem title="Prices and access did not load" message="Your purchases are safe. Load them again to continue.">
+                    {onRetry && (
+                        <Button type="button" variant="outline" size="sm" onClick={() => onRetry()}>
+                            <LuRotateCw aria-hidden="true" />
+                            Try again
+                        </Button>
+                    )}
+                </PurchaseProblem>
             </div>
         );
     }
@@ -133,12 +170,13 @@ export function PurchaseActions({ courseId, course, isLoading = false, error = n
         }
         if (!entitlements.isSuccess) {
             return (
-                <div role="alert" className={cn("flex flex-wrap items-center gap-2 text-sm text-muted-foreground", className)}>
-                    <span>Could not check your access to this course.</span>
-                    <Button type="button" variant="outline" size="sm" onClick={() => entitlements.refetch()}>
-                        <LuRotateCw aria-hidden="true" />
-                        Retry
-                    </Button>
+                <div className={cn("flex w-full max-w-xl flex-wrap", className)}>
+                    <PurchaseProblem title="We could not check your access" message="If you bought this course, it is still yours. Check again to continue.">
+                        <Button type="button" variant="outline" size="sm" onClick={() => entitlements.refetch()}>
+                            <LuRotateCw aria-hidden="true" />
+                            Check again
+                        </Button>
+                    </PurchaseProblem>
                 </div>
             );
         }
@@ -153,17 +191,19 @@ export function PurchaseActions({ courseId, course, isLoading = false, error = n
 
     const enrolFree = async () => {
         if (busy) return;
+        setProblem(null);
         try {
             await register.mutateAsync(courseId);
             openLearning();
         } catch (err) {
-            showAlert(err?.status || 500, commerceErrorMessage(err, 'An error occurred while registering for the course.'));
+            setProblem({ ...describeProblem(err, 'enrol'), retry: 'enrol' });
         }
     };
 
     const startCheckout = async () => {
         if (checkout.isPending) return;
         setCheckoutNote(null);
+        setProblem(null);
         // One key per purchase intent; a retry after a network error replays the same order.
         if (!checkoutKey.current) checkoutKey.current = newIdempotencyKey();
         try {
@@ -186,9 +226,35 @@ export function PurchaseActions({ courseId, course, isLoading = false, error = n
                 setCheckoutNote(commerceErrorMessage(err));
                 return;
             }
-            showAlert(err?.status || 500, commerceErrorMessage(err, 'Could not start the checkout. Please try again.'));
+            setProblem({ ...describeProblem(err, 'checkout'), retry: 'checkout' });
         }
     };
+
+    // The next step for the problem on screen: open what is owned, refresh a changed price, or try again.
+    const problemPanel = problem && (
+        <PurchaseProblem title={problem.title} message={problem.message} onDismiss={() => setProblem(null)}>
+            {problem.code === 'ALREADY_OWNED' ? (
+                <Button type="button" size="sm" onClick={openLearning}>
+                    <LuPlay aria-hidden="true" />
+                    Start learning
+                </Button>
+            ) : problem.code === 'OFFER_UNAVAILABLE' || problem.code === 'COURSE_UNAVAILABLE' ? (
+                <Button type="button" variant="outline" size="sm" onClick={() => { setProblem(null); onRetry?.(); }}>
+                    <LuRotateCw aria-hidden="true" />
+                    Refresh price
+                </Button>
+            ) : problem.code === 'IDEMPOTENCY_CONFLICT' ? (
+                <Button asChild variant="outline" size="sm">
+                    <Link href="/orders">View orders</Link>
+                </Button>
+            ) : problem.code === 'RATE_LIMITED' ? null : (
+                <Button type="button" variant="outline" size="sm" onClick={problem.retry === 'enrol' ? enrolFree : startCheckout}>
+                    <LuRotateCw aria-hidden="true" />
+                    Try again
+                </Button>
+            )}
+        </PurchaseProblem>
+    );
 
     const { money, points } = offersOf(course);
 
@@ -206,8 +272,11 @@ export function PurchaseActions({ courseId, course, isLoading = false, error = n
 
     // One stable tree: the dialog keeps its place (and state) whichever branch renders.
     const wrap = (body) => (
-        <div className={cn("flex flex-wrap items-center gap-2", className)}>
+        // `contents`: the buttons join the header row next to "Copy link"; notes and problems (order-1)
+        // drop to their own line under it.
+        <div className={cn("contents", className)}>
             {body}
+            {problemPanel}
             {redeemDialog}
         </div>
     );
@@ -271,7 +340,7 @@ export function PurchaseActions({ courseId, course, isLoading = false, error = n
                     Redeem for {formatPoints(points)}
                 </Button>
             )}
-            <div aria-live="polite" className="basis-full empty:hidden">
+            <div aria-live="polite" className="order-1 basis-full empty:hidden">
                 {checkoutNote && <Note tone="warning" role="status">{checkoutNote}</Note>}
             </div>
         </>
