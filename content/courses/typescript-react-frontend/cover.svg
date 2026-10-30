@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
-  <!-- Course cover: Frontend engineering with TypeScript and React (component tree, one re-render, virtualized list). -->
+  <!-- Course cover: React + TypeScript architecture (catalog component tree, one re-render, a paginated list). -->
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#0F1724"/>
@@ -29,30 +29,30 @@
     <rect x="112" y="152" width="92" height="92" rx="20" fill="#3178C6"/>
     <text x="194" y="232" text-anchor="end" font-size="40" font-weight="800" fill="#FFFFFF">TS</text>
     <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#61DAFB">TYPESCRIPT · REACT</text>
-    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">Frontend</text>
-    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">Engineering</text>
-    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Typed state · Effects · Memo · Virtual lists</text>
+    <text x="106" y="430" font-size="68" font-weight="800" fill="#F4F2F8">React + TypeScript</text>
+    <text x="106" y="530" font-size="68" font-weight="800" fill="#F4F2F8">Architecture</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Typed state · Effects · Server data</text>
     <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#CBE4FA">
       <rect x="110" y="660" width="178" height="52" rx="26" fill="#132238" stroke="#3178C6"/>
       <text x="199" y="695" text-anchor="middle">Props&lt;T&gt;</text>
       <rect x="304" y="660" width="207" height="52" rx="26" fill="#132238" stroke="#3178C6"/>
       <text x="407.5" y="695" text-anchor="middle">useReducer</text>
-      <rect x="527" y="660" width="121" height="52" rx="26" fill="#132238" stroke="#3178C6"/>
-      <text x="587.5" y="695" text-anchor="middle">memo</text>
+      <rect x="527" y="660" width="160" height="52" rx="26" fill="#132238" stroke="#3178C6"/>
+      <text x="607" y="695" text-anchor="middle">queryKey</text>
     </g>
   </g>
 
-  <!-- Only the changed component re-renders; the long list renders just the rows in view -->
+  <!-- Only the changed component re-renders; the list shows one page of courses -->
   <g id="art">
     <path d="M1180 300 C1180 350, 1020 350, 1020 392 M1180 300 C1180 350, 1430 340, 1430 382 M1020 448 V512" stroke="#28446A" stroke-width="3" fill="none"/>
     <rect x="1090" y="244" width="180" height="56" rx="14" fill="#131C2B" fill-opacity="1" stroke="#28446A" stroke-width="2"/>
-    <text x="1180" y="280" font-family="Consolas, Menlo, monospace" font-size="22" fill="#F4F2F8" text-anchor="middle">&lt;App&gt;</text>
+    <text x="1180" y="280" font-family="Consolas, Menlo, monospace" font-size="20" fill="#F4F2F8" text-anchor="middle">&lt;CatalogPage&gt;</text>
     <rect x="930" y="392" width="180" height="56" rx="14" fill="#61DAFB" fill-opacity="0.18" stroke="#61DAFB" stroke-width="3"/>
-    <text x="1020" y="428" font-family="Consolas, Menlo, monospace" font-size="22" fill="#61DAFB" text-anchor="middle">&lt;Cart&gt;</text>
+    <text x="1020" y="428" font-family="Consolas, Menlo, monospace" font-size="20" fill="#61DAFB" text-anchor="middle">&lt;FilterBar&gt;</text>
     <rect x="930" y="512" width="180" height="56" rx="14" fill="#61DAFB" fill-opacity="0.18" stroke="#61DAFB" stroke-width="3"/>
-    <text x="1020" y="548" font-family="Consolas, Menlo, monospace" font-size="22" fill="#61DAFB" text-anchor="middle">&lt;Total&gt;</text>
+    <text x="1020" y="548" font-family="Consolas, Menlo, monospace" font-size="20" fill="#61DAFB" text-anchor="middle">&lt;SearchBox&gt;</text>
     <rect x="1340" y="382" width="180" height="56" rx="14" fill="#131C2B" fill-opacity="1" stroke="#28446A" stroke-width="2"/>
-    <text x="1430" y="418" font-family="Consolas, Menlo, monospace" font-size="22" fill="#F4F2F8" text-anchor="middle">&lt;ProductList&gt;</text>
+    <text x="1430" y="418" font-family="Consolas, Menlo, monospace" font-size="20" fill="#F4F2F8" text-anchor="middle">&lt;CourseList&gt;</text>
     <text x="1020" y="604" font-family="Consolas, Menlo, monospace" font-size="20" fill="#61DAFB" text-anchor="middle">state changed</text>
     <text x="1430" y="464" font-family="Consolas, Menlo, monospace" font-size="18" fill="#3DBE7B" text-anchor="middle">memo: skipped</text>
     <rect x="1340" y="490" width="180" height="22" rx="6" fill="#28446A" fill-opacity="0.25"/>
@@ -63,7 +63,7 @@
     <rect x="1340" y="640" width="180" height="22" rx="6" fill="#28446A" fill-opacity="0.25"/>
     <rect x="1340" y="670" width="180" height="22" rx="6" fill="#28446A" fill-opacity="0.25"/>
     <rect x="1330" y="544" width="200" height="86" rx="10" fill="none" stroke="#61DAFB" stroke-width="3"/>
-    <text x="1430" y="700" font-family="Consolas, Menlo, monospace" font-size="20" fill="#B8B2C8" text-anchor="middle">3 of 10,000 rows</text>
-    <text x="904" y="680" font-family="Consolas, Menlo, monospace" font-size="20" fill="#61DAFB" >type Props = { items: Item[] }</text>
+    <text x="1430" y="700" font-family="Consolas, Menlo, monospace" font-size="20" fill="#B8B2C8" text-anchor="middle">page 2 of 6</text>
+    <text x="904" y="680" font-family="Consolas, Menlo, monospace" font-size="20" fill="#61DAFB" >type Props = { items: Course[] }</text>
   </g>
 </svg>

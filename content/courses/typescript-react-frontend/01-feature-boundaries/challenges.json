@@ -1,0 +1,203 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_trf_111",
+      "name": "feature-boundaries-quiz",
+      "type": "quiz",
+      "title": "Where can this be tested?",
+      "description": "Two pieces of the catalog screen after the first split: a sorting function with a bug report, and a course card. Decide whether each statement is True or False.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Support ticket: \"On /courses sorted by Most popular, Next.js Rendering & Caching and React + TypeScript Architecture swap places every time I refresh.\" Both courses have 640 learners. The API does not promise any order for rows with equal values.\n\n// features/catalog/catalog.logic.ts\nexport function sortCourses(courses: Course[], sort: SortKey): Course[] {\n    const byKey = {\n        popular: (a: Course, b: Course) => b.learners - a.learners,\n        rating: (a: Course, b: Course) => b.rating - a.rating,\n    };\n    return [...courses].sort(byKey[sort as \"popular\" | \"rating\"]);\n}\n\nStatement: \"This bug can be reproduced by a unit test that calls sortCourses twice with the same two courses in opposite input orders, without a browser, React or the API.\"",
+          "explanation": "True. sortCourses is a pure function: its output depends only on its arguments. The comparator returns 0 for two courses with 640 learners, and Array.prototype.sort is stable, so the result keeps whatever order the input had. Calling it with [next, react] and with [react, next] gives two different results, which is the bug, reproduced in milliseconds. The fix is a tie-break (title, then id). The misconception is that a bug you see in the browser has to be reproduced in the browser; once the logic is a pure function, a unit test is the faster and more reliable reproduction.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "// features/catalog/CourseCard.tsx\ninterface CourseCardProps { course: Course }\n\nexport function CourseCard({ course }: CourseCardProps) {\n    const { isEnrolled, enroll } = useEnrollment(course.id);   // calls GET /api/users/me/enrollments\n    return (\n        <article>\n            <h3>{course.title}</h3>\n            <p>{course.level} - {course.learners} learners</p>\n            <button disabled={isEnrolled} onClick={enroll}>{isEnrolled ? \"Enrolled\" : \"Enroll\"}</button>\n        </article>\n    );\n}\n\nStatement: \"CourseCard is a presentational component: a test or a design preview can render it with a hand-written course object and nothing else.\"",
+          "explanation": "False. The props look presentational, but the component calls useEnrollment, which reads server data from GET /api/users/me/enrollments. Rendering it needs the API (or a mock) and whatever providers useEnrollment depends on. A presentational card receives everything it shows and every action it triggers as props, for example { course, enrolled, onEnroll }, and the container (CatalogPage or an enrollment feature component) supplies them. The misconception is judging a component by its props type instead of by what it reads while rendering.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_trf_112",
+      "name": "query-catalog",
+      "type": "mini_coding",
+      "title": "Search, filter, sort and paginate the catalog",
+      "description": "The sorting bug on /courses took a day to reproduce because the logic lived inside a 600-line CatalogPage.tsx. Move it into one pure function that the page (and a unit test) can call: queryCatalog(courses, query) in features/catalog/catalog.logic.\n\ncourses is an array of Course objects: { id, title, level, tags, rating, learners, updatedAt } (level is \"beginner\", \"intermediate\" or \"advanced\"; tags is an array of strings; updatedAt is an ISO date such as \"2026-09-14\").\nquery is { search, level, sort, page, pageSize }.\n\nApply the steps in this order:\n1. Search: trim search and compare case-insensitively. A course matches when its title contains the text, or at least one of its tags contains it (substring, so \"java\" matches the tag \"javascript\"). A search that is empty after trimming matches every course.\n2. Level: \"all\" keeps every course; any other value keeps only courses whose level is exactly that value.\n3. Sort: \"popular\" = learners, highest first; \"rating\" = rating, highest first; \"newest\" = updatedAt, latest first; \"title\" = title A to Z using localeCompare. When two courses are equal on the sort key, order them by title (localeCompare), and when the titles are equal too, by id (localeCompare). The result must not depend on the order of the input array.\n4. Paginate: page is 1-based. total = number of courses left after steps 1 and 2. pageCount = ceil(total / pageSize), but at least 1. Clamp page into 1..pageCount (page 9 of 3 becomes 3, page 0 becomes 1). items = the courses on that page.\n\nReturn { items, total, page, pageCount }, where page is the clamped page. pageSize is a positive integer and page is an integer.\n\nDo not modify the courses array or the course objects: the array is the API response that other components also read. A hidden test checks that the array is unchanged after your call.",
+      "difficulty": "easy",
+      "points": 30,
+      "coding": {
+        "language": "javascript",
+        "filePath": "queryCatalog.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "hints": [
+        "Which of the four steps change the number of courses, and which only change their order? total and pageCount have to be computed after the first kind and before you cut out a page.",
+        "Look at the comparator you pass to sort: when the sort key is equal it must still decide, using title and then id. And check which array sort() reorders: sort works in place, filter returns a new array.",
+        "The same steps on a different list: a job board with jobs [{ id: \"b\", salary: 50 }, { id: \"a\", salary: 50 }, { id: \"c\", salary: 70 }], sorted by salary highest first with ties by id, pageSize 2. Sorted: c, a, b. total 3, pageCount 2. Asking for page 5 clamps to page 2, which holds only b."
+      ],
+      "tests": [
+        {
+          "name": "Default view: most popular first, first page of 3",
+          "input": {
+            "courses": [
+              { "id": "web-http-fundamentals", "title": "Web Application Fundamentals", "level": "beginner", "tags": ["http", "javascript"], "rating": 4.6, "learners": 1840, "updatedAt": "2026-09-14" },
+              { "id": "sql-data-modeling", "title": "SQL & Data Modeling", "level": "beginner", "tags": ["sql", "databases"], "rating": 4.6, "learners": 1210, "updatedAt": "2026-10-02" },
+              { "id": "typescript-foundations", "title": "TypeScript Foundations", "level": "beginner", "tags": ["typescript", "javascript"], "rating": 4.8, "learners": 2950, "updatedAt": "2026-08-20" },
+              { "id": "typescript-react-frontend", "title": "React + TypeScript Architecture", "level": "intermediate", "tags": ["react", "typescript"], "rating": 4.7, "learners": 640, "updatedAt": "2026-10-20" },
+              { "id": "nextjs-rendering-caching", "title": "Next.js Rendering & Caching", "level": "intermediate", "tags": ["nextjs", "react", "caching"], "rating": 4.5, "learners": 640, "updatedAt": "2026-10-18" },
+              { "id": "software-architecture-fundamentals", "title": "Software Architecture Fundamentals", "level": "advanced", "tags": ["architecture"], "rating": 4.4, "learners": 310, "updatedAt": "2026-10-20" },
+              { "id": "js-modern-foundations", "title": "Modern JavaScript Foundations", "level": "beginner", "tags": ["javascript"], "rating": 4.7, "learners": 3400, "updatedAt": "2026-07-30" },
+              { "id": "node-api-design", "title": "Node.js API Design", "level": "intermediate", "tags": ["nodejs", "http", "javascript"], "rating": 4.5, "learners": 980, "updatedAt": "2026-09-01" }
+            ],
+            "query": { "search": "", "level": "all", "sort": "popular", "page": 1, "pageSize": 3 }
+          },
+          "expected": {"ids":["js-modern-foundations","typescript-foundations","web-http-fundamentals"],"total":8,"page":1,"pageCount":3},
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Search is trimmed, case-insensitive and also matches tags",
+          "input": {
+            "courses": [
+              { "id": "web-http-fundamentals", "title": "Web Application Fundamentals", "level": "beginner", "tags": ["http", "javascript"], "rating": 4.6, "learners": 1840, "updatedAt": "2026-09-14" },
+              { "id": "sql-data-modeling", "title": "SQL & Data Modeling", "level": "beginner", "tags": ["sql", "databases"], "rating": 4.6, "learners": 1210, "updatedAt": "2026-10-02" },
+              { "id": "typescript-foundations", "title": "TypeScript Foundations", "level": "beginner", "tags": ["typescript", "javascript"], "rating": 4.8, "learners": 2950, "updatedAt": "2026-08-20" },
+              { "id": "typescript-react-frontend", "title": "React + TypeScript Architecture", "level": "intermediate", "tags": ["react", "typescript"], "rating": 4.7, "learners": 640, "updatedAt": "2026-10-20" },
+              { "id": "nextjs-rendering-caching", "title": "Next.js Rendering & Caching", "level": "intermediate", "tags": ["nextjs", "react", "caching"], "rating": 4.5, "learners": 640, "updatedAt": "2026-10-18" },
+              { "id": "software-architecture-fundamentals", "title": "Software Architecture Fundamentals", "level": "advanced", "tags": ["architecture"], "rating": 4.4, "learners": 310, "updatedAt": "2026-10-20" },
+              { "id": "js-modern-foundations", "title": "Modern JavaScript Foundations", "level": "beginner", "tags": ["javascript"], "rating": 4.7, "learners": 3400, "updatedAt": "2026-07-30" },
+              { "id": "node-api-design", "title": "Node.js API Design", "level": "intermediate", "tags": ["nodejs", "http", "javascript"], "rating": 4.5, "learners": 980, "updatedAt": "2026-09-01" }
+            ],
+            "query": { "search": "  React ", "level": "all", "sort": "rating", "page": 1, "pageSize": 10 }
+          },
+          "expected": {"ids":["typescript-react-frontend","nextjs-rendering-caching"],"total":2,"page":1,"pageCount":1},
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Level filter, newest first, second page",
+          "input": {
+            "courses": [
+              { "id": "web-http-fundamentals", "title": "Web Application Fundamentals", "level": "beginner", "tags": ["http", "javascript"], "rating": 4.6, "learners": 1840, "updatedAt": "2026-09-14" },
+              { "id": "sql-data-modeling", "title": "SQL & Data Modeling", "level": "beginner", "tags": ["sql", "databases"], "rating": 4.6, "learners": 1210, "updatedAt": "2026-10-02" },
+              { "id": "typescript-foundations", "title": "TypeScript Foundations", "level": "beginner", "tags": ["typescript", "javascript"], "rating": 4.8, "learners": 2950, "updatedAt": "2026-08-20" },
+              { "id": "typescript-react-frontend", "title": "React + TypeScript Architecture", "level": "intermediate", "tags": ["react", "typescript"], "rating": 4.7, "learners": 640, "updatedAt": "2026-10-20" },
+              { "id": "nextjs-rendering-caching", "title": "Next.js Rendering & Caching", "level": "intermediate", "tags": ["nextjs", "react", "caching"], "rating": 4.5, "learners": 640, "updatedAt": "2026-10-18" },
+              { "id": "software-architecture-fundamentals", "title": "Software Architecture Fundamentals", "level": "advanced", "tags": ["architecture"], "rating": 4.4, "learners": 310, "updatedAt": "2026-10-20" },
+              { "id": "js-modern-foundations", "title": "Modern JavaScript Foundations", "level": "beginner", "tags": ["javascript"], "rating": 4.7, "learners": 3400, "updatedAt": "2026-07-30" },
+              { "id": "node-api-design", "title": "Node.js API Design", "level": "intermediate", "tags": ["nodejs", "http", "javascript"], "rating": 4.5, "learners": 980, "updatedAt": "2026-09-01" }
+            ],
+            "query": { "search": "", "level": "intermediate", "sort": "newest", "page": 2, "pageSize": 2 }
+          },
+          "expected": {"ids":["node-api-design"],"total":3,"page":2,"pageCount":2},
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Ties on rating are ordered by title with localeCompare",
+          "input": {
+            "courses": [
+              { "id": "web-http-fundamentals", "title": "Web Application Fundamentals", "level": "beginner", "tags": ["http", "javascript"], "rating": 4.6, "learners": 1840, "updatedAt": "2026-09-14" },
+              { "id": "sql-data-modeling", "title": "SQL & Data Modeling", "level": "beginner", "tags": ["sql", "databases"], "rating": 4.6, "learners": 1210, "updatedAt": "2026-10-02" },
+              { "id": "typescript-foundations", "title": "TypeScript Foundations", "level": "beginner", "tags": ["typescript", "javascript"], "rating": 4.8, "learners": 2950, "updatedAt": "2026-08-20" },
+              { "id": "typescript-react-frontend", "title": "React + TypeScript Architecture", "level": "intermediate", "tags": ["react", "typescript"], "rating": 4.7, "learners": 640, "updatedAt": "2026-10-20" },
+              { "id": "nextjs-rendering-caching", "title": "Next.js Rendering & Caching", "level": "intermediate", "tags": ["nextjs", "react", "caching"], "rating": 4.5, "learners": 640, "updatedAt": "2026-10-18" },
+              { "id": "software-architecture-fundamentals", "title": "Software Architecture Fundamentals", "level": "advanced", "tags": ["architecture"], "rating": 4.4, "learners": 310, "updatedAt": "2026-10-20" },
+              { "id": "js-modern-foundations", "title": "Modern JavaScript Foundations", "level": "beginner", "tags": ["javascript"], "rating": 4.7, "learners": 3400, "updatedAt": "2026-07-30" },
+              { "id": "node-api-design", "title": "Node.js API Design", "level": "intermediate", "tags": ["nodejs", "http", "javascript"], "rating": 4.5, "learners": 980, "updatedAt": "2026-09-01" }
+            ],
+            "query": { "search": "", "level": "all", "sort": "rating", "page": 1, "pageSize": 8 }
+          },
+          "expected": {"ids":["typescript-foundations","js-modern-foundations","typescript-react-frontend","sql-data-modeling","web-http-fundamentals","nextjs-rendering-caching","node-api-design","software-architecture-fundamentals"],"total":8,"page":1,"pageCount":1},
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Sort by title A to Z; the courses array is left unchanged",
+          "input": {
+            "checkInput": true,
+            "courses": [
+              { "id": "web-http-fundamentals", "title": "Web Application Fundamentals", "level": "beginner", "tags": ["http", "javascript"], "rating": 4.6, "learners": 1840, "updatedAt": "2026-09-14" },
+              { "id": "sql-data-modeling", "title": "SQL & Data Modeling", "level": "beginner", "tags": ["sql", "databases"], "rating": 4.6, "learners": 1210, "updatedAt": "2026-10-02" },
+              { "id": "typescript-foundations", "title": "TypeScript Foundations", "level": "beginner", "tags": ["typescript", "javascript"], "rating": 4.8, "learners": 2950, "updatedAt": "2026-08-20" },
+              { "id": "typescript-react-frontend", "title": "React + TypeScript Architecture", "level": "intermediate", "tags": ["react", "typescript"], "rating": 4.7, "learners": 640, "updatedAt": "2026-10-20" },
+              { "id": "nextjs-rendering-caching", "title": "Next.js Rendering & Caching", "level": "intermediate", "tags": ["nextjs", "react", "caching"], "rating": 4.5, "learners": 640, "updatedAt": "2026-10-18" },
+              { "id": "software-architecture-fundamentals", "title": "Software Architecture Fundamentals", "level": "advanced", "tags": ["architecture"], "rating": 4.4, "learners": 310, "updatedAt": "2026-10-20" },
+              { "id": "js-modern-foundations", "title": "Modern JavaScript Foundations", "level": "beginner", "tags": ["javascript"], "rating": 4.7, "learners": 3400, "updatedAt": "2026-07-30" },
+              { "id": "node-api-design", "title": "Node.js API Design", "level": "intermediate", "tags": ["nodejs", "http", "javascript"], "rating": 4.5, "learners": 980, "updatedAt": "2026-09-01" }
+            ],
+            "query": { "search": "   ", "level": "all", "sort": "title", "page": 1, "pageSize": 8 }
+          },
+          "expected": {"ids":["js-modern-foundations","nextjs-rendering-caching","node-api-design","typescript-react-frontend","software-architecture-fundamentals","sql-data-modeling","typescript-foundations","web-http-fundamentals"],"total":8,"page":1,"pageCount":1,"inputUnchanged":true},
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Page 9 of 3 is clamped to the last page",
+          "input": {
+            "courses": [
+              { "id": "web-http-fundamentals", "title": "Web Application Fundamentals", "level": "beginner", "tags": ["http", "javascript"], "rating": 4.6, "learners": 1840, "updatedAt": "2026-09-14" },
+              { "id": "sql-data-modeling", "title": "SQL & Data Modeling", "level": "beginner", "tags": ["sql", "databases"], "rating": 4.6, "learners": 1210, "updatedAt": "2026-10-02" },
+              { "id": "typescript-foundations", "title": "TypeScript Foundations", "level": "beginner", "tags": ["typescript", "javascript"], "rating": 4.8, "learners": 2950, "updatedAt": "2026-08-20" },
+              { "id": "typescript-react-frontend", "title": "React + TypeScript Architecture", "level": "intermediate", "tags": ["react", "typescript"], "rating": 4.7, "learners": 640, "updatedAt": "2026-10-20" },
+              { "id": "nextjs-rendering-caching", "title": "Next.js Rendering & Caching", "level": "intermediate", "tags": ["nextjs", "react", "caching"], "rating": 4.5, "learners": 640, "updatedAt": "2026-10-18" },
+              { "id": "software-architecture-fundamentals", "title": "Software Architecture Fundamentals", "level": "advanced", "tags": ["architecture"], "rating": 4.4, "learners": 310, "updatedAt": "2026-10-20" },
+              { "id": "js-modern-foundations", "title": "Modern JavaScript Foundations", "level": "beginner", "tags": ["javascript"], "rating": 4.7, "learners": 3400, "updatedAt": "2026-07-30" },
+              { "id": "node-api-design", "title": "Node.js API Design", "level": "intermediate", "tags": ["nodejs", "http", "javascript"], "rating": 4.5, "learners": 980, "updatedAt": "2026-09-01" }
+            ],
+            "query": { "search": "", "level": "all", "sort": "popular", "page": 9, "pageSize": 3 }
+          },
+          "expected": {"ids":["typescript-react-frontend","software-architecture-fundamentals"],"total":8,"page":3,"pageCount":3},
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "No matches: empty items, page 1 of 1",
+          "input": {
+            "courses": [
+              { "id": "web-http-fundamentals", "title": "Web Application Fundamentals", "level": "beginner", "tags": ["http", "javascript"], "rating": 4.6, "learners": 1840, "updatedAt": "2026-09-14" },
+              { "id": "node-api-design", "title": "Node.js API Design", "level": "intermediate", "tags": ["nodejs", "http", "javascript"], "rating": 4.5, "learners": 980, "updatedAt": "2026-09-01" }
+            ],
+            "query": { "search": "cobol", "level": "all", "sort": "popular", "page": 4, "pageSize": 12 }
+          },
+          "expected": {"ids":[],"total":0,"page":1,"pageCount":1},
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Same learners and same title: ordered by id; page 0 becomes page 1",
+          "input": {
+            "courses": [
+              { "id": "git-basics-2026", "title": "Git Basics", "level": "beginner", "tags": ["git"], "rating": 4.2, "learners": 100, "updatedAt": "2026-03-01" },
+              { "id": "docker-intro", "title": "Docker Intro", "level": "beginner", "tags": ["docker"], "rating": 4.3, "learners": 100, "updatedAt": "2026-04-01" },
+              { "id": "git-basics", "title": "Git Basics", "level": "beginner", "tags": ["git"], "rating": 4.0, "learners": 100, "updatedAt": "2025-11-12" },
+              { "id": "linux-shell", "title": "Linux Shell", "level": "intermediate", "tags": ["bash"], "rating": 4.1, "learners": 250, "updatedAt": "2026-01-15" }
+            ],
+            "query": { "search": "", "level": "beginner", "sort": "popular", "page": 0, "pageSize": 2 }
+          },
+          "expected": {"ids":["docker-intro","git-basics"],"total":3,"page":1,"pageCount":2},
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

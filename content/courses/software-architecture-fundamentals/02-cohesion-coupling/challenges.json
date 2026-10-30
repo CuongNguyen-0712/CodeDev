@@ -1,0 +1,162 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_saf_121",
+      "name": "cohesion-coupling-quiz",
+      "type": "quiz",
+      "title": "What the numbers say about helpers.ts and the coupon rule",
+      "description": "Two pieces of evidence from the CodeDev backend: the commits behind the last coupon changes, and the import counts of utils/helpers.ts. Decide whether each statement is True or False.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "git log --name-only for the last three changes to the coupon rule:\n\nfeat: coupons can have a minimum price\n  src/orders/application/apply-coupon.ts\n  src/catalog/domain/pricing.ts\n  src/notifications/templates/receipt.ts\n\nfix: 100% coupons charged 1 VND\n  src/orders/application/apply-coupon.ts\n  src/catalog/domain/pricing.ts\n  src/notifications/templates/receipt.ts\n\nfeat: coupons expire at midnight\n  src/orders/application/apply-coupon.ts\n  src/catalog/domain/pricing.ts\n  src/notifications/templates/receipt.ts\n\nStatement: \"The coupon rule has low cohesion: code that changes together, for one reason, is spread over three modules.\"",
+          "explanation": "True. Cohesion asks whether things that change together live together. Every coupon change, for one business reason, had to edit orders, catalog and notifications, so the rule is scattered: low cohesion, and three modules coupled through one rule. The usual misconception is to judge cohesion by file names or folder tidiness; the evidence that counts is what changes together in the history.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The import count for src/utils/helpers.ts:\n\n$ grep -rl \"utils/helpers\" src | wc -l\n23\n\nhelpers.ts itself imports nothing from the rest of src. So fan-in = 23, fan-out = 0, and instability I = 0 / (23 + 0) = 0.00.\n\nStatement: \"I = 0.00 means helpers.ts is safe to change: an edit there cannot break any other module.\"",
+          "explanation": "False. Instability I = fan-out / (fan-in + fan-out). I = 0 means the module depends on nothing and 23 files depend on it: it is stable in the sense of hard to change, because every edit can break any of those 23 importers. The misconception is reading \"stable\" as \"safe to edit\". A module like this should change rarely and contain only code that truly belongs together; a grab-bag of helpers is the opposite.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_saf_122",
+      "name": "coupling-report",
+      "type": "mini_coding",
+      "title": "Measure coupling: fan-in, fan-out and instability per module",
+      "description": "Before the CodeDev team splits anything, it wants numbers. Write couplingReport(input) in main.ts. It returns the report as an array of lines; the test runner prints one line each.\n\nInput (JSON on stdin): { \"modules\": string[], \"dependencies\": [from, to][], \"threshold\": number }. Module names are unique. A dependency [\"orders\", \"catalog\"] means the orders module imports something from catalog.\n\nRules:\n- A dependency listed more than once counts once.\n- A self-dependency (from and to are the same module) is ignored.\n- fanIn(X) = how many different modules depend on X. fanOut(X) = how many different modules X depends on.\n- Instability I = fanOut / (fanIn + fanOut), rounded with Math.round(I * 100) / 100 and printed with toFixed(2). A module with no dependencies in either direction has I = 0.00.\n- One line per module, in the order of input.modules: \"<name> in=<fanIn> out=<fanOut> I=<I>\", followed by \" HIGH\" when fanIn + fanOut is greater than threshold. Example: orders in=1 out=3 I=0.75 HIGH\n- If a dependency names a module that is not in modules, the report is exactly one line, \"error: unknown module <name>\", for the first unknown name: dependencies in input order, from checked before to.",
+      "difficulty": "easy",
+      "points": 30,
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "hints": [
+        "If orders imports catalog in three different files, the list may contain [\"orders\", \"catalog\"] three times. How many modules does orders depend on? What data structure makes a repeated pair count once?",
+        "Do the work in three passes: first check every name against the module list (stop at the first unknown one), then build the set of distinct pairs while skipping from === to, then for each module count the pairs where it is the target (fanIn) and where it is the source (fanOut). Watch the module with no pairs at all: 0 / 0 is NaN, not 0.",
+        "The same counting on a different graph: a team chat app has users -> rooms, rooms -> messages, users -> messages, messages -> messages and users -> rooms again. Distinct pairs without the self-pair: users -> rooms, rooms -> messages, users -> messages. So rooms has in=1 out=1, I = 1 / 2 = 0.50; messages has in=2 out=0, I = 0.00; users has in=0 out=2, I = 1.00. With threshold 1, all three modules have a total of 2, so all three are flagged HIGH."
+      ],
+      "tests": [
+        {
+          "name": "The six CodeDev modules",
+          "input": {
+            "modules": ["catalog", "orders", "payments", "enrollment", "notifications", "progress"],
+            "dependencies": [
+              ["orders", "catalog"],
+              ["orders", "payments"],
+              ["orders", "enrollment"],
+              ["orders", "notifications"],
+              ["enrollment", "catalog"],
+              ["enrollment", "notifications"],
+              ["progress", "enrollment"],
+              ["progress", "catalog"]
+            ],
+            "threshold": 3
+          },
+          "expected": "catalog in=3 out=0 I=0.00\norders in=0 out=4 I=1.00 HIGH\npayments in=1 out=0 I=0.00\nenrollment in=2 out=2 I=0.50 HIGH\nnotifications in=2 out=0 I=0.00\nprogress in=0 out=2 I=1.00",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A helpers module that everyone imports and that imports back",
+          "input": {
+            "modules": ["utils", "orders", "catalog", "notifications"],
+            "dependencies": [
+              ["orders", "utils"],
+              ["catalog", "utils"],
+              ["notifications", "utils"],
+              ["utils", "catalog"]
+            ],
+            "threshold": 2
+          },
+          "expected": "utils in=3 out=1 I=0.25 HIGH\norders in=0 out=1 I=1.00\ncatalog in=1 out=1 I=0.50\nnotifications in=0 out=1 I=1.00",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Repeated dependencies count once",
+          "input": {
+            "modules": ["orders", "payments", "notifications"],
+            "dependencies": [
+              ["orders", "payments"],
+              ["orders", "payments"],
+              ["orders", "notifications"],
+              ["payments", "notifications"],
+              ["orders", "notifications"],
+              ["orders", "payments"]
+            ],
+            "threshold": 1
+          },
+          "expected": "orders in=0 out=2 I=1.00 HIGH\npayments in=1 out=1 I=0.50 HIGH\nnotifications in=2 out=0 I=0.00 HIGH",
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Self-dependencies are ignored and an isolated module has I=0.00",
+          "input": {
+            "modules": ["progress", "catalog", "search"],
+            "dependencies": [
+              ["progress", "progress"],
+              ["progress", "catalog"],
+              ["catalog", "catalog"]
+            ],
+            "threshold": 0
+          },
+          "expected": "progress in=0 out=1 I=1.00 HIGH\ncatalog in=1 out=0 I=0.00 HIGH\nsearch in=0 out=0 I=0.00",
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A dependency on a module that is not in the list is an error",
+          "input": {
+            "modules": ["orders", "payments"],
+            "dependencies": [
+              ["orders", "payments"],
+              ["payments", "billing"],
+              ["ledger", "orders"]
+            ],
+            "threshold": 2
+          },
+          "expected": "error: unknown module billing",
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Rounding to two decimals, and a total equal to the threshold is not HIGH",
+          "input": {
+            "modules": ["orders", "payments", "enrollment", "notifications", "catalog"],
+            "dependencies": [
+              ["notifications", "catalog"],
+              ["enrollment", "notifications"],
+              ["orders", "payments"],
+              ["enrollment", "catalog"],
+              ["payments", "notifications"],
+              ["orders", "enrollment"]
+            ],
+            "threshold": 2
+          },
+          "expected": "orders in=0 out=2 I=1.00\npayments in=1 out=1 I=0.50\nenrollment in=1 out=2 I=0.67 HIGH\nnotifications in=2 out=1 I=0.33 HIGH\ncatalog in=2 out=0 I=0.00",
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_saf_311",
+      "name": "data-ownership-quiz",
+      "type": "quiz",
+      "title": "Who may write the enrollments table?",
+      "description": "Two statements about the CodeDev enrollments table after the refund incident: one about a published view during a column rename, one about a quick fix in the progress job.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The CodeDev team applied data ownership to the enrollments table. Results of the ownership check:\n\n$ grep -rnE \"(INSERT INTO|UPDATE|DELETE FROM) enrollments\" src/modules\nsrc/modules/enrollment/infrastructure/PgEnrollmentRepository.ts:31:  INSERT INTO enrollments ...\nsrc/modules/enrollment/infrastructure/PgEnrollmentRepository.ts:58:  UPDATE enrollments SET status = ...\n\n$ grep -rlE \"(FROM|JOIN) enrollments( |$)\" src/modules\nsrc/modules/enrollment/infrastructure/PgEnrollmentRepository.ts\n\nprogress, notifications and catalog read only this view, owned by the enrollment module:\nCREATE VIEW enrollment_summary AS\nSELECT id AS enrollment_id, user_id, course_id, status, completed_at FROM enrollments;\n\nThe enrollment team now wants to rename the column status to state. Their migration runs ALTER TABLE enrollments RENAME COLUMN status TO state and recreates the view with \"state AS status\".\n\nStatement: \"With this migration, the rename needs code changes only in the enrollment module; progress, notifications and catalog keep working without a change.\"",
+          "explanation": "True. The grep output shows that only the enrollment module's repository uses the raw table, for reads and writes. The other three modules read enrollment_summary, and the migration keeps that view's columns the same: it still exposes a column called status. Only PgEnrollmentRepository, whose SQL uses the raw column, has to change. This is the point of a published view: it is a contract the owner keeps stable, so the table behind it can change. The misconception tested is that any shared read creates the same coupling as a shared table; a view the owner maintains does not.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "After the refund incident, a developer proposes this one-line fix to the progress module's nightly job instead of moving the write to the enrollment module:\n\n-- progress/jobs/markCompletedCourses.ts\nUPDATE enrollments\nSET    status = 'completed', completed_at = now()\nWHERE  id IN (SELECT enrollment_id FROM lesson_progress\n              GROUP BY enrollment_id\n              HAVING count(*) FILTER (WHERE done) = count(*))\nAND    status <> 'refunded';      -- new line\n\nThe enrollment module's backlog has a ticket for next sprint: \"add status 'paused' for learners who freeze their subscription\".\n\nStatement: \"With the new condition, the data-ownership problem is solved: the progress job can keep writing the enrollments table safely.\"",
+          "explanation": "False. The new line copies one rule of the enrollment module into the progress module; it does not move the write. There are still two writers of enrollments.status. When the enrollment module adds 'paused', the job will overwrite paused enrollments with 'completed', because its copy of the rule only knows about 'refunded'. A column rename still breaks it too. The fix that removes the cause is to let the job call enrollmentService.markCompleted(enrollmentId), so the enrollment entity decides which status changes are allowed. The misconception is that patching the symptom in a second writer is the same as having one owner.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        }
+      ]
+    }
+  ]
+}

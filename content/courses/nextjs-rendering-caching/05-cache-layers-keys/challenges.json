@@ -1,0 +1,508 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nrc_211",
+      "name": "cache-layers-keys-quiz",
+      "type": "quiz",
+      "title": "What is in the key, and how long does it live?",
+      "description": "A teammate's proposal to cache learner progress, and a server log from a course page that loads the same course three times per render. Decide whether each statement is True or False.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "CodeDev runs Next.js 15 (App Router). To speed up /courses/[slug], a teammate proposes:\n\n// lib/progress.ts\nexport async function getCachedProgress(slug: string) {\n  const session = await getSession();\n  return unstable_cache(\n    () => getProgress(session.userId, slug),\n    [\"progress\", slug],\n    { revalidate: 60 },\n  )();\n}\n\nStatement: \"Because getProgress is called with session.userId, every learner gets a separate cache entry.\"",
+          "explanation": "False. unstable_cache builds the key from the key parts ([\"progress\", slug]) and the arguments passed to the cached function - here none. session.userId is captured by the closure, so it changes what the function returns but not where the result is stored. The first learner to open react-basics fills the entry \"progress, react-basics\", and for the next 60 seconds every other learner gets that learner's progress. The misconception is that everything a cached function reads becomes part of its key; only declared inputs do. Personal data needs the user in the key or, better, no shared cache at all (lesson 8).",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "// lib/course.ts\nimport { cache } from \"react\";\n\nexport const getCourse = cache(async (slug: string) => {\n  console.log(`[db] select course ${slug}`);   // CodeDev's own log line\n  return db.course.findBySlug(slug);\n});\n\nThe layout, the page and generateMetadata of /courses/[slug] each call getCourse with the same slug. The route is dynamic (it reads the session cookie). The server log for two visits to /courses/react-basics:\n\n[req 1] GET /courses/react-basics\n[db] select course react-basics\n[req 2] GET /courses/react-basics\n[db] select course react-basics\n\nStatement: \"This log is what React cache() is expected to produce: it removes the duplicate calls inside one request, but it does not share the result between requests.\"",
+          "explanation": "True. cache() memoizes a function for the duration of one server request: the three calls with the same argument in one render run the query once, which is why each request logs a single select. The memo is thrown away when the request ends, so the second visit queries again. The misconception is that cache() is a cross-request cache like the data cache; sharing a result between requests (and between users) needs a cache with a lifetime and a key you choose, such as unstable_cache or fetch with next.revalidate.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_nrc_212",
+      "name": "safe-cache-key",
+      "type": "mini_coding",
+      "title": "Build a safe cache key for public and per-learner data",
+      "description": "The CodeDev catalog cache holds 40,000 entries because every utm_source value and every parameter order makes a new key, and a teammate wants to cache learner progress under the course slug only. Write cacheKey(req): look up the resource in the RESOURCES table (unknown resource: throw `unknown resource \"<name>\"`); every param it lists must be present and non-empty (checked in name order, first missing: throw `missing param \"<name>\"`); a user resource without a userId returns null (do not cache). Otherwise return <resource>|<locale>|<who>|<params>|<query>: who is \"public\" for public resources (never the user id) or \"user=<id>\"; params sorted by name as name=value joined with &; query keeps only the names the resource allows, sorted by name, with array values de-duplicated and sorted, empty values dropped, one name=value per value. Every name, value, the locale and the user id go through encodeURIComponent. The runner reads an array of requests and prints one line per request: the key, no-cache, or error: <message>.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "hints": [
+        "Which inputs actually change the bytes of the response? For each part of the request - resource, locale, user, route params, each query parameter - ask: if only this changed, would the page be different? Everything that answers no must stay out of the key, and everything that answers yes must be in it in exactly one spelling.",
+        "Work in three steps: validate (resource, params), decide whether to cache at all (user resource without a user), then build the five parts. For the query part, loop over the resource's allowed names (sorted), not over req.query: that drops tracking parameters for free. Turn a string or an array into one list of values, filter out \"\", remove duplicates with a Set, sort, and encode each name and value.",
+        "The same idea for a different cache: an image resizer keys thumbnails on width, height and format only. For ?h=200&w=300&format=webp&ref=twitter and ?ref=mail&w=300&format=webp&h=200 it keeps format, h, w (sorted), drops ref, and both become thumb|format=webp&h=200&w=300. A caption value like \"a&w=1\" is written as a%26w%3D1, so it can never look like a second parameter."
+      ],
+      "tests": [
+        {
+          "name": "Tracking parameters and parameter order do not create new catalog keys",
+          "input": [
+            {
+              "resource": "courses:list",
+              "params": {},
+              "query": {
+                "search": "react",
+                "level": "beginner",
+                "utm_source": "newsletter"
+              },
+              "userId": null,
+              "locale": "en"
+            },
+            {
+              "resource": "courses:list",
+              "params": {},
+              "query": {
+                "level": "beginner",
+                "search": "react",
+                "fbclid": "IwAR2x"
+              },
+              "userId": "u_1042",
+              "locale": "en"
+            },
+            {
+              "resource": "courses:list",
+              "params": {},
+              "query": {
+                "gclid": "Cj0KCQ",
+                "search": "react",
+                "utm_campaign": "spring",
+                "level": "beginner"
+              },
+              "userId": null,
+              "locale": "en"
+            },
+            {
+              "resource": "courses:list",
+              "params": {},
+              "query": {
+                "search": "react",
+                "level": "advanced"
+              },
+              "userId": null,
+              "locale": "en"
+            }
+          ],
+          "expected": "courses:list|en|public||level=beginner&search=react\ncourses:list|en|public||level=beginner&search=react\ncourses:list|en|public||level=beginner&search=react\ncourses:list|en|public||level=advanced&search=react",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Progress is keyed per learner; an unknown learner is not cached; the syllabus is shared",
+          "input": [
+            {
+              "resource": "progress",
+              "params": {
+                "slug": "react-basics"
+              },
+              "query": {},
+              "userId": "u_1042",
+              "locale": "en"
+            },
+            {
+              "resource": "progress",
+              "params": {
+                "slug": "react-basics"
+              },
+              "query": {},
+              "userId": "u_2077",
+              "locale": "en"
+            },
+            {
+              "resource": "progress",
+              "params": {
+                "slug": "react-basics"
+              },
+              "query": {},
+              "userId": null,
+              "locale": "en"
+            },
+            {
+              "resource": "courses:detail",
+              "params": {
+                "slug": "react-basics"
+              },
+              "query": {},
+              "userId": "u_1042",
+              "locale": "en"
+            },
+            {
+              "resource": "courses:detail",
+              "params": {
+                "slug": "react-basics"
+              },
+              "query": {},
+              "userId": null,
+              "locale": "en"
+            }
+          ],
+          "expected": "progress|en|user=u_1042|slug=react-basics|\nprogress|en|user=u_2077|slug=react-basics|\nno-cache\ncourses:detail|en|public|slug=react-basics|\ncourses:detail|en|public|slug=react-basics|",
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Values containing &, = and | are encoded and cannot collide with other parameters",
+          "input": [
+            {
+              "resource": "courses:list",
+              "params": {},
+              "query": {
+                "level": "beginner&search=react"
+              },
+              "userId": null,
+              "locale": "en"
+            },
+            {
+              "resource": "courses:list",
+              "params": {},
+              "query": {
+                "level": "beginner",
+                "search": "react"
+              },
+              "userId": null,
+              "locale": "en"
+            },
+            {
+              "resource": "courses:list",
+              "params": {},
+              "query": {
+                "search": "c++ | rust"
+              },
+              "userId": null,
+              "locale": "en"
+            },
+            {
+              "resource": "courses:detail",
+              "params": {
+                "slug": "x|en|public"
+              },
+              "query": {},
+              "userId": null,
+              "locale": "en"
+            }
+          ],
+          "expected": "courses:list|en|public||level=beginner%26search%3Dreact\ncourses:list|en|public||level=beginner&search=react\ncourses:list|en|public||search=c%2B%2B%20%7C%20rust\ncourses:detail|en|public|slug=x%7Cen%7Cpublic|",
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Array values are sorted and de-duplicated, empty values are ignored",
+          "input": [
+            {
+              "resource": "courses:list",
+              "params": {},
+              "query": {
+                "level": [
+                  "intermediate",
+                  "beginner"
+                ],
+                "sort": "popular",
+                "page": "2"
+              },
+              "userId": null,
+              "locale": "en"
+            },
+            {
+              "resource": "courses:list",
+              "params": {},
+              "query": {
+                "page": "2",
+                "level": [
+                  "beginner",
+                  "intermediate",
+                  "beginner"
+                ],
+                "sort": "popular",
+                "search": ""
+              },
+              "userId": null,
+              "locale": "en"
+            },
+            {
+              "resource": "courses:list",
+              "params": {},
+              "query": {
+                "level": [
+                  "beginner"
+                ]
+              },
+              "userId": null,
+              "locale": "en"
+            },
+            {
+              "resource": "courses:list",
+              "params": {},
+              "query": {
+                "level": "beginner"
+              },
+              "userId": null,
+              "locale": "en"
+            },
+            {
+              "resource": "courses:list",
+              "params": {},
+              "query": {
+                "level": [],
+                "search": [
+                  "",
+                  ""
+                ]
+              },
+              "userId": null,
+              "locale": "en"
+            }
+          ],
+          "expected": "courses:list|en|public||level=beginner&level=intermediate&page=2&sort=popular\ncourses:list|en|public||level=beginner&level=intermediate&page=2&sort=popular\ncourses:list|en|public||level=beginner\ncourses:list|en|public||level=beginner\ncourses:list|en|public||",
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Unknown resource, missing slug and missing user",
+          "input": [
+            {
+              "resource": "course",
+              "params": {
+                "slug": "react-basics"
+              },
+              "query": {},
+              "userId": null,
+              "locale": "en"
+            },
+            {
+              "resource": "progress",
+              "params": {},
+              "query": {},
+              "userId": "u_1042",
+              "locale": "en"
+            },
+            {
+              "resource": "progress",
+              "params": {},
+              "query": {},
+              "userId": null,
+              "locale": "en"
+            },
+            {
+              "resource": "courses:detail",
+              "params": {
+                "slug": ""
+              },
+              "query": {},
+              "userId": null,
+              "locale": "en"
+            },
+            {
+              "resource": "dashboard",
+              "params": {},
+              "query": {
+                "tab": "overview"
+              },
+              "userId": "",
+              "locale": "en"
+            }
+          ],
+          "expected": "error: unknown resource \"course\"\nerror: missing param \"slug\"\nerror: missing param \"slug\"\nerror: missing param \"slug\"\nno-cache",
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Locale, user ids and allowed parameters end up encoded in the right part",
+          "input": [
+            {
+              "resource": "courses:list",
+              "params": {},
+              "query": {
+                "search": "tiếng việt"
+              },
+              "userId": null,
+              "locale": "vi"
+            },
+            {
+              "resource": "courses:list",
+              "params": {},
+              "query": {
+                "search": "tiếng việt"
+              },
+              "userId": null,
+              "locale": "en"
+            },
+            {
+              "resource": "dashboard",
+              "params": {},
+              "query": {
+                "tab": "achievements",
+                "utm_source": "email"
+              },
+              "userId": "u_1042",
+              "locale": "en"
+            },
+            {
+              "resource": "dashboard",
+              "params": {},
+              "query": {},
+              "userId": "u/1042&x",
+              "locale": "en"
+            },
+            {
+              "resource": "leaderboard",
+              "params": {},
+              "query": {
+                "period": "week",
+                "page": "1",
+                "sort": "desc"
+              },
+              "userId": "u_1042",
+              "locale": "en"
+            },
+            {
+              "resource": "progress",
+              "params": {
+                "slug": "sql-data-modeling",
+                "lessonId": "l_7"
+              },
+              "query": {
+                "tab": "notes"
+              },
+              "userId": "u_2077",
+              "locale": "en-US"
+            }
+          ],
+          "expected": "courses:list|vi|public||search=ti%E1%BA%BFng%20vi%E1%BB%87t\ncourses:list|en|public||search=ti%E1%BA%BFng%20vi%E1%BB%87t\ndashboard|en|user=u_1042||tab=achievements\ndashboard|en|user=u%2F1042%26x||\nleaderboard|en|public||page=1&period=week\nprogress|en-US|user=u_2077|slug=sql-data-modeling|",
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A crawl of eight catalog URLs collapses to three keys",
+          "input": [
+            {
+              "resource": "courses:list",
+              "params": {},
+              "query": {
+                "page": "1",
+                "utm_source": "google",
+                "utm_medium": "cpc"
+              },
+              "userId": null,
+              "locale": "en"
+            },
+            {
+              "resource": "courses:list",
+              "params": {},
+              "query": {
+                "utm_medium": "email",
+                "page": "1"
+              },
+              "userId": "u_9",
+              "locale": "en"
+            },
+            {
+              "resource": "courses:list",
+              "params": {},
+              "query": {
+                "page": [
+                  "1",
+                  "1"
+                ],
+                "gclid": "x1"
+              },
+              "userId": null,
+              "locale": "en"
+            },
+            {
+              "resource": "courses:list",
+              "params": {},
+              "query": {
+                "sort": "new",
+                "page": "2",
+                "ref": "footer"
+              },
+              "userId": null,
+              "locale": "en"
+            },
+            {
+              "resource": "courses:list",
+              "params": {},
+              "query": {
+                "page": "2",
+                "sort": "new",
+                "fbclid": "abc"
+              },
+              "userId": "u_10",
+              "locale": "en"
+            },
+            {
+              "resource": "courses:list",
+              "params": {},
+              "query": {
+                "sort": [
+                  "new"
+                ],
+                "page": "2",
+                "utm_term": "nextjs"
+              },
+              "userId": null,
+              "locale": "en"
+            },
+            {
+              "resource": "courses:list",
+              "params": {},
+              "query": {
+                "search": "next.js caching",
+                "utm_source": "x"
+              },
+              "userId": null,
+              "locale": "en"
+            },
+            {
+              "resource": "courses:list",
+              "params": {},
+              "query": {
+                "search": [
+                  "next.js caching",
+                  ""
+                ],
+                "session": "abc123"
+              },
+              "userId": "u_11",
+              "locale": "en"
+            }
+          ],
+          "expected": "courses:list|en|public||page=1\ncourses:list|en|public||page=1\ncourses:list|en|public||page=1\ncourses:list|en|public||page=2&sort=new\ncourses:list|en|public||page=2&sort=new\ncourses:list|en|public||page=2&sort=new\ncourses:list|en|public||search=next.js%20caching\ncourses:list|en|public||search=next.js%20caching",
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

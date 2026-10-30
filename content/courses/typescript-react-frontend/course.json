@@ -1,11 +1,11 @@
 {
   "publicId": "typescript-react-frontend",
-  "title": "Frontend Engineering with TypeScript & React: State, Rendering & Performance",
-  "concept": "Write React apps that stay fast and correct as they grow: typed props and state, reducers, effects without races, memoization that pays off, list virtualization and testing the logic behind the UI.",
-  "description": "Write React apps that stay fast and correct as they grow: typed props and state, reducers, effects without races, memoization that pays off, list virtualization and testing the logic behind the UI. 9 lessons, each starting from a real bug or incident, with graded challenges.",
+  "title": "React + TypeScript Architecture: Components, State & Server Data",
+  "concept": "Build React screens that stay correct as they grow: feature boundaries, typed props and UI state, reducers as the single source of truth, effects that do not loop or go stale, a typed API layer, server state with query keys and invalidation, debounced search, controlled forms, rendering cost and tests for the logic behind the UI.",
+  "description": "An intermediate course for developers who can write React components and now need them to survive a growing codebase. Every lesson starts from an incident on the CodeDev course catalog - a filter that forgets the page number, a screen that fetches in an endless loop, a search box that shows results for what you typed three keystrokes ago, an AI patch that silences the exhaustive-deps rule and freezes the filter, a list that still shows a course you just left - and fixes it by moving the logic into pure, typed functions you can test: catalog filters and pagination, UI state unions, reducers, effect dependencies and stale closures, a typed API client, query keys and invalidation, debounce with cancellation, forms, memoization and testing. 11 lessons with quizzes on real code and evidence, and hands-on JavaScript and TypeScript challenges.",
   "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792594627/codedev/courses/typescript-react-frontend/cover",
   "level": "intermediate",
-  "durationMinutes": 180,
+  "durationMinutes": 330,
   "instructor": "CodeDev Engineering Team",
   "language": "TypeScript",
   "category": "React",
@@ -14,6 +14,7 @@
   "reward": 100,
   "accessModel": "premium",
   "publishStatus": "draft",
+  "completionRules": {},
   "offers": [
     {
       "priceType": "points",
@@ -33,9 +34,9 @@
   "skills": {
     "react": 5,
     "typescript": 5,
-    "html_css": 3,
+    "html_css": 2,
     "performance": 3,
-    "testing": 2
+    "testing": 3
   },
   "goals": [
     "grow_in_role",
@@ -43,71 +44,37 @@
   ],
   "prerequisites": [
     "js-modern-foundations",
-    "typescript-foundations"
+    "typescript-foundations",
+    "web-http-fundamentals"
   ],
-  "modules": [],
-  "outline": [
+  "modules": [
     {
       "orderIndex": 1,
-      "title": "Typed Components",
+      "title": "Typed Components & UI State",
       "lessons": [
-        {
-          "orderIndex": 1,
-          "title": "TypeScript for React: props, unions & discriminated state",
-          "challenges": "Q(m) + C(m)"
-        },
-        {
-          "orderIndex": 2,
-          "title": "Reducers & state machines for UI state",
-          "challenges": "C(m)"
-        },
-        {
-          "orderIndex": 3,
-          "title": "Derived state bugs & single source of truth",
-          "challenges": "F(m)"
-        }
+        { "orderIndex": 1, "folder": "01-feature-boundaries", "title": "Split a screen into features, components and pure logic", "sanityId": "lesson-trf-1-1" },
+        { "orderIndex": 2, "folder": "02-typed-ui-state", "title": "Type props and UI state with discriminated unions", "sanityId": "lesson-trf-1-2" },
+        { "orderIndex": 3, "folder": "03-catalog-reducer", "title": "Keep one source of truth: a reducer for catalog state", "sanityId": "lesson-trf-1-3" }
       ]
     },
     {
       "orderIndex": 2,
-      "title": "Effects & Data",
+      "title": "Effects & Server Data",
       "lessons": [
-        {
-          "orderIndex": 1,
-          "title": "Effects without races: stale responses & cleanup",
-          "challenges": "Q(m) + F(m)"
-        },
-        {
-          "orderIndex": 2,
-          "title": "Data fetching: caching, deduping & invalidation",
-          "challenges": "C(h)"
-        },
-        {
-          "orderIndex": 3,
-          "title": "Forms: controlled inputs & validation schemas",
-          "challenges": "C(m)"
-        }
+        { "orderIndex": 1, "folder": "04-effect-dependencies", "title": "Find the render loop: how effect dependencies decide when effects run", "sanityId": "lesson-trf-2-1" },
+        { "orderIndex": 2, "folder": "05-stale-closures", "title": "Stale closures: why an effect keeps seeing the old filter", "sanityId": "lesson-trf-2-2" },
+        { "orderIndex": 3, "folder": "06-typed-api-layer", "title": "Build a typed API layer: map responses and errors to a union", "sanityId": "lesson-trf-2-3" },
+        { "orderIndex": 4, "folder": "07-query-keys-invalidation", "title": "Server state vs local state: query keys and invalidation", "sanityId": "lesson-trf-2-4" },
+        { "orderIndex": 5, "folder": "08-debounce-cancel", "title": "Debounce search and cancel stale requests", "sanityId": "lesson-trf-2-5" }
       ]
     },
     {
       "orderIndex": 3,
-      "title": "Performance",
+      "title": "Forms, Rendering & Tests",
       "lessons": [
-        {
-          "orderIndex": 1,
-          "title": "Rendering cost: memo, useMemo & when they help",
-          "challenges": "Q(h)"
-        },
-        {
-          "orderIndex": 2,
-          "title": "Virtualizing long lists: computing the visible window",
-          "challenges": "C(m)"
-        },
-        {
-          "orderIndex": 3,
-          "title": "Measuring: React Profiler & Web Vitals",
-          "challenges": "Q(m) + C(m)"
-        }
+        { "orderIndex": 1, "folder": "09-controlled-forms", "title": "Controlled forms and validation you can trust", "sanityId": "lesson-trf-3-1" },
+        { "orderIndex": 2, "folder": "10-rendering-cost", "title": "Rendering cost: when memo and useMemo actually help", "sanityId": "lesson-trf-3-2" },
+        { "orderIndex": 3, "folder": "11-testing-ui-logic", "title": "Test the logic behind the UI, not the framework", "sanityId": "lesson-trf-3-3" }
       ]
     }
   ]

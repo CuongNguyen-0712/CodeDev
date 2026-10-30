@@ -1,0 +1,75 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_saf_321",
+      "name": "monolith-or-microservices-scenario-quiz",
+      "type": "quiz",
+      "title": "Monolith or Microservices? Decide for the CodeDev team",
+      "description": "Six statements on one evidence pack about the CodeDev backend team after the code runner overloaded the website. One step of the decision per statement: read the evidence, choose a recommendation, rule out a wrong argument, choose what to do now and choose the signal that would reopen the decision.",
+      "difficulty": "easy",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence pack, step 1 (read the evidence). From the CodeDev repository and pipeline, last 90 days:\n\nTeam      6 developers, 1 team, 1 backlog\nChanges   212 merged pull requests; 170 of them (80%) changed files in 2 or more modules\n          most common combination: orders + payments + enrollment (checkout work)\nDeploys   1 pipeline, 25 min; deploy queue: median 0 waiting, max 1\n\nStatement: \"If each module became its own service, most of the team's changes would need coordinated changes and releases of two or more services.\"",
+          "explanation": "True. 80% of the merged pull requests changed two or more modules together. With one service per module, each of those changes would touch two or more services: separate pull requests or repositories, compatible API versions, and releases in the right order. This is change coupling, and it is the evidence that the current boundaries are not places where work naturally separates. The misconception tested is that splitting code into services separates the work by itself; it only separates the deploys, and the work still crosses the boundaries.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence pack, step 2 (choose a recommendation). The proposal in the team channel: \"Split catalog, orders, payments, enrollment, notifications and progress into six microservices, each with its own database.\"\n\nTeam        6 developers, 1 team; no on-call rotation, one senior developer handles production\nChanges     80% of pull requests change 2 or more modules\nLoad (web)  steady, CPU 20-35%, p95 180 ms\nIncidents   no incident in 6 months crossed module boundaries, except the code runner overload\nData        1 Postgres database; checkout writes orders and enrollments in one transaction\nOperations  no distributed tracing, 1 deploy pipeline\n\nStatement: \"The evidence supports the proposal: the six business modules should become six microservices with their own databases now.\"",
+          "explanation": "False. Every criterion points the other way for the six business modules: one team owns them all, most changes cross them, their load is steady and light, their failures stayed inside one module, checkout relies on one database transaction across orders and enrollments, and there is no on-call rotation or tracing to run six services. The evidence supports a modular monolith for these modules. The misconception is deciding for the whole system at once because one component (the runner) had a problem.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence pack, step 3 (rule out a wrong argument). A second message in the channel:\n\n\"Each microservice would be about 3000 lines instead of one 18000-line application. Smaller services are simpler, so the codebase as a whole would be simpler for our 6 developers.\"\n\nToday, checkout calls orders, payments and enrollment as in-process function calls inside one transaction. The team has no distributed tracing.\n\nStatement: \"This argument holds: splitting into microservices would make the CodeDev codebase simpler for this team.\"",
+          "explanation": "False. Each service would be smaller, but the system would not be simpler: the complexity moves into the calls between services. A function call that cannot fail on the network becomes an HTTP call that can time out, be retried or half succeed; the shared transaction becomes a distributed problem; API contracts must be versioned; and without tracing, one slow checkout across three services is hard to debug. Simplicity inside a module comes from module boundaries, which the team can have without a network. The misconception is counting lines per unit instead of the work across units.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence pack, step 4 (choose a recommendation for one component).\n\nLoad (web)     steady, CPU 20-35% on the app servers, p95 180 ms\nLoad (runner)  quiet most of the day; CPU 95-100% for 10-20 min around assignment deadlines;\n               each run uses 0.5-3 s of CPU on one core\nIncident       2026-09-14 21:00: 40 submissions at one deadline, the runner (inside the main\n               application) used all CPU, web p95 180 ms -> 4.2 s for 12 min, 23 checkouts timed out\nData           the runner needs only the submitted code and the tests, and returns results\n\nStatement: \"The code runner is a component the evidence supports running as a separate service, because its load profile and the damage its overload did to the website differ from the rest of the application.\"",
+          "explanation": "True. The runner differs on exactly the criteria that matter for a split: its scaling profile (short CPU-heavy bursts against steady light web traffic) and failure isolation (its overload slowed the whole website and broke checkouts). It also needs almost no shared data, so extracting it does not break a transaction. Running it as a separate service with its own CPU limits, a queue and a timeout on every call keeps a deadline burst away from checkout. CodeDev does run its code runner as a separate service. The misconception tested is that the choice is all-or-nothing: one component can be extracted while the rest stays a modular monolith.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence pack, step 5 (choose what to do now). A third message: \"Our pipeline takes 25 minutes. With microservices, each service would deploy in a few minutes.\"\n\nDeploys   1 pipeline: tests 14 min (run one after another), build 6 min, deploy 5 min = 25 min\n          3-4 deploys per working day; deploy queue: median 0 waiting, max 1\nChanges   80% of pull requests change 2 or more modules\n\nStatement: \"The 25-minute pipeline is a good reason to split the six business modules into services now.\"",
+          "explanation": "False. The deploy queue shows that nobody is blocked: median 0 waiting, at most 1. More than half of the 25 minutes is a test suite that runs one test file after another, which can be run in parallel, and the build can be cached; both are cheaper than six pipelines. And because 80% of changes touch several modules, most changes would need several service deploys in the right order, which is slower, not faster. The misconception is fixing a slow pipeline with an architecture change instead of in the pipeline.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Evidence pack, step 6 (choose the signal to revisit). The team decides: a modular monolith for the six business modules, the code runner as a separate service. Today:\n\nTeam      6 developers, 1 team\nChanges   80% of pull requests change 2 or more modules\nDeploys   deploy queue: median 0 waiting, max 1\n\nThe team lead asks which observation should make the team revisit the decision.\n\nStatement: \"If CodeDev grows to three teams that each own modules which rarely change together, and deploys start waiting in a queue for each other's changes, the team should revisit the decision.\"",
+          "explanation": "True. Each part of the signal reverses one piece of today's evidence: several teams instead of one (ownership), modules that rarely change together instead of 80% cross-module changes (change coupling), and a real deploy queue instead of median 0 (need for independent deploys). Those are the conditions under which service boundaries start to pay for their operational cost. A good revisit signal is measurable like this one. The misconception is that a decision is final; a modular monolith with clean boundaries is chosen partly so that a later split stays possible.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        }
+      ]
+    }
+  ]
+}

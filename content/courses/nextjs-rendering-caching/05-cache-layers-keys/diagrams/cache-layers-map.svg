@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Five caches between a learner and the CMS, each with its own key</text>
+  <text x="40" y="82" font-size="16" fill="#475569">A request passes them from left to right; the first one that holds a usable entry answers.</text>
+
+  <!-- 1 Browser -->
+  <rect x="40" y="110" width="205" height="220" rx="8" fill="#f8fafc" stroke="#64748b" stroke-width="2"/>
+  <text x="56" y="138" font-size="15" font-weight="700" fill="#334155">1  Browser cache</text>
+  <text x="56" y="162" font-size="13" fill="#64748b">on the learner's device</text>
+  <text x="56" y="180" font-size="13" fill="#64748b">one browser only</text>
+  <text x="56" y="214" font-size="13" font-weight="700" fill="#334155">keyed on</text>
+  <text x="56" y="234" font-size="13" fill="#334155">method + full URL</text>
+  <text x="56" y="252" font-size="13" fill="#334155">(+ Vary headers)</text>
+  <text x="56" y="286" font-size="13" font-weight="700" fill="#334155">lives</text>
+  <text x="56" y="306" font-size="13" fill="#334155">Cache-Control max-age</text>
+  <polygon points="248,214 248,226 259,220" fill="#94a3b8"/>
+
+  <!-- 2 CDN -->
+  <rect x="263" y="110" width="205" height="220" rx="8" fill="#f8fafc" stroke="#64748b" stroke-width="2"/>
+  <text x="279" y="138" font-size="15" font-weight="700" fill="#334155">2  CDN</text>
+  <text x="279" y="162" font-size="13" fill="#64748b">edge, in front of the app</text>
+  <text x="279" y="180" font-size="13" fill="#b91c1c">shared by every visitor</text>
+  <text x="279" y="214" font-size="13" font-weight="700" fill="#334155">keyed on</text>
+  <text x="279" y="234" font-size="13" fill="#334155">URL with query string</text>
+  <text x="279" y="252" font-size="13" fill="#334155">(by default)</text>
+  <text x="279" y="286" font-size="13" font-weight="700" fill="#334155">lives</text>
+  <text x="279" y="306" font-size="13" fill="#334155">s-maxage, purge</text>
+  <polygon points="471,214 471,226 482,220" fill="#94a3b8"/>
+
+  <!-- 3 Full Route Cache -->
+  <rect x="486" y="110" width="205" height="220" rx="8" fill="#f5f3ff" stroke="#7C3AED" stroke-width="2"/>
+  <text x="502" y="138" font-size="15" font-weight="700" fill="#6d28d9">3  Full Route Cache</text>
+  <text x="502" y="162" font-size="13" fill="#64748b">Next.js server</text>
+  <text x="502" y="180" font-size="13" fill="#b91c1c">shared, static routes</text>
+  <text x="502" y="214" font-size="13" font-weight="700" fill="#334155">keyed on</text>
+  <text x="502" y="234" font-size="13" fill="#334155">route path</text>
+  <text x="502" y="252" font-size="13" fill="#334155">(HTML + RSC payload)</text>
+  <text x="502" y="286" font-size="13" font-weight="700" fill="#334155">lives</text>
+  <text x="502" y="306" font-size="13" fill="#334155">until revalidate/deploy</text>
+  <polygon points="694,214 694,226 705,220" fill="#94a3b8"/>
+
+  <!-- 4 Data Cache -->
+  <rect x="709" y="110" width="205" height="220" rx="8" fill="#f5f3ff" stroke="#7C3AED" stroke-width="2"/>
+  <text x="725" y="138" font-size="15" font-weight="700" fill="#6d28d9">4  Data Cache</text>
+  <text x="725" y="162" font-size="13" fill="#64748b">Next.js server</text>
+  <text x="725" y="180" font-size="13" fill="#b91c1c">shared across requests</text>
+  <text x="725" y="214" font-size="13" font-weight="700" fill="#334155">keyed on</text>
+  <text x="725" y="234" font-size="13" fill="#334155">fetch URL + options, or</text>
+  <text x="725" y="252" font-size="13" fill="#334155">key parts + arguments</text>
+  <text x="725" y="286" font-size="13" font-weight="700" fill="#334155">lives</text>
+  <text x="725" y="306" font-size="13" fill="#334155">revalidate time or tag</text>
+  <polygon points="917,214 917,226 928,220" fill="#94a3b8"/>
+
+  <!-- 5 Request memoization -->
+  <rect x="932" y="110" width="228" height="220" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="948" y="138" font-size="15" font-weight="700" fill="#15803d">5  Request memo</text>
+  <text x="948" y="162" font-size="13" fill="#64748b">fetch dedupe, React cache()</text>
+  <text x="948" y="180" font-size="13" fill="#15803d">one request only</text>
+  <text x="948" y="214" font-size="13" font-weight="700" fill="#334155">keyed on</text>
+  <text x="948" y="234" font-size="13" fill="#334155">function + arguments</text>
+  <text x="948" y="252" font-size="13" fill="#334155">(fetch: URL + options)</text>
+  <text x="948" y="286" font-size="13" font-weight="700" fill="#334155">lives</text>
+  <text x="948" y="306" font-size="13" fill="#334155">ends with the request</text>
+
+  <!-- Key rule -->
+  <text x="40" y="372" font-size="18" font-weight="700" fill="#334155">The key rule: every input that changes the response, and nothing else</text>
+
+  <rect x="40" y="390" width="545" height="180" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="420" font-size="16" font-weight="700" fill="#b91c1c">Before: the raw query string is the key</text>
+  <text x="64" y="452" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">catalog:search=react&amp;utm_source=fb</text>
+  <text x="64" y="476" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">catalog:utm_source=fb&amp;search=react</text>
+  <text x="64" y="500" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">catalog:search=react&amp;utm_source=mail</text>
+  <text x="64" y="530" font-size="14" font-weight="700" fill="#b91c1c">3 URLs, 3 entries, one identical page</text>
+  <text x="64" y="552" font-size="13" fill="#64748b">and progress keyed by slug only: one learner's data for all</text>
+
+  <rect x="615" y="390" width="545" height="180" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="639" y="420" font-size="16" font-weight="700" fill="#15803d">After: allowed inputs, sorted and encoded</text>
+  <text x="639" y="452" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">public:  resource | locale | public | ...</text>
+  <text x="639" y="476" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">personal: resource | locale | user=id | ...</text>
+  <text x="639" y="500" font-size="14" fill="#334155" font-family="Consolas, 'Courier New', monospace">personal, no user: do not cache</text>
+  <text x="639" y="530" font-size="14" font-weight="700" fill="#15803d">3 URLs, 1 entry; tracking params dropped</text>
+  <text x="639" y="552" font-size="13" fill="#64748b">a public key never contains a user id, a personal key always does</text>
+</svg>

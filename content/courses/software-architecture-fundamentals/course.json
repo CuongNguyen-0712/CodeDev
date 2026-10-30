@@ -1,0 +1,52 @@
+{
+  "publicId": "software-architecture-fundamentals",
+  "image": "",
+  "title": "Software Architecture Fundamentals: Modules, Layers, Dependencies & Decisions",
+  "concept": "Learn to structure an application so it can change safely: modules, layers and services, cohesion and coupling, dependency direction, ports and dependency inversion, behavior-preserving refactoring, side-effect order, circular dependencies, shared databases, the monolith-or-microservices decision and architecture decision records.",
+  "description": "A beginner course for developers who have built a small application and now find that every change touches five files. Every lesson starts from a problem in the CodeDev learning platform's backend - an OrderService that talks to the database, the payment gateway and the email server in one 300-line method, a receipt email sent for a payment that failed, an AI refactor that made the order and payment modules import each other, a team arguing about splitting into microservices - and solves it with a small, testable step: name the modules, measure coupling, point dependencies inward, inject ports, refactor under characterization tests, order side effects, break cycles, own your data and write the decision down. 10 lessons with quizzes on real code and scenarios, and hands-on TypeScript challenges.",
+  "level": "beginner",
+  "durationMinutes": 240,
+  "instructor": "CodeDev Engineering Team",
+  "language": "TypeScript",
+  "category": "Software Architecture",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 50,
+  "accessModel": "free",
+  "publishStatus": "draft",
+  "completionRules": {},
+  "careerRoles": ["student", "backend_developer", "fullstack_developer", "frontend_developer"],
+  "skills": { "system_design": 5, "typescript": 2, "testing": 2, "api_design": 1 },
+  "goals": ["fundamentals", "grow_in_role", "interview_prep"],
+  "prerequisites": [],
+  "modules": [
+    {
+      "orderIndex": 1,
+      "title": "Structure",
+      "lessons": [
+        { "orderIndex": 1, "folder": "01-modules-layers-services", "title": "Modules, layers and services: three words, three different things", "sanityId": "lesson-saf-1-1" },
+        { "orderIndex": 2, "folder": "02-cohesion-coupling", "title": "Measure cohesion and coupling before you split anything", "sanityId": "lesson-saf-1-2" },
+        { "orderIndex": 3, "folder": "03-dependency-direction", "title": "Point dependencies inward: layer rules you can check", "sanityId": "lesson-saf-1-3" }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Refactoring Safely",
+      "lessons": [
+        { "orderIndex": 1, "folder": "04-ports-dependency-inversion", "title": "Inject payment and email through ports: dependency inversion", "sanityId": "lesson-saf-2-1" },
+        { "orderIndex": 2, "folder": "05-refactor-keep-behavior", "title": "Refactor without changing behavior: characterization tests", "sanityId": "lesson-saf-2-2" },
+        { "orderIndex": 3, "folder": "06-side-effect-order", "title": "Order side effects: charge first, email last", "sanityId": "lesson-saf-2-3" },
+        { "orderIndex": 4, "folder": "07-circular-dependencies", "title": "Find and break circular dependencies", "sanityId": "lesson-saf-2-4" }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Decisions",
+      "lessons": [
+        { "orderIndex": 1, "folder": "08-data-ownership", "title": "Shared database or owned data: who may write a table", "sanityId": "lesson-saf-3-1" },
+        { "orderIndex": 2, "folder": "09-monolith-or-microservices", "title": "Monolith or microservices? Decide from evidence", "sanityId": "lesson-saf-3-2" },
+        { "orderIndex": 3, "folder": "10-architecture-decision-records", "title": "Write the decision down: architecture decision records", "sanityId": "lesson-saf-3-3" }
+      ]
+    }
+  ]
+}

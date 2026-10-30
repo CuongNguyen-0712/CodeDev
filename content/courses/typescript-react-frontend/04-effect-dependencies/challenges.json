@@ -1,0 +1,407 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_trf_211",
+      "name": "find-the-render-loop-quiz",
+      "type": "quiz",
+      "title": "Find the Render Loop: the catalog that never stops fetching",
+      "description": "Six statements about one capture from the CodeDev catalog screen after a refactor: the hook that loads the courses, a Network panel full of identical GET /api/courses requests and a React DevTools note on why the component rendered. One step per statement: read the evidence, pick a hypothesis, rule one out, choose the fix and choose how to verify it.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Step 1 (read the evidence). The catalog page is open and nobody touches it.\n\nNetwork (filter: /api/courses):\n#41  GET /api/courses?search=&level=beginner&sort=popular&page=1  200  38 ms  Initiator: useCatalogResults.ts\n#42  GET /api/courses?search=&level=beginner&sort=popular&page=1  200  41 ms  Initiator: useCatalogResults.ts\n#43  GET /api/courses?search=&level=beginner&sort=popular&page=1  200  37 ms  Initiator: useCatalogResults.ts\n... about 25 identical requests per second\n\nReact DevTools Profiler, CatalogResults, every commit (simplified):\nWhy did this render? Hook 1 changed.   (Hook 1 = useState: results)\nProps: unchanged. Parent did not render.\n\nStatement: \"The repeated renders do not come from the parent: each one is triggered by the component's own state update, which happens after every response.\"",
+          "explanation": "True. The Profiler says the props did not change and the parent did not render; the only reason is Hook 1, the results state. Every response is stored with setResults, and a new object is never equal to the previous one under Object.is, so each response causes a render. The common misconception is to start looking at the parent (CatalogPage) or at the filter bar because the component \"must be getting new props\" - the evidence says it renders itself.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Step 2 (pick a hypothesis). The hook after the refactor:\n\nfunction useCatalogResults({ search, level, sort, page }: CatalogFilters) {\n  const [results, setResults] = useState<CourseList | null>(null);\n  const query = { search, level, sort, page };\n  useEffect(() => {\n    fetchCourses(query).then(setResults);\n  }, [query]);\n  return results;\n}\n\nThe Network panel shows the same URL, with the same four values, about 25 times per second.\n\nStatement: \"The effect runs after every render because query is a new object on every render, and React compares dependencies with Object.is, which compares objects by identity, not by their contents.\"",
+          "explanation": "True. The object literal { search, level, sort, page } runs on every render and creates a new object, so Object.is(previousQuery, nextQuery) is false even when all four values are equal. The effect fetches again, setResults stores the new response, that state change renders the component, and the cycle repeats. The misconception tested is that React compares dependencies by value (\"the URL is the same, so the effect should not run\"); it compares each dependency with Object.is.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Step 3 (rule out a hypothesis). A teammate notices that the app is wrapped in <StrictMode> in development.\n\nmain.tsx:\ncreateRoot(document.getElementById(\"root\")!).render(<StrictMode><App /></StrictMode>);\n\nNetwork while the page is idle: about 25 identical GET /api/courses requests per second, for as long as the page stays open.\n\nStatement: \"StrictMode explains the dozens of requests per second, because it runs every effect twice; the production build will not have the problem.\"",
+          "explanation": "False. In development, StrictMode runs an extra setup-and-cleanup cycle once when a component mounts, so an effect that fetches can show two requests on mount - not a stream of requests that never stops while the page is idle. A continuous stream means the effect keeps re-running, which happens in production too. The misconception is to blame development-only double invocation for every repeated request instead of checking whether the count keeps growing.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Step 4 (choose a fix). Proposed change to the same hook:\n\nconst query = { search, level, sort, page };\nuseEffect(() => {\n  fetchCourses(query).then(setResults);\n  // eslint-disable-next-line react-hooks/exhaustive-deps\n}, []);\n\nThe catalog screen has a search box, a level filter, a sort select and pagination, all passed into this hook.\n\nStatement: \"This is a good fix: with an empty dependency array the effect runs once after mount, which stops the loop and is all the catalog needs.\"",
+          "explanation": "False. The loop stops, but the effect now uses the search, level, sort and page of the first render forever: changing the level or the page never sends a new request, and the list shows the first results until the page is reloaded. The disabled lint rule was warning about exactly that. The misconception is to treat the dependency array as a \"how often\" setting; it must list every reactive value the effect reads, and the fix is to make those values stable, not to hide them.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Step 5 (choose a fix). Second symptom in the ticket: \"After switching from Beginner to Advanced, the list sometimes shows beginner courses again.\" Proposed hook:\n\nuseEffect(() => {\n  let ignore = false;\n  fetchCourses({ search, level, sort, page }).then((data) => {\n    if (!ignore) setResults(data);\n  });\n  return () => { ignore = true; };\n}, [search, level, sort, page]);\n\nStatement: \"This fixes both symptoms: strings and numbers compare equal under Object.is, so the effect only runs when a filter value really changes, and the cleanup makes a late response for the previous filter be ignored.\"",
+          "explanation": "True. The dependencies are now primitives, so a render with the same four values skips the effect, and the query object is created inside the effect where its identity no longer matters. When the level changes, React runs the previous effect's cleanup first, which sets that run's ignore flag, so the beginner response that arrives late is dropped instead of overwriting the advanced results. The misconception is that fixing the loop also fixes stale results; out-of-order responses need their own guard.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Step 6 (verify). The fix from step 5 is deployed to the staging environment. Before the fix, the page always showed the right beginner courses on first load; only the request count and, sometimes, a late filter switch were wrong.\n\nProposed check: \"Open /courses on staging, see that the beginner courses are listed, switch to Advanced and see advanced courses. If the list is right, the fix works.\"\n\nStatement: \"This check is enough to verify the fix.\"",
+          "explanation": "False. The broken version also showed the right courses on first load, so a correct list proves nothing about the loop. Verify the symptom itself: in the Network panel filtered to /api/courses, an idle page shows exactly one request after load and the count stays the same while you wait; each real filter change adds exactly one request; and a test with a fake fetchCourses counts the calls and delivers two responses out of order. The misconception is to verify by looking at the happy path instead of measuring the number that was wrong.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_trf_212",
+      "name": "find-the-render-loop",
+      "type": "fix_bug",
+      "title": "Find the Render Loop",
+      "description": "After a refactor that grouped the catalog filters into one query object, the CodeDev catalog screen (/courses) sends GET /api/courses for the same filter dozens of times per second while the page is open, and support reports that after switching level the list sometimes shows the courses of the level the learner just left. Fix useCatalogResults(props, hooks, api). props is { search, level, sort, page }; the parent passes a new props object every time it renders, even when the values are the same. hooks is { useState, useEffect, useMemo, useCallback, useRef } and behaves like React (dependencies compared with Object.is, effects after render, cleanup before the next run). api.fetchCourses(query) returns a Promise of { items, total }, and responses can arrive in a different order than the requests. The hook returns the latest response for the current filter, or null before the first response. Required: exactly one request on mount; exactly one more request for each render in which search, level, sort or page really changed; no request when the parent re-renders with equal values; a response for a filter the learner already left never replaces newer results. The grader runs the hook in a small hooks simulator and reports a render loop when one step needs more than 50 renders.",
+      "difficulty": "medium",
+      "points": 20,
+      "hints": [
+        "The effect re-runs when one of its dependencies is not Object.is-equal to its value in the previous render. Which value in the dependency array is created fresh on every render, even when the filter did not change?",
+        "Look at where query is built and at what the dependency array contains. Then think about two requests in flight: when the level changes, which code runs for the previous effect before the new one starts, and how could it tell the old request that its answer is no longer wanted?",
+        "A similar case on a different screen: a lesson page loads comments with useEffect(() => { loadComments({ lessonId, sort }).then(setComments); }, [options]) where options = { lessonId, sort } is built during render. Listing [lessonId, sort] and building the object inside the effect lets equal values skip the effect, and returning () => { cancelled = true; } from the effect, with the .then checking cancelled, drops the answer for a lesson the reader already left."
+      ],
+      "coding": {
+        "language": "javascript",
+        "filePath": "useCatalogResults.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "tests": [
+        {
+          "name": "Mount: exactly one request, and its results are shown",
+          "input": {
+            "props": {
+              "search": "",
+              "level": "beginner",
+              "sort": "popular",
+              "page": 1
+            },
+            "steps": []
+          },
+          "expected": {
+            "loop": false,
+            "fetchCount": 1,
+            "queries": [
+              "search=&level=beginner&sort=popular&page=1"
+            ],
+            "shown": {
+              "items": [
+                "web-http-fundamentals",
+                "typescript-foundations"
+              ],
+              "total": 3
+            },
+            "activeTimers": 0
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Switching the level to advanced sends one more request and shows the advanced courses",
+          "input": {
+            "props": {
+              "search": "",
+              "level": "beginner",
+              "sort": "popular",
+              "page": 1
+            },
+            "steps": [
+              {
+                "props": {
+                  "level": "advanced"
+                }
+              }
+            ]
+          },
+          "expected": {
+            "loop": false,
+            "fetchCount": 2,
+            "queries": [
+              "search=&level=beginner&sort=popular&page=1",
+              "search=&level=advanced&sort=popular&page=1"
+            ],
+            "shown": {
+              "items": [
+                "software-architecture-fundamentals",
+                "web-performance-deep-dive"
+              ],
+              "total": 2
+            },
+            "activeTimers": 0
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Parent re-renders with the same filter values send no new request",
+          "input": {
+            "props": {
+              "search": "",
+              "level": "beginner",
+              "sort": "popular",
+              "page": 1
+            },
+            "steps": [
+              {
+                "props": {}
+              },
+              {
+                "props": {
+                  "level": "beginner"
+                }
+              },
+              {
+                "props": {
+                  "search": "",
+                  "page": 1
+                }
+              }
+            ]
+          },
+          "expected": {
+            "loop": false,
+            "fetchCount": 1,
+            "queries": [
+              "search=&level=beginner&sort=popular&page=1"
+            ],
+            "shown": {
+              "items": [
+                "web-http-fundamentals",
+                "typescript-foundations"
+              ],
+              "total": 3
+            },
+            "activeTimers": 0
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Each real change of page, level, sort or search sends exactly one request",
+          "input": {
+            "props": {
+              "search": "",
+              "level": "beginner",
+              "sort": "popular",
+              "page": 1
+            },
+            "steps": [
+              {
+                "props": {
+                  "page": 2
+                }
+              },
+              {
+                "props": {
+                  "level": "intermediate",
+                  "page": 1
+                }
+              },
+              {
+                "props": {
+                  "sort": "title"
+                }
+              },
+              {
+                "props": {
+                  "search": "react"
+                }
+              }
+            ]
+          },
+          "expected": {
+            "loop": false,
+            "fetchCount": 5,
+            "queries": [
+              "search=&level=beginner&sort=popular&page=1",
+              "search=&level=beginner&sort=popular&page=2",
+              "search=&level=intermediate&sort=popular&page=1",
+              "search=&level=intermediate&sort=title&page=1",
+              "search=react&level=intermediate&sort=title&page=1"
+            ],
+            "shown": {
+              "items": [
+                "typescript-react-frontend",
+                "react-testing-patterns"
+              ],
+              "total": 2
+            },
+            "activeTimers": 0
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A late response for the previous level does not replace the newer results",
+          "input": {
+            "props": {
+              "search": "",
+              "level": "beginner",
+              "sort": "popular",
+              "page": 1
+            },
+            "steps": [
+              {
+                "props": {
+                  "level": "intermediate"
+                },
+                "hold": true
+              },
+              {
+                "props": {
+                  "level": "advanced"
+                },
+                "hold": true
+              },
+              {
+                "settle": "newestFirst"
+              }
+            ]
+          },
+          "expected": {
+            "loop": false,
+            "fetchCount": 3,
+            "queries": [
+              "search=&level=beginner&sort=popular&page=1",
+              "search=&level=intermediate&sort=popular&page=1",
+              "search=&level=advanced&sort=popular&page=1"
+            ],
+            "shown": {
+              "items": [
+                "software-architecture-fundamentals",
+                "web-performance-deep-dive"
+              ],
+              "total": 2
+            },
+            "activeTimers": 0
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Changes and equal re-renders while requests are in flight: only the latest filter is shown",
+          "input": {
+            "props": {
+              "search": "",
+              "level": "beginner",
+              "sort": "popular",
+              "page": 1
+            },
+            "steps": [
+              {
+                "props": {
+                  "search": "typescript"
+                },
+                "hold": true
+              },
+              {
+                "props": {}
+              },
+              {
+                "props": {
+                  "search": "web"
+                },
+                "hold": true
+              },
+              {
+                "props": {
+                  "level": "all"
+                },
+                "hold": true
+              },
+              {
+                "settle": "newestFirst"
+              },
+              {
+                "props": {}
+              }
+            ]
+          },
+          "expected": {
+            "loop": false,
+            "fetchCount": 4,
+            "queries": [
+              "search=&level=beginner&sort=popular&page=1",
+              "search=typescript&level=beginner&sort=popular&page=1",
+              "search=web&level=beginner&sort=popular&page=1",
+              "search=web&level=all&sort=popular&page=1"
+            ],
+            "shown": {
+              "items": [
+                "web-http-fundamentals",
+                "web-performance-deep-dive"
+              ],
+              "total": 2
+            },
+            "activeTimers": 0
+          },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

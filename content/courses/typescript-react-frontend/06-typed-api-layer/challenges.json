@@ -1,0 +1,364 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_trf_231",
+      "name": "typed-api-layer-quiz",
+      "type": "quiz",
+      "title": "Types at the boundary and exhaustive errors",
+      "description": "Two pieces of the catalog's data layer: the old fetch that casts the response, and the new error union with an exhaustive switch. Decide whether each statement is True or False.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "shared/api is not merged yet. The catalog still loads courses like this, and tsc --strict compiles it without errors:\n\nasync function getCourses(query: CatalogQuery): Promise<CoursePage> {\n    const res = await fetch(`/api/courses?${toSearchParams(query)}`);\n    return (await res.json()) as CoursePage;\n}\n\nNetwork panel, GET /api/courses?page=1 -> 200, content-type: application/json:\n\n{\"items\":[{\"id\":\"web-http-fundamentals\",\"title\":\"Web Application Fundamentals\",\"level\":\"Beginner\",\"tags\":[\"http\"],\"rating\":4.7,\"learners\":1280,\"updatedAt\":\"2026-09-14\"}],\"total\":1}\n\nStatement: \"Because getCourses returns Promise<CoursePage> and the project compiles with --strict, every course the catalog receives at runtime has a level of beginner, intermediate or advanced.\"",
+          "explanation": "False. `as CoursePage` is a type assertion: it tells the compiler to trust you and adds no runtime check. Types are erased when TypeScript compiles to JavaScript, so this course with level \"Beginner\" reaches the components unchanged, and a filter or a switch on level silently misses it. The fix is to treat the parsed body as unknown and check it with a type guard (or a schema validator) once, at the API boundary. The misconception is that static types, or --strict, validate data that arrives over the network.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "After the refactor the catalog shows errors with:\n\ntype ApiError =\n    | { kind: \"network\" }\n    | { kind: \"unauthorized\" }\n    | { kind: \"validation\"; fieldErrors: Record<string, string> }\n    | { kind: \"server\"; status: number };\n\nfunction assertNever(value: never): never {\n    throw new Error(`unexpected: ${JSON.stringify(value)}`);\n}\n\nfunction describeError(error: ApiError): string {\n    switch (error.kind) {\n        case \"network\": return \"Cannot reach CodeDev.\";\n        case \"unauthorized\": return \"Please sign in again.\";\n        case \"validation\": return \"Please fix the highlighted fields.\";\n        case \"server\": return `CodeDev is having a problem (${error.status}).`;\n        default: return assertNever(error);\n    }\n}\n\nA teammate adds | { kind: \"conflict\"; message: string } to ApiError for the 409 that POST /api/enrollments sends, and does not touch describeError.\n\nStatement: \"tsc --strict now reports an error at assertNever(error), because in the default branch error can still be the conflict variant, which is not assignable to never.\"",
+          "explanation": "True. Each case narrows error by its kind. With four cases for five variants, the value that reaches default is narrowed to { kind: \"conflict\"; message: string }, and passing it where never is expected is a compile error (Argument of type ... is not assignable to parameter of type 'never'). That is the point of the pattern: a new variant makes every switch that forgot it fail the build, instead of the UI quietly falling back to a generic message. The misconception is that assertNever is only a runtime guard; its main value is the compile-time check.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_trf_232",
+      "name": "typed-api-result",
+      "type": "mini_coding",
+      "title": "Map every response to an ApiResult",
+      "description": "The catalog calls GET /api/courses through the new shared/api client. Write toApiResult(raw), which turns what the fetch wrapper saw into ApiResult<CoursePage>, and describeError(error), the message the catalog shows. The test runner reads one raw response as JSON ({ networkError, status, contentType, body, retryAfter? }; body is the response text) and prints { ok: true, total, ids } or { ok: false, error, message }.\n\ntoApiResult, the first matching rule wins:\n1. networkError true -> { kind: \"network\" }.\n2. Status 200-299: the content type without parameters (\";charset=...\"), trimmed and lowercased, must be \"application/json\" and the body must parse with JSON.parse, otherwise { kind: \"bad_response\", status, reason: \"not_json\" }; the parsed value must be a CoursePage, otherwise { kind: \"bad_response\", status, reason: \"invalid_shape\" }; then { ok: true, data }.\n3. 401 -> unauthorized, 403 -> forbidden, 404 -> not_found.\n4. 422 -> { kind: \"validation\", fieldErrors }: if the body is JSON (same content-type rule) and an object whose errors property is an object (not null, not an array), fieldErrors holds its entries whose value is a string, in order; otherwise {}.\n5. 429 -> { kind: \"rate_limited\", retryAfter }: raw.retryAfter when it is an integer >= 0, otherwise null.\n6. 500-599 -> { kind: \"server\", status }.\n7. Any other status (1xx, 3xx, 400, 409, ...) -> { kind: \"bad_response\", status, reason: \"unexpected_status\" }: the client has no rule for it.\n\nA CoursePage has items (an array of Course) and total (an integer >= 0). A Course has id and title (strings), level (\"beginner\", \"intermediate\" or \"advanced\"), tags (array of strings), rating (number from 0 to 5), learners (integer >= 0) and updatedAt (string); extra properties are allowed. One invalid course makes the whole page invalid.\n\ndescribeError returns exactly the messages listed in the starter, as a switch on error.kind that ends in the provided assertNever. Do not change the types, assertNever or the test runner. The program is compiled with tsc --strict.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "hints": [
+        "What does the client know for certain about a response before it reads the body, and what can only be trusted after a check? Which of the test inputs would make a plain JSON.parse(raw.body) throw?",
+        "Split the work into small functions: one that returns the parsed body or \"not JSON\" (content type first, then JSON.parse inside try/catch), a type guard isCourse(value: unknown): value is Course, and isCoursePage built on it with items.every(isCourse). toApiResult then only decides by status, in the order of the rules. In describeError, every case returns, and default passes error to assertNever.",
+        "The same pattern for a different endpoint: GET /api/users/me returns { id: string, displayName: string, exp: number }. A guard isProfile(value: unknown) checks typeof value === \"object\" && value !== null, then typeof value.id === \"string\", typeof value.displayName === \"string\" and Number.isInteger(value.exp). For { \"id\": \"u1\", \"displayName\": \"Lan\", \"exp\": \"1200\" } it returns false (exp is a string), so the client answers bad_response with reason invalid_shape instead of letting \"1200\" + 50 become \"120050\" in the header."
+      ],
+      "tests": [
+        {
+          "name": "A 200 JSON course page becomes ok with its items",
+          "input": {
+            "networkError": false,
+            "status": 200,
+            "contentType": "application/json; charset=utf-8",
+            "body": "{\"items\":[{\"id\":\"web-http-fundamentals\",\"title\":\"Web Application Fundamentals\",\"level\":\"beginner\",\"tags\":[\"http\",\"javascript\"],\"rating\":4.7,\"learners\":1280,\"updatedAt\":\"2026-09-14\"},{\"id\":\"typescript-react-frontend\",\"title\":\"React + TypeScript Architecture\",\"level\":\"intermediate\",\"tags\":[\"react\",\"typescript\"],\"rating\":4.8,\"learners\":312,\"updatedAt\":\"2026-10-02\"}],\"total\":18}"
+          },
+          "expected": {
+            "ok": true,
+            "total": 18,
+            "ids": [
+              "web-http-fundamentals",
+              "typescript-react-frontend"
+            ]
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A 401 becomes unauthorized and asks the learner to sign in again",
+          "input": {
+            "networkError": false,
+            "status": 401,
+            "contentType": "application/json",
+            "body": "{\"error\":\"token expired\"}"
+          },
+          "expected": {
+            "ok": false,
+            "error": {
+              "kind": "unauthorized"
+            },
+            "message": "Your session has expired. Please sign in again."
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A 422 from the enroll endpoint keeps its field errors",
+          "input": {
+            "networkError": false,
+            "status": 422,
+            "contentType": "application/json",
+            "body": "{\"errors\":{\"courseId\":\"This course is not open for enrollment\"}}"
+          },
+          "expected": {
+            "ok": false,
+            "error": {
+              "kind": "validation",
+              "fieldErrors": {
+                "courseId": "This course is not open for enrollment"
+              }
+            },
+            "message": "Please fix: courseId: This course is not open for enrollment"
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A 200 HTML maintenance page is a bad_response, not a crash",
+          "input": {
+            "networkError": false,
+            "status": 200,
+            "contentType": "text/html; charset=utf-8",
+            "body": "<!doctype html><html><body><h1>CodeDev is down for maintenance</h1></body></html>"
+          },
+          "expected": {
+            "ok": false,
+            "error": {
+              "kind": "bad_response",
+              "status": 200,
+              "reason": "not_json"
+            },
+            "message": "Unexpected response from CodeDev (200)."
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Malformed JSON with a JSON content type is a bad_response",
+          "input": {
+            "networkError": false,
+            "status": 200,
+            "contentType": "application/json",
+            "body": "{\"items\":[{\"id\":\"web-http-fundamentals\""
+          },
+          "expected": {
+            "ok": false,
+            "error": {
+              "kind": "bad_response",
+              "status": 200,
+              "reason": "not_json"
+            },
+            "message": "Unexpected response from CodeDev (200)."
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "One course with an unknown level makes the whole page invalid_shape",
+          "input": {
+            "networkError": false,
+            "status": 200,
+            "contentType": "application/json",
+            "body": "{\"items\":[{\"id\":\"web-http-fundamentals\",\"title\":\"Web Application Fundamentals\",\"level\":\"beginner\",\"tags\":[\"http\",\"javascript\"],\"rating\":4.7,\"learners\":1280,\"updatedAt\":\"2026-09-14\"},{\"id\":\"typescript-react-frontend\",\"title\":\"React + TypeScript Architecture\",\"level\":\"Intermediate\",\"tags\":[\"react\",\"typescript\"],\"rating\":4.8,\"learners\":312,\"updatedAt\":\"2026-10-02\"},{\"id\":\"sql-data-modeling\",\"title\":\"SQL & Data Modeling\",\"level\":\"beginner\",\"tags\":[\"sql\"],\"rating\":4.5,\"learners\":640,\"updatedAt\":\"2026-08-30\"}],\"total\":3}"
+          },
+          "expected": {
+            "ok": false,
+            "error": {
+              "kind": "bad_response",
+              "status": 200,
+              "reason": "invalid_shape"
+            },
+            "message": "Unexpected response from CodeDev (200)."
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A negative total is invalid_shape",
+          "input": {
+            "networkError": false,
+            "status": 200,
+            "contentType": "application/json",
+            "body": "{\"items\":[{\"id\":\"sql-data-modeling\",\"title\":\"SQL & Data Modeling\",\"level\":\"beginner\",\"tags\":[\"sql\"],\"rating\":4.5,\"learners\":640,\"updatedAt\":\"2026-08-30\"}],\"total\":-1}"
+          },
+          "expected": {
+            "ok": false,
+            "error": {
+              "kind": "bad_response",
+              "status": 200,
+              "reason": "invalid_shape"
+            },
+            "message": "Unexpected response from CodeDev (200)."
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "An empty page with total 0 is ok, and extra properties are allowed",
+          "input": {
+            "networkError": false,
+            "status": 200,
+            "contentType": "Application/JSON",
+            "body": "{\"items\":[],\"total\":0,\"nextCursor\":null}"
+          },
+          "expected": {
+            "ok": true,
+            "total": 0,
+            "ids": []
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A 422 without an errors object falls back to no field errors",
+          "input": {
+            "networkError": false,
+            "status": 422,
+            "contentType": "application/json",
+            "body": "{\"message\":\"Invalid request\"}"
+          },
+          "expected": {
+            "ok": false,
+            "error": {
+              "kind": "validation",
+              "fieldErrors": {}
+            },
+            "message": "The request was rejected. Please check your input."
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Field errors that are not strings are dropped",
+          "input": {
+            "networkError": false,
+            "status": 422,
+            "contentType": "application/json",
+            "body": "{\"errors\":{\"courseId\":\"Already enrolled\",\"attempts\":3,\"note\":null,\"plan\":\"Choose a plan\"}}"
+          },
+          "expected": {
+            "ok": false,
+            "error": {
+              "kind": "validation",
+              "fieldErrors": {
+                "courseId": "Already enrolled",
+                "plan": "Choose a plan"
+              }
+            },
+            "message": "Please fix: courseId: Already enrolled; plan: Choose a plan"
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A 429 keeps retryAfter in seconds",
+          "input": {
+            "networkError": false,
+            "status": 429,
+            "contentType": "application/json",
+            "body": "{\"error\":\"slow down\"}",
+            "retryAfter": 30
+          },
+          "expected": {
+            "ok": false,
+            "error": {
+              "kind": "rate_limited",
+              "retryAfter": 30
+            },
+            "message": "Too many requests. Try again in 30 seconds."
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A 429 without a usable retryAfter has retryAfter null",
+          "input": {
+            "networkError": false,
+            "status": 429,
+            "contentType": "text/plain",
+            "body": "Too Many Requests",
+            "retryAfter": -5
+          },
+          "expected": {
+            "ok": false,
+            "error": {
+              "kind": "rate_limited",
+              "retryAfter": null
+            },
+            "message": "Too many requests. Please wait a moment and try again."
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A 409 is an unexpected_status bad_response, not a server error",
+          "input": {
+            "networkError": false,
+            "status": 409,
+            "contentType": "application/json",
+            "body": "{\"error\":\"Already enrolled\"}"
+          },
+          "expected": {
+            "ok": false,
+            "error": {
+              "kind": "bad_response",
+              "status": 409,
+              "reason": "unexpected_status"
+            },
+            "message": "Unexpected response from CodeDev (409)."
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A 503 is a server error with its status",
+          "input": {
+            "networkError": false,
+            "status": 503,
+            "contentType": "text/html",
+            "body": "<h1>Service Unavailable</h1>"
+          },
+          "expected": {
+            "ok": false,
+            "error": {
+              "kind": "server",
+              "status": 503
+            },
+            "message": "CodeDev is having a problem (503). Please try again later."
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A network error wins over any status",
+          "input": {
+            "networkError": true,
+            "status": 0,
+            "contentType": "",
+            "body": ""
+          },
+          "expected": {
+            "ok": false,
+            "error": {
+              "kind": "network"
+            },
+            "message": "Cannot reach CodeDev. Check your connection and try again."
+          },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

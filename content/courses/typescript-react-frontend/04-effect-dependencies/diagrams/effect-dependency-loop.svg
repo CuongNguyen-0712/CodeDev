@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Same values, new object: the effect runs after every render</text>
+  <text x="40" y="82" font-size="16" fill="#475569">React compares each dependency with Object.is. An object built during render is never the same object twice.</text>
+
+  <!-- Left: the loop -->
+  <rect x="40" y="112" width="545" height="320" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="146" font-size="18" font-weight="700" fill="#b91c1c">Before: [query] as the dependency</text>
+  <text x="64" y="170" font-size="13" fill="#64748b">const query = { search, level, sort, page } on every render</text>
+
+  <rect x="64" y="184" width="497" height="38" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="2"/>
+  <text x="80" y="209" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">1 render: query = new object</text>
+  <rect x="64" y="228" width="497" height="38" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="2"/>
+  <text x="80" y="253" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">2 Object.is(prevQuery, query) -&gt; false</text>
+  <rect x="64" y="272" width="497" height="38" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="2"/>
+  <text x="80" y="297" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">3 effect: fetchCourses(query)</text>
+  <rect x="64" y="316" width="497" height="38" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="2"/>
+  <text x="80" y="341" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">4 response: setResults(newResponse)</text>
+  <rect x="64" y="360" width="497" height="38" rx="6" fill="#ffffff" stroke="#ef4444" stroke-width="2"/>
+  <text x="80" y="385" font-size="15" fill="#b91c1c" font-family="Consolas, 'Courier New', monospace">5 state changed -&gt; back to step 1</text>
+  <text x="64" y="420" font-size="13" fill="#b91c1c">Network: about 25 identical GET /api/courses per second</text>
+
+  <!-- Right: the fix -->
+  <rect x="615" y="112" width="545" height="320" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="639" y="146" font-size="18" font-weight="700" fill="#15803d">After: [search, level, sort, page]</text>
+  <text x="639" y="170" font-size="13" fill="#64748b">primitives as dependencies, the query object built inside the effect</text>
+
+  <rect x="639" y="184" width="497" height="38" rx="6" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+  <text x="655" y="209" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">1 render: level = "beginner"</text>
+  <rect x="639" y="228" width="497" height="38" rx="6" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+  <text x="655" y="253" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">2 Object.is("beginner", "beginner") -&gt; true</text>
+  <rect x="639" y="272" width="497" height="38" rx="6" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+  <text x="655" y="297" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">3 effect skipped: no request</text>
+  <rect x="639" y="316" width="497" height="38" rx="6" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+  <text x="655" y="341" font-size="15" fill="#334155" font-family="Consolas, 'Courier New', monospace">4 level changed -&gt; one request</text>
+  <rect x="639" y="360" width="497" height="38" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+  <text x="655" y="385" font-size="15" fill="#15803d" font-family="Consolas, 'Courier New', monospace">5 cleanup: old response ignored</text>
+  <text x="639" y="420" font-size="13" fill="#15803d">Network: 1 request on load, 1 per real filter change</text>
+
+  <!-- Rules -->
+  <text x="40" y="462" font-size="18" font-weight="700" fill="#334155">When does the effect run?</text>
+  <rect x="40" y="476" width="265" height="96" rx="8" fill="#f8fafc" stroke="#64748b" stroke-width="2"/>
+  <text x="58" y="504" font-size="15" font-weight="700" fill="#334155">No dependency array</text>
+  <text x="58" y="528" font-size="13" fill="#475569">after every render</text>
+  <text x="58" y="548" font-size="13" fill="#475569">(rarely what you want)</text>
+
+  <rect x="325" y="476" width="265" height="96" rx="8" fill="#f8fafc" stroke="#64748b" stroke-width="2"/>
+  <text x="343" y="504" font-size="15" font-weight="700" fill="#334155">Empty array []</text>
+  <text x="343" y="528" font-size="13" fill="#475569">once after mount, and it keeps</text>
+  <text x="343" y="548" font-size="13" fill="#475569">the values of the first render</text>
+
+  <rect x="610" y="476" width="265" height="96" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="628" y="504" font-size="15" font-weight="700" fill="#15803d">[search, level, ...]</text>
+  <text x="628" y="528" font-size="13" fill="#166534">when any item is not Object.is</text>
+  <text x="628" y="548" font-size="13" fill="#166534">equal to the previous render</text>
+
+  <rect x="895" y="476" width="265" height="96" rx="8" fill="#f5f3ff" stroke="#7C3AED" stroke-width="2"/>
+  <text x="913" y="504" font-size="15" font-weight="700" fill="#6d28d9">No effect at all</text>
+  <text x="913" y="528" font-size="13" fill="#5b21b6">derived data: compute in render</text>
+  <text x="913" y="548" font-size="13" fill="#5b21b6">user action: event handler</text>
+</svg>
