@@ -41,7 +41,7 @@ export function InputGroup({
         <Field data-invalid={error ? true : undefined} className="group/field gap-1">
             <FieldLabel
                 htmlFor={name}
-                className="text-xs font-semibold text-foreground/90 transition-colors group-focus-within/field:text-primary-ink group-data-[invalid=true]/field:text-destructive"
+                className="text-xs font-semibold text-foreground transition-colors group-focus-within/field:text-primary-ink group-data-[invalid=true]/field:text-destructive"
             >
                 {label}
             </FieldLabel>
@@ -126,7 +126,7 @@ export function TextAreaGroup({
         <Field data-invalid={error ? true : undefined} className="group/field gap-1">
             <FieldLabel
                 htmlFor={name}
-                className="text-xs font-semibold text-foreground/90 transition-colors group-focus-within/field:text-primary-ink group-data-[invalid=true]/field:text-destructive"
+                className="text-xs font-semibold text-foreground transition-colors group-focus-within/field:text-primary-ink group-data-[invalid=true]/field:text-destructive"
             >
                 {label}
             </FieldLabel>

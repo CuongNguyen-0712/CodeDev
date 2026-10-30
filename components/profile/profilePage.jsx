@@ -395,7 +395,7 @@ export default function ProfilePage() {
                                     )}
                                 </div>
                                 {data?.bio && (
-                                    <p className="max-w-[65ch] text-sm whitespace-pre-line text-foreground/90">{data.bio}</p>
+                                    <p className="max-w-[65ch] text-sm whitespace-pre-line text-foreground">{data.bio}</p>
                                 )}
                             </div>
                         </div>

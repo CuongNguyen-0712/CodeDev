@@ -92,7 +92,7 @@
     --info-soft: #EEF3FE;
 
     /* Lines and focus: border is decorative only, input carries 3:1 for controls */
-    --border: #E5E2EC;
+    --border: #D6D1DF;
     --input: #8B859A;
     --ring: #7C3AED;
 
@@ -106,7 +106,7 @@
     --sidebar-primary-foreground: #FFFFFF;
     --sidebar-accent: #EDEAF4;
     --sidebar-accent-foreground: #17141F;
-    --sidebar-border: #E5E2EC;
+    --sidebar-border: #D6D1DF;
     --sidebar-ring: #7C3AED;
 
     /* Scrollbars: every scroll container reads these through the base layer.
@@ -222,7 +222,7 @@
     --info-soft: #152539;
 
     /* Lines and focus */
-    --border: #3D3749;
+    --border: #4C455B;
     --input: #7A7390;
     --ring: #A78BFA;
     --overlay: rgb(0 0 0 / 0.7);
@@ -234,7 +234,7 @@
     --sidebar-primary-foreground: #FFFFFF;
     --sidebar-accent: #241F30;
     --sidebar-accent-foreground: #F4F2F8;
-    --sidebar-border: #2D2838;
+    --sidebar-border: #3D3749;
     --sidebar-ring: #A78BFA;
 
     /* Scrollbars in Dark */
