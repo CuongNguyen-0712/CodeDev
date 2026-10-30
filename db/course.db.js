@@ -245,6 +245,27 @@ export const courseDb = {
     },
 
     /** Languages and categories that have at least one visible course (filter options). */
+    /** Live figures for the landing and About pages: what the published catalog really holds. */
+    getCatalogStats: async () => {
+        const query = `
+            WITH visible AS (
+                SELECT id, language_id, access_model, lessons FROM catalog.course
+                WHERE publish_status = 'published' AND is_deleted = false AND is_hidden = false
+            )
+            SELECT
+                (SELECT COUNT(*) FROM visible)::int AS courses,
+                (SELECT COUNT(*) FROM visible WHERE access_model = 'free')::int AS free_courses,
+                (SELECT COALESCE(SUM(lessons), 0) FROM visible)::int AS lessons,
+                (SELECT COUNT(DISTINCT language_id) FROM visible)::int AS languages,
+                (SELECT COUNT(*) FROM roadmap.roadmaps)::int AS roadmaps,
+                (SELECT COUNT(*) FROM challenge.challenges ch JOIN visible v ON v.id = ch.course_id
+                    WHERE ch.is_published AND NOT ch.is_deleted AND ch.type <> 'quiz')::int AS coding_challenges,
+                (SELECT COUNT(*) FROM challenge.challenges ch JOIN visible v ON v.id = ch.course_id
+                    WHERE ch.is_published AND NOT ch.is_deleted AND ch.type = 'quiz')::int AS quizzes;
+        `;
+        return await sql(query);
+    },
+
     getCourseFilterOptions: async () => {
         const query = `
             WITH visible AS (

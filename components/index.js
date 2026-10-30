@@ -62,36 +62,50 @@ const LOOP = [
     },
     {
         term: "Run the sample tests",
-        detail: "The challenge opens in an editor in your browser. Run the visible tests as often as you like while you work.",
+        detail: "Write in the editor and run the visible tests as often as you like. Your code runs in an isolated sandbox, so there is nothing to install.",
+    },
+    {
+        term: "Ask for a hint, not the answer",
+        detail: "Most challenges have three hints that get more specific one at a time. Opening the last one before you pass halves the EXP, so try first.",
     },
     {
         term: "Submit for grading",
-        detail: "Submitting also runs hidden tests, so a pass means the code handles more than the examples.",
-    },
-    {
-        term: "Pick up where you stopped",
-        detail: "My learning keeps every enrolled course with its progress, so the next lesson is one click away.",
+        detail: "Submitting also runs hidden tests, so a pass means the code handles more than the examples. It earns points and EXP and moves the course on.",
     },
 ];
 
-const EXTRAS = [
+// Figures come from the live catalog (app/page.jsx); a missing figure drops out of the sentence.
+const EXTRAS = (stats) => [
     {
-        title: "Roadmaps",
-        detail: "A suggested order across courses for roles like frontend, backend or data.",
+        title: "Roadmaps for roles",
+        detail: `${stats?.roadmaps ? `${stats.roadmaps} roadmaps put` : "Roadmaps put"} the courses in order for frontend, backend, DevOps, data and more, and show the next course to take.`,
         href: "/roadmap",
         link: "View roadmaps",
     },
     {
-        title: "Quizzes",
-        detail: "Some lessons end with a short quiz to check the idea stuck before you move on.",
+        title: "Quizzes between the code",
+        detail: `${stats?.quizzes ? `${stats.quizzes.toLocaleString("en-US")} short quizzes check` : "Short quizzes check"} that an idea stuck before you move to the next lesson.`,
     },
     {
-        title: "Other learners",
-        detail: "Find people by username, add them as contacts and compare progress on the leaderboard.",
+        title: "Levels, points and the leaderboard",
+        detail: "Passing challenges earns EXP for your level and points you can spend on premium courses. Achievements mark good habits, like fixing bugs and solving without the last hint.",
         href: "/ranking",
         link: "See the leaderboard",
     },
 ];
+
+/** "41 courses in 13 languages, 22 of them free: 452 lessons and 365 coding challenges." */
+function catalogSentence(stats) {
+    if (!stats?.courses) return null;
+    const parts = [`${stats.courses} courses`];
+    if (stats.languages) parts[0] += ` in ${stats.languages} languages`;
+    if (stats.free_courses) parts[0] += `, ${stats.free_courses} of them free`;
+    const detail = [
+        stats.lessons && `${stats.lessons.toLocaleString("en-US")} lessons`,
+        stats.coding_challenges && `${stats.coding_challenges.toLocaleString("en-US")} coding challenges`,
+    ].filter(Boolean);
+    return detail.length ? `${parts[0]}: ${detail.join(" and ")}.` : `${parts[0]}.`;
+}
 
 // Light build with only JavaScript registered: the landing page should not ship every Prism grammar.
 SyntaxHighlighter.registerLanguage("javascript", javascript);
@@ -111,9 +125,11 @@ function CodeSample() {
     const passed = results?.filter((result) => result.passed).length ?? 0;
 
     return (
+        // On a dark page the editor surface is one shade off the ground, so a hairline keeps its edge.
         <figure
             aria-label="Example coding challenge"
-            className="min-w-0 overflow-hidden rounded-lg bg-editor text-editor-foreground"
+            data-ui
+            className="min-w-0 overflow-hidden rounded-lg bg-editor text-editor-foreground dark:ring-1 dark:ring-border"
         >
             <div className="flex h-12 items-center gap-2 bg-editor-panel pr-2 pl-4">
                 <SiJavascript className="size-3.5 shrink-0 text-editor-muted" aria-hidden="true" />
@@ -181,7 +197,13 @@ function CodeSample() {
     );
 }
 
-function CourseShelf() {
+// Four real courses from the catalog. Also used on /about, inside its own column (className).
+export function CourseShelf({
+    title = "Start with a real course",
+    lead = "Every lesson opens with a bug someone actually shipped, then walks you to the fix.",
+    className = "mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 sm:px-6",
+    titleClassName = "text-3xl font-semibold tracking-tight sm:text-4xl",
+}) {
     const { data, isLoading, isError } = useInfiniteQuery(courseQueries.list({}, { limit: 4 }));
     const courses = (data?.pages?.[0]?.data ?? []).slice(0, 4);
 
@@ -189,14 +211,14 @@ function CourseShelf() {
     if (isError || (!isLoading && courses.length === 0)) return null;
 
     return (
-        <section aria-labelledby="shelf-title" className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 sm:px-6">
+        <section aria-labelledby="shelf-title" className={className}>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-8">
                 <div className="flex max-w-2xl flex-col gap-3">
-                    <h2 id="shelf-title" className="text-3xl font-semibold tracking-tight sm:text-4xl">
-                        Start with a real course
+                    <h2 id="shelf-title" className={titleClassName}>
+                        {title}
                     </h2>
                     <p className="text-base leading-relaxed text-foreground sm:text-lg">
-                        Every lesson opens with a bug someone actually shipped, then walks you to the fix.
+                        {lead}
                     </p>
                 </div>
                 <Link
@@ -248,7 +270,9 @@ function CourseShelf() {
     );
 }
 
-export default function IndexPage() {
+export default function IndexPage({ stats = null }) {
+    const catalog = catalogSentence(stats);
+
     return (
         <div className="flex w-full flex-col gap-24 pt-10 lg:gap-36 lg:pt-16">
             <section aria-labelledby="landing-title" className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-4 sm:px-6 lg:gap-14">
@@ -262,8 +286,8 @@ export default function IndexPage() {
                 <div className="grid items-start gap-10 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:gap-14">
                     <div className="flex flex-col items-start gap-7 lg:pt-2">
                         <p className="max-w-[44ch] text-lg leading-relaxed text-foreground sm:text-xl">
-                            Short written lessons, each followed by a coding challenge you solve in the browser.
-                            Run its sample tests here to see how every challenge works.
+                            Short written lessons, each ending in a challenge you write and run against tests.
+                            Try the one here: its sample tests run right in this page.
                         </p>
                         <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center sm:gap-6">
                             <Button asChild size="lg">
@@ -279,6 +303,9 @@ export default function IndexPage() {
                                 Browse courses first
                             </Link>
                         </div>
+                        {catalog && (
+                            <p className="max-w-[44ch] text-sm leading-relaxed text-muted-foreground tabular">{catalog}</p>
+                        )}
                     </div>
 
                     <CodeSample />
@@ -301,7 +328,7 @@ export default function IndexPage() {
                         {LOOP.map((item) => (
                             <div key={item.term} className="flex flex-col gap-2">
                                 <dt className="text-lg font-semibold text-foreground">{item.term}</dt>
-                                <dd className="text-base leading-relaxed text-muted-foreground">{item.detail}</dd>
+                                <dd className="text-base leading-relaxed text-foreground">{item.detail}</dd>
                             </div>
                         ))}
                     </dl>
@@ -313,10 +340,10 @@ export default function IndexPage() {
                     Around the courses
                 </h2>
                 <ul className="grid list-none gap-10 md:grid-cols-3 md:gap-8">
-                    {EXTRAS.map((extra) => (
+                    {EXTRAS(stats).map((extra) => (
                         <li key={extra.title} className="flex flex-col items-start gap-2">
                             <h3 className="text-lg font-semibold text-foreground">{extra.title}</h3>
-                            <p className="max-w-[38ch] text-base leading-relaxed text-muted-foreground">{extra.detail}</p>
+                            <p className="max-w-[38ch] text-base leading-relaxed text-foreground">{extra.detail}</p>
                             {extra.href && (
                                 <Link
                                     href={extra.href}

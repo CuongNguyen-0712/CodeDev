@@ -91,6 +91,14 @@ export const courseService = {
         };
     },
 
+    /** Catalog figures for the public pages (courses, lessons, languages, roadmaps, challenges). */
+    getCatalogStats: async () => {
+        return redis.remember(cacheKeys.catalogStats(), TTL.CATALOG_STATS, async () => {
+            const response = await courseDb.getCatalogStats();
+            return response.rows?.[0] || null;
+        });
+    },
+
     /** Filter options that actually match courses: languages and categories with counts. */
     getFilterOptions: async () => {
         return redis.remember(cacheKeys.courseFilterOptions(), TTL.COURSE_FILTER_OPTIONS, async () => {
