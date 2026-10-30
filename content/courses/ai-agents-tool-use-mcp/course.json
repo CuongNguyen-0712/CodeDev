@@ -1,0 +1,148 @@
+{
+  "publicId": "ai-agents-tool-use-mcp",
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792854767/codedev/courses/ai-agents-tool-use-mcp/cover",
+  "title": "AI Agents, Tool Use & MCP: Building Agents with Least Privilege",
+  "concept": "Build agents that stay inside their lane: decide when a fixed workflow is enough, write the agent loop around a scripted fake model, design narrow tools with argument schemas, expose internal data through a Model Context Protocol server, enforce permissions, human approval, step and budget limits, treat tool output as untrusted data, and audit every call so a run can be replayed.",
+  "description": "An expert course for engineers who give a model tools and must make sure it cannot do more than it should. Every lesson starts from an incident around the CodeDev learning platform's Study-Plan Agent and its operations agent - an agent used where a three-step workflow would do, a tool whose vague description made the model call it with the wrong user, a loop that ran 200 steps on a failing tool, a support ticket whose text told the agent to delete data in the wrong environment, a write tool that ran without the learner's confirmation - and fixes it in TypeScript against a scripted fake model: the agent loop, stop conditions, a tool registry with schema validation, an MCP-style tools/list and tools/call server, a permission policy with confirmation for writes, untrusted tool output, token and time budgets, and an audit log. 12 lessons, 30 evidence-based True/False statements and 9 TypeScript challenges. No real model or network is used.",
+  "level": "expert",
+  "durationMinutes": 450,
+  "instructor": "CodeDev Engineering Team",
+  "language": "TypeScript",
+  "category": "AI Engineering",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 200,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 1000
+    },
+    {
+      "priceType": "money",
+      "amount": 349000,
+      "currency": "VND"
+    }
+  ],
+  "completionRules": {},
+  "careerRoles": [
+    "backend_developer",
+    "fullstack_developer",
+    "ml_engineer",
+    "devops_engineer"
+  ],
+  "skills": {
+    "system_design": 4,
+    "typescript": 3,
+    "api_design": 3,
+    "machine_learning": 3,
+    "async_programming": 2
+  },
+  "goals": [
+    "grow_in_role",
+    "build_projects"
+  ],
+  "prerequisites": [
+    "llm-evaluation-guardrails",
+    "nodejs-api-security"
+  ],
+  "modules": [
+    {
+      "orderIndex": 1,
+      "title": "Agents vs Workflows",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "01-workflow-or-agent",
+          "title": "Workflow or agent? Choosing the least autonomy that works",
+          "sanityId": "lesson-atm-1-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "02-agent-loop-fake-model",
+          "title": "The agent loop: model turns, tool calls and a final answer",
+          "sanityId": "lesson-atm-1-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "03-stop-conditions",
+          "title": "Stop conditions: step limits and runs that end on purpose",
+          "sanityId": "lesson-atm-1-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Tools & the Model Context Protocol",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "04-designing-narrow-tools",
+          "title": "Designing narrow tools: names, descriptions & argument schemas",
+          "sanityId": "lesson-atm-2-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "05-mcp-architecture",
+          "title": "MCP: hosts, clients, servers and the JSON-RPC lifecycle",
+          "sanityId": "lesson-atm-2-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "06-mcp-tool-server",
+          "title": "Build an MCP tool server: tools/list, tools/call & schema validation",
+          "sanityId": "lesson-atm-2-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Permissions & Safety",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "07-permission-policy",
+          "title": "Least privilege: read tools run, write tools ask first",
+          "sanityId": "lesson-atm-3-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "08-untrusted-tool-output",
+          "title": "Tool output is data: confused deputies and indirect injection",
+          "sanityId": "lesson-atm-3-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "09-budgets",
+          "title": "Token and time budgets: stopping a run before it gets expensive",
+          "sanityId": "lesson-atm-3-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 4,
+      "title": "Operating Agents",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "10-audit-log-replay",
+          "title": "Audit logs: recording every tool call so a run can be replayed",
+          "sanityId": "lesson-atm-4-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "11-scenario-agent-went-rogue",
+          "title": "Scenario: the agent went rogue",
+          "sanityId": "lesson-atm-4-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "12-spot-ai-mistake-retry-loop",
+          "title": "Spot the AI Mistake: the agent that never stops retrying",
+          "sanityId": "lesson-atm-4-3"
+        }
+      ]
+    }
+  ]
+}

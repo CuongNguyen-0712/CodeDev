@@ -1,0 +1,129 @@
+{
+  "publicId": "supply-chain-security",
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792854776/codedev/courses/supply-chain-security/cover",
+  "title": "Software Supply Chain Security & AI-Generated Code: Lockfiles, SBOM & Provenance",
+  "concept": "Protect a project from the code it did not write: lockfiles and semver ranges, dependency allowlists and package age, typosquatting and slopsquatting (package names an AI made up), dependency confusion, secret scanning, SBOMs, artifact signing and provenance, install scripts and CI token permissions, each checked by a TypeScript tool graded on fixture data.",
+  "description": "An advanced course for developers and DevOps engineers who accept dependencies - many of them suggested by AI assistants - and need a pipeline that catches the bad ones. Every lesson starts from an incident in the CodeDev learning platform's repository and CI - a caret range that pulled a broken minor release, a package the coding agent added that had been registered two days earlier with a postinstall script, a checker that skipped scoped packages, an API key printed in a CI log, a release built from an artifact whose digest nobody checked - and fixes it with code: lockfile checks, an allowlist with a minimum package age, edit-distance typosquat detection, a secret scanner with patterns and entropy, SBOM diffs, digest verification and an install-script policy that blocks by default. 10 lessons, 25 evidence-based True/False statements and 9 TypeScript challenges graded on fixture data. No network or real registry is used.",
+  "level": "advanced",
+  "durationMinutes": 300,
+  "instructor": "CodeDev Engineering Team",
+  "language": "TypeScript",
+  "category": "Cyber Security",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 150,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 600
+    },
+    {
+      "priceType": "money",
+      "amount": 249000,
+      "currency": "VND"
+    }
+  ],
+  "completionRules": {},
+  "careerRoles": [
+    "devops_engineer",
+    "backend_developer",
+    "fullstack_developer",
+    "qa_engineer"
+  ],
+  "skills": {
+    "system_design": 3,
+    "docker": 2,
+    "testing": 3,
+    "typescript": 3,
+    "nodejs": 2
+  },
+  "goals": [
+    "grow_in_role",
+    "interview_prep"
+  ],
+  "prerequisites": [
+    "devops-foundations-ci-containers"
+  ],
+  "modules": [
+    {
+      "orderIndex": 1,
+      "title": "Dependencies You Can Trust",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "01-supply-chain-threats",
+          "title": "How supply chain attacks reach your app: typosquatting, slopsquatting & dependency confusion",
+          "sanityId": "lesson-ssc-1-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "02-lockfiles-semver",
+          "title": "Lockfiles and semver ranges: pin what you ship",
+          "sanityId": "lesson-ssc-1-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "03-dependency-allowlist",
+          "title": "A dependency policy: allowlists, package age & AI-suggested packages",
+          "sanityId": "lesson-ssc-1-3"
+        },
+        {
+          "orderIndex": 4,
+          "folder": "04-typosquat-detection",
+          "title": "Catching typosquats and hallucinated package names",
+          "sanityId": "lesson-ssc-1-4"
+        },
+        {
+          "orderIndex": 5,
+          "folder": "05-scenario-package-didnt-exist",
+          "title": "Scenario: the package that didn't exist",
+          "sanityId": "lesson-ssc-1-5"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Secrets",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "06-secret-scanning",
+          "title": "Secret scanning: patterns, entropy & secrets in git history",
+          "sanityId": "lesson-ssc-2-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "07-secrets-in-logs",
+          "title": "Keeping secrets out of logs and CI output",
+          "sanityId": "lesson-ssc-2-2"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Build Integrity",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "08-sbom",
+          "title": "SBOMs: knowing exactly what you ship",
+          "sanityId": "lesson-ssc-3-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "09-signing-provenance",
+          "title": "Signing and provenance: verify the digest before you deploy",
+          "sanityId": "lesson-ssc-3-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "10-spot-ai-mistake-install-scripts",
+          "title": "Spot the AI Mistake: install scripts and CI token permissions",
+          "sanityId": "lesson-ssc-3-3"
+        }
+      ]
+    }
+  ]
+}

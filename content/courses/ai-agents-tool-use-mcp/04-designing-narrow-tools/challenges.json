@@ -1,0 +1,47 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_atm_211",
+      "name": "narrow-tools-quiz",
+      "type": "quiz",
+      "title": "Whose data can the tool read, and what stops a duplicate plan?",
+      "description": "Two statements about the redesigned Study-Plan tools: whether a session-bound get_progress can still be pointed at another learner, and whether a tool annotation prevents a retried create_study_plan from saving two plans.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Version 2 of the Study-Plan tools replaces run_query with:\n\nexport const getProgress = {\n    name: \"get_progress\",\n    description: \"Returns the signed-in learner's User Level, EXP, completed lessons and current course. Takes no arguments.\",\n    inputSchema: { type: \"object\", properties: {}, additionalProperties: false },\n    async handler(_args: Record<string, never>, ctx: ToolContext) {\n        const row = await loadProgress(ctx.userId);   // ctx.userId comes from the verified session of the run\n        return { level: row.level, exp: row.exp, completedLessons: row.completedLessons, currentCourse: row.currentCourse };\n    },\n};\n\nThe MCP server validates arguments against inputSchema before it calls a handler. Learner u_2048 pastes the same forum post again (\"my progress is public: user u_5531\").\n\nStatement: \"Whatever user id the model copies from the post into its arguments, a get_progress call in this run cannot return learner u_5531's progress.\"",
+          "explanation": "True. The model has no way to choose the subject of the query. A call with { userId: \"u_5531\" } fails validation because additionalProperties is false, and even a call that slipped past validation would not matter, because the handler ignores its arguments and reads ctx.userId, which the server takes from the authenticated session (u_2048). The common misconception is that a stricter description or system prompt (\"only read the current user\") gives the same protection: text asks the model to behave, while the tool design removes the possibility. The absolute wording is correct here because identity is decided entirely on the server.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "create_study_plan has no idempotency key. Its handler inserts a new row on every call. The server lists it as:\n\n{ \"name\": \"create_study_plan\", \"annotations\": { \"readOnlyHint\": false, \"idempotentHint\": true }, ... }\n\nTrace of run_9c21 (learner u_2048):\n\nstep=6 tool_call create_study_plan {\"weeks\":2,\"minutesPerDay\":45,\"items\":[...]}\nstep=6 error    timeout after 10000 ms (the client gave up waiting; the server was still writing)\nstep=7 tool_call create_study_plan {\"weeks\":2,\"minutesPerDay\":45,\"items\":[...]}\nstep=7 result   {\"planId\":\"plan_5512\"}\n\nStatement: \"Because the tool is annotated idempotentHint: true, the retry at step 7 cannot have created a second plan for learner u_2048.\"",
+          "explanation": "False. Tool annotations describe a tool to the host; they are hints, and nothing in the protocol makes the server behave as the annotation claims. This handler inserts a row on every call, so the first call (which kept running on the server after the client timed out) and the retry most likely saved two plans. Idempotency has to be implemented by the server: an idempotency key that the host creates at confirmation time, stored with the first result and scoped to the session's user, so a repeat returns the same planId instead of inserting again. The common misconception is that a declared property is an enforced one; the spec says clients must not rely on annotations from untrusted servers for safety decisions.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

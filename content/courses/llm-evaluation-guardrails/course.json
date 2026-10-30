@@ -1,0 +1,128 @@
+{
+  "publicId": "llm-evaluation-guardrails",
+  "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792854758/codedev/courses/llm-evaluation-guardrails/cover",
+  "title": "LLM Evaluation, Observability & Guardrails: Evals, Tracing & Prompt-Injection Defense",
+  "concept": "Decide whether an LLM feature is actually better with numbers, not vibes: representative eval sets, assertion checks and calibrated LLM-as-judge, regression gates in CI, traces with tokens, latency and cost, and layered defenses against prompt injection, unsafe output handling and solution leaks. Every exercise grades recorded model outputs, so no real model is called.",
+  "description": "An advanced course for engineers who ship LLM features and have to answer \"is the new prompt better, and is it safe?\" with evidence. Every lesson starts from an incident on the CodeDev learning platform's AI Hint Service and AI code reviewer - a prompt change that felt better and failed half the hidden cases, a judge that preferred longer answers, a trace that logged a learner's email, a student submission whose comment told the reviewer to give full marks and reveal the reference solution, a score the model wrote straight into the database, a hint rendered as HTML - and fixes it with code you can test: eval runners, Cohen's kappa, regression gates with a minimum sample size, PII redaction, prompt builders that keep data apart from instructions, output validation, n-gram leak detection and safe rendering, mapped to the OWASP Top 10 for LLM Applications 2025. 10 lessons, 25 evidence-based True/False statements and 9 TypeScript challenges graded on fixtures.",
+  "level": "advanced",
+  "durationMinutes": 330,
+  "instructor": "CodeDev Engineering Team",
+  "language": "TypeScript",
+  "category": "LLM Engineering",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 150,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 600
+    },
+    {
+      "priceType": "money",
+      "amount": 249000,
+      "currency": "VND"
+    }
+  ],
+  "completionRules": {},
+  "careerRoles": [
+    "backend_developer",
+    "fullstack_developer",
+    "ml_engineer",
+    "qa_engineer"
+  ],
+  "skills": {
+    "machine_learning": 4,
+    "testing": 4,
+    "typescript": 3,
+    "api_design": 2
+  },
+  "goals": [
+    "grow_in_role",
+    "build_projects"
+  ],
+  "prerequisites": [
+    "nodejs-ai-engineering"
+  ],
+  "modules": [
+    {
+      "orderIndex": 1,
+      "title": "Evals That Decide Releases",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "01-representative-eval-set",
+          "title": "How to build a representative eval set and run assertion checks",
+          "sanityId": "lesson-leg-1-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "02-metrics-sample-size-drift",
+          "title": "Choosing metrics: pass rate, sample size & eval drift",
+          "sanityId": "lesson-leg-1-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "03-llm-as-judge",
+          "title": "LLM-as-judge: rubrics, judge bias & agreement with human labels",
+          "sanityId": "lesson-leg-1-3"
+        },
+        {
+          "orderIndex": 4,
+          "folder": "04-regression-gate-ci",
+          "title": "Evals as regression tests: a CI gate that blocks a worse prompt",
+          "sanityId": "lesson-leg-1-4"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Tracing & Prompt Injection",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "05-tracing-safe-logging",
+          "title": "Tracing LLM calls: tokens, latency, cost & redacting PII",
+          "sanityId": "lesson-leg-2-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "06-separate-data-instructions",
+          "title": "Prompt injection: keep untrusted data apart from instructions",
+          "sanityId": "lesson-leg-2-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "07-scenario-injection-submission",
+          "title": "Scenario: prompt injection via a student submission",
+          "sanityId": "lesson-leg-2-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Output & Leak Guardrails",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "08-validate-model-output",
+          "title": "Never trust the output: validate model results before they are stored",
+          "sanityId": "lesson-leg-3-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "09-solution-prompt-leaks",
+          "title": "Stopping solution leaks and system prompt leakage",
+          "sanityId": "lesson-leg-3-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "10-spot-ai-mistake-rendering",
+          "title": "Spot the AI Mistake: rendering model output as HTML",
+          "sanityId": "lesson-leg-3-3"
+        }
+      ]
+    }
+  ]
+}

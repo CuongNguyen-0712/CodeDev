@@ -1,0 +1,63 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_atm_221",
+      "name": "mcp-lifecycle-quiz",
+      "type": "quiz",
+      "title": "Read the MCP messages: notifications, annotations and tool errors",
+      "description": "Three statements about raw MCP traffic between the Study-Plan Agent's client and its servers: what a server does with notifications/initialized, whether a readOnlyHint lets a host skip the user's consent, and what kind of failure a result with isError true is.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Raw stdio transcript between client c1 and the codedev-study-plan server (--> client to server, <-- server to client):\n\n--> {\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-06-18\",\"capabilities\":{},\"clientInfo\":{\"name\":\"codedev-study-plan-web\",\"version\":\"1.4.0\"}}}\n<-- {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"protocolVersion\":\"2025-06-18\",\"capabilities\":{\"tools\":{\"listChanged\":false}},\"serverInfo\":{\"name\":\"codedev-study-plan\",\"version\":\"0.9.2\"}}}\n--> {\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}\n--> {\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\"}\n\nStatement: \"The server must not send any reply to the third message, not even an error, because the message has no id.\"",
+          "explanation": "True. A JSON-RPC message without an id is a notification, and the receiver must not answer it: there is no id that a response could carry, so even an error reply would be meaningless to the client. notifications/initialized is the client telling the server that the handshake is complete and normal operation (here, tools/list with id 2) can start. The common misconception is that every message gets an acknowledgement; in MCP only requests (messages with an id) get exactly one response with either result or error.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A new version of the internal ops MCP server, used by codedev-ops-agent, answers tools/list with (shortened):\n\n{ \"name\": \"delete_test_data\",\n  \"description\": \"Deletes seeded test accounts and submissions in the given environment.\",\n  \"inputSchema\": { \"type\": \"object\", \"properties\": { \"env\": { \"type\": \"string\", \"enum\": [\"local\", \"staging\", \"production\"] } }, \"required\": [\"env\"] },\n  \"annotations\": { \"readOnlyHint\": true } }\n\nThe ops agent's host is configured to run, without asking anyone, every tool whose annotations say readOnlyHint: true.\n\nStatement: \"Because the server declares readOnlyHint: true, the host can safely run delete_test_data without asking the user.\"",
+          "explanation": "False. Annotations are hints written by the server's author; they can be wrong (here the description says the tool deletes data, so readOnlyHint: true is clearly a mistake), outdated or malicious. The specification tells clients not to base security decisions on annotations from untrusted servers, and the decision to ask the user belongs to the host, from the host's own policy keyed by server and tool name. With this configuration, a single wrong line in a server would let an agent delete data in production without anyone confirming. The common misconception is that metadata a server sends about itself is a guarantee; the host should treat it as untrusted input, use it at most to word the confirmation prompt, and ask first for any tool its policy does not explicitly allow.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The model asked for lesson search during run_b207. Transcript:\n\n--> {\"jsonrpc\":\"2.0\",\"id\":14,\"method\":\"tools/call\",\"params\":{\"name\":\"search_lessons\",\"arguments\":{\"query\":\"SQL joins\",\"limit\":3}}}\n<-- {\"jsonrpc\":\"2.0\",\"id\":14,\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"Lesson search is unavailable (timeout after 3 s). Try again or plan without search.\"}],\"isError\":true}}\n\nStatement: \"This is a tool execution error rather than a protocol error: the request reached search_lessons, and the text is meant to be passed back to the model so it can decide what to do next.\"",
+          "explanation": "True. The response has a result, not an error member, so at the JSON-RPC level the request succeeded: the method and the tool name were valid, and the tool itself failed. MCP reports such failures as a normal result with isError: true, so the host can put the text into the model's context and the model can retry later, choose another tool or plan without search. Protocol problems such as an unknown method (-32601) or an unknown tool name (-32602) come back as JSON-RPC errors instead. The common misconception is that any failure should be a JSON-RPC error; doing that hides useful, actionable tool failures from the model.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

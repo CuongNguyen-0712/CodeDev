@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Make the worst call that passes validation acceptable</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Same request, same pasted forum post. Only the tool design changed.</text>
+
+  <!-- Left: before -->
+  <rect x="40" y="112" width="545" height="300" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="64" y="146" font-size="18" font-weight="700" fill="#b91c1c">Version 1: one generic tool</text>
+  <text x="64" y="170" font-size="13" fill="#64748b">run_query(sql), description: "Gets user data."</text>
+
+  <g font-family="Consolas, 'Courier New', monospace" font-size="14">
+    <rect x="64" y="186" width="497" height="30" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="2"/>
+    <text x="80" y="206" fill="#334155">post: "my progress is public: user u_5531"</text>
+    <rect x="64" y="222" width="497" height="30" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="2"/>
+    <text x="80" y="242" fill="#334155">run_query("... WHERE user_id = 'u_5531'")</text>
+    <rect x="64" y="258" width="497" height="30" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="2"/>
+    <text x="80" y="278" fill="#334155">role agent_ro: SELECT on every table</text>
+    <rect x="64" y="294" width="497" height="30" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="2"/>
+    <text x="80" y="314" fill="#334155">-&gt; Level 9, 4210 EXP, minh.t@example.com</text>
+  </g>
+  <text x="64" y="364" font-size="15" font-weight="700" fill="#b91c1c">The model chose whose data to read</text>
+  <text x="64" y="388" font-size="13" fill="#64748b">read-only, and still a data leak (OWASP LLM02, LLM06)</text>
+
+  <!-- Right: after -->
+  <rect x="615" y="112" width="545" height="300" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="639" y="146" font-size="18" font-weight="700" fill="#15803d">Version 2: narrow, session-bound tools</text>
+  <text x="639" y="170" font-size="13" fill="#64748b">session.user = u_2048, verified by the MCP server</text>
+
+  <g font-family="Consolas, 'Courier New', monospace" font-size="14">
+    <rect x="639" y="186" width="497" height="30" rx="6" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+    <text x="655" y="206" fill="#334155">get_progress({ userId: "u_5531" })</text><text x="1120" y="206" text-anchor="end" fill="#b91c1c">rejected</text>
+    <rect x="639" y="222" width="497" height="30" rx="6" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+    <text x="655" y="242" fill="#334155">get_progress({})</text><text x="1120" y="242" text-anchor="end" fill="#15803d">ok</text>
+    <rect x="639" y="258" width="497" height="30" rx="6" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+    <text x="655" y="278" fill="#334155">handler reads ctx.userId = u_2048</text>
+    <rect x="639" y="294" width="497" height="30" rx="6" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+    <text x="655" y="314" fill="#334155">-&gt; Level 4, 980 EXP, 17 lessons</text>
+  </g>
+  <text x="639" y="364" font-size="15" font-weight="700" fill="#15803d">The server decides whose data a tool touches</text>
+  <text x="639" y="388" font-size="13" fill="#64748b">no free SQL, no email column, nothing in the arguments to steer</text>
+
+  <!-- Rules strip -->
+  <text x="40" y="460" font-size="18" font-weight="700" fill="#334155">Four rules for every tool</text>
+  <g>
+    <rect x="40" y="478" width="265" height="84" rx="8" fill="#f5f3ff" stroke="#7C3AED" stroke-width="2"/>
+    <text x="60" y="508" font-size="15" font-weight="700" fill="#6d28d9">Identity from the session</text>
+    <text x="60" y="532" font-size="13" fill="#475569">never a userId argument</text>
+    <text x="60" y="550" font-size="13" fill="#475569">that the model can fill in</text>
+
+    <rect x="325" y="478" width="265" height="84" rx="8" fill="#f5f3ff" stroke="#7C3AED" stroke-width="2"/>
+    <text x="345" y="508" font-size="15" font-weight="700" fill="#6d28d9">Descriptions for the model</text>
+    <text x="345" y="532" font-size="13" fill="#475569">what, when, when not,</text>
+    <text x="345" y="550" font-size="13" fill="#475569">units, one example</text>
+
+    <rect x="610" y="478" width="265" height="84" rx="8" fill="#f5f3ff" stroke="#7C3AED" stroke-width="2"/>
+    <text x="630" y="508" font-size="15" font-weight="700" fill="#6d28d9">Strict argument schemas</text>
+    <text x="630" y="532" font-size="13" fill="#475569">types, enums, ranges, required,</text>
+    <text x="630" y="550" font-size="13" fill="#475569">additionalProperties: false</text>
+
+    <rect x="895" y="478" width="265" height="84" rx="8" fill="#f5f3ff" stroke="#7C3AED" stroke-width="2"/>
+    <text x="915" y="508" font-size="15" font-weight="700" fill="#6d28d9">Idempotent writes</text>
+    <text x="915" y="532" font-size="13" fill="#475569">idempotency key from the host,</text>
+    <text x="915" y="550" font-size="13" fill="#475569">same key, same planId</text>
+  </g>
+</svg>
