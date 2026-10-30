@@ -1,0 +1,132 @@
+{
+  "publicId": "postgresql-performance",
+  "title": "PostgreSQL Performance Engineering: Plans, Indexes & Pagination",
+  "concept": "Make slow PostgreSQL queries fast with evidence, not guesses: measure a baseline, read EXPLAIN (ANALYZE, BUFFERS), understand scans, joins and row estimates, design composite, covering and expression indexes, replace N+1 loops and OFFSET pages, and change indexes on a live database without blocking it. Graded exercises run on SQLite query plans.",
+  "description": "An advanced course for backend developers whose queries worked fine until the data grew. Every lesson starts from a slow endpoint or report on the CodeDev learning platform - a progress page that takes seconds, a submissions feed whose deep pages crawl and repeat rows, a login lookup that stopped using its index after a deploy, an AI-generated composite index in the wrong column order - and fixes it the way production engineers do: measure, read the plan, change one thing, measure again. You read real-looking PostgreSQL plans, estimate selectivity from statistics, design indexes for the query pattern and weigh their write cost, rewrite N+1 loops and correlated reports into set-based SQL, paginate with keyset cursors, and plan index changes around locks. 11 lessons with evidence-based quizzes and hands-on SQL and Python challenges graded on results and query plans.",
+  "level": "advanced",
+  "durationMinutes": 330,
+  "instructor": "CodeDev Engineering Team",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 150,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 600
+    },
+    {
+      "priceType": "money",
+      "amount": 249000,
+      "currency": "VND"
+    }
+  ],
+  "completionRules": {},
+  "language": "SQL",
+  "category": "PostgreSQL",
+  "careerRoles": [
+    "backend_developer",
+    "fullstack_developer",
+    "data_engineer"
+  ],
+  "skills": {
+    "sql": 5,
+    "performance": 5,
+    "system_design": 2
+  },
+  "goals": [
+    "grow_in_role",
+    "performance",
+    "interview_prep"
+  ],
+  "prerequisites": [
+    "sql-data-modeling"
+  ],
+  "modules": [
+    {
+      "orderIndex": 1,
+      "title": "Measure & Read Plans",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "01-measure-first",
+          "title": "Measure before you tune: baselines, percentiles & pg_stat_statements",
+          "sanityId": "lesson-pgp-1-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "02-read-query-plans",
+          "title": "How to read a PostgreSQL plan: EXPLAIN (ANALYZE, BUFFERS)",
+          "sanityId": "lesson-pgp-1-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "03-scans-and-indexes",
+          "title": "Sequential scan or index: how the planner reaches the rows",
+          "sanityId": "lesson-pgp-1-3"
+        },
+        {
+          "orderIndex": 4,
+          "folder": "04-statistics-selectivity",
+          "title": "Estimated vs actual rows: statistics & selectivity",
+          "sanityId": "lesson-pgp-1-4"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Index & Query Design",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "05-composite-indexes",
+          "title": "Composite & covering indexes: why column order matters",
+          "sanityId": "lesson-pgp-2-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "06-joins-n-plus-one",
+          "title": "Join strategies and the N+1 query problem",
+          "sanityId": "lesson-pgp-2-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "07-keyset-pagination",
+          "title": "Keyset pagination on (created_at, id)",
+          "sanityId": "lesson-pgp-2-3"
+        },
+        {
+          "orderIndex": 4,
+          "folder": "08-deep-offset-pages",
+          "title": "Deep pages: when OFFSET gets slow and drifts",
+          "sanityId": "lesson-pgp-2-4"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Incidents in Production",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "09-progress-report",
+          "title": "Optimize the course progress report",
+          "sanityId": "lesson-pgp-3-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "10-query-got-slower",
+          "title": "Scenario: the query got slower",
+          "sanityId": "lesson-pgp-3-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "11-locks-safe-changes",
+          "title": "Locks, long transactions & index changes without downtime",
+          "sanityId": "lesson-pgp-3-3"
+        }
+      ]
+    }
+  ]
+}

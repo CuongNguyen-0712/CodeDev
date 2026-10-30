@@ -1,0 +1,139 @@
+{
+  "publicId": "redis-patterns",
+  "title": "Redis Patterns: Cache, Session & Leaderboard",
+  "concept": "Use Redis where it earns its place and keep PostgreSQL as the source of truth: cache-aside with deliberate TTLs and invalidation, sessions with sliding expiry, rate limiting, sorted-set leaderboards with top N and rank, rebuilds from the database, versioned updates, and handling duplicate and out-of-order events. Exercises run on an in-memory Redis with a fake clock.",
+  "description": "An advanced course for backend developers adding Redis to a real application. Every lesson starts from an incident on the CodeDev learning platform - a course page that shows the old title for an hour, sessions that never expire, a submission endpoint hammered by one user, a leaderboard that lost its scores when Redis restarted, a late event that overwrote a newer score - and fixes it with the right structure and a test that proves it: strings, hashes and sorted sets chosen by access pattern, cache-aside and invalidation, TTL and sliding expiry, fixed-window rate limits, top N and rank, writing the database first, idempotent rebuilds, version checks, and the production side of eviction, persistence and stampedes. 11 lessons with evidence-based quizzes and TypeScript challenges on a deterministic in-memory Redis.",
+  "level": "advanced",
+  "durationMinutes": 330,
+  "instructor": "CodeDev Engineering Team",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 150,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 600
+    },
+    {
+      "priceType": "money",
+      "amount": 249000,
+      "currency": "VND"
+    }
+  ],
+  "completionRules": {},
+  "language": "TypeScript",
+  "category": "Redis",
+  "careerRoles": [
+    "backend_developer",
+    "fullstack_developer"
+  ],
+  "skills": {
+    "system_design": 4,
+    "performance": 4,
+    "typescript": 3,
+    "data_structures": 3
+  },
+  "goals": [
+    "grow_in_role",
+    "performance",
+    "interview_prep"
+  ],
+  "prerequisites": [
+    "sql-data-modeling",
+    "typescript-foundations"
+  ],
+  "modules": [
+    {
+      "orderIndex": 1,
+      "title": "Caching",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "01-redis-not-your-database",
+          "title": "Redis is not your database: source of truth & data structures",
+          "sanityId": "lesson-rds-1-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "02-cache-aside-ttl",
+          "title": "Cache-aside with TTL",
+          "sanityId": "lesson-rds-1-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "03-cache-invalidation",
+          "title": "Invalidation: keep the cache in step with the database",
+          "sanityId": "lesson-rds-1-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Sessions & Limits",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "04-sessions-sliding-ttl",
+          "title": "Session keys with sliding expiry",
+          "sanityId": "lesson-rds-2-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "05-rate-limiting",
+          "title": "Rate limiting with counters and windows",
+          "sanityId": "lesson-rds-2-2"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Leaderboards",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "06-leaderboard-sorted-sets",
+          "title": "Leaderboards with sorted sets: top N and rank",
+          "sanityId": "lesson-rds-3-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "07-write-database-first",
+          "title": "Write the database first: the cache is not the source of truth",
+          "sanityId": "lesson-rds-3-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "08-rebuild-leaderboard",
+          "title": "Rebuild a leaderboard from the source of truth",
+          "sanityId": "lesson-rds-3-3"
+        },
+        {
+          "orderIndex": 4,
+          "folder": "09-versioned-updates",
+          "title": "Versioned updates: apply only newer events",
+          "sanityId": "lesson-rds-3-4"
+        }
+      ]
+    },
+    {
+      "orderIndex": 4,
+      "title": "Operating Redis",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "10-cache-drift-duplicate-events",
+          "title": "Scenario: cache drift & duplicate events",
+          "sanityId": "lesson-rds-4-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "11-redis-in-production",
+          "title": "Redis in production: memory, eviction, persistence & stampedes",
+          "sanityId": "lesson-rds-4-2"
+        }
+      ]
+    }
+  ]
+}

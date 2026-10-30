@@ -1,0 +1,134 @@
+{
+  "publicId": "background-jobs-messaging",
+  "title": "Background Jobs & Messaging: Queues, Retries & Dead Letters",
+  "concept": "Move slow work off the request path and keep it correct when things fail: job state machines, retries with exponential backoff and jitter, which errors to retry, at-least-once delivery and idempotent workers, visibility timeouts, dead-letter queues and redrive, queue lag and poison messages. Exercises run on a fake queue and a fake clock.",
+  "description": "An advanced course for backend developers who run work in the background. Every lesson starts from an incident on the CodeDev learning platform - a submission page that times out while code is graded, a retry loop that hammers a provider that said 400, a certificate email sent twice, a job that vanished when a worker crashed, one poison message that froze the whole queue - and fixes it with a pattern you can test: the job lifecycle as a state machine, exponential backoff with jitter and caps, separating transient from permanent errors, idempotency keys, visibility timeouts and receipt handles, dead-letter queues with redrive, lag measured from timestamps instead of queue length, and the alerts and backpressure that keep queues healthy. 11 lessons with evidence-based quizzes and TypeScript challenges on deterministic fakes.",
+  "level": "advanced",
+  "durationMinutes": 330,
+  "instructor": "CodeDev Engineering Team",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 150,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 600
+    },
+    {
+      "priceType": "money",
+      "amount": 249000,
+      "currency": "VND"
+    }
+  ],
+  "completionRules": {},
+  "language": "TypeScript",
+  "category": "Backend Development",
+  "careerRoles": [
+    "backend_developer",
+    "fullstack_developer",
+    "devops_engineer"
+  ],
+  "skills": {
+    "system_design": 5,
+    "async_programming": 4,
+    "typescript": 3,
+    "testing": 2
+  },
+  "goals": [
+    "grow_in_role",
+    "build_projects",
+    "interview_prep"
+  ],
+  "prerequisites": [
+    "typescript-foundations",
+    "web-http-fundamentals"
+  ],
+  "modules": [
+    {
+      "orderIndex": 1,
+      "title": "Jobs & Retries",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "01-move-work-off-request",
+          "title": "Move slow work off the request: when a queue helps",
+          "sanityId": "lesson-bjm-1-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "02-job-state-machine",
+          "title": "The job lifecycle as a state machine",
+          "sanityId": "lesson-bjm-1-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "03-backoff-jitter",
+          "title": "Retry with exponential backoff and jitter",
+          "sanityId": "lesson-bjm-1-3"
+        },
+        {
+          "orderIndex": 4,
+          "folder": "04-which-errors-to-retry",
+          "title": "Which errors to retry, and which never to retry",
+          "sanityId": "lesson-bjm-1-4"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Delivery Guarantees",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "05-idempotent-workers",
+          "title": "At-least-once delivery and idempotent workers",
+          "sanityId": "lesson-bjm-2-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "06-duplicate-side-effects",
+          "title": "Duplicate side effects: the email sent twice",
+          "sanityId": "lesson-bjm-2-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "07-visibility-timeout",
+          "title": "Visibility timeouts and workers that disappear",
+          "sanityId": "lesson-bjm-2-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Failures & Operations",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "08-dead-letter-queue",
+          "title": "Dead-letter queues and redrive",
+          "sanityId": "lesson-bjm-3-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "09-queue-lag",
+          "title": "Measure queue lag, not just queue length",
+          "sanityId": "lesson-bjm-3-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "10-poison-message",
+          "title": "Scenario: poison message & growing queue",
+          "sanityId": "lesson-bjm-3-3"
+        },
+        {
+          "orderIndex": 4,
+          "folder": "11-operating-queues",
+          "title": "Operating queues: alerts, backpressure & ordering",
+          "sanityId": "lesson-bjm-3-4"
+        }
+      ]
+    }
+  ]
+}
