@@ -1,0 +1,2290 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_qpr_221",
+      "name": "throughput-error-rate-quiz",
+      "type": "quiz",
+      "title": "Read the numbers behind \"50 req/s, 2% errors\"",
+      "description": "Two summaries of the same steady-state window of a POST /submissions load test on CodeDev staging. Decide whether each statement about the numbers is true or false.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Steady-state window 300 s - 900 s of the run (600 s), counted from the result records by end_ms. Latency is measured from intended_ms; the SLO is 800 ms.\n\ncompleted records ............ 30,000\nsuccessful (200-399) ......... 29,400\nsuccessful within 800 ms ..... 24,000\nerrors (status 0 or >= 400) .. 600\n\nStatement: \"In this window the API completed 50 requests per second, but only 40 per second were useful to learners under the SLO; the other 10 per second either failed or were too slow.\"",
+          "explanation": "True. Throughput = 30,000 / 600 s = 50/s. Goodput counts only successful responses within the latency SLO: 24,000 / 600 s = 40/s. The 10/s difference is 600 errors (1/s) plus 5,400 successes that took longer than 800 ms (9/s). A slow 200 still counts in throughput and does not count as an error, which is why throughput and error rate together can look healthy while learners wait. The misconception is that a 2% error rate means 98% of learners were served well; goodput answers that question directly.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The same window, as the old dashboard computed it:\n\nerror_rate = count(status >= 400) / count(all records)\n\nstatus 200/201 ... 29,400\nstatus 503 ....... 120\nstatus 0 ......... 480   (client timeout after 3 s or connection reset)\n\nDashboard: \"error rate 0.4%\"\n\nStatement: \"0.4% is the error rate of POST /submissions in this window, because a status 0 has no HTTP status code and so is not an HTTP error.\"",
+          "explanation": "False. The dashboard counted 120 / 30,000 = 0.4%, but 480 requests got no answer at all: they timed out or lost the connection. For the learner that is a failed submission, usually the worst kind, so the real error rate is (120 + 480) / 30,000 = 2.0%, five times higher. Timeouts also tend to grow first when a system saturates, so dropping them hides exactly the trend you are testing for. k6's http_req_failed likewise counts a request that got no response as failed. The misconception is that only an HTTP status of 400 or more is an error; success must be defined positively (200-399) and everything else counted as an error.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_qpr_222",
+      "name": "windowed-throughput-error-goodput",
+      "type": "mini_coding",
+      "title": "Throughput, error rate and goodput per window",
+      "description": "The load test report for POST /submissions on CodeDev staging said \"50 req/s, 0.4% errors\". Nobody could say over which interval, whether timeouts were counted, or how many requests were fast enough to matter. Compute the numbers from the raw result records.\n\nRecord: {\"id\", \"intended_ms\", \"start_ms\", \"end_ms\", \"status\"}, integer ms from test start; status 0 = timeout or connection error; success = 200 <= status < 400, every other status (0 included) is an error; latency for the SLO = end_ms - intended_ms (from the intended send time, lesson 3). Records arrive in any order.\n\nWrite summarize(records, window_ms, slo_ms, steady_from_ms, steady_to_ms) in throughput.py:\n- A record completes at end_ms, whatever its status. Window k is [k * window_ms, (k + 1) * window_ms): a record ending exactly on a boundary belongs to the window that starts there.\n- \"windows\": one entry per window from k = 0 up to the window of the largest end_ms, empty windows included ([] when there are no records): {\"start_ms\", \"completed\", \"throughput_rps\" (completed / window seconds), \"error_pct\" (100 * errors / completed, null when completed is 0), \"goodput_rps\" (successes with latency <= slo_ms / window seconds)}.\n- \"steady\": the same numbers over [steady_from_ms, steady_to_ms) selected by end_ms, as {\"completed\", \"offered_rps\" (records whose intended_ms is in the interval / interval seconds), \"throughput_rps\", \"error_pct\", \"timeouts\" (status 0 records completed in the interval), \"goodput_rps\"}.\n- Round every float to 2 decimals (no test value is exactly halfway).\n- Validate: window_ms <= 0 -> ValueError(\"window_ms must be > 0\"); steady_to_ms <= steady_from_ms -> ValueError(\"steady interval is empty\").\n\nInput (stdin): {\"records\": [...], \"window_ms\": int, \"slo_ms\": int, \"steady\": {\"from_ms\": int, \"to_ms\": int}}. The runner prints {\"windows\": [...], \"steady\": {...}} or {\"error\": message}.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "python",
+        "filePath": "throughput.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "hints": [
+        "A request that timed out after 3 s: did it complete, and is it a success? A request that was meant to leave at 100 ms, actually left at 650 ms and was answered at 700 ms: how long did the learner wait?",
+        "Check four places: the field you bucket by (end_ms, with window k = end_ms // window_ms), the error test (anything outside 200-399, status 0 included), the latency you compare with the SLO (from intended_ms, not start_ms), and what a window with no records reports (completed 0 and an error_pct of null, not 0).",
+        "A similar case: window_ms 2000, slo_ms 300, records ending at 2500 ms (200, intended 2100), 3000 ms (status 0) and 3990 ms (200, intended 3500). Window 0 is empty: completed 0, throughput 0.0, error_pct null, goodput 0.0. Window 2000 has all three: throughput 3 / 2 s = 1.5, error_pct 33.33 (the status 0), goodput 0.0 because the two successes waited 400 ms and 490 ms, both above 300 ms."
+      ],
+      "tests": [
+        {
+          "name": "Three 1 s windows with a 503, a timeout and a slow success; steady excludes the first second",
+          "input": {
+            "records": [
+              {
+                "id": 1,
+                "intended_ms": 0,
+                "start_ms": 0,
+                "end_ms": 120,
+                "status": 200
+              },
+              {
+                "id": 2,
+                "intended_ms": 100,
+                "start_ms": 100,
+                "end_ms": 450,
+                "status": 200
+              },
+              {
+                "id": 3,
+                "intended_ms": 200,
+                "start_ms": 200,
+                "end_ms": 1300,
+                "status": 200
+              },
+              {
+                "id": 4,
+                "intended_ms": 500,
+                "start_ms": 510,
+                "end_ms": 1100,
+                "status": 503
+              },
+              {
+                "id": 5,
+                "intended_ms": 900,
+                "start_ms": 900,
+                "end_ms": 1900,
+                "status": 0
+              },
+              {
+                "id": 6,
+                "intended_ms": 1200,
+                "start_ms": 1200,
+                "end_ms": 1500,
+                "status": 201
+              },
+              {
+                "id": 7,
+                "intended_ms": 1700,
+                "start_ms": 1700,
+                "end_ms": 2100,
+                "status": 200
+              },
+              {
+                "id": 8,
+                "intended_ms": 2200,
+                "start_ms": 2200,
+                "end_ms": 2600,
+                "status": 200
+              },
+              {
+                "id": 9,
+                "intended_ms": 2500,
+                "start_ms": 2900,
+                "end_ms": 2950,
+                "status": 302
+              }
+            ],
+            "window_ms": 1000,
+            "slo_ms": 500,
+            "steady": {
+              "from_ms": 1000,
+              "to_ms": 3000
+            }
+          },
+          "expected": {
+            "windows": [
+              {
+                "start_ms": 0,
+                "completed": 2,
+                "throughput_rps": 2.0,
+                "error_pct": 0.0,
+                "goodput_rps": 2.0
+              },
+              {
+                "start_ms": 1000,
+                "completed": 4,
+                "throughput_rps": 4.0,
+                "error_pct": 50.0,
+                "goodput_rps": 1.0
+              },
+              {
+                "start_ms": 2000,
+                "completed": 3,
+                "throughput_rps": 3.0,
+                "error_pct": 0.0,
+                "goodput_rps": 3.0
+              }
+            ],
+            "steady": {
+              "completed": 7,
+              "offered_rps": 2.0,
+              "throughput_rps": 3.5,
+              "error_pct": 28.57,
+              "timeouts": 1,
+              "goodput_rps": 2.0
+            }
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Unsorted records; a record ending exactly at 1000 or 2000 ms counts in the window starting there",
+          "input": {
+            "records": [
+              {
+                "id": 4,
+                "intended_ms": 1500,
+                "start_ms": 1500,
+                "end_ms": 2000,
+                "status": 200
+              },
+              {
+                "id": 1,
+                "intended_ms": 0,
+                "start_ms": 0,
+                "end_ms": 250,
+                "status": 200
+              },
+              {
+                "id": 3,
+                "intended_ms": 900,
+                "start_ms": 900,
+                "end_ms": 1000,
+                "status": 200
+              },
+              {
+                "id": 2,
+                "intended_ms": 400,
+                "start_ms": 400,
+                "end_ms": 999,
+                "status": 404
+              },
+              {
+                "id": 5,
+                "intended_ms": 1800,
+                "start_ms": 1800,
+                "end_ms": 2100,
+                "status": 200
+              }
+            ],
+            "window_ms": 1000,
+            "slo_ms": 300,
+            "steady": {
+              "from_ms": 0,
+              "to_ms": 3000
+            }
+          },
+          "expected": {
+            "windows": [
+              {
+                "start_ms": 0,
+                "completed": 2,
+                "throughput_rps": 2.0,
+                "error_pct": 50.0,
+                "goodput_rps": 1.0
+              },
+              {
+                "start_ms": 1000,
+                "completed": 1,
+                "throughput_rps": 1.0,
+                "error_pct": 0.0,
+                "goodput_rps": 1.0
+              },
+              {
+                "start_ms": 2000,
+                "completed": 2,
+                "throughput_rps": 2.0,
+                "error_pct": 0.0,
+                "goodput_rps": 1.0
+              }
+            ],
+            "steady": {
+              "completed": 5,
+              "offered_rps": 1.67,
+              "throughput_rps": 1.67,
+              "error_pct": 20.0,
+              "timeouts": 0,
+              "goodput_rps": 1.0
+            }
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Windows with no completions report 0 throughput and a null error_pct",
+          "input": {
+            "records": [
+              {
+                "id": 1,
+                "intended_ms": 0,
+                "start_ms": 0,
+                "end_ms": 300,
+                "status": 200
+              },
+              {
+                "id": 2,
+                "intended_ms": 100,
+                "start_ms": 100,
+                "end_ms": 1600,
+                "status": 200
+              },
+              {
+                "id": 3,
+                "intended_ms": 200,
+                "start_ms": 200,
+                "end_ms": 1700,
+                "status": 0
+              }
+            ],
+            "window_ms": 500,
+            "slo_ms": 1000,
+            "steady": {
+              "from_ms": 0,
+              "to_ms": 2000
+            }
+          },
+          "expected": {
+            "windows": [
+              {
+                "start_ms": 0,
+                "completed": 1,
+                "throughput_rps": 2.0,
+                "error_pct": 0.0,
+                "goodput_rps": 2.0
+              },
+              {
+                "start_ms": 500,
+                "completed": 0,
+                "throughput_rps": 0.0,
+                "error_pct": null,
+                "goodput_rps": 0.0
+              },
+              {
+                "start_ms": 1000,
+                "completed": 0,
+                "throughput_rps": 0.0,
+                "error_pct": null,
+                "goodput_rps": 0.0
+              },
+              {
+                "start_ms": 1500,
+                "completed": 2,
+                "throughput_rps": 4.0,
+                "error_pct": 50.0,
+                "goodput_rps": 0.0
+              }
+            ],
+            "steady": {
+              "completed": 3,
+              "offered_rps": 1.5,
+              "throughput_rps": 1.5,
+              "error_pct": 33.33,
+              "timeouts": 1,
+              "goodput_rps": 0.5
+            }
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Every request fails (timeouts, 500 and 502): error_pct 100 and goodput 0",
+          "input": {
+            "records": [
+              {
+                "id": 1,
+                "intended_ms": 0,
+                "start_ms": 0,
+                "end_ms": 1000,
+                "status": 0
+              },
+              {
+                "id": 2,
+                "intended_ms": 200,
+                "start_ms": 200,
+                "end_ms": 350,
+                "status": 500
+              },
+              {
+                "id": 3,
+                "intended_ms": 600,
+                "start_ms": 600,
+                "end_ms": 1600,
+                "status": 0
+              },
+              {
+                "id": 4,
+                "intended_ms": 900,
+                "start_ms": 900,
+                "end_ms": 1100,
+                "status": 502
+              }
+            ],
+            "window_ms": 1000,
+            "slo_ms": 500,
+            "steady": {
+              "from_ms": 0,
+              "to_ms": 2000
+            }
+          },
+          "expected": {
+            "windows": [
+              {
+                "start_ms": 0,
+                "completed": 1,
+                "throughput_rps": 1.0,
+                "error_pct": 100.0,
+                "goodput_rps": 0.0
+              },
+              {
+                "start_ms": 1000,
+                "completed": 3,
+                "throughput_rps": 3.0,
+                "error_pct": 100.0,
+                "goodput_rps": 0.0
+              }
+            ],
+            "steady": {
+              "completed": 4,
+              "offered_rps": 2.0,
+              "throughput_rps": 2.0,
+              "error_pct": 100.0,
+              "timeouts": 2,
+              "goodput_rps": 0.0
+            }
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Goodput uses latency from intended_ms: late sends with fast service miss the SLO",
+          "input": {
+            "records": [
+              {
+                "id": 1,
+                "intended_ms": 0,
+                "start_ms": 0,
+                "end_ms": 100,
+                "status": 200
+              },
+              {
+                "id": 2,
+                "intended_ms": 100,
+                "start_ms": 650,
+                "end_ms": 700,
+                "status": 200
+              },
+              {
+                "id": 3,
+                "intended_ms": 200,
+                "start_ms": 660,
+                "end_ms": 720,
+                "status": 200
+              },
+              {
+                "id": 4,
+                "intended_ms": 300,
+                "start_ms": 670,
+                "end_ms": 760,
+                "status": 200
+              },
+              {
+                "id": 5,
+                "intended_ms": 1000,
+                "start_ms": 1000,
+                "end_ms": 1150,
+                "status": 200
+              },
+              {
+                "id": 6,
+                "intended_ms": 1200,
+                "start_ms": 1200,
+                "end_ms": 1350,
+                "status": 200
+              }
+            ],
+            "window_ms": 1000,
+            "slo_ms": 200,
+            "steady": {
+              "from_ms": 0,
+              "to_ms": 2000
+            }
+          },
+          "expected": {
+            "windows": [
+              {
+                "start_ms": 0,
+                "completed": 4,
+                "throughput_rps": 4.0,
+                "error_pct": 0.0,
+                "goodput_rps": 1.0
+              },
+              {
+                "start_ms": 1000,
+                "completed": 2,
+                "throughput_rps": 2.0,
+                "error_pct": 0.0,
+                "goodput_rps": 2.0
+              }
+            ],
+            "steady": {
+              "completed": 6,
+              "offered_rps": 3.0,
+              "throughput_rps": 3.0,
+              "error_pct": 0.0,
+              "timeouts": 0,
+              "goodput_rps": 1.5
+            }
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Larger unsorted run: steady state 10-40 s excludes the ramp-up and ramp-down",
+          "input": {
+            "records": [
+              {
+                "id": 1,
+                "intended_ms": 2000,
+                "start_ms": 2000,
+                "end_ms": 2235,
+                "status": 200
+              },
+              {
+                "id": 16,
+                "intended_ms": 8250,
+                "start_ms": 8250,
+                "end_ms": 8465,
+                "status": 200
+              },
+              {
+                "id": 31,
+                "intended_ms": 11166,
+                "start_ms": 11166,
+                "end_ms": 11387,
+                "status": 200
+              },
+              {
+                "id": 46,
+                "intended_ms": 13666,
+                "start_ms": 13666,
+                "end_ms": 13753,
+                "status": 200
+              },
+              {
+                "id": 61,
+                "intended_ms": 16166,
+                "start_ms": 16166,
+                "end_ms": 16439,
+                "status": 200
+              },
+              {
+                "id": 76,
+                "intended_ms": 18666,
+                "start_ms": 18666,
+                "end_ms": 18968,
+                "status": 200
+              },
+              {
+                "id": 91,
+                "intended_ms": 21166,
+                "start_ms": 21166,
+                "end_ms": 21895,
+                "status": 200
+              },
+              {
+                "id": 106,
+                "intended_ms": 23666,
+                "start_ms": 23666,
+                "end_ms": 23856,
+                "status": 200
+              },
+              {
+                "id": 121,
+                "intended_ms": 26166,
+                "start_ms": 26294,
+                "end_ms": 26822,
+                "status": 200
+              },
+              {
+                "id": 136,
+                "intended_ms": 28666,
+                "start_ms": 28938,
+                "end_ms": 31938,
+                "status": 0
+              },
+              {
+                "id": 151,
+                "intended_ms": 31166,
+                "start_ms": 31552,
+                "end_ms": 32001,
+                "status": 200
+              },
+              {
+                "id": 166,
+                "intended_ms": 33666,
+                "start_ms": 34022,
+                "end_ms": 34244,
+                "status": 200
+              },
+              {
+                "id": 181,
+                "intended_ms": 36166,
+                "start_ms": 36343,
+                "end_ms": 36919,
+                "status": 200
+              },
+              {
+                "id": 196,
+                "intended_ms": 38666,
+                "start_ms": 38848,
+                "end_ms": 39050,
+                "status": 200
+              },
+              {
+                "id": 211,
+                "intended_ms": 41200,
+                "start_ms": 41559,
+                "end_ms": 42298,
+                "status": 200
+              },
+              {
+                "id": 226,
+                "intended_ms": 45000,
+                "start_ms": 45370,
+                "end_ms": 46270,
+                "status": 200
+              },
+              {
+                "id": 9,
+                "intended_ms": 6333,
+                "start_ms": 6333,
+                "end_ms": 6511,
+                "status": 200
+              },
+              {
+                "id": 24,
+                "intended_ms": 10000,
+                "start_ms": 10000,
+                "end_ms": 10158,
+                "status": 200
+              },
+              {
+                "id": 39,
+                "intended_ms": 12500,
+                "start_ms": 12500,
+                "end_ms": 12697,
+                "status": 200
+              },
+              {
+                "id": 54,
+                "intended_ms": 15000,
+                "start_ms": 15000,
+                "end_ms": 15359,
+                "status": 200
+              },
+              {
+                "id": 69,
+                "intended_ms": 17500,
+                "start_ms": 17500,
+                "end_ms": 17860,
+                "status": 200
+              },
+              {
+                "id": 84,
+                "intended_ms": 20000,
+                "start_ms": 20000,
+                "end_ms": 21102,
+                "status": 200
+              },
+              {
+                "id": 99,
+                "intended_ms": 22500,
+                "start_ms": 22500,
+                "end_ms": 23439,
+                "status": 200
+              },
+              {
+                "id": 114,
+                "intended_ms": 25000,
+                "start_ms": 25016,
+                "end_ms": 26009,
+                "status": 200
+              },
+              {
+                "id": 129,
+                "intended_ms": 27500,
+                "start_ms": 27605,
+                "end_ms": 27994,
+                "status": 200
+              },
+              {
+                "id": 144,
+                "intended_ms": 30000,
+                "start_ms": 30040,
+                "end_ms": 30632,
+                "status": 200
+              },
+              {
+                "id": 159,
+                "intended_ms": 32500,
+                "start_ms": 32568,
+                "end_ms": 33733,
+                "status": 200
+              },
+              {
+                "id": 174,
+                "intended_ms": 35000,
+                "start_ms": 35279,
+                "end_ms": 35385,
+                "status": 200
+              },
+              {
+                "id": 189,
+                "intended_ms": 37500,
+                "start_ms": 37664,
+                "end_ms": 38396,
+                "status": 200
+              },
+              {
+                "id": 204,
+                "intended_ms": 40000,
+                "start_ms": 40255,
+                "end_ms": 41275,
+                "status": 200
+              },
+              {
+                "id": 219,
+                "intended_ms": 43000,
+                "start_ms": 43185,
+                "end_ms": 43923,
+                "status": 200
+              },
+              {
+                "id": 2,
+                "intended_ms": 3000,
+                "start_ms": 3000,
+                "end_ms": 3313,
+                "status": 200
+              },
+              {
+                "id": 17,
+                "intended_ms": 8500,
+                "start_ms": 8500,
+                "end_ms": 8830,
+                "status": 200
+              },
+              {
+                "id": 32,
+                "intended_ms": 11333,
+                "start_ms": 11333,
+                "end_ms": 11687,
+                "status": 200
+              },
+              {
+                "id": 47,
+                "intended_ms": 13833,
+                "start_ms": 13833,
+                "end_ms": 14182,
+                "status": 200
+              },
+              {
+                "id": 62,
+                "intended_ms": 16333,
+                "start_ms": 16333,
+                "end_ms": 16566,
+                "status": 200
+              },
+              {
+                "id": 77,
+                "intended_ms": 18833,
+                "start_ms": 18833,
+                "end_ms": 18953,
+                "status": 200
+              },
+              {
+                "id": 92,
+                "intended_ms": 21333,
+                "start_ms": 21333,
+                "end_ms": 22308,
+                "status": 200
+              },
+              {
+                "id": 107,
+                "intended_ms": 23833,
+                "start_ms": 23833,
+                "end_ms": 24375,
+                "status": 200
+              },
+              {
+                "id": 122,
+                "intended_ms": 26333,
+                "start_ms": 26643,
+                "end_ms": 27617,
+                "status": 200
+              },
+              {
+                "id": 137,
+                "intended_ms": 28833,
+                "start_ms": 29073,
+                "end_ms": 29269,
+                "status": 200
+              },
+              {
+                "id": 152,
+                "intended_ms": 31333,
+                "start_ms": 31378,
+                "end_ms": 32004,
+                "status": 200
+              },
+              {
+                "id": 167,
+                "intended_ms": 33833,
+                "start_ms": 33901,
+                "end_ms": 34687,
+                "status": 200
+              },
+              {
+                "id": 182,
+                "intended_ms": 36333,
+                "start_ms": 36611,
+                "end_ms": 37398,
+                "status": 200
+              },
+              {
+                "id": 197,
+                "intended_ms": 38833,
+                "start_ms": 39149,
+                "end_ms": 39901,
+                "status": 200
+              },
+              {
+                "id": 212,
+                "intended_ms": 41400,
+                "start_ms": 41708,
+                "end_ms": 42396,
+                "status": 200
+              },
+              {
+                "id": 227,
+                "intended_ms": 45333,
+                "start_ms": 45688,
+                "end_ms": 46376,
+                "status": 200
+              },
+              {
+                "id": 10,
+                "intended_ms": 6666,
+                "start_ms": 6666,
+                "end_ms": 6947,
+                "status": 200
+              },
+              {
+                "id": 25,
+                "intended_ms": 10166,
+                "start_ms": 10166,
+                "end_ms": 10286,
+                "status": 200
+              },
+              {
+                "id": 40,
+                "intended_ms": 12666,
+                "start_ms": 12666,
+                "end_ms": 12833,
+                "status": 200
+              },
+              {
+                "id": 55,
+                "intended_ms": 15166,
+                "start_ms": 15166,
+                "end_ms": 15486,
+                "status": 200
+              },
+              {
+                "id": 70,
+                "intended_ms": 17666,
+                "start_ms": 17666,
+                "end_ms": 17909,
+                "status": 200
+              },
+              {
+                "id": 85,
+                "intended_ms": 20166,
+                "start_ms": 20166,
+                "end_ms": 20587,
+                "status": 200
+              },
+              {
+                "id": 100,
+                "intended_ms": 22666,
+                "start_ms": 22666,
+                "end_ms": 23556,
+                "status": 200
+              },
+              {
+                "id": 115,
+                "intended_ms": 25166,
+                "start_ms": 25553,
+                "end_ms": 26807,
+                "status": 200
+              },
+              {
+                "id": 130,
+                "intended_ms": 27666,
+                "start_ms": 27886,
+                "end_ms": 28568,
+                "status": 201
+              },
+              {
+                "id": 145,
+                "intended_ms": 30166,
+                "start_ms": 30229,
+                "end_ms": 30269,
+                "status": 503
+              },
+              {
+                "id": 160,
+                "intended_ms": 32666,
+                "start_ms": 33027,
+                "end_ms": 33174,
+                "status": 200
+              },
+              {
+                "id": 175,
+                "intended_ms": 35166,
+                "start_ms": 35453,
+                "end_ms": 35835,
+                "status": 200
+              },
+              {
+                "id": 190,
+                "intended_ms": 37666,
+                "start_ms": 37716,
+                "end_ms": 38460,
+                "status": 200
+              },
+              {
+                "id": 205,
+                "intended_ms": 40166,
+                "start_ms": 40536,
+                "end_ms": 41611,
+                "status": 200
+              },
+              {
+                "id": 220,
+                "intended_ms": 43250,
+                "start_ms": 43330,
+                "end_ms": 44147,
+                "status": 200
+              },
+              {
+                "id": 3,
+                "intended_ms": 4000,
+                "start_ms": 4000,
+                "end_ms": 4090,
+                "status": 200
+              },
+              {
+                "id": 18,
+                "intended_ms": 8750,
+                "start_ms": 8750,
+                "end_ms": 9017,
+                "status": 200
+              },
+              {
+                "id": 33,
+                "intended_ms": 11500,
+                "start_ms": 11500,
+                "end_ms": 11600,
+                "status": 200
+              },
+              {
+                "id": 48,
+                "intended_ms": 14000,
+                "start_ms": 14000,
+                "end_ms": 14124,
+                "status": 200
+              },
+              {
+                "id": 63,
+                "intended_ms": 16500,
+                "start_ms": 16500,
+                "end_ms": 16669,
+                "status": 200
+              },
+              {
+                "id": 78,
+                "intended_ms": 19000,
+                "start_ms": 19000,
+                "end_ms": 19105,
+                "status": 201
+              },
+              {
+                "id": 93,
+                "intended_ms": 21500,
+                "start_ms": 21500,
+                "end_ms": 22754,
+                "status": 200
+              },
+              {
+                "id": 108,
+                "intended_ms": 24000,
+                "start_ms": 24000,
+                "end_ms": 24178,
+                "status": 200
+              },
+              {
+                "id": 123,
+                "intended_ms": 26500,
+                "start_ms": 26871,
+                "end_ms": 27813,
+                "status": 200
+              },
+              {
+                "id": 138,
+                "intended_ms": 29000,
+                "start_ms": 29280,
+                "end_ms": 30409,
+                "status": 200
+              },
+              {
+                "id": 153,
+                "intended_ms": 31500,
+                "start_ms": 31739,
+                "end_ms": 32993,
+                "status": 200
+              },
+              {
+                "id": 168,
+                "intended_ms": 34000,
+                "start_ms": 34341,
+                "end_ms": 34684,
+                "status": 200
+              },
+              {
+                "id": 183,
+                "intended_ms": 36500,
+                "start_ms": 36608,
+                "end_ms": 37022,
+                "status": 200
+              },
+              {
+                "id": 198,
+                "intended_ms": 39000,
+                "start_ms": 39042,
+                "end_ms": 39462,
+                "status": 200
+              },
+              {
+                "id": 213,
+                "intended_ms": 41600,
+                "start_ms": 41999,
+                "end_ms": 43023,
+                "status": 200
+              },
+              {
+                "id": 228,
+                "intended_ms": 45666,
+                "start_ms": 45766,
+                "end_ms": 46025,
+                "status": 200
+              },
+              {
+                "id": 11,
+                "intended_ms": 7000,
+                "start_ms": 7000,
+                "end_ms": 7119,
+                "status": 200
+              },
+              {
+                "id": 26,
+                "intended_ms": 10333,
+                "start_ms": 10333,
+                "end_ms": 10685,
+                "status": 200
+              },
+              {
+                "id": 41,
+                "intended_ms": 12833,
+                "start_ms": 12833,
+                "end_ms": 13089,
+                "status": 200
+              },
+              {
+                "id": 56,
+                "intended_ms": 15333,
+                "start_ms": 15333,
+                "end_ms": 15563,
+                "status": 200
+              },
+              {
+                "id": 71,
+                "intended_ms": 17833,
+                "start_ms": 17833,
+                "end_ms": 18023,
+                "status": 200
+              },
+              {
+                "id": 86,
+                "intended_ms": 20333,
+                "start_ms": 20333,
+                "end_ms": 21435,
+                "status": 201
+              },
+              {
+                "id": 101,
+                "intended_ms": 22833,
+                "start_ms": 22833,
+                "end_ms": 23796,
+                "status": 200
+              },
+              {
+                "id": 116,
+                "intended_ms": 25333,
+                "start_ms": 25509,
+                "end_ms": 26414,
+                "status": 200
+              },
+              {
+                "id": 131,
+                "intended_ms": 27833,
+                "start_ms": 28152,
+                "end_ms": 28389,
+                "status": 200
+              },
+              {
+                "id": 146,
+                "intended_ms": 30333,
+                "start_ms": 30475,
+                "end_ms": 31679,
+                "status": 200
+              },
+              {
+                "id": 161,
+                "intended_ms": 32833,
+                "start_ms": 33022,
+                "end_ms": 33062,
+                "status": 503
+              },
+              {
+                "id": 176,
+                "intended_ms": 35333,
+                "start_ms": 35621,
+                "end_ms": 35804,
+                "status": 200
+              },
+              {
+                "id": 191,
+                "intended_ms": 37833,
+                "start_ms": 37965,
+                "end_ms": 38112,
+                "status": 200
+              },
+              {
+                "id": 206,
+                "intended_ms": 40333,
+                "start_ms": 40712,
+                "end_ms": 41575,
+                "status": 200
+              },
+              {
+                "id": 221,
+                "intended_ms": 43500,
+                "start_ms": 43866,
+                "end_ms": 44215,
+                "status": 200
+              },
+              {
+                "id": 4,
+                "intended_ms": 4500,
+                "start_ms": 4500,
+                "end_ms": 4822,
+                "status": 200
+              },
+              {
+                "id": 19,
+                "intended_ms": 9000,
+                "start_ms": 9000,
+                "end_ms": 9272,
+                "status": 200
+              },
+              {
+                "id": 34,
+                "intended_ms": 11666,
+                "start_ms": 11666,
+                "end_ms": 11901,
+                "status": 200
+              },
+              {
+                "id": 49,
+                "intended_ms": 14166,
+                "start_ms": 14166,
+                "end_ms": 14285,
+                "status": 200
+              },
+              {
+                "id": 64,
+                "intended_ms": 16666,
+                "start_ms": 16666,
+                "end_ms": 17044,
+                "status": 201
+              },
+              {
+                "id": 79,
+                "intended_ms": 19166,
+                "start_ms": 19166,
+                "end_ms": 19284,
+                "status": 200
+              },
+              {
+                "id": 94,
+                "intended_ms": 21666,
+                "start_ms": 21666,
+                "end_ms": 24666,
+                "status": 0
+              },
+              {
+                "id": 109,
+                "intended_ms": 24166,
+                "start_ms": 24166,
+                "end_ms": 27166,
+                "status": 0
+              },
+              {
+                "id": 124,
+                "intended_ms": 26666,
+                "start_ms": 27007,
+                "end_ms": 27432,
+                "status": 200
+              },
+              {
+                "id": 139,
+                "intended_ms": 29166,
+                "start_ms": 29223,
+                "end_ms": 29404,
+                "status": 200
+              },
+              {
+                "id": 154,
+                "intended_ms": 31666,
+                "start_ms": 31900,
+                "end_ms": 32183,
+                "status": 200
+              },
+              {
+                "id": 169,
+                "intended_ms": 34166,
+                "start_ms": 34438,
+                "end_ms": 34804,
+                "status": 200
+              },
+              {
+                "id": 184,
+                "intended_ms": 36666,
+                "start_ms": 36944,
+                "end_ms": 37359,
+                "status": 200
+              },
+              {
+                "id": 199,
+                "intended_ms": 39166,
+                "start_ms": 39235,
+                "end_ms": 40333,
+                "status": 201
+              },
+              {
+                "id": 214,
+                "intended_ms": 41800,
+                "start_ms": 41954,
+                "end_ms": 42963,
+                "status": 200
+              },
+              {
+                "id": 229,
+                "intended_ms": 46000,
+                "start_ms": 46225,
+                "end_ms": 47440,
+                "status": 200
+              },
+              {
+                "id": 12,
+                "intended_ms": 7250,
+                "start_ms": 7250,
+                "end_ms": 7584,
+                "status": 200
+              },
+              {
+                "id": 27,
+                "intended_ms": 10500,
+                "start_ms": 10500,
+                "end_ms": 10710,
+                "status": 200
+              },
+              {
+                "id": 42,
+                "intended_ms": 13000,
+                "start_ms": 13000,
+                "end_ms": 13243,
+                "status": 200
+              },
+              {
+                "id": 57,
+                "intended_ms": 15500,
+                "start_ms": 15500,
+                "end_ms": 15582,
+                "status": 200
+              },
+              {
+                "id": 72,
+                "intended_ms": 18000,
+                "start_ms": 18000,
+                "end_ms": 18164,
+                "status": 200
+              },
+              {
+                "id": 87,
+                "intended_ms": 20500,
+                "start_ms": 20500,
+                "end_ms": 20846,
+                "status": 200
+              },
+              {
+                "id": 102,
+                "intended_ms": 23000,
+                "start_ms": 23000,
+                "end_ms": 23695,
+                "status": 200
+              },
+              {
+                "id": 117,
+                "intended_ms": 25500,
+                "start_ms": 25814,
+                "end_ms": 25932,
+                "status": 200
+              },
+              {
+                "id": 132,
+                "intended_ms": 28000,
+                "start_ms": 28135,
+                "end_ms": 28681,
+                "status": 200
+              },
+              {
+                "id": 147,
+                "intended_ms": 30500,
+                "start_ms": 30823,
+                "end_ms": 31431,
+                "status": 200
+              },
+              {
+                "id": 162,
+                "intended_ms": 33000,
+                "start_ms": 33163,
+                "end_ms": 36163,
+                "status": 0
+              },
+              {
+                "id": 177,
+                "intended_ms": 35500,
+                "start_ms": 35607,
+                "end_ms": 35692,
+                "status": 200
+              },
+              {
+                "id": 192,
+                "intended_ms": 38000,
+                "start_ms": 38125,
+                "end_ms": 38346,
+                "status": 200
+              },
+              {
+                "id": 207,
+                "intended_ms": 40500,
+                "start_ms": 40877,
+                "end_ms": 41023,
+                "status": 200
+              },
+              {
+                "id": 222,
+                "intended_ms": 43750,
+                "start_ms": 44004,
+                "end_ms": 44823,
+                "status": 200
+              },
+              {
+                "id": 5,
+                "intended_ms": 5000,
+                "start_ms": 5000,
+                "end_ms": 5294,
+                "status": 200
+              },
+              {
+                "id": 20,
+                "intended_ms": 9200,
+                "start_ms": 9200,
+                "end_ms": 9354,
+                "status": 200
+              },
+              {
+                "id": 35,
+                "intended_ms": 11833,
+                "start_ms": 11833,
+                "end_ms": 12052,
+                "status": 200
+              },
+              {
+                "id": 50,
+                "intended_ms": 14333,
+                "start_ms": 14333,
+                "end_ms": 14581,
+                "status": 200
+              },
+              {
+                "id": 65,
+                "intended_ms": 16833,
+                "start_ms": 16833,
+                "end_ms": 17143,
+                "status": 200
+              },
+              {
+                "id": 80,
+                "intended_ms": 19333,
+                "start_ms": 19333,
+                "end_ms": 19530,
+                "status": 200
+              },
+              {
+                "id": 95,
+                "intended_ms": 21833,
+                "start_ms": 21833,
+                "end_ms": 22139,
+                "status": 200
+              },
+              {
+                "id": 110,
+                "intended_ms": 24333,
+                "start_ms": 24333,
+                "end_ms": 25053,
+                "status": 200
+              },
+              {
+                "id": 125,
+                "intended_ms": 26833,
+                "start_ms": 27002,
+                "end_ms": 28261,
+                "status": 200
+              },
+              {
+                "id": 140,
+                "intended_ms": 29333,
+                "start_ms": 29588,
+                "end_ms": 30143,
+                "status": 200
+              },
+              {
+                "id": 155,
+                "intended_ms": 31833,
+                "start_ms": 31865,
+                "end_ms": 32992,
+                "status": 200
+              },
+              {
+                "id": 170,
+                "intended_ms": 34333,
+                "start_ms": 34610,
+                "end_ms": 35033,
+                "status": 200
+              },
+              {
+                "id": 185,
+                "intended_ms": 36833,
+                "start_ms": 37086,
+                "end_ms": 37606,
+                "status": 200
+              },
+              {
+                "id": 200,
+                "intended_ms": 39333,
+                "start_ms": 39439,
+                "end_ms": 40346,
+                "status": 200
+              },
+              {
+                "id": 215,
+                "intended_ms": 42000,
+                "start_ms": 42050,
+                "end_ms": 43135,
+                "status": 200
+              },
+              {
+                "id": 230,
+                "intended_ms": 46500,
+                "start_ms": 46646,
+                "end_ms": 47314,
+                "status": 200
+              },
+              {
+                "id": 13,
+                "intended_ms": 7500,
+                "start_ms": 7500,
+                "end_ms": 7589,
+                "status": 200
+              },
+              {
+                "id": 28,
+                "intended_ms": 10666,
+                "start_ms": 10666,
+                "end_ms": 10861,
+                "status": 200
+              },
+              {
+                "id": 43,
+                "intended_ms": 13166,
+                "start_ms": 13166,
+                "end_ms": 13291,
+                "status": 200
+              },
+              {
+                "id": 58,
+                "intended_ms": 15666,
+                "start_ms": 15666,
+                "end_ms": 16041,
+                "status": 200
+              },
+              {
+                "id": 73,
+                "intended_ms": 18166,
+                "start_ms": 18166,
+                "end_ms": 18418,
+                "status": 200
+              },
+              {
+                "id": 88,
+                "intended_ms": 20666,
+                "start_ms": 20666,
+                "end_ms": 20888,
+                "status": 200
+              },
+              {
+                "id": 103,
+                "intended_ms": 23166,
+                "start_ms": 23166,
+                "end_ms": 24251,
+                "status": 200
+              },
+              {
+                "id": 118,
+                "intended_ms": 25666,
+                "start_ms": 25958,
+                "end_ms": 26099,
+                "status": 200
+              },
+              {
+                "id": 133,
+                "intended_ms": 28166,
+                "start_ms": 28336,
+                "end_ms": 29534,
+                "status": 200
+              },
+              {
+                "id": 148,
+                "intended_ms": 30666,
+                "start_ms": 30747,
+                "end_ms": 31244,
+                "status": 200
+              },
+              {
+                "id": 163,
+                "intended_ms": 33166,
+                "start_ms": 33250,
+                "end_ms": 33397,
+                "status": 200
+              },
+              {
+                "id": 178,
+                "intended_ms": 35666,
+                "start_ms": 36038,
+                "end_ms": 37317,
+                "status": 200
+              },
+              {
+                "id": 193,
+                "intended_ms": 38166,
+                "start_ms": 38199,
+                "end_ms": 38751,
+                "status": 200
+              },
+              {
+                "id": 208,
+                "intended_ms": 40666,
+                "start_ms": 40696,
+                "end_ms": 41753,
+                "status": 200
+              },
+              {
+                "id": 223,
+                "intended_ms": 44000,
+                "start_ms": 44156,
+                "end_ms": 44382,
+                "status": 200
+              },
+              {
+                "id": 6,
+                "intended_ms": 5333,
+                "start_ms": 5333,
+                "end_ms": 5567,
+                "status": 200
+              },
+              {
+                "id": 21,
+                "intended_ms": 9400,
+                "start_ms": 9400,
+                "end_ms": 9769,
+                "status": 200
+              },
+              {
+                "id": 36,
+                "intended_ms": 12000,
+                "start_ms": 12000,
+                "end_ms": 12221,
+                "status": 200
+              },
+              {
+                "id": 51,
+                "intended_ms": 14500,
+                "start_ms": 14500,
+                "end_ms": 14801,
+                "status": 200
+              },
+              {
+                "id": 66,
+                "intended_ms": 17000,
+                "start_ms": 17000,
+                "end_ms": 17218,
+                "status": 200
+              },
+              {
+                "id": 81,
+                "intended_ms": 19500,
+                "start_ms": 19500,
+                "end_ms": 19753,
+                "status": 200
+              },
+              {
+                "id": 96,
+                "intended_ms": 22000,
+                "start_ms": 22000,
+                "end_ms": 25000,
+                "status": 0
+              },
+              {
+                "id": 111,
+                "intended_ms": 24500,
+                "start_ms": 24500,
+                "end_ms": 25331,
+                "status": 200
+              },
+              {
+                "id": 126,
+                "intended_ms": 27000,
+                "start_ms": 27028,
+                "end_ms": 28022,
+                "status": 200
+              },
+              {
+                "id": 141,
+                "intended_ms": 29500,
+                "start_ms": 29507,
+                "end_ms": 30732,
+                "status": 200
+              },
+              {
+                "id": 156,
+                "intended_ms": 32000,
+                "start_ms": 32078,
+                "end_ms": 32974,
+                "status": 200
+              },
+              {
+                "id": 171,
+                "intended_ms": 34500,
+                "start_ms": 34635,
+                "end_ms": 34998,
+                "status": 201
+              },
+              {
+                "id": 186,
+                "intended_ms": 37000,
+                "start_ms": 37350,
+                "end_ms": 37453,
+                "status": 200
+              },
+              {
+                "id": 201,
+                "intended_ms": 39500,
+                "start_ms": 39810,
+                "end_ms": 40190,
+                "status": 200
+              },
+              {
+                "id": 216,
+                "intended_ms": 42250,
+                "start_ms": 42506,
+                "end_ms": 43637,
+                "status": 200
+              },
+              {
+                "id": 231,
+                "intended_ms": 47000,
+                "start_ms": 47330,
+                "end_ms": 48586,
+                "status": 200
+              },
+              {
+                "id": 14,
+                "intended_ms": 7750,
+                "start_ms": 7750,
+                "end_ms": 8071,
+                "status": 200
+              },
+              {
+                "id": 29,
+                "intended_ms": 10833,
+                "start_ms": 10833,
+                "end_ms": 10967,
+                "status": 200
+              },
+              {
+                "id": 44,
+                "intended_ms": 13333,
+                "start_ms": 13333,
+                "end_ms": 13682,
+                "status": 200
+              },
+              {
+                "id": 59,
+                "intended_ms": 15833,
+                "start_ms": 15833,
+                "end_ms": 16118,
+                "status": 200
+              },
+              {
+                "id": 74,
+                "intended_ms": 18333,
+                "start_ms": 18333,
+                "end_ms": 18482,
+                "status": 200
+              },
+              {
+                "id": 89,
+                "intended_ms": 20833,
+                "start_ms": 20833,
+                "end_ms": 21272,
+                "status": 200
+              },
+              {
+                "id": 104,
+                "intended_ms": 23333,
+                "start_ms": 23333,
+                "end_ms": 24129,
+                "status": 200
+              },
+              {
+                "id": 119,
+                "intended_ms": 25833,
+                "start_ms": 26039,
+                "end_ms": 26930,
+                "status": 200
+              },
+              {
+                "id": 134,
+                "intended_ms": 28333,
+                "start_ms": 28367,
+                "end_ms": 28556,
+                "status": 200
+              },
+              {
+                "id": 149,
+                "intended_ms": 30833,
+                "start_ms": 31130,
+                "end_ms": 31704,
+                "status": 200
+              },
+              {
+                "id": 164,
+                "intended_ms": 33333,
+                "start_ms": 33467,
+                "end_ms": 34598,
+                "status": 200
+              },
+              {
+                "id": 179,
+                "intended_ms": 35833,
+                "start_ms": 36140,
+                "end_ms": 36419,
+                "status": 200
+              },
+              {
+                "id": 194,
+                "intended_ms": 38333,
+                "start_ms": 38356,
+                "end_ms": 38584,
+                "status": 200
+              },
+              {
+                "id": 209,
+                "intended_ms": 40833,
+                "start_ms": 40852,
+                "end_ms": 41435,
+                "status": 200
+              },
+              {
+                "id": 224,
+                "intended_ms": 44333,
+                "start_ms": 44600,
+                "end_ms": 45309,
+                "status": 200
+              },
+              {
+                "id": 7,
+                "intended_ms": 5666,
+                "start_ms": 5666,
+                "end_ms": 5820,
+                "status": 200
+              },
+              {
+                "id": 22,
+                "intended_ms": 9600,
+                "start_ms": 9600,
+                "end_ms": 9708,
+                "status": 200
+              },
+              {
+                "id": 37,
+                "intended_ms": 12166,
+                "start_ms": 12166,
+                "end_ms": 12330,
+                "status": 200
+              },
+              {
+                "id": 52,
+                "intended_ms": 14666,
+                "start_ms": 14666,
+                "end_ms": 14936,
+                "status": 200
+              },
+              {
+                "id": 67,
+                "intended_ms": 17166,
+                "start_ms": 17166,
+                "end_ms": 17256,
+                "status": 200
+              },
+              {
+                "id": 82,
+                "intended_ms": 19666,
+                "start_ms": 19666,
+                "end_ms": 19899,
+                "status": 200
+              },
+              {
+                "id": 97,
+                "intended_ms": 22166,
+                "start_ms": 22166,
+                "end_ms": 25166,
+                "status": 0
+              },
+              {
+                "id": 112,
+                "intended_ms": 24666,
+                "start_ms": 24666,
+                "end_ms": 24842,
+                "status": 200
+              },
+              {
+                "id": 127,
+                "intended_ms": 27166,
+                "start_ms": 27269,
+                "end_ms": 27973,
+                "status": 200
+              },
+              {
+                "id": 142,
+                "intended_ms": 29666,
+                "start_ms": 29973,
+                "end_ms": 30127,
+                "status": 200
+              },
+              {
+                "id": 157,
+                "intended_ms": 32166,
+                "start_ms": 32299,
+                "end_ms": 32669,
+                "status": 200
+              },
+              {
+                "id": 172,
+                "intended_ms": 34666,
+                "start_ms": 34926,
+                "end_ms": 36185,
+                "status": 200
+              },
+              {
+                "id": 187,
+                "intended_ms": 37166,
+                "start_ms": 37417,
+                "end_ms": 38009,
+                "status": 200
+              },
+              {
+                "id": 202,
+                "intended_ms": 39666,
+                "start_ms": 39745,
+                "end_ms": 40938,
+                "status": 200
+              },
+              {
+                "id": 217,
+                "intended_ms": 42500,
+                "start_ms": 42536,
+                "end_ms": 42974,
+                "status": 200
+              },
+              {
+                "id": 232,
+                "intended_ms": 48000,
+                "start_ms": 48388,
+                "end_ms": 48784,
+                "status": 200
+              },
+              {
+                "id": 15,
+                "intended_ms": 8000,
+                "start_ms": 8000,
+                "end_ms": 8350,
+                "status": 200
+              },
+              {
+                "id": 30,
+                "intended_ms": 11000,
+                "start_ms": 11000,
+                "end_ms": 11184,
+                "status": 200
+              },
+              {
+                "id": 45,
+                "intended_ms": 13500,
+                "start_ms": 13500,
+                "end_ms": 13629,
+                "status": 200
+              },
+              {
+                "id": 60,
+                "intended_ms": 16000,
+                "start_ms": 16000,
+                "end_ms": 16256,
+                "status": 200
+              },
+              {
+                "id": 75,
+                "intended_ms": 18500,
+                "start_ms": 18500,
+                "end_ms": 18815,
+                "status": 200
+              },
+              {
+                "id": 90,
+                "intended_ms": 21000,
+                "start_ms": 21000,
+                "end_ms": 22124,
+                "status": 200
+              },
+              {
+                "id": 105,
+                "intended_ms": 23500,
+                "start_ms": 23500,
+                "end_ms": 23634,
+                "status": 200
+              },
+              {
+                "id": 120,
+                "intended_ms": 26000,
+                "start_ms": 26383,
+                "end_ms": 26423,
+                "status": 503
+              },
+              {
+                "id": 135,
+                "intended_ms": 28500,
+                "start_ms": 28881,
+                "end_ms": 30049,
+                "status": 201
+              },
+              {
+                "id": 150,
+                "intended_ms": 31000,
+                "start_ms": 31144,
+                "end_ms": 31860,
+                "status": 200
+              },
+              {
+                "id": 165,
+                "intended_ms": 33500,
+                "start_ms": 33886,
+                "end_ms": 36886,
+                "status": 0
+              },
+              {
+                "id": 180,
+                "intended_ms": 36000,
+                "start_ms": 36033,
+                "end_ms": 36118,
+                "status": 200
+              },
+              {
+                "id": 195,
+                "intended_ms": 38500,
+                "start_ms": 38866,
+                "end_ms": 39088,
+                "status": 200
+              },
+              {
+                "id": 210,
+                "intended_ms": 41000,
+                "start_ms": 41180,
+                "end_ms": 41481,
+                "status": 200
+              },
+              {
+                "id": 225,
+                "intended_ms": 44666,
+                "start_ms": 44676,
+                "end_ms": 44964,
+                "status": 200
+              },
+              {
+                "id": 8,
+                "intended_ms": 6000,
+                "start_ms": 6000,
+                "end_ms": 6113,
+                "status": 200
+              },
+              {
+                "id": 23,
+                "intended_ms": 9800,
+                "start_ms": 9800,
+                "end_ms": 9986,
+                "status": 200
+              },
+              {
+                "id": 38,
+                "intended_ms": 12333,
+                "start_ms": 12333,
+                "end_ms": 12694,
+                "status": 200
+              },
+              {
+                "id": 53,
+                "intended_ms": 14833,
+                "start_ms": 14833,
+                "end_ms": 15035,
+                "status": 200
+              },
+              {
+                "id": 68,
+                "intended_ms": 17333,
+                "start_ms": 17333,
+                "end_ms": 17707,
+                "status": 200
+              },
+              {
+                "id": 83,
+                "intended_ms": 19833,
+                "start_ms": 19833,
+                "end_ms": 19995,
+                "status": 200
+              },
+              {
+                "id": 98,
+                "intended_ms": 22333,
+                "start_ms": 22333,
+                "end_ms": 23133,
+                "status": 200
+              },
+              {
+                "id": 113,
+                "intended_ms": 24833,
+                "start_ms": 24833,
+                "end_ms": 25283,
+                "status": 200
+              },
+              {
+                "id": 128,
+                "intended_ms": 27333,
+                "start_ms": 27561,
+                "end_ms": 27679,
+                "status": 200
+              },
+              {
+                "id": 143,
+                "intended_ms": 29833,
+                "start_ms": 30042,
+                "end_ms": 30455,
+                "status": 200
+              },
+              {
+                "id": 158,
+                "intended_ms": 32333,
+                "start_ms": 32510,
+                "end_ms": 33552,
+                "status": 200
+              },
+              {
+                "id": 173,
+                "intended_ms": 34833,
+                "start_ms": 35189,
+                "end_ms": 36426,
+                "status": 200
+              },
+              {
+                "id": 188,
+                "intended_ms": 37333,
+                "start_ms": 37724,
+                "end_ms": 38014,
+                "status": 200
+              },
+              {
+                "id": 203,
+                "intended_ms": 39833,
+                "start_ms": 40192,
+                "end_ms": 41379,
+                "status": 200
+              },
+              {
+                "id": 218,
+                "intended_ms": 42750,
+                "start_ms": 42979,
+                "end_ms": 44211,
+                "status": 201
+              }
+            ],
+            "window_ms": 5000,
+            "slo_ms": 800,
+            "steady": {
+              "from_ms": 10000,
+              "to_ms": 40000
+            }
+          },
+          "expected": {
+            "windows": [
+              {
+                "start_ms": 0,
+                "completed": 4,
+                "throughput_rps": 0.8,
+                "error_pct": 0.0,
+                "goodput_rps": 0.8
+              },
+              {
+                "start_ms": 5000,
+                "completed": 19,
+                "throughput_rps": 3.8,
+                "error_pct": 0.0,
+                "goodput_rps": 3.8
+              },
+              {
+                "start_ms": 10000,
+                "completed": 29,
+                "throughput_rps": 5.8,
+                "error_pct": 0.0,
+                "goodput_rps": 5.8
+              },
+              {
+                "start_ms": 15000,
+                "completed": 31,
+                "throughput_rps": 6.2,
+                "error_pct": 0.0,
+                "goodput_rps": 6.2
+              },
+              {
+                "start_ms": 20000,
+                "completed": 24,
+                "throughput_rps": 4.8,
+                "error_pct": 4.17,
+                "goodput_rps": 2.8
+              },
+              {
+                "start_ms": 25000,
+                "completed": 29,
+                "throughput_rps": 5.8,
+                "error_pct": 13.79,
+                "goodput_rps": 2.6
+              },
+              {
+                "start_ms": 30000,
+                "completed": 32,
+                "throughput_rps": 6.4,
+                "error_pct": 9.38,
+                "goodput_rps": 2.6
+              },
+              {
+                "start_ms": 35000,
+                "completed": 30,
+                "throughput_rps": 6.0,
+                "error_pct": 6.67,
+                "goodput_rps": 4.2
+              },
+              {
+                "start_ms": 40000,
+                "completed": 26,
+                "throughput_rps": 5.2,
+                "error_pct": 0.0,
+                "goodput_rps": 1.6
+              },
+              {
+                "start_ms": 45000,
+                "completed": 8,
+                "throughput_rps": 1.6,
+                "error_pct": 0.0,
+                "goodput_rps": 0.4
+              }
+            ],
+            "steady": {
+              "completed": 175,
+              "offered_rps": 6.0,
+              "throughput_rps": 5.83,
+              "error_pct": 5.71,
+              "timeouts": 7,
+              "goodput_rps": 4.03
+            }
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "No records: windows is empty, steady completed is 0 and error_pct is null",
+          "input": {
+            "records": [],
+            "window_ms": 1000,
+            "slo_ms": 500,
+            "steady": {
+              "from_ms": 0,
+              "to_ms": 1000
+            }
+          },
+          "expected": {
+            "windows": [],
+            "steady": {
+              "completed": 0,
+              "offered_rps": 0.0,
+              "throughput_rps": 0.0,
+              "error_pct": null,
+              "timeouts": 0,
+              "goodput_rps": 0.0
+            }
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A window_ms of 0 is rejected",
+          "input": {
+            "records": [
+              {
+                "id": 1,
+                "intended_ms": 0,
+                "start_ms": 0,
+                "end_ms": 100,
+                "status": 200
+              }
+            ],
+            "window_ms": 0,
+            "slo_ms": 500,
+            "steady": {
+              "from_ms": 0,
+              "to_ms": 1000
+            }
+          },
+          "expected": {
+            "error": "window_ms must be > 0"
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A steady interval whose end equals its start is rejected",
+          "input": {
+            "records": [
+              {
+                "id": 1,
+                "intended_ms": 0,
+                "start_ms": 0,
+                "end_ms": 100,
+                "status": 200
+              }
+            ],
+            "window_ms": 1000,
+            "slo_ms": 500,
+            "steady": {
+              "from_ms": 5000,
+              "to_ms": 5000
+            }
+          },
+          "expected": {
+            "error": "steady interval is empty"
+          },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

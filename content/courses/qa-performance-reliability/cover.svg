@@ -32,18 +32,18 @@
     <path d="M158 208 L180 178" stroke="#FFD43B" stroke-width="7" stroke-linecap="round"/>
     <circle cx="158" cy="208" r="7" fill="#FFD43B"/>
     <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#3DBE7B">PYTHON · PERFORMANCE QA</text>
-    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">Load, Latency</text>
-    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">&amp; Chaos</text>
-    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Percentiles · SLOs · Retries · Chaos</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">Load Testing &amp;</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">Bottlenecks</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Percentiles · Throughput · Saturation</text>
     <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#CFE0F4">
       <rect x="110" y="660" width="107" height="52" rx="26" fill="#14223A" stroke="#3776AB"/>
       <text x="163.5" y="695" text-anchor="middle">p99</text>
       <rect x="233" y="660" width="236" height="52" rx="26" fill="#14223A" stroke="#3776AB"/>
       <text x="351" y="695" text-anchor="middle">Little's law</text>
       <rect x="485" y="660" width="107" height="52" rx="26" fill="#14223A" stroke="#3776AB"/>
-      <text x="538.5" y="695" text-anchor="middle">SLO</text>
-      <rect x="608" y="660" width="136" height="52" rx="26" fill="#14223A" stroke="#3776AB"/>
-      <text x="676" y="695" text-anchor="middle">chaos</text>
+      <text x="538.5" y="695" text-anchor="middle">knee</text>
+      <rect x="608" y="660" width="160" height="52" rx="26" fill="#14223A" stroke="#3776AB"/>
+      <text x="688" y="695" text-anchor="middle">warm-up</text>
     </g>
   </g>
 

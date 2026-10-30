@@ -1,0 +1,152 @@
+{
+  "publicId": "system-design-capstone",
+  "title": "System Design Capstone: Building the Learning Platform",
+  "concept": "Design a production system end to end and prove each decision with evidence: requirements with numbers, the simplest architecture and its source of truth, validation at the boundary, lost updates and optimistic concurrency, event-driven projections, caches that are not single points of failure, rebuilding derived state, per-user rate limits, backpressure, graceful degradation and an idempotent vertical slice, ending in an architecture review of a learning platform.",
+  "description": "An expert capstone for engineers who design and own systems. You design the CodeDev learning platform itself - progress, submissions and the leaderboard - one decision at a time, and every decision is checked against evidence: a capacity estimate, a lost update between two browser tabs, a leaderboard that disappeared with its Redis node, a cache outage that took down the whole API, a submission spike that filled the queue, a duplicate event that counted a lesson twice. Each lesson turns a design choice into small, tested TypeScript components - a validating progress service, a leaderboard projection, a per-user rate limiter, a bounded queue that answers 429, fallbacks and an idempotent end-to-end slice - and the course ends with an Architecture Review Board on real evidence. 13 lessons with design-decision quizzes and TypeScript challenges graded with in-memory stores and fakes.",
+  "level": "expert",
+  "durationMinutes": 320,
+  "instructor": "CodeDev Engineering Team",
+  "language": "TypeScript",
+  "category": "System Design",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 200,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 1000
+    },
+    {
+      "priceType": "money",
+      "amount": 349000,
+      "currency": "VND"
+    }
+  ],
+  "completionRules": {},
+  "careerRoles": [
+    "backend_developer",
+    "fullstack_developer",
+    "devops_engineer"
+  ],
+  "skills": {
+    "system_design": 5,
+    "api_design": 3,
+    "typescript": 2,
+    "performance": 2
+  },
+  "goals": [
+    "grow_in_role",
+    "interview_prep",
+    "build_projects"
+  ],
+  "prerequisites": [
+    "sql-data-modeling",
+    "observability-opentelemetry"
+  ],
+  "modules": [
+    {
+      "orderIndex": 1,
+      "title": "Requirements & Architecture",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "01-requirements-numbers",
+          "title": "Requirements with numbers: users, load and what must never break",
+          "sanityId": "lesson-sdc-1-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "02-architecture-source-of-truth",
+          "title": "The simplest architecture that works, and its source of truth",
+          "sanityId": "lesson-sdc-1-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "03-progress-service",
+          "title": "Progress service: validate at the boundary, keep the rules in one place",
+          "sanityId": "lesson-sdc-1-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Data & Consistency",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "04-lost-update",
+          "title": "Lost updates: two requests, one row, optimistic concurrency",
+          "sanityId": "lesson-sdc-2-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "05-leaderboard-projection",
+          "title": "Event-driven projections: a leaderboard from progress events",
+          "sanityId": "lesson-sdc-2-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "06-cache-spof",
+          "title": "Caching without a single point of failure",
+          "sanityId": "lesson-sdc-2-3"
+        },
+        {
+          "orderIndex": 4,
+          "folder": "07-rebuild-derived-state",
+          "title": "Recovery: rebuilding derived state after the cache is lost",
+          "sanityId": "lesson-sdc-2-4"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Load & Failure",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "08-rate-limit-per-user",
+          "title": "Rate limiting submissions per user",
+          "sanityId": "lesson-sdc-3-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "09-backpressure",
+          "title": "Backpressure: a bounded submission queue that answers 429",
+          "sanityId": "lesson-sdc-3-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "10-graceful-degradation",
+          "title": "Graceful degradation: when an optional dependency fails",
+          "sanityId": "lesson-sdc-3-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 4,
+      "title": "Capstone",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "11-vertical-slice",
+          "title": "The vertical slice: API to leaderboard, idempotent end to end",
+          "sanityId": "lesson-sdc-4-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "12-scaling-cost",
+          "title": "Scaling & cost: what changes when traffic and the team grow",
+          "sanityId": "lesson-sdc-4-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "13-architecture-review",
+          "title": "Architecture Review Board: defend the design with evidence",
+          "sanityId": "lesson-sdc-4-3"
+        }
+      ]
+    }
+  ]
+}

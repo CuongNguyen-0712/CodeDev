@@ -1,0 +1,819 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_qpr_211",
+      "name": "workload-models-quiz",
+      "type": "quiz",
+      "title": "Closed loop or open arrivals: what did this test really send?",
+      "description": "Two k6 runs against the CodeDev staging API: a closed-model test whose throughput fell when the server slowed down, and an open-model test that reported dropped iterations. Decide whether each statement about the evidence is true or false.",
+      "difficulty": "medium",
+      "points": 10,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "k6 scenario for POST /submissions on staging (tested with k6 1.x - verify):\n\nexport const options = {\n  scenarios: {\n    submit: { executor: \"constant-vus\", vus: 50, duration: \"10m\" },\n  },\n};\nexport default function () {\n  http.post(`${BASE}/submissions`, payload, params);\n  sleep(1);\n}\n\nResults per phase (from the result log):\n\nminute 0-4   median response 0.2 s   http_reqs 41.6/s\nminute 5-9   median response 2.0 s   http_reqs 16.7/s   (a slow database migration started at minute 5)\n\nStatement: \"The fall from about 42 to about 17 requests per second is what the closed model itself produces: each VU waits for its response and then sleeps 1 s, so 50 VUs can send at most about 50 / (response time + 1 s) requests per second.\"",
+          "explanation": "True. In a closed model a VU starts its next request only after the previous one returned and the think time passed, so the sending rate is N / (R + Z): 50 / (0.2 + 1) = 41.7/s and 50 / (2.0 + 1) = 16.7/s, exactly the measured numbers. The server did not 'handle less load because it lost capacity'; the load generator sent less because it was waiting. That is why a closed test hides overload: the slower the server, the gentler the test becomes. The common misconception is reading http_reqs/s of a closed test as the load the server was asked to carry. To see what real users do (they keep arriving whether or not the site is slow), use an arrival-rate executor.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Open-model run of the same endpoint (tested with k6 1.x - verify):\n\nsubmit: {\n  executor: \"constant-arrival-rate\",\n  rate: 50, timeUnit: \"1s\", duration: \"10m\",\n  preAllocatedVUs: 20, maxVUs: 100,\n}\n\nEnd-of-test summary (excerpt):\n\nhttp_req_duration....: avg=1.71s  p(95)=2.9s\nhttp_req_failed......: 0.41%   (112 of 27310)\niterations...........: 27310\ndropped_iterations...: 2690\nvus_max..............: 100\n\nStatement: \"The 2,690 dropped iterations are requests that reached the API and timed out, so the real error rate of POST /submissions is (112 + 2,690) / 30,000, about 9.3%.\"",
+          "explanation": "False. A dropped iteration was never sent: at the planned moment no VU was free to start it, because all 100 VUs (maxVUs) were still waiting for slow responses (about 50/s x 2.9 s is roughly 145 requests in flight at p95, more than 100 VUs). The API never saw those 2,690 requests, so they are not API errors. They are planned load the test failed to deliver, which makes the run invalid as a 50/s test until maxVUs is raised, and they are themselves a strong sign of saturation. Report them next to the error rate, never inside it. The misconception is treating every missing request as a server failure; the first question is always whether the request was actually sent.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_qpr_212",
+      "name": "open-model-arrival-schedule",
+      "type": "mini_coding",
+      "title": "Plan the arrival schedule of an open-model load test",
+      "description": "The CodeDev performance team is moving its POST /submissions load test from a closed model (VUs that wait for responses) to an open model (k6 ramping-arrival-rate), and wants to check the schedule before it hits staging: how many requests are planned per second, and at which millisecond each one should leave.\n\nWrite two functions in schedule.py:\n\nplanned_rates(start_rate, stages) - stages is [{\"duration_s\": int, \"target_rps\": int}, ...]. As in k6 ramping-arrival-rate, the rate changes linearly from the previous target (start_rate for the first stage) to target_rps over duration_s seconds; an equal target holds the rate. Return one value per second of the whole test: the AVERAGE rate over that second, i.e. for second k (0-based) of a stage from r0 to r1 over d seconds, r0 + (r1 - r0) * (2k + 1) / (2d). Use exact arithmetic (fractions.Fraction). Validate in this order and raise ValueError with exactly these messages: start_rate < 0 -> \"start_rate must be >= 0\"; empty stages -> \"no stages\"; then for each stage i (0-based), duration first: duration_s <= 0 -> \"stage <i>: duration_s must be > 0\", target_rps < 0 -> \"stage <i>: target_rps must be >= 0\".\n\nsend_times(rates) - intended send timestamps in ms from test start. Fractions are carried: second s sends floor(rates[0] + ... + rates[s]) - floor(rates[0] + ... + rates[s-1]) requests, spread evenly as s * 1000 + (i * 1000) // n for i = 0 .. n-1.\n\nInput (stdin): {\"start_rate\": int, \"stages\": [...], \"show\": int}. The runner prints {\"seconds\", \"rates\" (rounded to 2 decimals; no test value is exactly halfway), \"counts\" (requests per second), \"total\", \"first\" (first show timestamps), \"last\" (last show timestamps)}, or {\"error\": message} when a ValueError is raised.\n\nExample: start_rate 0, stages [{\"duration_s\": 2, \"target_rps\": 4}] -> rates [1.0, 3.0], counts [1, 3], timestamps [0, 1000, 1333, 1666].",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "python",
+        "filePath": "schedule.py",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "hints": [
+        "If the plan says 1.25 requests in second 0 and 3.75 in second 1, how many requests should actually leave in each of those two seconds so that no planned load is lost and none is invented?",
+        "Check two places. In planned_rates: is your value the rate at the start of the second, or the average over the whole second (the midpoint of a linear ramp)? In send_times: do you floor each second on its own, or floor the running total and subtract what was already sent? Also check that the validation runs in the order the description gives.",
+        "A similar plan: start_rate 0, one stage of 4 s to 2 rps. The per-second averages are 0.25, 0.75, 1.25 and 1.75. The running totals are 0.25, 1, 2.25 and 4, their floors 0, 1, 2 and 4, so the seconds send 0, 1, 1 and 2 requests: timestamps 1000, 2000, 3000 and 3500. Flooring each second alone would send 0, 0, 1, 1 - only half the planned load."
+      ],
+      "tests": [
+        {
+          "name": "Ramp from 0 to 10 rps over 4 s, then hold 10 rps for 2 s",
+          "input": {
+            "start_rate": 0,
+            "stages": [
+              {
+                "duration_s": 4,
+                "target_rps": 10
+              },
+              {
+                "duration_s": 2,
+                "target_rps": 10
+              }
+            ],
+            "show": 5
+          },
+          "expected": {
+            "seconds": 6,
+            "rates": [
+              1.25,
+              3.75,
+              6.25,
+              8.75,
+              10.0,
+              10.0
+            ],
+            "counts": [
+              1,
+              4,
+              6,
+              9,
+              10,
+              10
+            ],
+            "total": 40,
+            "first": [
+              0,
+              1000,
+              1250,
+              1500,
+              1750
+            ],
+            "last": [
+              5500,
+              5600,
+              5700,
+              5800,
+              5900
+            ]
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Constant 5 rps from start_rate 5 for 3 s, then ramp down to 0 over 2 s",
+          "input": {
+            "start_rate": 5,
+            "stages": [
+              {
+                "duration_s": 3,
+                "target_rps": 5
+              },
+              {
+                "duration_s": 2,
+                "target_rps": 0
+              }
+            ],
+            "show": 3
+          },
+          "expected": {
+            "seconds": 5,
+            "rates": [
+              5.0,
+              5.0,
+              5.0,
+              3.75,
+              1.25
+            ],
+            "counts": [
+              5,
+              5,
+              5,
+              3,
+              2
+            ],
+            "total": 20,
+            "first": [
+              0,
+              200,
+              400
+            ],
+            "last": [
+              3666,
+              4000,
+              4500
+            ]
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Slow ramp 0 to 3 rps over 5 s: fractions are carried, the first second sends nothing",
+          "input": {
+            "start_rate": 0,
+            "stages": [
+              {
+                "duration_s": 5,
+                "target_rps": 3
+              }
+            ],
+            "show": 4
+          },
+          "expected": {
+            "seconds": 5,
+            "rates": [
+              0.3,
+              0.9,
+              1.5,
+              2.1,
+              2.7
+            ],
+            "counts": [
+              0,
+              1,
+              1,
+              2,
+              3
+            ],
+            "total": 7,
+            "first": [
+              1000,
+              2000,
+              3000,
+              3500
+            ],
+            "last": [
+              3500,
+              4000,
+              4333,
+              4666
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Spike: 10 rps, up to 100 rps in 1 s, hold 2 s, back down to 10 rps in 1 s",
+          "input": {
+            "start_rate": 10,
+            "stages": [
+              {
+                "duration_s": 3,
+                "target_rps": 10
+              },
+              {
+                "duration_s": 1,
+                "target_rps": 100
+              },
+              {
+                "duration_s": 2,
+                "target_rps": 100
+              },
+              {
+                "duration_s": 1,
+                "target_rps": 10
+              },
+              {
+                "duration_s": 2,
+                "target_rps": 10
+              }
+            ],
+            "show": 6
+          },
+          "expected": {
+            "seconds": 9,
+            "rates": [
+              10.0,
+              10.0,
+              10.0,
+              55.0,
+              100.0,
+              100.0,
+              55.0,
+              10.0,
+              10.0
+            ],
+            "counts": [
+              10,
+              10,
+              10,
+              55,
+              100,
+              100,
+              55,
+              10,
+              10
+            ],
+            "total": 360,
+            "first": [
+              0,
+              100,
+              200,
+              300,
+              400,
+              500
+            ],
+            "last": [
+              8400,
+              8500,
+              8600,
+              8700,
+              8800,
+              8900
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Full profile: 60 s ramp-up to 120 rps, 120 s steady, 30 s ramp-down (19,800 arrivals)",
+          "input": {
+            "start_rate": 0,
+            "stages": [
+              {
+                "duration_s": 60,
+                "target_rps": 120
+              },
+              {
+                "duration_s": 120,
+                "target_rps": 120
+              },
+              {
+                "duration_s": 30,
+                "target_rps": 0
+              }
+            ],
+            "show": 4
+          },
+          "expected": {
+            "seconds": 210,
+            "rates": [
+              1.0,
+              3.0,
+              5.0,
+              7.0,
+              9.0,
+              11.0,
+              13.0,
+              15.0,
+              17.0,
+              19.0,
+              21.0,
+              23.0,
+              25.0,
+              27.0,
+              29.0,
+              31.0,
+              33.0,
+              35.0,
+              37.0,
+              39.0,
+              41.0,
+              43.0,
+              45.0,
+              47.0,
+              49.0,
+              51.0,
+              53.0,
+              55.0,
+              57.0,
+              59.0,
+              61.0,
+              63.0,
+              65.0,
+              67.0,
+              69.0,
+              71.0,
+              73.0,
+              75.0,
+              77.0,
+              79.0,
+              81.0,
+              83.0,
+              85.0,
+              87.0,
+              89.0,
+              91.0,
+              93.0,
+              95.0,
+              97.0,
+              99.0,
+              101.0,
+              103.0,
+              105.0,
+              107.0,
+              109.0,
+              111.0,
+              113.0,
+              115.0,
+              117.0,
+              119.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              120.0,
+              118.0,
+              114.0,
+              110.0,
+              106.0,
+              102.0,
+              98.0,
+              94.0,
+              90.0,
+              86.0,
+              82.0,
+              78.0,
+              74.0,
+              70.0,
+              66.0,
+              62.0,
+              58.0,
+              54.0,
+              50.0,
+              46.0,
+              42.0,
+              38.0,
+              34.0,
+              30.0,
+              26.0,
+              22.0,
+              18.0,
+              14.0,
+              10.0,
+              6.0,
+              2.0
+            ],
+            "counts": [
+              1,
+              3,
+              5,
+              7,
+              9,
+              11,
+              13,
+              15,
+              17,
+              19,
+              21,
+              23,
+              25,
+              27,
+              29,
+              31,
+              33,
+              35,
+              37,
+              39,
+              41,
+              43,
+              45,
+              47,
+              49,
+              51,
+              53,
+              55,
+              57,
+              59,
+              61,
+              63,
+              65,
+              67,
+              69,
+              71,
+              73,
+              75,
+              77,
+              79,
+              81,
+              83,
+              85,
+              87,
+              89,
+              91,
+              93,
+              95,
+              97,
+              99,
+              101,
+              103,
+              105,
+              107,
+              109,
+              111,
+              113,
+              115,
+              117,
+              119,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              120,
+              118,
+              114,
+              110,
+              106,
+              102,
+              98,
+              94,
+              90,
+              86,
+              82,
+              78,
+              74,
+              70,
+              66,
+              62,
+              58,
+              54,
+              50,
+              46,
+              42,
+              38,
+              34,
+              30,
+              26,
+              22,
+              18,
+              14,
+              10,
+              6,
+              2
+            ],
+            "total": 19800,
+            "first": [
+              0,
+              1000,
+              1333,
+              1666
+            ],
+            "last": [
+              208666,
+              208833,
+              209000,
+              209500
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A negative start_rate is rejected before the stages are checked",
+          "input": {
+            "start_rate": -1,
+            "stages": [],
+            "show": 3
+          },
+          "expected": {
+            "error": "start_rate must be >= 0"
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "An empty list of stages is rejected",
+          "input": {
+            "start_rate": 0,
+            "stages": [],
+            "show": 3
+          },
+          "expected": {
+            "error": "no stages"
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A stage with duration_s 0 is rejected with its 0-based index",
+          "input": {
+            "start_rate": 0,
+            "stages": [
+              {
+                "duration_s": 10,
+                "target_rps": 20
+              },
+              {
+                "duration_s": 0,
+                "target_rps": 50
+              }
+            ],
+            "show": 3
+          },
+          "expected": {
+            "error": "stage 1: duration_s must be > 0"
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A negative target_rps is rejected",
+          "input": {
+            "start_rate": 0,
+            "stages": [
+              {
+                "duration_s": 5,
+                "target_rps": -10
+              }
+            ],
+            "show": 3
+          },
+          "expected": {
+            "error": "stage 0: target_rps must be >= 0"
+          },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

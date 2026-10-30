@@ -1,11 +1,11 @@
 {
   "publicId": "typescript-test-design",
-  "title": "Test Design in TypeScript: Unit, Property-Based & Contract Tests",
-  "concept": "Write tests that find bugs instead of confirming happy paths: equivalence classes and boundaries, test doubles, deterministic time and randomness, property-based testing with your own generators, contract tests for APIs and mutation testing to measure your tests.",
-  "description": "Write tests that find bugs instead of confirming happy paths: equivalence classes and boundaries, test doubles, deterministic time and randomness, property-based testing with your own generators, contract tests for APIs and mutation testing to measure your tests. 8 lessons, each starting from a real bug or incident, with graded challenges.",
   "image": "https://res.cloudinary.com/dex6q1cqh/image/upload/c_limit,w_1600/f_auto,q_auto/v1792642461/codedev/courses/typescript-test-design/cover",
+  "title": "Testing Fundamentals in TypeScript: Test Design, Fakes & Flaky Tests",
+  "concept": "Choose the right test for each risk and write tests that find bugs instead of confirming happy paths: unit, integration and end-to-end tests, equivalence classes and boundaries, testable code with an injected clock, test doubles without over-mocking, fake repositories, deterministic and isolated tests, property-based tests with shrinking, contract tests and mutation testing, each taught from a bug in the progress service of a learning platform.",
+  "description": "An intermediate course for developers who already write tests and want them to catch real bugs. Every lesson starts from an incident in the progress service of the CodeDev learning platform - a certificate refused to a learner at exactly 80%, a deadline test that fails after midnight, a pipeline that is red only on CI, a mock that kept passing while production broke - and fixes it with a better test design: choosing unit, integration or end-to-end tests, equivalence classes and boundary values, injecting the clock, stubs, fakes and spies, an in-memory repository instead of a database, isolation from shared state, property-based testing with seeded generators and shrinking, contract tests for the progress API and mutation testing to measure your tests. 11 lessons with quizzes on real test code and hands-on TypeScript challenges.",
   "level": "intermediate",
-  "durationMinutes": 200,
+  "durationMinutes": 240,
   "instructor": "CodeDev Engineering Team",
   "language": "TypeScript",
   "category": "Testing & QA",
@@ -25,9 +25,11 @@
       "currency": "VND"
     }
   ],
+  "completionRules": {},
   "careerRoles": [
     "qa_engineer",
     "frontend_developer",
+    "backend_developer",
     "fullstack_developer"
   ],
   "skills": {
@@ -43,63 +45,88 @@
     "typescript-foundations",
     "test-automation-foundations"
   ],
-  "modules": [],
-  "outline": [
+  "modules": [
     {
       "orderIndex": 1,
-      "title": "Test Design",
+      "title": "Choosing Tests",
       "lessons": [
         {
           "orderIndex": 1,
-          "title": "Equivalence classes & boundary values",
-          "challenges": "Q(e) + C(m)"
+          "folder": "01-choose-the-right-test",
+          "title": "How to choose unit, integration or end-to-end tests for each risk",
+          "sanityId": "lesson-ttd-1-1"
         },
         {
           "orderIndex": 2,
-          "title": "Test doubles: stubs, fakes & spies",
-          "challenges": "Q(m) + F(m)"
+          "folder": "02-equivalence-boundaries",
+          "title": "Equivalence classes & boundary values: tests that find bugs",
+          "sanityId": "lesson-ttd-1-2"
         },
         {
           "orderIndex": 3,
-          "title": "Deterministic tests: fake clocks & seeded randomness",
-          "challenges": "F(m)"
+          "folder": "03-testable-code-clock",
+          "title": "Design for testability: inject the clock instead of reading it",
+          "sanityId": "lesson-ttd-1-3"
         }
       ]
     },
     {
       "orderIndex": 2,
-      "title": "Properties",
+      "title": "Isolation & Doubles",
       "lessons": [
         {
           "orderIndex": 1,
-          "title": "Property-based testing from scratch",
-          "challenges": "C(h)"
+          "folder": "04-test-doubles",
+          "title": "Test doubles: stubs, fakes, spies & when mocking goes too far",
+          "sanityId": "lesson-ttd-2-1"
         },
         {
           "orderIndex": 2,
-          "title": "Shrinking failing inputs",
-          "challenges": "C(h)"
+          "folder": "05-fake-repository",
+          "title": "Integration tests without a database: an in-memory fake repository",
+          "sanityId": "lesson-ttd-2-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "06-deterministic-isolated",
+          "title": "Deterministic, isolated tests: seeded randomness & no shared state",
+          "sanityId": "lesson-ttd-2-3"
+        },
+        {
+          "orderIndex": 4,
+          "folder": "07-flaky-pipeline",
+          "title": "Fix the flaky pipeline: order, time & shared state on CI",
+          "sanityId": "lesson-ttd-2-4"
         }
       ]
     },
     {
       "orderIndex": 3,
-      "title": "Contracts & Quality",
+      "title": "Properties, Contracts & Quality",
       "lessons": [
         {
           "orderIndex": 1,
-          "title": "Contract tests for an API schema",
-          "challenges": "C(m)"
+          "folder": "08-property-based",
+          "title": "Property-based testing from scratch with seeded generators",
+          "sanityId": "lesson-ttd-3-1"
         },
         {
           "orderIndex": 2,
-          "title": "Mutation testing: do your tests notice?",
-          "challenges": "Q(m) + C(h)"
+          "folder": "09-shrinking",
+          "title": "Shrinking a failing input to the smallest counterexample",
+          "sanityId": "lesson-ttd-3-2"
         },
         {
           "orderIndex": 3,
-          "title": "Flaky tests: finding and fixing the cause",
-          "challenges": "Q(m) + F(m)"
+          "folder": "10-contract-tests",
+          "title": "Contract tests for the progress API",
+          "sanityId": "lesson-ttd-3-3"
+        },
+        {
+          "orderIndex": 4,
+          "folder": "11-mutation-testing",
+          "title": "Mutation testing: do your tests notice a broken rule?",
+          "sanityId": "lesson-ttd-3-4"
         }
       ]
     }

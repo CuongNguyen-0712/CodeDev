@@ -1,0 +1,133 @@
+{
+  "publicId": "observability-opentelemetry",
+  "title": "Observability with OpenTelemetry: Logs, Metrics, Traces & SLO Alerts",
+  "concept": "Make a production system explain itself: structured logs with trace ids, spans and traces, W3C trace context across services and queues, latency histograms and percentiles, metric cardinality, SLOs and multi-window burn-rate alerts, each taught from an incident on a learning platform and graded against in-memory fakes of an OpenTelemetry exporter.",
+  "description": "An advanced course for backend, full-stack and DevOps engineers who have to answer \"why is it slow?\" and \"is it broken for users?\" with evidence. Every lesson starts from an incident on the CodeDev learning platform - a submission that takes 800 ms longer than the sum of its service logs, a trace that stops at the queue, a metrics bill that exploded after someone added user_id as a label, an alert that paged the on-call engineer twelve times for nothing - and fixes it with the right signal: logs, metrics or traces, structured JSON logs, spans and trace waterfalls, W3C traceparent propagation, context across callbacks and queue messages, histograms and percentiles, bounded label cardinality, SLOs, error budgets and burn-rate alerts. 11 lessons with quizzes on real traces, logs and dashboards, and TypeScript challenges graded with in-memory fakes of a span and metric exporter.",
+  "level": "advanced",
+  "durationMinutes": 260,
+  "instructor": "CodeDev Engineering Team",
+  "language": "TypeScript",
+  "category": "DevOps",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 150,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    {
+      "priceType": "points",
+      "amount": 600
+    },
+    {
+      "priceType": "money",
+      "amount": 249000,
+      "currency": "VND"
+    }
+  ],
+  "completionRules": {},
+  "careerRoles": [
+    "backend_developer",
+    "devops_engineer",
+    "fullstack_developer"
+  ],
+  "skills": {
+    "system_design": 3,
+    "performance": 3,
+    "typescript": 2,
+    "nodejs": 2
+  },
+  "goals": [
+    "grow_in_role",
+    "performance"
+  ],
+  "prerequisites": [
+    "web-http-fundamentals",
+    "devops-foundations-ci-containers"
+  ],
+  "modules": [
+    {
+      "orderIndex": 1,
+      "title": "Signals",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "01-logs-metrics-traces",
+          "title": "Which signal answers the question: logs, metrics or traces",
+          "sanityId": "lesson-otel-1-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "02-structured-logs",
+          "title": "Structured logs that carry the trace id",
+          "sanityId": "lesson-otel-1-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "03-spans-traces",
+          "title": "Spans & traces: reading a trace waterfall",
+          "sanityId": "lesson-otel-1-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Context Propagation",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "04-w3c-traceparent",
+          "title": "Propagating context between services with W3C traceparent",
+          "sanityId": "lesson-otel-2-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "05-async-context",
+          "title": "Keeping context across callbacks and queue messages",
+          "sanityId": "lesson-otel-2-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "06-missing-800ms",
+          "title": "Find the missing 800 ms: a trace with a gap",
+          "sanityId": "lesson-otel-2-3"
+        }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Metrics & Alerts",
+      "lessons": [
+        {
+          "orderIndex": 1,
+          "folder": "07-histograms-percentiles",
+          "title": "Latency histograms: percentiles from buckets",
+          "sanityId": "lesson-otel-3-1"
+        },
+        {
+          "orderIndex": 2,
+          "folder": "08-label-cardinality",
+          "title": "Metric labels & cardinality: what not to label",
+          "sanityId": "lesson-otel-3-2"
+        },
+        {
+          "orderIndex": 3,
+          "folder": "09-bounding-cardinality",
+          "title": "Bounding cardinality: normalizing routes and folding rare values",
+          "sanityId": "lesson-otel-3-3"
+        },
+        {
+          "orderIndex": 4,
+          "folder": "10-slo-burn-rate",
+          "title": "SLOs, error budgets & multi-window burn rates",
+          "sanityId": "lesson-otel-3-4"
+        },
+        {
+          "orderIndex": 5,
+          "folder": "11-noisy-alerts",
+          "title": "From noisy threshold alerts to burn-rate alerts",
+          "sanityId": "lesson-otel-3-5"
+        }
+      ]
+    }
+  ]
+}
