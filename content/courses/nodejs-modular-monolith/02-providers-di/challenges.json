@@ -1,0 +1,377 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nmm_121",
+      "name": "providers-di-quiz",
+      "type": "quiz",
+      "title": "Who constructs the repository?",
+      "description": "Two pieces of evidence from the enrollments module: a unit test that registers a fake repository, and the boot log of a module where two controllers inject the same service. Decide whether each statement is True or False.",
+      "difficulty": "medium",
+      "points": 20,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "enrollments.service.ts and its unit test:\n\n@Injectable()\nexport class EnrollmentsService {\n  private readonly repo = new EnrollmentsRepository(new PrismaService());\n\n  enroll(userId: string, courseId: string) {\n    return this.repo.create({ userId, courseId });\n  }\n}\n\n// enrollments.service.spec.ts\nconst fakeRepo = { create: jest.fn().mockResolvedValue({ userId: 'u1', courseId: 'c1' }) };\nconst moduleRef = await Test.createTestingModule({\n  providers: [EnrollmentsService, { provide: EnrollmentsRepository, useValue: fakeRepo }],\n}).compile();\nawait moduleRef.get(EnrollmentsService).enroll('u1', 'c1');\n\nStatement: \"In this test, enroll() calls fakeRepo.create, so the test runs without a database.\"",
+          "explanation": "False. EnrollmentsService builds its own repository with new EnrollmentsRepository(new PrismaService()) in a field initializer; it has no constructor parameter, so the container has nothing to inject. The { provide: EnrollmentsRepository, useValue: fakeRepo } provider is registered but nobody asks for it, and enroll() calls the real repository, which tries to reach the database. The misconception is that registering a fake in the testing module replaces every use of the class; it only replaces what the container injects. The fix is constructor injection: constructor(private readonly repo: EnrollmentsRepository) {}.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "enrollments.module.ts and the boot log (no scope option anywhere in the module):\n\n@Injectable()\nexport class EnrollmentsService {\n  constructor(private readonly repo: EnrollmentsRepository) {\n    console.log('EnrollmentsService constructed');\n  }\n}\n\n@Module({\n  controllers: [EnrollmentsController, AdminEnrollmentsController],\n  providers: [EnrollmentsService, EnrollmentsRepository],\n})\nexport class EnrollmentsModule {}\n\n// both controllers: constructor(private readonly enrollments: EnrollmentsService) {}\n\n$ npm run start\n[Nest] LOG [NestFactory] Starting Nest application...\nEnrollmentsService constructed\n[Nest] LOG [InstanceLoader] EnrollmentsModule dependencies initialized\n[Nest] LOG [NestApplication] Nest application successfully started\n\nStatement: \"EnrollmentsController and AdminEnrollmentsController receive the same EnrollmentsService instance, which is why the constructor log appears only once.\"",
+          "explanation": "True. Providers are singletons by default (Scope.DEFAULT): the container constructs EnrollmentsService once, when the module is initialized, caches it, and injects that one instance into every class in the module that asks for it. One constructor log for two consumers is the expected evidence. A common misconception is that every class that injects a service gets its own copy; that only happens with Scope.TRANSIENT, and Scope.REQUEST creates one per request (lesson 4).",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_nmm_122",
+      "name": "tiny-di-container",
+      "type": "mini_coding",
+      "title": "Build a tiny DI container",
+      "description": "When the CodeDev API boots, NestJS reads the constructor parameters of every provider and builds the object graph for you: dependencies first, each provider once. Rebuild that mechanism in plain TypeScript by writing Container.resolve(token, requiredBy) in main.ts.\n\nA provider is { token, deps }: deps are the tokens of its constructor parameters, in order. The container is built from the providers list; when a token appears twice, the later entry replaces the earlier one (that is how a test swaps the real repository for a fake).\n\nresolve(token, requiredBy):\n1. If the token was already constructed, return the cached instance. Every provider is a singleton: constructed at most once per container.\n2. If no provider is registered for the token, throw new MissingProviderError(token, requiredBy). requiredBy is the token of the provider whose dependency it is, or null when the token was requested directly.\n3. Otherwise resolve each dependency in the order listed (passing this token as requiredBy), then construct the provider: push its token to this.constructed and create { token, serial: this.constructed.length, deps: <resolved instances> }. Cache it and return it.\n\nThe test runner reads { providers, resolve } from stdin, resolves the tokens of resolve one after another on the same container and prints { order, resolved }: order is this.constructed, resolved is the serial of each instance returned, in the order requested. When a MissingProviderError is thrown it prints only { error: \"MissingProvider\", token, requiredBy }. No provider depends on itself, directly or through others (cycles are lesson 9).",
+      "difficulty": "easy",
+      "points": 30,
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "hints": [
+        "Before a provider can be constructed, what must already exist? And when a second provider asks for a token that was built earlier, should the container build it again?",
+        "resolve is recursive: look up the cache first, then the registry, then call resolve for each dependency with the current token as requiredBy. Push to this.constructed only after every dependency has returned, and store the instance in this.cache before you return it.",
+        "The same shape on a different problem: a build tool compiles packages before the packages that use them, and each package only once. With app -> [ui, utils] and ui -> [utils], building app compiles utils, then ui (utils is already built, so it is reused), then app: the order is utils, ui, app. If ui needed a package that does not exist, the error names the missing package and ui, the package that asked for it."
+      ],
+      "tests": [
+        {
+          "name": "Constructs dependencies first: the enrollments chain",
+          "input": {
+            "providers": [
+              {
+                "token": "EnrollmentsService",
+                "deps": [
+                  "EnrollmentsRepository",
+                  "CoursesService"
+                ]
+              },
+              {
+                "token": "CoursesService",
+                "deps": [
+                  "CoursesRepository"
+                ]
+              },
+              {
+                "token": "EnrollmentsRepository",
+                "deps": []
+              },
+              {
+                "token": "CoursesRepository",
+                "deps": []
+              }
+            ],
+            "resolve": [
+              "EnrollmentsService"
+            ]
+          },
+          "expected": {
+            "order": [
+              "EnrollmentsRepository",
+              "CoursesRepository",
+              "CoursesService",
+              "EnrollmentsService"
+            ],
+            "resolved": [
+              4
+            ]
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A missing repository is reported with the provider that needs it",
+          "input": {
+            "providers": [
+              {
+                "token": "EnrollmentsService",
+                "deps": [
+                  "EnrollmentsRepository"
+                ]
+              },
+              {
+                "token": "CoursesService",
+                "deps": []
+              }
+            ],
+            "resolve": [
+              "EnrollmentsService"
+            ]
+          },
+          "expected": {
+            "error": "MissingProvider",
+            "token": "EnrollmentsRepository",
+            "requiredBy": "EnrollmentsService"
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Resolving the same token again returns the cached instance",
+          "input": {
+            "providers": [
+              {
+                "token": "CoursesService",
+                "deps": [
+                  "CoursesRepository"
+                ]
+              },
+              {
+                "token": "CoursesRepository",
+                "deps": []
+              }
+            ],
+            "resolve": [
+              "CoursesService",
+              "CoursesService",
+              "CoursesRepository"
+            ]
+          },
+          "expected": {
+            "order": [
+              "CoursesRepository",
+              "CoursesService"
+            ],
+            "resolved": [
+              2,
+              2,
+              1
+            ]
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Whole app: a shared PrismaService and CoursesService are constructed once",
+          "input": {
+            "providers": [
+              {
+                "token": "PrismaService",
+                "deps": []
+              },
+              {
+                "token": "UsersRepository",
+                "deps": [
+                  "PrismaService"
+                ]
+              },
+              {
+                "token": "UsersService",
+                "deps": [
+                  "UsersRepository"
+                ]
+              },
+              {
+                "token": "CoursesRepository",
+                "deps": [
+                  "PrismaService"
+                ]
+              },
+              {
+                "token": "CoursesService",
+                "deps": [
+                  "CoursesRepository"
+                ]
+              },
+              {
+                "token": "EnrollmentsRepository",
+                "deps": [
+                  "PrismaService"
+                ]
+              },
+              {
+                "token": "EnrollmentsService",
+                "deps": [
+                  "EnrollmentsRepository",
+                  "CoursesService",
+                  "UsersService"
+                ]
+              },
+              {
+                "token": "ProgressRepository",
+                "deps": [
+                  "PrismaService"
+                ]
+              },
+              {
+                "token": "NotificationsService",
+                "deps": []
+              },
+              {
+                "token": "ProgressService",
+                "deps": [
+                  "ProgressRepository",
+                  "EnrollmentsService",
+                  "NotificationsService"
+                ]
+              }
+            ],
+            "resolve": [
+              "ProgressService",
+              "NotificationsService",
+              "CoursesService"
+            ]
+          },
+          "expected": {
+            "order": [
+              "PrismaService",
+              "ProgressRepository",
+              "EnrollmentsRepository",
+              "CoursesRepository",
+              "CoursesService",
+              "UsersRepository",
+              "UsersService",
+              "EnrollmentsService",
+              "NotificationsService",
+              "ProgressService"
+            ],
+            "resolved": [
+              10,
+              9,
+              5
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A token requested directly with no provider has requiredBy null",
+          "input": {
+            "providers": [
+              {
+                "token": "CoursesService",
+                "deps": []
+              }
+            ],
+            "resolve": [
+              "CoursesService",
+              "NotificationsService"
+            ]
+          },
+          "expected": {
+            "error": "MissingProvider",
+            "token": "NotificationsService",
+            "requiredBy": null
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A missing provider deep in the graph names its direct parent, not the root",
+          "input": {
+            "providers": [
+              {
+                "token": "ProgressService",
+                "deps": [
+                  "EnrollmentsService"
+                ]
+              },
+              {
+                "token": "EnrollmentsService",
+                "deps": [
+                  "CoursesService"
+                ]
+              },
+              {
+                "token": "CoursesService",
+                "deps": [
+                  "CoursesRepository"
+                ]
+              },
+              {
+                "token": "CoursesRepository",
+                "deps": [
+                  "PrismaService"
+                ]
+              }
+            ],
+            "resolve": [
+              "ProgressService"
+            ]
+          },
+          "expected": {
+            "error": "MissingProvider",
+            "token": "PrismaService",
+            "requiredBy": "CoursesRepository"
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A fake registered later replaces the real repository and its database dependency",
+          "input": {
+            "providers": [
+              {
+                "token": "EnrollmentsRepository",
+                "deps": [
+                  "PrismaService"
+                ]
+              },
+              {
+                "token": "EnrollmentsService",
+                "deps": [
+                  "EnrollmentsRepository",
+                  "Clock"
+                ]
+              },
+              {
+                "token": "Clock",
+                "deps": []
+              },
+              {
+                "token": "EnrollmentsRepository",
+                "deps": []
+              }
+            ],
+            "resolve": [
+              "EnrollmentsService"
+            ]
+          },
+          "expected": {
+            "order": [
+              "EnrollmentsRepository",
+              "Clock",
+              "EnrollmentsService"
+            ],
+            "resolved": [
+              3
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

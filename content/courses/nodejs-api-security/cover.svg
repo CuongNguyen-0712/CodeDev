@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
-  <!-- Course cover: Node.js API security (requests filtered by a shield: BOLA, JWT, SSRF blocked). -->
+  <!-- Course cover: authentication & session design (a refresh token family: rotated tokens, then a replayed one revokes the family). -->
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#121A17"/>
@@ -14,10 +14,7 @@
       <circle cx="2" cy="2" r="1.6" fill="#FFFFFF" fill-opacity="0.07"/>
     </pattern>
     <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8CC84B"/></marker>
-    <marker id="arrowA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#5FA04E"/></marker>
-    <marker id="arrowMuted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6F6A80"/></marker>
     <marker id="arrowRed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2555A"/></marker>
-    <marker id="arrowAmber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F2C14E"/></marker>
   </defs>
 
   <rect width="1600" height="900" fill="url(#bg)"/>
@@ -25,48 +22,55 @@
   <rect width="1600" height="900" fill="url(#glow)"/>
 
   <!-- Copy -->
-  <g id="copy" font-family="Segoe UI, Inter, Arial, sans-serif">
+  <g font-family="Segoe UI, Inter, Arial, sans-serif">
     <polygon points="158,146 204,172 204,224 158,250 112,224 112,172" fill="#5FA04E"/>
     <text x="158" y="213.64" text-anchor="middle" font-size="46" font-weight="800" fill="#0B0F18">N</text>
-    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#8CC84B">NODE.JS · API SECURITY</text>
-    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">OWASP API</text>
-    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">Top 10</text>
-    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">BOLA · JWT · Mass assignment · SSRF</text>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#8CC84B">NODE.JS · AUTH SECURITY</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">Auth &amp; Session</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">Design</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Cookies · Tokens · Refresh rotation</text>
     <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#C7E8B8">
-      <rect x="110" y="660" width="136" height="52" rx="26" fill="#17281A" stroke="#5FA04E"/>
-      <text x="178" y="695" text-anchor="middle">authz</text>
-      <rect x="262" y="660" width="107" height="52" rx="26" fill="#17281A" stroke="#5FA04E"/>
-      <text x="315.5" y="695" text-anchor="middle">JWT</text>
-      <rect x="385" y="660" width="121" height="52" rx="26" fill="#17281A" stroke="#5FA04E"/>
-      <text x="445.5" y="695" text-anchor="middle">SSRF</text>
-      <rect x="522" y="660" width="207" height="52" rx="26" fill="#17281A" stroke="#5FA04E"/>
-      <text x="625.5" y="695" text-anchor="middle">rate limit</text>
+      <rect x="110" y="660" width="150" height="52" rx="26" fill="#17281A" stroke="#5FA04E"/>
+      <text x="185" y="695" text-anchor="middle">HttpOnly</text>
+      <rect x="276" y="660" width="136" height="52" rx="26" fill="#17281A" stroke="#5FA04E"/>
+      <text x="344" y="695" text-anchor="middle">SameSite</text>
+      <rect x="428" y="660" width="108" height="52" rx="26" fill="#17281A" stroke="#5FA04E"/>
+      <text x="482" y="695" text-anchor="middle">rotate</text>
+      <rect x="552" y="660" width="108" height="52" rx="26" fill="#17281A" stroke="#5FA04E"/>
+      <text x="606" y="695" text-anchor="middle">replay</text>
     </g>
   </g>
 
-  <!-- Attack requests stop at the guard; legitimate ones reach the API -->
-  <g id="art">
-    <text x="900" y="246" font-family="Consolas, Menlo, monospace" font-size="20" letter-spacing="3" fill="#8CC84B" text-anchor="start">REQUESTS</text>
-    <path d="M1196 262 H1276 L1270 620 L1236 668 L1202 620z" fill="#5FA04E" fill-opacity="0.18" stroke="#5FA04E" stroke-width="4"/>
-    <rect x="1218" y="436" width="40" height="34" rx="6" fill="#8CC84B"/>
-    <path d="M1226 436 V422 a12 12 0 0 1 24 0 V436" fill="none" stroke="#8CC84B" stroke-width="6"/>
-    <text x="900" y="288" font-family="Consolas, Menlo, monospace" font-size="20" fill="#F4F2F8" >GET /orders/42</text>
-    <path d="M900 300 H1300" stroke="#8CC84B" stroke-width="4" stroke-linecap="round" marker-end="url(#arrow)"/>
-    <text x="900" y="368" font-family="Consolas, Menlo, monospace" font-size="20" fill="#F2555A" >alg: none</text>
-    <path d="M900 380 H1150" stroke="#F2555A" stroke-width="4" stroke-linecap="round" />
-    <path d="M1162 368 l24 24 M1186 368 l-24 24" stroke="#F2555A" stroke-width="5" stroke-linecap="round"/>
-    <text x="900" y="448" font-family="Consolas, Menlo, monospace" font-size="20" fill="#F2555A" >PATCH { role }</text>
-    <path d="M900 460 H1150" stroke="#F2555A" stroke-width="4" stroke-linecap="round" />
-    <path d="M1162 448 l24 24 M1186 448 l-24 24" stroke="#F2555A" stroke-width="5" stroke-linecap="round"/>
-    <text x="900" y="528" font-family="Consolas, Menlo, monospace" font-size="20" fill="#F4F2F8" >GET /me</text>
-    <path d="M900 540 H1300" stroke="#8CC84B" stroke-width="4" stroke-linecap="round" marker-end="url(#arrow)"/>
-    <text x="900" y="608" font-family="Consolas, Menlo, monospace" font-size="20" fill="#F2555A" >url=169.254…</text>
-    <path d="M900 620 H1150" stroke="#F2555A" stroke-width="4" stroke-linecap="round" />
-    <path d="M1162 608 l24 24 M1186 608 l-24 24" stroke="#F2555A" stroke-width="5" stroke-linecap="round"/>
-    <rect x="1310" y="262" width="220" height="380" rx="18" fill="#151C18" stroke="#2E4A2C" stroke-width="2"/>
-    <text x="1420" y="312" font-family="Consolas, Menlo, monospace" font-size="30" fill="#F4F2F8" text-anchor="middle" font-weight="700">API</text>
-    <text x="1420" y="440" font-family="Consolas, Menlo, monospace" font-size="20" fill="#B8B2C8" text-anchor="middle">owner check</text>
-    <text x="1420" y="476" font-family="Consolas, Menlo, monospace" font-size="20" fill="#B8B2C8" text-anchor="middle">allow-list</text>
-    <text x="1420" y="512" font-family="Consolas, Menlo, monospace" font-size="20" fill="#B8B2C8" text-anchor="middle">rate limit</text>
+  <!-- Refresh token family panel -->
+  <g font-family="Consolas, Menlo, monospace">
+    <rect x="900" y="170" width="600" height="560" rx="18" fill="#15111F" stroke="#2C2440" stroke-width="2"/>
+    <rect x="900" y="170" width="600" height="56" rx="18" fill="#1C1629"/>
+    <rect x="900" y="208" width="600" height="18" fill="#1C1629"/>
+    <circle cx="934" cy="198" r="8" fill="#F2555A"/>
+    <circle cx="960" cy="198" r="8" fill="#F2C14E"/>
+    <circle cx="986" cy="198" r="8" fill="#3DBE7B"/>
+    <text x="1020" y="206" font-size="22" fill="#B8B2C8">family fam_7c2 · device web</text>
+
+    <g font-size="21">
+      <rect x="930" y="256" width="250" height="52" rx="10" fill="#1A1A22" stroke="#6F6A80"/>
+      <text x="950" y="289" fill="#B8B2C8">rt_1  rotated</text>
+      <path d="M1180 282 L1230 282" stroke="#8CC84B" stroke-width="3" marker-end="url(#arrow)"/>
+      <rect x="1236" y="256" width="240" height="52" rx="10" fill="#1A1A22" stroke="#6F6A80"/>
+      <text x="1256" y="289" fill="#B8B2C8">rt_2  rotated</text>
+
+      <path d="M1356 310 L1356 340" stroke="#8CC84B" stroke-width="3" marker-end="url(#arrow)"/>
+      <rect x="1236" y="346" width="240" height="52" rx="10" fill="#10241A" stroke="#3DBE7B"/>
+      <text x="1256" y="379" fill="#9FE3BF">rt_3  active</text>
+
+      <rect x="930" y="436" width="546" height="52" rx="10" fill="#2A1418" stroke="#F2555A"/>
+      <text x="950" y="469" fill="#F2A3A6">POST /v1/auth/refresh  token=rt_1</text>
+      <path d="M1203 490 L1203 524" stroke="#F2555A" stroke-width="3" marker-end="url(#arrowRed)"/>
+      <rect x="930" y="530" width="546" height="52" rx="10" fill="#2A1418" stroke="#F2555A"/>
+      <text x="950" y="563" fill="#F2A3A6">reuse detected: revoke family</text>
+    </g>
+
+    <rect x="924" y="622" width="552" height="80" rx="10" fill="#10241A" stroke="#3DBE7B"/>
+    <text x="948" y="656" font-size="20" fill="#9FE3BF">store keeps sha256 hashes only</text>
+    <text x="948" y="688" font-size="20" fill="#9FE3BF">rotate with compare-and-swap</text>
   </g>
 </svg>

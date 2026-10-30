@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Course cover: NestJS modular monolith (a module graph whose CoursesModule <-> EnrollmentsModule cycle is broken by a CourseCatalog port). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1C1018"/>
+      <stop offset="0.55" stop-color="#110F16"/>
+      <stop offset="1" stop-color="#0D0B13"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#E0234E" stop-opacity="0.26"/>
+      <stop offset="1" stop-color="#E0234E" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#FFFFFF" fill-opacity="0.07"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#F38BA3"/></marker>
+    <marker id="arrowMuted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6F6A80"/></marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#dots)"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- Copy -->
+  <g font-family="Segoe UI, Inter, Arial, sans-serif">
+    <rect x="112" y="152" width="92" height="92" rx="20" fill="#E0234E"/>
+    <text x="158" y="211" text-anchor="middle" font-family="Consolas, Menlo, monospace" font-size="34" font-weight="800" fill="#FFFFFF">@M</text>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#F38BA3">NESTJS · ARCHITECTURE</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">NestJS Modular</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">Monolith</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Modules · DI · DTOs · Boundaries</text>
+    <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#F9D3DC">
+      <rect x="110" y="660" width="150" height="52" rx="26" fill="#2A1320" stroke="#E0234E"/>
+      <text x="185" y="695" text-anchor="middle">@Module</text>
+      <rect x="276" y="660" width="122" height="52" rx="26" fill="#2A1320" stroke="#E0234E"/>
+      <text x="337" y="695" text-anchor="middle">inject</text>
+      <rect x="414" y="660" width="136" height="52" rx="26" fill="#2A1320" stroke="#E0234E"/>
+      <text x="482" y="695" text-anchor="middle">exports</text>
+      <rect x="566" y="660" width="150" height="52" rx="26" fill="#2A1320" stroke="#E0234E"/>
+      <text x="641" y="695" text-anchor="middle">no cycle</text>
+    </g>
+  </g>
+
+  <!-- Module graph panel -->
+  <g font-family="Consolas, Menlo, monospace">
+    <rect x="900" y="170" width="600" height="560" rx="18" fill="#15111F" stroke="#2C2440" stroke-width="2"/>
+    <rect x="900" y="170" width="600" height="56" rx="18" fill="#1C1629"/>
+    <rect x="900" y="208" width="600" height="18" fill="#1C1629"/>
+    <circle cx="934" cy="198" r="8" fill="#F2555A"/>
+    <circle cx="960" cy="198" r="8" fill="#F2C14E"/>
+    <circle cx="986" cy="198" r="8" fill="#3DBE7B"/>
+    <text x="1020" y="206" font-size="22" fill="#B8B2C8">app.module.ts</text>
+
+    <g font-size="21">
+      <rect x="1080" y="256" width="240" height="56" rx="10" fill="#1E1533" stroke="#B9A4F5"/>
+      <text x="1200" y="291" text-anchor="middle" fill="#E4DCFB">AppModule</text>
+
+      <rect x="924" y="388" width="230" height="56" rx="10" fill="#2A1320" stroke="#E0234E"/>
+      <text x="1039" y="423" text-anchor="middle" fill="#F9D3DC">CoursesModule</text>
+      <rect x="1240" y="388" width="242" height="56" rx="10" fill="#2A1320" stroke="#E0234E"/>
+      <text x="1361" y="423" text-anchor="middle" fill="#F9D3DC">EnrollmentsModule</text>
+
+      <path d="M1160 312 L1080 382" stroke="#6F6A80" stroke-width="2" fill="none" marker-end="url(#arrowMuted)"/>
+      <path d="M1240 312 L1320 382" stroke="#6F6A80" stroke-width="2" fill="none" marker-end="url(#arrowMuted)"/>
+
+      <path d="M1158 404 L1234 404" stroke="#F2555A" stroke-width="3" stroke-dasharray="7 6" fill="none"/>
+      <path d="M1234 428 L1158 428" stroke="#F2555A" stroke-width="3" stroke-dasharray="7 6" fill="none"/>
+      <line x1="1184" y1="392" x2="1208" y2="440" stroke="#F2555A" stroke-width="4"/>
+      <line x1="1208" y1="392" x2="1184" y2="440" stroke="#F2555A" stroke-width="4"/>
+
+      <rect x="1060" y="540" width="280" height="56" rx="10" fill="#10241A" stroke="#3DBE7B"/>
+      <text x="1200" y="575" text-anchor="middle" fill="#9FE3BF">CourseCatalog</text>
+      <path d="M1039 446 L1116 532" stroke="#F38BA3" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+      <path d="M1361 446 L1284 532" stroke="#F38BA3" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+    </g>
+
+    <text x="936" y="660" font-size="20" fill="#F2A3A6">before: Courses &lt;-&gt; Enrollments</text>
+    <text x="936" y="696" font-size="20" fill="#9FE3BF">after:  both depend on one port</text>
+  </g>
+</svg>

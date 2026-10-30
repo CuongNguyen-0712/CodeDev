@@ -1,0 +1,193 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_adp_121",
+      "name": "status-codes-outcomes-quiz",
+      "type": "quiz",
+      "title": "Hidden drafts and queued work",
+      "description": "Two responses from the CodeDev API: a learner opening an unannounced draft course, and a certificate request that is queued. Decide whether each statement is True or False.",
+      "difficulty": "medium",
+      "points": 20,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The course team is preparing \"Kubernetes in Production\" as a draft. Only staff may see drafts. A learner (valid token, free plan) tries two ids:\n\nGET /v1/courses/crs_7Kq2mX9a   (the draft)\n-> HTTP/2 403\n{\"error\":{\"code\":\"FORBIDDEN\",\"message\":\"Only staff can view draft courses.\",\"details\":[],\"traceId\":\"4bf92f3577b34da6\"}}\n\nGET /v1/courses/crs_0000zzzz   (no such course)\n-> HTTP/2 404\n{\"error\":{\"code\":\"NOT_FOUND\",\"message\":\"Course not found.\",\"details\":[],\"traceId\":\"a3ce929d0e0e4736\"}}\n\nStatement: \"403 is the better answer for the draft, because the learner is authenticated and simply lacks permission, and nothing sensitive is revealed.\"",
+          "explanation": "False. The 403 confirms that crs_7Kq2mX9a exists and is a draft, and its message even says so: anyone with a free account can now probe ids and learn about unannounced courses. When the caller is not allowed to know that a resource exists, answer exactly what a missing id gets - 404 with the same code and message - so the two cases cannot be told apart. 403 is right when the resource is visible to the caller but the action is not allowed, for example a learner calling PATCH on a published course. The misconception is that 403 is always the honest answer for an authenticated caller; the existence of the resource is information too.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Generating a certificate PDF takes up to a minute, so the endpoint queues the work:\n\nPOST /v1/enrollments/enr_5Tz81q/certificate\n-> HTTP/2 202\nlocation: /v1/jobs/job_81Hd2\n{\"job\":{\"id\":\"job_81Hd2\",\"status\":\"queued\"}}\n\nThree seconds later:\nGET /v1/jobs/job_81Hd2\n-> HTTP/2 200\n{\"job\":{\"id\":\"job_81Hd2\",\"status\":\"running\"}}\n\nStatement: \"After the 202, the mobile app must not show a Download certificate button yet; it should follow the job URL until the job reports that it finished.\"",
+          "explanation": "True. 202 Accepted means the request was accepted for processing but the processing is not complete, and it may still fail. The certificate does not exist yet, so a download link would point at nothing. The Location header gives the client a resource to poll (or the API can notify it later); only when the job reports success should the app show the download. The misconception is to read every 2xx as \"done\": 201 means the resource now exists, 202 only means the work was queued.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_adp_122",
+      "name": "map-outcome-to-status",
+      "type": "mini_coding",
+      "title": "Map business outcomes to status codes",
+      "description": "The courses and enrollments services of the CodeDev API return a business outcome; one function turns it into the HTTP answer, so every endpoint answers the same way. Write toHttp(outcome) in main.ts.\n\noutcome is an object with kind (string, may be missing), visibleToCaller (boolean, default true) and retryAfterSeconds (number, may be missing or fractional). Return { status, code } where code is null for a success and the error code otherwise:\n- ok 200, created 201, accepted_async 202, deleted 204 (code null)\n- malformed_request 400 MALFORMED_REQUEST\n- validation_failed 422 VALIDATION_FAILED\n- not_authenticated 401 UNAUTHENTICATED\n- forbidden 403 FORBIDDEN, but when visibleToCaller is false: 404 NOT_FOUND (exactly what a missing resource gets)\n- plan_required 403 PLAN_REQUIRED\n- not_found 404 NOT_FOUND\n- already_enrolled 409 ALREADY_ENROLLED\n- rate_limited 429 RATE_LIMITED\n- dependency_unavailable 503 SERVICE_UNAVAILABLE\n- any other kind (unknown, misspelled, different case, empty or missing) 500 INTERNAL\n\nFor 429 and 503 only, add retryAfter: retryAfterSeconds rounded up to a whole number of seconds and at least 1, or 60 when retryAfterSeconds is missing. No other answer has a retryAfter property, even when the outcome carries retryAfterSeconds. Kinds are case-sensitive. The test runner reads { outcomes: [...] } and prints the JSON array of answers.",
+      "difficulty": "easy",
+      "points": 30,
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "hints": [
+        "Most kinds map to a fixed pair of status and code, and only three need more than a lookup. Which three, and what extra input does each one read?",
+        "Start with the fixed pairs in a switch or a lookup object, and let everything that is not in it fall through to 500 INTERNAL - including a missing kind. Then handle the special cases: forbidden with visibleToCaller === false, and the retryAfter property that only 429 and 503 get (Math.ceil, a minimum of 1, a default of 60).",
+        "The same shape on a different API: a parcel tracker maps delivered -> 200, in_transit -> 202 and lost -> 404, adds an eta property only to in_transit (hours rounded up, default 24), and answers 500 for anything else. { kind: \"in_transit\", etaHours: 2.1 } gives { status: 202, eta: 3 }, { kind: \"delivered\", etaHours: 5 } gives { status: 200 } without eta, and { kind: \"Delivered\" } gives { status: 500 }."
+      ],
+      "tests": [
+        {
+          "name": "Success outcomes: 200, 201, 202 for queued work, 204, all with code null",
+          "input": {
+            "outcomes": [
+              { "kind": "ok" },
+              { "kind": "created" },
+              { "kind": "accepted_async" },
+              { "kind": "deleted" }
+            ]
+          },
+          "expected": [
+            { "status": 200, "code": null },
+            { "status": 201, "code": null },
+            { "status": 202, "code": null },
+            { "status": 204, "code": null }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Client errors: 422 vs 409, 401 vs 403, and 404",
+          "input": {
+            "outcomes": [
+              { "kind": "validation_failed" },
+              { "kind": "already_enrolled" },
+              { "kind": "not_authenticated" },
+              { "kind": "forbidden" },
+              { "kind": "not_found" }
+            ]
+          },
+          "expected": [
+            { "status": 422, "code": "VALIDATION_FAILED" },
+            { "status": 409, "code": "ALREADY_ENROLLED" },
+            { "status": 401, "code": "UNAUTHENTICATED" },
+            { "status": 403, "code": "FORBIDDEN" },
+            { "status": 404, "code": "NOT_FOUND" }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Rate limited and dependency down carry retryAfter in whole seconds",
+          "input": {
+            "outcomes": [
+              { "kind": "rate_limited", "retryAfterSeconds": 30 },
+              { "kind": "dependency_unavailable", "retryAfterSeconds": 120 }
+            ]
+          },
+          "expected": [
+            { "status": 429, "code": "RATE_LIMITED", "retryAfter": 30 },
+            { "status": 503, "code": "SERVICE_UNAVAILABLE", "retryAfter": 120 }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A resource hidden from the caller answers like a missing one; plan and malformed cases",
+          "input": {
+            "outcomes": [
+              { "kind": "forbidden", "visibleToCaller": false },
+              { "kind": "forbidden", "visibleToCaller": true },
+              { "kind": "plan_required" },
+              { "kind": "malformed_request" }
+            ]
+          },
+          "expected": [
+            { "status": 404, "code": "NOT_FOUND" },
+            { "status": 403, "code": "FORBIDDEN" },
+            { "status": 403, "code": "PLAN_REQUIRED" },
+            { "status": 400, "code": "MALFORMED_REQUEST" }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "retryAfter rounds up, is at least 1 and defaults to 60",
+          "input": {
+            "outcomes": [
+              { "kind": "rate_limited", "retryAfterSeconds": 1.2 },
+              { "kind": "rate_limited", "retryAfterSeconds": 0.3 },
+              { "kind": "rate_limited" },
+              { "kind": "dependency_unavailable" },
+              { "kind": "dependency_unavailable", "retryAfterSeconds": 0 }
+            ]
+          },
+          "expected": [
+            { "status": 429, "code": "RATE_LIMITED", "retryAfter": 2 },
+            { "status": 429, "code": "RATE_LIMITED", "retryAfter": 1 },
+            { "status": 429, "code": "RATE_LIMITED", "retryAfter": 60 },
+            { "status": 503, "code": "SERVICE_UNAVAILABLE", "retryAfter": 60 },
+            { "status": 503, "code": "SERVICE_UNAVAILABLE", "retryAfter": 1 }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Only 429 and 503 get retryAfter, even when other outcomes carry retryAfterSeconds",
+          "input": {
+            "outcomes": [
+              { "kind": "validation_failed", "retryAfterSeconds": 5 },
+              { "kind": "created", "retryAfterSeconds": 5 },
+              { "kind": "not_found", "visibleToCaller": false, "retryAfterSeconds": 5 }
+            ]
+          },
+          "expected": [
+            { "status": 422, "code": "VALIDATION_FAILED" },
+            { "status": 201, "code": null },
+            { "status": 404, "code": "NOT_FOUND" }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Unknown, misspelled, other-case, empty or missing kinds answer 500 INTERNAL",
+          "input": {
+            "outcomes": [
+              { "kind": "db_deadlock" },
+              { "kind": "Created" },
+              { "kind": "GET" },
+              { "kind": "" },
+              {}
+            ]
+          },
+          "expected": [
+            { "status": 500, "code": "INTERNAL" },
+            { "status": 500, "code": "INTERNAL" },
+            { "status": 500, "code": "INTERNAL" },
+            { "status": 500, "code": "INTERNAL" },
+            { "status": 500, "code": "INTERNAL" }
+          ],
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

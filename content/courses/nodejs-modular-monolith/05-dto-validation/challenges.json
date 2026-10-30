@@ -1,0 +1,116 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nmm_211",
+      "name": "dto-validation-quiz",
+      "type": "quiz",
+      "title": "Where does the check really happen?",
+      "description": "Two requests to the CodeDev API after the team added DTOs and a global ValidationPipe: one rejected body, and one route parameter typed as a number. Decide whether each statement is True or False.",
+      "difficulty": "medium",
+      "points": 20,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "main.ts registers app.useGlobalPipes(new ValidationPipe()). The controller and the service:\n\n@Post()\nenroll(@Body() dto: EnrollRequestDto) {\n  return this.enrollments.enroll(dto);\n}\n\n// EnrollmentService.enroll starts with: this.logger.log(`enroll ${dto.courseId}`);\n\nA request without an email:\n\nPOST /v1/enrollments  {\"courseId\":\"sql-data-modeling\",\"plan\":\"free\"}\nHTTP/1.1 400  {\"message\":[\"email must be an email\"],\"error\":\"Bad Request\",\"statusCode\":400}\n\nThe application log for that request has no \"enroll sql-data-modeling\" line.\n\nStatement: \"The 400 was produced by the ValidationPipe before the controller method ran, so EnrollmentService.enroll was never called with this body.\"",
+          "explanation": "True. Pipes run after guards and before the route handler. The ValidationPipe turns the body into an EnrollRequestDto, runs the class-validator decorators, and throws a BadRequestException with the list of messages when any check fails, so the handler - and the service it calls - never runs. The missing log line is the evidence. The message array and the 400 status are the ValidationPipe's default response; a common misconception is that the service produced this error and therefore still needs the same shape checks.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "main.ts registers app.useGlobalPipes(new ValidationPipe()) with no options. A route in CoursesController:\n\n@Get(':id/lessons')\nlessons(@Param('id') id: number) {\n  this.logger.log(`typeof id = ${typeof id}`);\n  return this.courses.lessonsOf(id);\n}\n\nRequest: GET /v1/courses/42/lessons\n\nStatement: \"Because the parameter is declared as id: number, Nest converts \\\"42\\\" to the number 42 before calling lessons(), and the log line says typeof id = number.\"",
+          "explanation": "False. TypeScript types are erased when the code is compiled; at runtime every route parameter arrives as a string, and the log line says typeof id = string. Nest only converts it when you ask: ParseIntPipe on the parameter (@Param('id', ParseIntPipe)), or ValidationPipe({ transform: true }), which converts primitives based on the declared type. Without that, id === 42 is false and code such as id + 1 gives \"421\". The misconception is that a type annotation is a runtime check or conversion.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_nmm_212",
+      "name": "validate-enroll-request",
+      "type": "mini_coding",
+      "title": "Validate an enrollment request at the edge",
+      "description": "POST /v1/enrollments on CodeDev must reject bad input before EnrollmentService runs, and report every bad field at once so the form can highlight them all. Write validateEnrollRequest(body) in plain TypeScript - the same checks an EnrollRequestDto with class-validator decorators would make.\n\nbody is the parsed JSON body (any JSON value). Return { ok: true, value } when every field is valid, otherwise { ok: false, errors } where errors lists every invalid field once, in this order: courseId, email, plan, referralCode. Each error is { field, code }.\n\nA field is missing when it is absent or null. code is \"required\" for a missing required field and \"invalid\" for a value that is present but has the wrong type or format.\n- courseId (required): a string of 3 to 64 characters made of groups of lowercase letters a-z and digits joined by single hyphens, such as \"sql-data-modeling\" or \"nodejs-101\". No leading, trailing or double hyphens; not trimmed.\n- email (required): a string. Trim surrounding whitespace first; then it must contain no whitespace, exactly one \"@\", at least one character before the \"@\", and after it a domain with at least one dot, where every part between dots is non-empty. The cleaned value is the trimmed email in lowercase.\n- plan (required): exactly \"free\" or \"premium\" (case-sensitive).\n- referralCode (optional): missing is fine and it is then left out of the value; otherwise a string of 6 to 12 characters, uppercase letters A-Z and digits only.\n\nvalue has the keys courseId, email (cleaned), plan, and referralCode only when it was given. When the body is not a JSON object (an array, a number...), return { ok: false, errors: [{ field: \"body\", code: \"invalid\" }] }. The test runner prints the result as JSON.",
+      "difficulty": "easy",
+      "points": 30,
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "hints": [
+        "If you return as soon as you find the first bad field, how many round trips does a learner need to fix a form with three mistakes? And where does the order of the errors come from - the body, or the rules?",
+        "Check the fields one after another in the fixed order and push into one errors array. For each field ask two questions in this order: is it missing (undefined or null)? If not, is it the right type and format? A missing optional field is simply skipped. Build the cleaned value only when the array is empty.",
+        "The same pattern on a different form: a profile update with displayName (required, 2 to 40 characters, trimmed) and timezone (optional). For { \"timezone\": 7 } the result is [{ field: \"displayName\", code: \"required\" }, { field: \"timezone\", code: \"invalid\" }]: displayName comes first because the rules list it first, even though the body only contains timezone."
+      ],
+      "tests": [
+        {
+          "name": "A valid body with a referral code: the email is trimmed and lowercased",
+          "input": { "courseId": "web-http-fundamentals", "email": "  Lan.Nguyen@CodeDev.Test ", "plan": "premium", "referralCode": "SPRING25" },
+          "expected": { "ok": true, "value": { "courseId": "web-http-fundamentals", "email": "lan.nguyen@codedev.test", "plan": "premium", "referralCode": "SPRING25" } },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A missing email and an unknown plan give two errors in field order",
+          "input": { "courseId": "sql-data-modeling", "plan": "gold" },
+          "expected": { "ok": false, "errors": [ { "field": "email", "code": "required" }, { "field": "plan", "code": "invalid" } ] },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Every field invalid: four errors in the fixed order, not the order of the body's keys",
+          "input": { "referralCode": "abc", "plan": "Premium", "email": "lan@codedev", "courseId": 42 },
+          "expected": { "ok": false, "errors": [ { "field": "courseId", "code": "invalid" }, { "field": "email", "code": "invalid" }, { "field": "plan", "code": "invalid" }, { "field": "referralCode", "code": "invalid" } ] },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Without a referral code the value has exactly three keys",
+          "input": { "courseId": "nodejs-101", "email": "minh@codedev.test", "plan": "free" },
+          "expected": { "ok": true, "value": { "courseId": "nodejs-101", "email": "minh@codedev.test", "plan": "free" } },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A null referral code counts as missing and is left out",
+          "input": { "courseId": "typescript-foundations", "email": "an@codedev.test", "plan": "free", "referralCode": null },
+          "expected": { "ok": true, "value": { "courseId": "typescript-foundations", "email": "an@codedev.test", "plan": "free" } },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A body that is a JSON array is rejected as a whole",
+          "input": [ "web-http-fundamentals", "lan@codedev.test", "free" ],
+          "expected": { "ok": false, "errors": [ { "field": "body", "code": "invalid" } ] },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Double hyphen in courseId, two @ in email, 13-character referral code are all invalid",
+          "input": { "courseId": "web--http", "email": "lan@@codedev.test", "plan": "free", "referralCode": "SPRING2025XYZ" },
+          "expected": { "ok": false, "errors": [ { "field": "courseId", "code": "invalid" }, { "field": "email", "code": "invalid" }, { "field": "referralCode", "code": "invalid" } ] },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "null required fields are required; a blank email is present but invalid",
+          "input": { "courseId": null, "email": "   ", "plan": null },
+          "expected": { "ok": false, "errors": [ { "field": "courseId", "code": "required" }, { "field": "email", "code": "invalid" }, { "field": "plan", "code": "required" } ] },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

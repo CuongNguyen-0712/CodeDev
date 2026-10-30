@@ -1,0 +1,209 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nmm_221",
+      "name": "thin-controllers-errors-quiz",
+      "type": "quiz",
+      "title": "Which layer owns the rule, and which filter catches the error?",
+      "description": "A global exception filter for domain errors, and a business rule that lives in a controller while a background job calls the service directly. Decide whether each statement is True or False.",
+      "difficulty": "medium",
+      "points": 20,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The team maps domain errors in one global filter:\n\n@Catch(DomainError)\nexport class DomainErrorFilter implements ExceptionFilter {\n  catch(error: DomainError, host: ArgumentsHost) {\n    const { status, error: name } = STATUS_OF(error);\n    host.switchToHttp().getResponse<Response>()\n      .status(status).json({ statusCode: status, error: name, message: error.message });\n  }\n}\n\n// main.ts\napp.useGlobalFilters(new DomainErrorFilter());\n\nA course row with a null prerequisite list makes EnrollmentService.enroll throw:\n\nTypeError: Cannot read properties of null (reading 'filter')\n\nStatement: \"Because DomainErrorFilter is registered globally, this TypeError is also handled by DomainErrorFilter and goes through its STATUS_OF table.\"",
+          "explanation": "False. @Catch(DomainError) limits the filter to exceptions that are instances of DomainError; registering it globally only means it applies to every route, not to every exception. A TypeError is not a DomainError, so Nest's built-in global exception filter handles it and answers 500 with { \"statusCode\": 500, \"message\": \"Internal server error\" }, logging the error on the server. The misconception is that \"global\" widens what a filter catches. A @Catch() with no arguments would catch everything - and would then also have to handle HttpExceptions such as the ValidationPipe's 400, or it would turn them into 500s.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The rule \"you cannot enroll in a draft course\" lives in the controller:\n\n@Post()\nasync enroll(@Body() dto: EnrollRequestDto, @CurrentUser() user: User) {\n  const course = await this.courses.findById(dto.courseId);\n  if (!course || !course.published) throw new NotFoundException();\n  return this.enrollments.enroll(user.id, dto.courseId);\n}\n\nA nightly job in the same app imports a partner's CSV and calls EnrollmentService.enroll(userId, courseId) for every row. The next morning:\n\nSELECT course_id, count(*) FROM enrollment WHERE enrolled_at >= '2026-10-23' GROUP BY 1;\n api-design-production | 214    <- a draft course\n\nStatement: \"If the published check had been inside EnrollmentService.enroll instead of the controller, the nightly job could not have enrolled learners in the draft course.\"",
+          "explanation": "True. The controller is only one entry point into the enrollment rules; the CSV job, a queue consumer or an admin script call the service directly and skip every check that lives in a controller. Rules about the domain (published, prerequisites, duplicates) belong in the service, which throws a domain error such as CourseNotPublishedError; each entry point then decides how to report it - the HTTP layer maps it to 404, the job logs and skips the row. The misconception is that the controller is a safe place for rules because \"all requests go through it\"; not every caller is a request.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_nmm_222",
+      "name": "map-domain-errors",
+      "type": "mini_coding",
+      "title": "Map domain errors to HTTP in one place",
+      "description": "CodeDev's EnrollmentService (given, do not change) holds the enrollment rules and throws domain errors that know nothing about HTTP. Write the HTTP side: one mapping function, like a global NestJS exception filter, and two thin controller handlers.\n\nmapError(thrown) returns { statusCode, error, message }. Decide with instanceof, so a subclass maps like its parent; never by error names or message text:\n- NotFoundError and its subclasses (CourseNotFoundError, LessonNotFoundError) -> 404, \"Not Found\", the error's message.\n- AlreadyEnrolledError -> 409, \"Conflict\", the error's message.\n- PrerequisiteMissingError -> 422, \"Unprocessable Entity\", the error's message (the request is well-formed; a business rule is not met yet).\n- CourseNotPublishedError -> 404, \"Not Found\", message \"Course <courseId> not found\" (a draft course must look exactly like one that does not exist).\n- ValidationFailedError -> 400, \"Bad Request\", message = its details array.\n- Anything else - another Error, a DomainError subclass not listed above, or a thrown value that is not an Error (a string, null, a plain object) -> 500, \"Internal Server Error\", message \"Internal server error\". Never put the internal message in a 500.\n\nenrollHandler(req, service) for POST /v1/enrollments: call service.enroll(req.userId, req.body.courseId) and return { status: 201, body: <the enrollment> }.\nunenrollHandler(req, service) for DELETE /v1/enrollments/:courseId: call service.unenroll(req.userId, req.params.courseId) and return { status: 204, body: null }.\nThe handlers do not catch anything: the test runner plays the framework, calls mapError for whatever a handler throws and answers { status: statusCode, body: <the mapped body> }.\n\nThe test runner either maps a list of thrown values and prints the bodies, or sends a list of requests through the handlers and prints the responses, as JSON.",
+      "difficulty": "medium",
+      "points": 40,
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "hints": [
+        "What does the learner's browser need from a 500, and what does the on-call engineer need? Only one of them should ever see \"connect ECONNREFUSED 10.0.0.5:5432\". And what does a value that is not an Error at all - a thrown string or null - have in common with a TypeError?",
+        "Write mapError as a chain of instanceof checks, one per row of the table, ending in a single fallback for everything else. instanceof NotFoundError is already true for CourseNotFoundError, so subclasses need no extra branch; a plain object with name \"NotFoundError\" is not an instance and must fall through. The handlers are one service call each plus the success status.",
+        "The same shape for a different module: a payments filter maps CardDeclinedError (and subclasses such as InsufficientFundsError) to 402 with its message, and PaymentNotFoundError to 404. A thrown \"gateway timeout\" string, or new Error(\"socket hang up\"), falls through every instanceof check and becomes { statusCode: 500, error: \"Internal Server Error\", message: \"Internal server error\" }, while the original error is only written to the server log."
+      ],
+      "tests": [
+        {
+          "name": "Domain errors map to 404, 409 and 422 with their own messages",
+          "input": {
+            "throw": [
+              { "kind": "NotFound", "message": "Enrollment in sql-data-modeling not found" },
+              { "kind": "AlreadyEnrolled", "message": "Already enrolled in web-http-fundamentals" },
+              { "kind": "PrerequisiteMissing", "missing": ["web-http-fundamentals", "typescript-foundations"] }
+            ]
+          },
+          "expected": [
+            { "statusCode": 404, "error": "Not Found", "message": "Enrollment in sql-data-modeling not found" },
+            { "statusCode": 409, "error": "Conflict", "message": "Already enrolled in web-http-fundamentals" },
+            { "statusCode": 422, "error": "Unprocessable Entity", "message": "Complete web-http-fundamentals, typescript-foundations first" }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Enroll 201, enroll again 409, leave 204, leave again 404",
+          "input": {
+            "courses": [
+              { "id": "nodejs-modular-monolith", "title": "NestJS Modular Monolith", "prerequisiteIds": ["web-http-fundamentals"], "published": true }
+            ],
+            "completed": { "u_1": ["web-http-fundamentals"] },
+            "requests": [
+              { "route": "enroll", "userId": "u_1", "courseId": "nodejs-modular-monolith" },
+              { "route": "enroll", "userId": "u_1", "courseId": "nodejs-modular-monolith" },
+              { "route": "unenroll", "userId": "u_1", "courseId": "nodejs-modular-monolith" },
+              { "route": "unenroll", "userId": "u_1", "courseId": "nodejs-modular-monolith" }
+            ]
+          },
+          "expected": [
+            { "status": 201, "body": { "userId": "u_1", "courseId": "nodejs-modular-monolith", "enrolledAt": "2026-10-01T08:00:00.000Z" } },
+            { "status": 409, "body": { "statusCode": 409, "error": "Conflict", "message": "Already enrolled in nodejs-modular-monolith" } },
+            { "status": 204, "body": null },
+            { "status": 404, "body": { "statusCode": 404, "error": "Not Found", "message": "Enrollment in nodejs-modular-monolith not found" } }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A draft course answers 404 without revealing it exists; an unknown course is 404 as well",
+          "input": {
+            "courses": [
+              { "id": "api-design-production", "title": "API Design for Production", "prerequisiteIds": [], "published": false }
+            ],
+            "completed": {},
+            "requests": [
+              { "route": "enroll", "userId": "u_1", "courseId": "api-design-production" },
+              { "route": "enroll", "userId": "u_1", "courseId": "cobol-101" }
+            ]
+          },
+          "expected": [
+            { "status": 404, "body": { "statusCode": 404, "error": "Not Found", "message": "Course api-design-production not found" } },
+            { "status": 404, "body": { "statusCode": 404, "error": "Not Found", "message": "Course cobol-101 not found" } }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "An empty courseId is 400 with the details array; a missing prerequisite is 422",
+          "input": {
+            "courses": [
+              { "id": "nodejs-modular-monolith", "title": "NestJS Modular Monolith", "prerequisiteIds": ["web-http-fundamentals"], "published": true }
+            ],
+            "completed": {},
+            "requests": [
+              { "route": "enroll", "userId": "u_2", "courseId": "" },
+              { "route": "enroll", "userId": "u_2", "courseId": "nodejs-modular-monolith" }
+            ]
+          },
+          "expected": [
+            { "status": 400, "body": { "statusCode": 400, "error": "Bad Request", "message": ["courseId must be a non-empty string"] } },
+            { "status": 422, "body": { "statusCode": 422, "error": "Unprocessable Entity", "message": "Complete web-http-fundamentals first" } }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Unknown errors and unmapped domain errors are 500 and never leak the internal message",
+          "input": {
+            "throw": [
+              { "kind": "TypeError", "message": "Cannot read properties of undefined (reading 'id')" },
+              { "kind": "Error", "message": "connect ECONNREFUSED 10.0.0.5:5432" },
+              { "kind": "QuotaExceeded", "message": "Quota exceeded for tenant t_9" }
+            ]
+          },
+          "expected": [
+            { "statusCode": 500, "error": "Internal Server Error", "message": "Internal server error" },
+            { "statusCode": 500, "error": "Internal Server Error", "message": "Internal server error" },
+            { "statusCode": 500, "error": "Internal Server Error", "message": "Internal server error" }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Thrown non-Error values (a string, null, a look-alike plain object) are 500",
+          "input": {
+            "throw": [
+              { "kind": "value", "value": "db down" },
+              { "kind": "value", "value": null },
+              { "kind": "value", "value": { "name": "NotFoundError", "message": "Course sql-data-modeling not found" } }
+            ]
+          },
+          "expected": [
+            { "statusCode": 500, "error": "Internal Server Error", "message": "Internal server error" },
+            { "statusCode": 500, "error": "Internal Server Error", "message": "Internal server error" },
+            { "statusCode": 500, "error": "Internal Server Error", "message": "Internal server error" }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Subclasses map like their parent; ValidationFailed keeps every detail in order",
+          "input": {
+            "throw": [
+              { "kind": "LessonNotFound", "id": "lsn_9" },
+              { "kind": "CourseNotFound", "id": "rust-systems" },
+              { "kind": "ValidationFailed", "details": ["courseId must be a string", "plan must be one of: free, premium"] }
+            ]
+          },
+          "expected": [
+            { "statusCode": 404, "error": "Not Found", "message": "Lesson lsn_9 not found" },
+            { "statusCode": 404, "error": "Not Found", "message": "Course rust-systems not found" },
+            { "statusCode": 400, "error": "Bad Request", "message": ["courseId must be a string", "plan must be one of: free, premium"] }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Corrupt course data fails with a generic 500 and the next request still gets 201",
+          "input": {
+            "courses": [
+              { "id": "legacy-import", "title": "Legacy import", "prerequisiteIds": null, "published": true },
+              { "id": "web-http-fundamentals", "title": "Web Application Fundamentals", "prerequisiteIds": [], "published": true }
+            ],
+            "completed": {},
+            "requests": [
+              { "route": "enroll", "userId": "u_3", "courseId": "legacy-import" },
+              { "route": "enroll", "userId": "u_3", "courseId": "web-http-fundamentals" }
+            ]
+          },
+          "expected": [
+            { "status": 500, "body": { "statusCode": 500, "error": "Internal Server Error", "message": "Internal server error" } },
+            { "status": 201, "body": { "userId": "u_3", "courseId": "web-http-fundamentals", "enrolledAt": "2026-10-01T08:00:00.000Z" } }
+          ],
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

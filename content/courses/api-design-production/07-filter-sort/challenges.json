@@ -1,0 +1,464 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_adp_231",
+      "name": "filter-sort-whitelist-quiz",
+      "type": "quiz",
+      "title": "Bound parameters, column names and ties",
+      "description": "Two pieces of evidence from GET /v1/courses: a quick fix that binds the sort parameter, and two pages of a list sorted by enrollmentCount. Decide whether each statement is True or False.",
+      "difficulty": "medium",
+      "points": 20,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "After the sort=name;DROP... incident, a teammate proposes this fix for GET /v1/courses (PostgreSQL, node-postgres):\n\nconst sort = String(req.query.sort ?? \"published_at\");\nconst { rows } = await pool.query(\n  \"SELECT id, title, published_at FROM courses ORDER BY $1 DESC LIMIT 20\",\n  [sort]\n);\n\nThe pull request says: \"The value is now a bound parameter, so this is safe and still sorts by whatever column the client asks for.\"\n\nStatement: \"With this change, GET /v1/courses?sort=title returns the courses sorted by their title.\"",
+          "explanation": "False. A bound parameter is always a value, never an identifier. ORDER BY $1 does not mean \"order by the column whose name is in $1\"; it means \"order by this constant value\". Depending on the driver and the parameter type you get an error (the database cannot infer the parameter's type) or every row gets the same sort key, so the order is whatever the plan happens to produce. Injection is indeed blocked, but sorting is broken too. Column names cannot be bound: the safe pattern is to map the client's field name through a whitelist to a column name that you wrote yourself in the code (title -> \"title\", publishedAt -> \"published_at\") and reject everything else. The misconception is that parameter binding works for every part of a SQL statement.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The parser from this lesson turns GET /v1/courses?sort=-enrollmentCount&limit=2 into:\n\nsort: [ { field: \"enrollmentCount\", direction: \"desc\" }, { field: \"id\", direction: \"desc\" } ]\n\nand the repository builds ORDER BY enrollment_count DESC, id DESC from that list. Three courses have exactly 120 enrollments: crs_31, crs_44 and crs_58. Course ids are unique.\n\nStatement: \"Every time this request runs on unchanged data, crs_31, crs_44 and crs_58 come back in the same relative order.\"",
+          "explanation": "True. enrollment_count alone is not unique, so without a tiebreaker the database may return tied rows in any order, and that order can change between executions (a different plan, a parallel scan, a page cut in the middle of the tie). Adding id, which is unique, makes the ordering total: for these three courses the order is fixed by id DESC, so it is crs_58, crs_44, crs_31 on every run. That is also what lets cursor pagination (lesson 5) continue exactly after the last row of a page. The misconception is that ORDER BY on one column returns ties in insertion order.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_adp_232",
+      "name": "whitelisted-filter-sort-parser",
+      "type": "mini_coding",
+      "title": "Parse filters and sorts through a whitelist",
+      "description": "GET /v1/courses on the CodeDev API used to paste the sort parameter into ORDER BY. Write parseCourseQuery(raw) in main.ts: it turns the raw query string (without the path) into a typed query, or returns every problem as a list of { field, issue } details. The test runner wraps the details in the lesson 3 error contract (400, code VALIDATION_FAILED) and prints one JSON response per query.\n\nReturn { ok: true, query } with query = { filters: { level? }, q, sort, limit, cursor }, or { ok: false, details } when there is at least one problem.\n\nRead the parameters in the order they appear (URLSearchParams decodes %XX and + and drops a leading ?). Parameter names are case-sensitive.\n1. Name not in level, q, sort, limit, cursor -> { field: <name>, issue: \"unknown_parameter\" }.\n2. A known name that already appeared -> { field: <name>, issue: \"duplicate_parameter\" }; that later occurrence is not checked further, the first occurrence is used.\n3. level: split the value on \",\". For each item in order: \"\" -> empty_value; not exactly beginner, intermediate, advanced or expert (lowercase) -> invalid_value; same as an earlier valid item -> duplicate_value. Valid items go to filters.level in order. Without a level parameter, filters is {}.\n4. q: trim it. \"\" -> empty_value; longer than 100 characters or containing anything other than letters, digits, space, . # + or - -> invalid_value. Otherwise q is the trimmed text (null when absent).\n5. limit: \"\" -> empty_value; not only digits 0-9, or below 1, or above 100 -> invalid_value. Default 20.\n6. cursor: \"\" -> empty_value; otherwise kept as is. Default null.\n7. sort: split the value on \",\". For each item in order: \"\" -> empty_value; a leading - means \"desc\", otherwise \"asc\"; a field other than publishedAt, title or enrollmentCount (exact case; id included) -> unknown_sort_field; a field already in the sort (in either direction) -> duplicate_sort_field. After the items: more than 2 items -> one too_many_sort_fields. All sort details use field \"sort\".\n8. Without a sort parameter the sort is [{ field: \"publishedAt\", direction: \"desc\" }]. Always append { field: \"id\", direction: <direction of the last key> } as the final tiebreaker.\n\nDetails are in the order the problems are found by these rules: parameter by parameter, list items in order. Each check reports at most one issue per item.",
+      "difficulty": "medium",
+      "points": 40,
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "hints": [
+        "Which decisions can you make from the parameter name alone, before you look at its value? And which value checks need to remember something you saw earlier in the same list?",
+        "Loop over new URLSearchParams(raw) (it yields [name, value] pairs in order, repeats included) and keep a Set of names already seen. Validate list values item by item after value.split(\",\"), keeping the accepted items so you can spot repeats. Build the default sort and the id tiebreaker only after the loop, and only when there are no details.",
+        "The same pattern on a different endpoint: GET /v1/submissions?status=passed,failed,passed&order=-score,score with statuses passed | failed | pending and sortable score | createdAt. Reading in order gives status item 3 duplicate_value, then order item 2 duplicate_sort_field (score is already used, the direction does not matter), so the details are [status duplicate_value, order duplicate_sort_field]. A valid order=-score becomes [score desc, id desc]."
+      ],
+      "tests": [
+        {
+          "name": "The example query becomes a typed spec, and no query at all gives the default sort",
+          "input": {
+            "traceId": "tr_7a1",
+            "queries": [
+              "level=beginner,intermediate&sort=-publishedAt,title&q=sql&limit=20",
+              ""
+            ]
+          },
+          "expected": [
+            {
+              "status": 200,
+              "query": {
+                "filters": {
+                  "level": [
+                    "beginner",
+                    "intermediate"
+                  ]
+                },
+                "q": "sql",
+                "sort": [
+                  {
+                    "field": "publishedAt",
+                    "direction": "desc"
+                  },
+                  {
+                    "field": "title",
+                    "direction": "asc"
+                  },
+                  {
+                    "field": "id",
+                    "direction": "asc"
+                  }
+                ],
+                "limit": 20,
+                "cursor": null
+              }
+            },
+            {
+              "status": 200,
+              "query": {
+                "filters": {},
+                "q": null,
+                "sort": [
+                  {
+                    "field": "publishedAt",
+                    "direction": "desc"
+                  },
+                  {
+                    "field": "id",
+                    "direction": "desc"
+                  }
+                ],
+                "limit": 20,
+                "cursor": null
+              }
+            }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "sort=name;DROP TABLE is rejected by the whitelist, and every problem is reported, not only the first",
+          "input": {
+            "traceId": "tr_7a2",
+            "queries": [
+              "sort=name;DROP%20TABLE%20courses&limit=500"
+            ]
+          },
+          "expected": [
+            {
+              "status": 400,
+              "body": {
+                "error": {
+                  "code": "VALIDATION_FAILED",
+                  "message": "The query string is not valid.",
+                  "details": [
+                    {
+                      "field": "sort",
+                      "issue": "unknown_sort_field"
+                    },
+                    {
+                      "field": "limit",
+                      "issue": "invalid_value"
+                    }
+                  ],
+                  "traceId": "tr_7a2"
+                }
+              }
+            }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A repeated parameter, a repeated sort field and an unknown parameter are all rejected in order",
+          "input": {
+            "traceId": "tr_7b1",
+            "queries": [
+              "level=beginner&level=advanced&sort=title,-title&page=2"
+            ]
+          },
+          "expected": [
+            {
+              "status": 400,
+              "body": {
+                "error": {
+                  "code": "VALIDATION_FAILED",
+                  "message": "The query string is not valid.",
+                  "details": [
+                    {
+                      "field": "level",
+                      "issue": "duplicate_parameter"
+                    },
+                    {
+                      "field": "sort",
+                      "issue": "duplicate_sort_field"
+                    },
+                    {
+                      "field": "page",
+                      "issue": "unknown_parameter"
+                    }
+                  ],
+                  "traceId": "tr_7b1"
+                }
+              }
+            }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Names and values are case-sensitive; empty values and empty list items are rejected",
+          "input": {
+            "traceId": "tr_7b2",
+            "queries": [
+              "Level=beginner&level=Beginner,,expert&q=%20%20&sort=",
+              "limit=&cursor="
+            ]
+          },
+          "expected": [
+            {
+              "status": 400,
+              "body": {
+                "error": {
+                  "code": "VALIDATION_FAILED",
+                  "message": "The query string is not valid.",
+                  "details": [
+                    {
+                      "field": "Level",
+                      "issue": "unknown_parameter"
+                    },
+                    {
+                      "field": "level",
+                      "issue": "invalid_value"
+                    },
+                    {
+                      "field": "level",
+                      "issue": "empty_value"
+                    },
+                    {
+                      "field": "q",
+                      "issue": "empty_value"
+                    },
+                    {
+                      "field": "sort",
+                      "issue": "empty_value"
+                    }
+                  ],
+                  "traceId": "tr_7b2"
+                }
+              }
+            },
+            {
+              "status": 400,
+              "body": {
+                "error": {
+                  "code": "VALIDATION_FAILED",
+                  "message": "The query string is not valid.",
+                  "details": [
+                    {
+                      "field": "limit",
+                      "issue": "empty_value"
+                    },
+                    {
+                      "field": "cursor",
+                      "issue": "empty_value"
+                    }
+                  ],
+                  "traceId": "tr_7b2"
+                }
+              }
+            }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "At most 2 sort fields, id is never client-sortable, and the id tiebreaker follows the last key",
+          "input": {
+            "traceId": "tr_7b3",
+            "queries": [
+              "sort=title,-enrollmentCount,publishedAt",
+              "sort=title,-enrollmentCount&cursor=eyJpZCI6ImNyc18xMiJ9",
+              "sort=id",
+              "sort=+title"
+            ]
+          },
+          "expected": [
+            {
+              "status": 400,
+              "body": {
+                "error": {
+                  "code": "VALIDATION_FAILED",
+                  "message": "The query string is not valid.",
+                  "details": [
+                    {
+                      "field": "sort",
+                      "issue": "too_many_sort_fields"
+                    }
+                  ],
+                  "traceId": "tr_7b3"
+                }
+              }
+            },
+            {
+              "status": 200,
+              "query": {
+                "filters": {},
+                "q": null,
+                "sort": [
+                  {
+                    "field": "title",
+                    "direction": "asc"
+                  },
+                  {
+                    "field": "enrollmentCount",
+                    "direction": "desc"
+                  },
+                  {
+                    "field": "id",
+                    "direction": "desc"
+                  }
+                ],
+                "limit": 20,
+                "cursor": "eyJpZCI6ImNyc18xMiJ9"
+              }
+            },
+            {
+              "status": 400,
+              "body": {
+                "error": {
+                  "code": "VALIDATION_FAILED",
+                  "message": "The query string is not valid.",
+                  "details": [
+                    {
+                      "field": "sort",
+                      "issue": "unknown_sort_field"
+                    }
+                  ],
+                  "traceId": "tr_7b3"
+                }
+              }
+            },
+            {
+              "status": 400,
+              "body": {
+                "error": {
+                  "code": "VALIDATION_FAILED",
+                  "message": "The query string is not valid.",
+                  "details": [
+                    {
+                      "field": "sort",
+                      "issue": "unknown_sort_field"
+                    }
+                  ],
+                  "traceId": "tr_7b3"
+                }
+              }
+            }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "SQL-looking search text, a duplicate level, a leading ?, trimming and limit bounds",
+          "input": {
+            "traceId": "tr_7b4",
+            "queries": [
+              "q=sql%27%20OR%20%271%27%3D%271&level=beginner,beginner",
+              "?q=%20node%20js%20&sort=-title&limit=100&level=expert",
+              "limit=20.5",
+              "limit=0",
+              "limit=-5"
+            ]
+          },
+          "expected": [
+            {
+              "status": 400,
+              "body": {
+                "error": {
+                  "code": "VALIDATION_FAILED",
+                  "message": "The query string is not valid.",
+                  "details": [
+                    {
+                      "field": "q",
+                      "issue": "invalid_value"
+                    },
+                    {
+                      "field": "level",
+                      "issue": "duplicate_value"
+                    }
+                  ],
+                  "traceId": "tr_7b4"
+                }
+              }
+            },
+            {
+              "status": 200,
+              "query": {
+                "filters": {
+                  "level": [
+                    "expert"
+                  ]
+                },
+                "q": "node js",
+                "sort": [
+                  {
+                    "field": "title",
+                    "direction": "desc"
+                  },
+                  {
+                    "field": "id",
+                    "direction": "desc"
+                  }
+                ],
+                "limit": 100,
+                "cursor": null
+              }
+            },
+            {
+              "status": 400,
+              "body": {
+                "error": {
+                  "code": "VALIDATION_FAILED",
+                  "message": "The query string is not valid.",
+                  "details": [
+                    {
+                      "field": "limit",
+                      "issue": "invalid_value"
+                    }
+                  ],
+                  "traceId": "tr_7b4"
+                }
+              }
+            },
+            {
+              "status": 400,
+              "body": {
+                "error": {
+                  "code": "VALIDATION_FAILED",
+                  "message": "The query string is not valid.",
+                  "details": [
+                    {
+                      "field": "limit",
+                      "issue": "invalid_value"
+                    }
+                  ],
+                  "traceId": "tr_7b4"
+                }
+              }
+            },
+            {
+              "status": 400,
+              "body": {
+                "error": {
+                  "code": "VALIDATION_FAILED",
+                  "message": "The query string is not valid.",
+                  "details": [
+                    {
+                      "field": "limit",
+                      "issue": "invalid_value"
+                    }
+                  ],
+                  "traceId": "tr_7b4"
+                }
+              }
+            }
+          ],
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

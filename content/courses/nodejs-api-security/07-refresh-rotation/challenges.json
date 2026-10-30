@@ -1,0 +1,1396 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nas_231",
+      "name": "refresh-rotation-quiz",
+      "type": "quiz",
+      "title": "Sliding expiry, absolute expiry and what rotation alone buys",
+      "description": "The refresh store of one CodeDev learner after a month of daily use, and an API log from a stolen-token investigation. Decide whether each statement is True or False.",
+      "difficulty": "medium",
+      "points": 20,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The CodeDev refresh service uses these settings:\n\nconst REFRESH_TTL = 2_592_000;     // each refresh token: 30 days\nconst FAMILY_MAX_AGE = 7_776_000;  // a family: 90 days after login\n// new record: expiresAt = Math.min(at + REFRESH_TTL, loginAt + FAMILY_MAX_AGE)\n\nLearner 1042 logged in on her laptop at t = 1790000000 (family fam-81) and the web app has refreshed once a day since. Her latest record, written 30 days after login:\n\n{ id: \"r-412\", familyId: \"fam-81\", status: \"active\", createdAt: 1792592000, expiresAt: 1795184000 }\n\nStatement: \"As long as the web app keeps refreshing at least once a month, learner 1042 will never be asked to sign in again on this laptop, because every refresh moves expiresAt 30 days forward.\"",
+          "explanation": "False. Each refresh slides the token expiry 30 days forward, but only up to the family's absolute limit: loginAt + FAMILY_MAX_AGE = 1790000000 + 7776000 = 1797776000. Records created after day 60 get expiresAt = 1797776000, and the first refresh at or after that second fails with token_expired, so she signs in again 90 days after login however often the app refreshes. That cap is deliberate: a token family copied by malware or left on a shared computer cannot live forever just by being used. The misconception is that sliding expiry alone bounds a session; it only bounds idle time.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The refresh service rotates by family but has no reuse detection yet: a rotated token is simply refused with token_rotated. Learner 1042's refresh cookie was copied by a malicious browser extension. API log:\n\n09:00:00 POST /v1/auth/refresh ip=203.0.113.50  token=r-7 (fam-81)  -> 200 new token r-8, r-7 rotated\n09:12:40 POST /v1/auth/refresh ip=198.51.100.7  token=r-7 (fam-81)  -> 401 token_rotated\n09:15:00 POST /v1/auth/refresh ip=203.0.113.50  token=r-8 (fam-81)  -> 200 new token r-9, r-8 rotated\n\n198.51.100.7 is learner 1042's home network; 203.0.113.50 is unknown to her.\n\nStatement: \"After the 09:12:40 request, the attacker still holds a working session: r-8 was accepted and rotated into r-9, while the learner's own browser is the one that was locked out.\"",
+          "explanation": "True. The attacker refreshed first with the stolen r-7, so the attacker received r-8 and the learner's browser was left holding the rotated r-7. Rotation alone then works against the victim: her refresh is refused, the attacker's chain continues (r-8, then r-9), and nothing in the system treats the refused r-7 as a sign of theft. Rotation limits how long a single stolen token is useful only when somebody notices the second use; that is reuse detection, the subject of lesson 8. The misconception is that rotating tokens is enough on its own to cut off a thief.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_nas_232",
+      "name": "rotate-refresh-tokens-by-family",
+      "type": "mini_coding",
+      "title": "Rotate refresh tokens by family",
+      "description": "Build the refresh session service of the CodeDev API (POST /v1/auth/refresh) as a class RefreshSessionService. The test runner creates it with a list newTokens (the plaintext refresh tokens to hand out, in order), plays a script of operations at fake clock times (unix seconds) and prints { results, store }.\n\nlogin(userId, deviceId, at): start a new family (ids \"fam-1\", \"fam-2\", ... in creation order across the whole service; every login starts a new family, even for the same user and device) and issue its first refresh token.\n\nIssuing a refresh token (login and refresh): take the next unused string from newTokens; add a record { id, familyId, userId, deviceId, tokenHash, status: \"active\", createdAt: at, expiresAt } with id \"r-1\", \"r-2\", ... in creation order, tokenHash = sha256 hex of the plaintext (node:crypto createHash), and expiresAt = min(at + 2592000, familyLoginAt + 7776000): 30 days sliding, but never later than 90 days after the login that started the family. Also issue an access token with id \"at-1\", \"at-2\", ... expiring at at + 900 (not capped). Return { familyId, refreshToken, refreshExpiresAt, accessTokenId, accessExpiresAt }. Only successful operations consume a token, a record id or an access id.\n\nrefresh(token, at): find the record whose tokenHash matches the sha256 of token, then check in this order and throw new AuthError(code): no record -> \"unknown_token\"; status \"revoked\" -> \"token_revoked\"; status \"rotated\" -> \"token_rotated\"; at >= expiresAt -> \"token_expired\". A failed refresh changes nothing. Otherwise issue a new token in the SAME family, set the old record's status to \"rotated\" and its replacedBy to the new record's id, and return the new tokens. Do not revoke anything when a rotated token is presented (that is lesson 8).\n\nlogout(token, at): the same checks and errors as refresh; on success set that record's status to \"revoked\" (the runner prints { loggedOut: true }).\n\nsnapshot(): every record in creation order, with the fields above and replacedBy only on rotated records. Never store the plaintext token.",
+      "difficulty": "hard",
+      "points": 50,
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "hints": [
+        "Which pieces of state must survive between two operations of the script: per record, per family and per service? And which of them may change when an operation fails?",
+        "Write one private validate(token, at) used by both refresh and logout (hash, look up, then the four checks in the given order), and one private issue(...) used by both login and refresh. The 90-day limit belongs to the family, so remember each family's login time; a new record's expiresAt is the smaller of the two limits.",
+        "A similar chain on a different domain: a library card can be renewed, each renewal valid 14 days, but never beyond 60 days after the card was first issued on day 0. Renewing on day 10 gives a card valid until day 24; renewing on day 50 gives min(64, 60) = day 60; trying to renew on day 60 fails because day 60 >= 60. The old card is marked replaced and points to the new card number, and both stay in the ledger."
+      ],
+      "tests": [
+        {
+          "name": "Login then two refreshes: one family, old tokens rotated and linked by replacedBy",
+          "input": {
+            "newTokens": [
+              "rt_q7Lm2Vx9",
+              "rt_K3pZ8wQe",
+              "rt_d5Tn1Hs4"
+            ],
+            "ops": [
+              {
+                "op": "login",
+                "at": 1790000000,
+                "userId": "u_1042",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "refresh",
+                "at": 1790000600,
+                "token": "rt_q7Lm2Vx9"
+              },
+              {
+                "op": "refresh",
+                "at": 1790001500,
+                "token": "rt_K3pZ8wQe"
+              }
+            ]
+          },
+          "expected": {
+            "results": [
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_q7Lm2Vx9",
+                "refreshExpiresAt": 1792592000,
+                "accessTokenId": "at-1",
+                "accessExpiresAt": 1790000900
+              },
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_K3pZ8wQe",
+                "refreshExpiresAt": 1792592600,
+                "accessTokenId": "at-2",
+                "accessExpiresAt": 1790001500
+              },
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_d5Tn1Hs4",
+                "refreshExpiresAt": 1792593500,
+                "accessTokenId": "at-3",
+                "accessExpiresAt": 1790002400
+              }
+            ],
+            "store": [
+              {
+                "id": "r-1",
+                "familyId": "fam-1",
+                "userId": "u_1042",
+                "deviceId": "laptop",
+                "tokenHash": "8780088450964531f8b4b5975dc6b3216bea005b34f860eee2cef2f0be534bc4",
+                "status": "rotated",
+                "createdAt": 1790000000,
+                "expiresAt": 1792592000,
+                "replacedBy": "r-2"
+              },
+              {
+                "id": "r-2",
+                "familyId": "fam-1",
+                "userId": "u_1042",
+                "deviceId": "laptop",
+                "tokenHash": "8beaa7fe52a99a90934a224edf195cc30e56bacc0cc056d71e6f7eb08e3ca1cb",
+                "status": "rotated",
+                "createdAt": 1790000600,
+                "expiresAt": 1792592600,
+                "replacedBy": "r-3"
+              },
+              {
+                "id": "r-3",
+                "familyId": "fam-1",
+                "userId": "u_1042",
+                "deviceId": "laptop",
+                "tokenHash": "fec49b6a10cf45c3e04451bf02f82f3aa377ac2665629bad62f7513dedf89a0d",
+                "status": "active",
+                "createdAt": 1790001500,
+                "expiresAt": 1792593500
+              }
+            ]
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A rotated or unknown token is refused, no token is consumed, the current token still works",
+          "input": {
+            "newTokens": [
+              "rt_Ab12Cd34",
+              "rt_Ef56Gh78",
+              "rt_Ij90Kl12",
+              "rt_unused01"
+            ],
+            "ops": [
+              {
+                "op": "login",
+                "at": 1790000000,
+                "userId": "u_1042",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "refresh",
+                "at": 1790000100,
+                "token": "rt_Ab12Cd34"
+              },
+              {
+                "op": "refresh",
+                "at": 1790000200,
+                "token": "rt_Ab12Cd34"
+              },
+              {
+                "op": "refresh",
+                "at": 1790000250,
+                "token": "rt_not-issued"
+              },
+              {
+                "op": "refresh",
+                "at": 1790000300,
+                "token": "rt_Ef56Gh78"
+              }
+            ]
+          },
+          "expected": {
+            "results": [
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_Ab12Cd34",
+                "refreshExpiresAt": 1792592000,
+                "accessTokenId": "at-1",
+                "accessExpiresAt": 1790000900
+              },
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_Ef56Gh78",
+                "refreshExpiresAt": 1792592100,
+                "accessTokenId": "at-2",
+                "accessExpiresAt": 1790001000
+              },
+              {
+                "error": "token_rotated"
+              },
+              {
+                "error": "unknown_token"
+              },
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_Ij90Kl12",
+                "refreshExpiresAt": 1792592300,
+                "accessTokenId": "at-3",
+                "accessExpiresAt": 1790001200
+              }
+            ],
+            "store": [
+              {
+                "id": "r-1",
+                "familyId": "fam-1",
+                "userId": "u_1042",
+                "deviceId": "laptop",
+                "tokenHash": "16107003dfb7f1d918d2b784f30f6d8092a28502a2d2fe2ae6cef733b2d88a64",
+                "status": "rotated",
+                "createdAt": 1790000000,
+                "expiresAt": 1792592000,
+                "replacedBy": "r-2"
+              },
+              {
+                "id": "r-2",
+                "familyId": "fam-1",
+                "userId": "u_1042",
+                "deviceId": "laptop",
+                "tokenHash": "f9836b8d182201dc07d8296ff361e1ce8f697f45c7250720df06c37dc5d9c2e0",
+                "status": "rotated",
+                "createdAt": 1790000100,
+                "expiresAt": 1792592100,
+                "replacedBy": "r-3"
+              },
+              {
+                "id": "r-3",
+                "familyId": "fam-1",
+                "userId": "u_1042",
+                "deviceId": "laptop",
+                "tokenHash": "d572c5224a2a4912627b3e2786009bf6fe1705373baf702a5b493c79e450f99b",
+                "status": "active",
+                "createdAt": 1790000300,
+                "expiresAt": 1792592300
+              }
+            ]
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Sliding expiry: 1 s before expiresAt works, at expiresAt fails, failures consume no ids",
+          "input": {
+            "newTokens": [
+              "rt_s1aaaa01",
+              "rt_s1aaaa02",
+              "rt_s1aaaa03",
+              "rt_s1aaaa04"
+            ],
+            "ops": [
+              {
+                "op": "login",
+                "at": 1790000000,
+                "userId": "u_1042",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "refresh",
+                "at": 1792591999,
+                "token": "rt_s1aaaa01"
+              },
+              {
+                "op": "refresh",
+                "at": 1795183999,
+                "token": "rt_s1aaaa02"
+              },
+              {
+                "op": "refresh",
+                "at": 1795184000,
+                "token": "rt_s1aaaa02"
+              },
+              {
+                "op": "login",
+                "at": 1795184005,
+                "userId": "u_2077",
+                "deviceId": "phone"
+              }
+            ]
+          },
+          "expected": {
+            "results": [
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_s1aaaa01",
+                "refreshExpiresAt": 1792592000,
+                "accessTokenId": "at-1",
+                "accessExpiresAt": 1790000900
+              },
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_s1aaaa02",
+                "refreshExpiresAt": 1795183999,
+                "accessTokenId": "at-2",
+                "accessExpiresAt": 1792592899
+              },
+              {
+                "error": "token_expired"
+              },
+              {
+                "error": "token_expired"
+              },
+              {
+                "familyId": "fam-2",
+                "refreshToken": "rt_s1aaaa03",
+                "refreshExpiresAt": 1797776005,
+                "accessTokenId": "at-3",
+                "accessExpiresAt": 1795184905
+              }
+            ],
+            "store": [
+              {
+                "id": "r-1",
+                "familyId": "fam-1",
+                "userId": "u_1042",
+                "deviceId": "laptop",
+                "tokenHash": "ec88a4ff8476f4b0342139b6d5c666b0255ffe59253fd4f7fe6acd1927a00480",
+                "status": "rotated",
+                "createdAt": 1790000000,
+                "expiresAt": 1792592000,
+                "replacedBy": "r-2"
+              },
+              {
+                "id": "r-2",
+                "familyId": "fam-1",
+                "userId": "u_1042",
+                "deviceId": "laptop",
+                "tokenHash": "48b42836c9b09aa84cac1213dffac8c9b7a0a89e8493af6dc02ffda0e9ac68b4",
+                "status": "active",
+                "createdAt": 1792591999,
+                "expiresAt": 1795183999
+              },
+              {
+                "id": "r-3",
+                "familyId": "fam-2",
+                "userId": "u_2077",
+                "deviceId": "phone",
+                "tokenHash": "c317414982fcc89e856b108d92f6bbb973ce411475c6c6f8fe79e32db1e10528",
+                "status": "active",
+                "createdAt": 1795184005,
+                "expiresAt": 1797776005
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Absolute cap: refresh expiry is clamped to login + 90 days, then the family ends",
+          "input": {
+            "newTokens": [
+              "rt_cap00001",
+              "rt_cap00002",
+              "rt_cap00003",
+              "rt_cap00004",
+              "rt_cap00005",
+              "rt_cap00006",
+              "rt_cap00007"
+            ],
+            "ops": [
+              {
+                "op": "login",
+                "at": 1790000000,
+                "userId": "u_1042",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "refresh",
+                "at": 1791728000,
+                "token": "rt_cap00001"
+              },
+              {
+                "op": "refresh",
+                "at": 1793456000,
+                "token": "rt_cap00002"
+              },
+              {
+                "op": "refresh",
+                "at": 1795184000,
+                "token": "rt_cap00003"
+              },
+              {
+                "op": "refresh",
+                "at": 1796912000,
+                "token": "rt_cap00004"
+              },
+              {
+                "op": "refresh",
+                "at": 1797775999,
+                "token": "rt_cap00005"
+              },
+              {
+                "op": "refresh",
+                "at": 1797776000,
+                "token": "rt_cap00006"
+              }
+            ]
+          },
+          "expected": {
+            "results": [
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_cap00001",
+                "refreshExpiresAt": 1792592000,
+                "accessTokenId": "at-1",
+                "accessExpiresAt": 1790000900
+              },
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_cap00002",
+                "refreshExpiresAt": 1794320000,
+                "accessTokenId": "at-2",
+                "accessExpiresAt": 1791728900
+              },
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_cap00003",
+                "refreshExpiresAt": 1796048000,
+                "accessTokenId": "at-3",
+                "accessExpiresAt": 1793456900
+              },
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_cap00004",
+                "refreshExpiresAt": 1797776000,
+                "accessTokenId": "at-4",
+                "accessExpiresAt": 1795184900
+              },
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_cap00005",
+                "refreshExpiresAt": 1797776000,
+                "accessTokenId": "at-5",
+                "accessExpiresAt": 1796912900
+              },
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_cap00006",
+                "refreshExpiresAt": 1797776000,
+                "accessTokenId": "at-6",
+                "accessExpiresAt": 1797776899
+              },
+              {
+                "error": "token_expired"
+              }
+            ],
+            "store": [
+              {
+                "id": "r-1",
+                "familyId": "fam-1",
+                "userId": "u_1042",
+                "deviceId": "laptop",
+                "tokenHash": "5c45d72ff97c7a41e1864d48f8c9bb54dae8e3381a621be670eb06bfdfff826d",
+                "status": "rotated",
+                "createdAt": 1790000000,
+                "expiresAt": 1792592000,
+                "replacedBy": "r-2"
+              },
+              {
+                "id": "r-2",
+                "familyId": "fam-1",
+                "userId": "u_1042",
+                "deviceId": "laptop",
+                "tokenHash": "acb966914918f76d75654884c73bcbfd7a2aa85423844d4895d32208e723ac20",
+                "status": "rotated",
+                "createdAt": 1791728000,
+                "expiresAt": 1794320000,
+                "replacedBy": "r-3"
+              },
+              {
+                "id": "r-3",
+                "familyId": "fam-1",
+                "userId": "u_1042",
+                "deviceId": "laptop",
+                "tokenHash": "10ba484d1d2c14592bbced199ad93a3b38e21c0b20bb27f90fc05be736836ef5",
+                "status": "rotated",
+                "createdAt": 1793456000,
+                "expiresAt": 1796048000,
+                "replacedBy": "r-4"
+              },
+              {
+                "id": "r-4",
+                "familyId": "fam-1",
+                "userId": "u_1042",
+                "deviceId": "laptop",
+                "tokenHash": "23a40a6749e179e2221b24b9022f4e442f52a27640a52182219057b28d6e525f",
+                "status": "rotated",
+                "createdAt": 1795184000,
+                "expiresAt": 1797776000,
+                "replacedBy": "r-5"
+              },
+              {
+                "id": "r-5",
+                "familyId": "fam-1",
+                "userId": "u_1042",
+                "deviceId": "laptop",
+                "tokenHash": "791799d30b3584ac8a3c6b348f218300cceb6ac6bea788e0da0a35f039f41404",
+                "status": "rotated",
+                "createdAt": 1796912000,
+                "expiresAt": 1797776000,
+                "replacedBy": "r-6"
+              },
+              {
+                "id": "r-6",
+                "familyId": "fam-1",
+                "userId": "u_1042",
+                "deviceId": "laptop",
+                "tokenHash": "a4780163d028c94735405d683d53c2a721cc4b10f79fa71fd97c69415adc8a79",
+                "status": "active",
+                "createdAt": 1797775999,
+                "expiresAt": 1797776000
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Two devices and two users: each rotation stays inside its own family",
+          "input": {
+            "newTokens": [
+              "rt_lap00001",
+              "rt_pho00001",
+              "rt_usr20771",
+              "rt_pho00002",
+              "rt_lap00002",
+              "rt_usr20772",
+              "rt_spare001"
+            ],
+            "ops": [
+              {
+                "op": "login",
+                "at": 1790000000,
+                "userId": "u_1042",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "at": 1790000010,
+                "userId": "u_1042",
+                "deviceId": "phone"
+              },
+              {
+                "op": "login",
+                "at": 1790000020,
+                "userId": "u_2077",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "refresh",
+                "at": 1790000030,
+                "token": "rt_pho00001"
+              },
+              {
+                "op": "refresh",
+                "at": 1790000040,
+                "token": "rt_lap00001"
+              },
+              {
+                "op": "refresh",
+                "at": 1790000050,
+                "token": "rt_pho00001"
+              },
+              {
+                "op": "refresh",
+                "at": 1790000060,
+                "token": "rt_usr20771"
+              }
+            ]
+          },
+          "expected": {
+            "results": [
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_lap00001",
+                "refreshExpiresAt": 1792592000,
+                "accessTokenId": "at-1",
+                "accessExpiresAt": 1790000900
+              },
+              {
+                "familyId": "fam-2",
+                "refreshToken": "rt_pho00001",
+                "refreshExpiresAt": 1792592010,
+                "accessTokenId": "at-2",
+                "accessExpiresAt": 1790000910
+              },
+              {
+                "familyId": "fam-3",
+                "refreshToken": "rt_usr20771",
+                "refreshExpiresAt": 1792592020,
+                "accessTokenId": "at-3",
+                "accessExpiresAt": 1790000920
+              },
+              {
+                "familyId": "fam-2",
+                "refreshToken": "rt_pho00002",
+                "refreshExpiresAt": 1792592030,
+                "accessTokenId": "at-4",
+                "accessExpiresAt": 1790000930
+              },
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_lap00002",
+                "refreshExpiresAt": 1792592040,
+                "accessTokenId": "at-5",
+                "accessExpiresAt": 1790000940
+              },
+              {
+                "error": "token_rotated"
+              },
+              {
+                "familyId": "fam-3",
+                "refreshToken": "rt_usr20772",
+                "refreshExpiresAt": 1792592060,
+                "accessTokenId": "at-6",
+                "accessExpiresAt": 1790000960
+              }
+            ],
+            "store": [
+              {
+                "id": "r-1",
+                "familyId": "fam-1",
+                "userId": "u_1042",
+                "deviceId": "laptop",
+                "tokenHash": "1e3d60b0eb609cf4acae2dea3ab6617d830857c2604683a6027c9286435b48dc",
+                "status": "rotated",
+                "createdAt": 1790000000,
+                "expiresAt": 1792592000,
+                "replacedBy": "r-5"
+              },
+              {
+                "id": "r-2",
+                "familyId": "fam-2",
+                "userId": "u_1042",
+                "deviceId": "phone",
+                "tokenHash": "34a27d64f51968bfca9523801f85ea303448f241e8a56e44b763f717087e4be2",
+                "status": "rotated",
+                "createdAt": 1790000010,
+                "expiresAt": 1792592010,
+                "replacedBy": "r-4"
+              },
+              {
+                "id": "r-3",
+                "familyId": "fam-3",
+                "userId": "u_2077",
+                "deviceId": "laptop",
+                "tokenHash": "65123e6bb0b8c00529244e64cf546b80c5294e856f6d5641ee9975513cc5ec86",
+                "status": "rotated",
+                "createdAt": 1790000020,
+                "expiresAt": 1792592020,
+                "replacedBy": "r-6"
+              },
+              {
+                "id": "r-4",
+                "familyId": "fam-2",
+                "userId": "u_1042",
+                "deviceId": "phone",
+                "tokenHash": "8998dbbbb75f305222087edcd061de3d86e8d8d7909bfd0e9fe7a3f5fd1aa5cd",
+                "status": "active",
+                "createdAt": 1790000030,
+                "expiresAt": 1792592030
+              },
+              {
+                "id": "r-5",
+                "familyId": "fam-1",
+                "userId": "u_1042",
+                "deviceId": "laptop",
+                "tokenHash": "6ac5802b3882a49fc941989d66278993926a2af0236e7c7ff31eaed07ed88987",
+                "status": "active",
+                "createdAt": 1790000040,
+                "expiresAt": 1792592040
+              },
+              {
+                "id": "r-6",
+                "familyId": "fam-3",
+                "userId": "u_2077",
+                "deviceId": "laptop",
+                "tokenHash": "199f6e18333bb0f6d04a8bcd47106f285515af3c83f20638ea14472b88e72e7e",
+                "status": "active",
+                "createdAt": 1790000060,
+                "expiresAt": 1792592060
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Logout revokes the presented token; revoked wins over expired; other device unaffected",
+          "input": {
+            "newTokens": [
+              "rt_lo000001",
+              "rt_lo000002",
+              "rt_lo000003",
+              "rt_lo000004",
+              "rt_lo000005"
+            ],
+            "ops": [
+              {
+                "op": "login",
+                "at": 1790000000,
+                "userId": "u_1042",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "at": 1790000005,
+                "userId": "u_1042",
+                "deviceId": "phone"
+              },
+              {
+                "op": "refresh",
+                "at": 1790000100,
+                "token": "rt_lo000001"
+              },
+              {
+                "op": "logout",
+                "at": 1790000200,
+                "token": "rt_lo000001"
+              },
+              {
+                "op": "logout",
+                "at": 1790000300,
+                "token": "rt_lo000003"
+              },
+              {
+                "op": "refresh",
+                "at": 1790000400,
+                "token": "rt_lo000003"
+              },
+              {
+                "op": "refresh",
+                "at": 1792592600,
+                "token": "rt_lo000003"
+              },
+              {
+                "op": "refresh",
+                "at": 1790000600,
+                "token": "rt_lo000002"
+              },
+              {
+                "op": "logout",
+                "at": 1790000700,
+                "token": "rt_garbage00"
+              }
+            ]
+          },
+          "expected": {
+            "results": [
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_lo000001",
+                "refreshExpiresAt": 1792592000,
+                "accessTokenId": "at-1",
+                "accessExpiresAt": 1790000900
+              },
+              {
+                "familyId": "fam-2",
+                "refreshToken": "rt_lo000002",
+                "refreshExpiresAt": 1792592005,
+                "accessTokenId": "at-2",
+                "accessExpiresAt": 1790000905
+              },
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_lo000003",
+                "refreshExpiresAt": 1792592100,
+                "accessTokenId": "at-3",
+                "accessExpiresAt": 1790001000
+              },
+              {
+                "error": "token_rotated"
+              },
+              {
+                "loggedOut": true
+              },
+              {
+                "error": "token_revoked"
+              },
+              {
+                "error": "token_revoked"
+              },
+              {
+                "familyId": "fam-2",
+                "refreshToken": "rt_lo000004",
+                "refreshExpiresAt": 1792592600,
+                "accessTokenId": "at-4",
+                "accessExpiresAt": 1790001500
+              },
+              {
+                "error": "unknown_token"
+              }
+            ],
+            "store": [
+              {
+                "id": "r-1",
+                "familyId": "fam-1",
+                "userId": "u_1042",
+                "deviceId": "laptop",
+                "tokenHash": "6977848e741b9e6edb3395764f8db35eb8deba9a2e40e0b27df60f8c4c0547d5",
+                "status": "rotated",
+                "createdAt": 1790000000,
+                "expiresAt": 1792592000,
+                "replacedBy": "r-3"
+              },
+              {
+                "id": "r-2",
+                "familyId": "fam-2",
+                "userId": "u_1042",
+                "deviceId": "phone",
+                "tokenHash": "65eb7b4b56d0d6a693ee519ae368f1a1d80ffd57db96959c2084545f171653c1",
+                "status": "rotated",
+                "createdAt": 1790000005,
+                "expiresAt": 1792592005,
+                "replacedBy": "r-4"
+              },
+              {
+                "id": "r-3",
+                "familyId": "fam-1",
+                "userId": "u_1042",
+                "deviceId": "laptop",
+                "tokenHash": "1467ddb3fb0ab81f2bdf8383a9551abee33e6695194185d93cf2463b4ea5c35a",
+                "status": "revoked",
+                "createdAt": 1790000100,
+                "expiresAt": 1792592100
+              },
+              {
+                "id": "r-4",
+                "familyId": "fam-2",
+                "userId": "u_1042",
+                "deviceId": "phone",
+                "tokenHash": "7d10df6863278b1efff2ceaeccd0b5e5a3dac12bc7ac6fe905f84ef57ea8871b",
+                "status": "active",
+                "createdAt": 1790000600,
+                "expiresAt": 1792592600
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Twenty refreshes every 15 minutes: exactly one active record, the first token is rotated",
+          "input": {
+            "newTokens": [
+              "rt_long_01x9",
+              "rt_long_02x9",
+              "rt_long_03x9",
+              "rt_long_04x9",
+              "rt_long_05x9",
+              "rt_long_06x9",
+              "rt_long_07x9",
+              "rt_long_08x9",
+              "rt_long_09x9",
+              "rt_long_10x9",
+              "rt_long_11x9",
+              "rt_long_12x9",
+              "rt_long_13x9",
+              "rt_long_14x9",
+              "rt_long_15x9",
+              "rt_long_16x9",
+              "rt_long_17x9",
+              "rt_long_18x9",
+              "rt_long_19x9",
+              "rt_long_20x9",
+              "rt_long_21x9"
+            ],
+            "ops": [
+              {
+                "op": "login",
+                "at": 1790000000,
+                "userId": "u_3141",
+                "deviceId": "tablet"
+              },
+              {
+                "op": "refresh",
+                "at": 1790000900,
+                "token": "rt_long_01x9"
+              },
+              {
+                "op": "refresh",
+                "at": 1790001800,
+                "token": "rt_long_02x9"
+              },
+              {
+                "op": "refresh",
+                "at": 1790002700,
+                "token": "rt_long_03x9"
+              },
+              {
+                "op": "refresh",
+                "at": 1790003600,
+                "token": "rt_long_04x9"
+              },
+              {
+                "op": "refresh",
+                "at": 1790004500,
+                "token": "rt_long_05x9"
+              },
+              {
+                "op": "refresh",
+                "at": 1790005400,
+                "token": "rt_long_06x9"
+              },
+              {
+                "op": "refresh",
+                "at": 1790006300,
+                "token": "rt_long_07x9"
+              },
+              {
+                "op": "refresh",
+                "at": 1790007200,
+                "token": "rt_long_08x9"
+              },
+              {
+                "op": "refresh",
+                "at": 1790008100,
+                "token": "rt_long_09x9"
+              },
+              {
+                "op": "refresh",
+                "at": 1790009000,
+                "token": "rt_long_10x9"
+              },
+              {
+                "op": "refresh",
+                "at": 1790009900,
+                "token": "rt_long_11x9"
+              },
+              {
+                "op": "refresh",
+                "at": 1790010800,
+                "token": "rt_long_12x9"
+              },
+              {
+                "op": "refresh",
+                "at": 1790011700,
+                "token": "rt_long_13x9"
+              },
+              {
+                "op": "refresh",
+                "at": 1790012600,
+                "token": "rt_long_14x9"
+              },
+              {
+                "op": "refresh",
+                "at": 1790013500,
+                "token": "rt_long_15x9"
+              },
+              {
+                "op": "refresh",
+                "at": 1790014400,
+                "token": "rt_long_16x9"
+              },
+              {
+                "op": "refresh",
+                "at": 1790015300,
+                "token": "rt_long_17x9"
+              },
+              {
+                "op": "refresh",
+                "at": 1790016200,
+                "token": "rt_long_18x9"
+              },
+              {
+                "op": "refresh",
+                "at": 1790017100,
+                "token": "rt_long_19x9"
+              },
+              {
+                "op": "refresh",
+                "at": 1790018000,
+                "token": "rt_long_20x9"
+              },
+              {
+                "op": "refresh",
+                "at": 1790018900,
+                "token": "rt_long_01x9"
+              }
+            ]
+          },
+          "expected": {
+            "results": [
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_long_01x9",
+                "refreshExpiresAt": 1792592000,
+                "accessTokenId": "at-1",
+                "accessExpiresAt": 1790000900
+              },
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_long_02x9",
+                "refreshExpiresAt": 1792592900,
+                "accessTokenId": "at-2",
+                "accessExpiresAt": 1790001800
+              },
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_long_03x9",
+                "refreshExpiresAt": 1792593800,
+                "accessTokenId": "at-3",
+                "accessExpiresAt": 1790002700
+              },
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_long_04x9",
+                "refreshExpiresAt": 1792594700,
+                "accessTokenId": "at-4",
+                "accessExpiresAt": 1790003600
+              },
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_long_05x9",
+                "refreshExpiresAt": 1792595600,
+                "accessTokenId": "at-5",
+                "accessExpiresAt": 1790004500
+              },
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_long_06x9",
+                "refreshExpiresAt": 1792596500,
+                "accessTokenId": "at-6",
+                "accessExpiresAt": 1790005400
+              },
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_long_07x9",
+                "refreshExpiresAt": 1792597400,
+                "accessTokenId": "at-7",
+                "accessExpiresAt": 1790006300
+              },
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_long_08x9",
+                "refreshExpiresAt": 1792598300,
+                "accessTokenId": "at-8",
+                "accessExpiresAt": 1790007200
+              },
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_long_09x9",
+                "refreshExpiresAt": 1792599200,
+                "accessTokenId": "at-9",
+                "accessExpiresAt": 1790008100
+              },
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_long_10x9",
+                "refreshExpiresAt": 1792600100,
+                "accessTokenId": "at-10",
+                "accessExpiresAt": 1790009000
+              },
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_long_11x9",
+                "refreshExpiresAt": 1792601000,
+                "accessTokenId": "at-11",
+                "accessExpiresAt": 1790009900
+              },
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_long_12x9",
+                "refreshExpiresAt": 1792601900,
+                "accessTokenId": "at-12",
+                "accessExpiresAt": 1790010800
+              },
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_long_13x9",
+                "refreshExpiresAt": 1792602800,
+                "accessTokenId": "at-13",
+                "accessExpiresAt": 1790011700
+              },
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_long_14x9",
+                "refreshExpiresAt": 1792603700,
+                "accessTokenId": "at-14",
+                "accessExpiresAt": 1790012600
+              },
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_long_15x9",
+                "refreshExpiresAt": 1792604600,
+                "accessTokenId": "at-15",
+                "accessExpiresAt": 1790013500
+              },
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_long_16x9",
+                "refreshExpiresAt": 1792605500,
+                "accessTokenId": "at-16",
+                "accessExpiresAt": 1790014400
+              },
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_long_17x9",
+                "refreshExpiresAt": 1792606400,
+                "accessTokenId": "at-17",
+                "accessExpiresAt": 1790015300
+              },
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_long_18x9",
+                "refreshExpiresAt": 1792607300,
+                "accessTokenId": "at-18",
+                "accessExpiresAt": 1790016200
+              },
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_long_19x9",
+                "refreshExpiresAt": 1792608200,
+                "accessTokenId": "at-19",
+                "accessExpiresAt": 1790017100
+              },
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_long_20x9",
+                "refreshExpiresAt": 1792609100,
+                "accessTokenId": "at-20",
+                "accessExpiresAt": 1790018000
+              },
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_long_21x9",
+                "refreshExpiresAt": 1792610000,
+                "accessTokenId": "at-21",
+                "accessExpiresAt": 1790018900
+              },
+              {
+                "error": "token_rotated"
+              }
+            ],
+            "store": [
+              {
+                "id": "r-1",
+                "familyId": "fam-1",
+                "userId": "u_3141",
+                "deviceId": "tablet",
+                "tokenHash": "99923c9381f4097c08ef8ddddd19ad265423f4be74cff74ade7d25f5aa701233",
+                "status": "rotated",
+                "createdAt": 1790000000,
+                "expiresAt": 1792592000,
+                "replacedBy": "r-2"
+              },
+              {
+                "id": "r-2",
+                "familyId": "fam-1",
+                "userId": "u_3141",
+                "deviceId": "tablet",
+                "tokenHash": "e62a5981c4367fc8d1e7de3bac7a48800583b00a367298ecb6823c0ae1e44734",
+                "status": "rotated",
+                "createdAt": 1790000900,
+                "expiresAt": 1792592900,
+                "replacedBy": "r-3"
+              },
+              {
+                "id": "r-3",
+                "familyId": "fam-1",
+                "userId": "u_3141",
+                "deviceId": "tablet",
+                "tokenHash": "ffbde941f1143a82a6a5f72f121e5de5cd952525178dba7f5d104c942ad235ba",
+                "status": "rotated",
+                "createdAt": 1790001800,
+                "expiresAt": 1792593800,
+                "replacedBy": "r-4"
+              },
+              {
+                "id": "r-4",
+                "familyId": "fam-1",
+                "userId": "u_3141",
+                "deviceId": "tablet",
+                "tokenHash": "3362af35e1edc78c4e938ccda1cf98b54b3a7074bb2ed69f56518aac7e19dd7a",
+                "status": "rotated",
+                "createdAt": 1790002700,
+                "expiresAt": 1792594700,
+                "replacedBy": "r-5"
+              },
+              {
+                "id": "r-5",
+                "familyId": "fam-1",
+                "userId": "u_3141",
+                "deviceId": "tablet",
+                "tokenHash": "8b46e35114c775c26c54d18b93d2a994e3a9c349f17b8dcd63b6269772036127",
+                "status": "rotated",
+                "createdAt": 1790003600,
+                "expiresAt": 1792595600,
+                "replacedBy": "r-6"
+              },
+              {
+                "id": "r-6",
+                "familyId": "fam-1",
+                "userId": "u_3141",
+                "deviceId": "tablet",
+                "tokenHash": "460e610b5b57381a5163b38e5098530762d124822405b58564ca049c07c8a6bc",
+                "status": "rotated",
+                "createdAt": 1790004500,
+                "expiresAt": 1792596500,
+                "replacedBy": "r-7"
+              },
+              {
+                "id": "r-7",
+                "familyId": "fam-1",
+                "userId": "u_3141",
+                "deviceId": "tablet",
+                "tokenHash": "a647bca8714732607058e89f3840cc90774cd4088754465ccb04cc16d042a093",
+                "status": "rotated",
+                "createdAt": 1790005400,
+                "expiresAt": 1792597400,
+                "replacedBy": "r-8"
+              },
+              {
+                "id": "r-8",
+                "familyId": "fam-1",
+                "userId": "u_3141",
+                "deviceId": "tablet",
+                "tokenHash": "2e218bd87c1c0664ede694480418278d947d326feb2d7226bd8613b98bd44d6b",
+                "status": "rotated",
+                "createdAt": 1790006300,
+                "expiresAt": 1792598300,
+                "replacedBy": "r-9"
+              },
+              {
+                "id": "r-9",
+                "familyId": "fam-1",
+                "userId": "u_3141",
+                "deviceId": "tablet",
+                "tokenHash": "cfc09cfe6832c252c8f35c765b5e3dbe86f5e6453dcadf735c5fde42f146d583",
+                "status": "rotated",
+                "createdAt": 1790007200,
+                "expiresAt": 1792599200,
+                "replacedBy": "r-10"
+              },
+              {
+                "id": "r-10",
+                "familyId": "fam-1",
+                "userId": "u_3141",
+                "deviceId": "tablet",
+                "tokenHash": "a71b1987034089e87980a36c0fcd342b6c5a44da994391e8b4d692cbc628aee0",
+                "status": "rotated",
+                "createdAt": 1790008100,
+                "expiresAt": 1792600100,
+                "replacedBy": "r-11"
+              },
+              {
+                "id": "r-11",
+                "familyId": "fam-1",
+                "userId": "u_3141",
+                "deviceId": "tablet",
+                "tokenHash": "6c4097f9da65866ee6556574de2e7bf925e83033de9dc0950d951698876d4796",
+                "status": "rotated",
+                "createdAt": 1790009000,
+                "expiresAt": 1792601000,
+                "replacedBy": "r-12"
+              },
+              {
+                "id": "r-12",
+                "familyId": "fam-1",
+                "userId": "u_3141",
+                "deviceId": "tablet",
+                "tokenHash": "7b6464902e7ad4c11e370072bcfa36e5ea94d023b64f7f311b0e97aa0f917501",
+                "status": "rotated",
+                "createdAt": 1790009900,
+                "expiresAt": 1792601900,
+                "replacedBy": "r-13"
+              },
+              {
+                "id": "r-13",
+                "familyId": "fam-1",
+                "userId": "u_3141",
+                "deviceId": "tablet",
+                "tokenHash": "e1f83d39093df2ff8e5062fa3ffda5f1d4052033cfe5bae5483c549e1fa7b0d0",
+                "status": "rotated",
+                "createdAt": 1790010800,
+                "expiresAt": 1792602800,
+                "replacedBy": "r-14"
+              },
+              {
+                "id": "r-14",
+                "familyId": "fam-1",
+                "userId": "u_3141",
+                "deviceId": "tablet",
+                "tokenHash": "413def35bb699c10f4ea4cd61759814f891ec1fe7acd672ee0d088c0d3103a0a",
+                "status": "rotated",
+                "createdAt": 1790011700,
+                "expiresAt": 1792603700,
+                "replacedBy": "r-15"
+              },
+              {
+                "id": "r-15",
+                "familyId": "fam-1",
+                "userId": "u_3141",
+                "deviceId": "tablet",
+                "tokenHash": "088f41bb8a76aaf3378ba236e4bee5d7fd77efa02082ae3258f8d47f8acc8f22",
+                "status": "rotated",
+                "createdAt": 1790012600,
+                "expiresAt": 1792604600,
+                "replacedBy": "r-16"
+              },
+              {
+                "id": "r-16",
+                "familyId": "fam-1",
+                "userId": "u_3141",
+                "deviceId": "tablet",
+                "tokenHash": "f8aa4a9456acf99a120d896c94d105e461636402f76c0aa38d40d130c1c55c63",
+                "status": "rotated",
+                "createdAt": 1790013500,
+                "expiresAt": 1792605500,
+                "replacedBy": "r-17"
+              },
+              {
+                "id": "r-17",
+                "familyId": "fam-1",
+                "userId": "u_3141",
+                "deviceId": "tablet",
+                "tokenHash": "ca5bee890df27a700544fb70be483367eb01b89ceeb931a48083d2a0ed6ab6aa",
+                "status": "rotated",
+                "createdAt": 1790014400,
+                "expiresAt": 1792606400,
+                "replacedBy": "r-18"
+              },
+              {
+                "id": "r-18",
+                "familyId": "fam-1",
+                "userId": "u_3141",
+                "deviceId": "tablet",
+                "tokenHash": "5e43d339d5104960f9d3365d2b24cbf8a206ead99596efff85b5e94ec721a25a",
+                "status": "rotated",
+                "createdAt": 1790015300,
+                "expiresAt": 1792607300,
+                "replacedBy": "r-19"
+              },
+              {
+                "id": "r-19",
+                "familyId": "fam-1",
+                "userId": "u_3141",
+                "deviceId": "tablet",
+                "tokenHash": "e957142eeeb40bd9320404492b9f8bc81f12b765e5bdde7efdf3de36e039291e",
+                "status": "rotated",
+                "createdAt": 1790016200,
+                "expiresAt": 1792608200,
+                "replacedBy": "r-20"
+              },
+              {
+                "id": "r-20",
+                "familyId": "fam-1",
+                "userId": "u_3141",
+                "deviceId": "tablet",
+                "tokenHash": "daa3609c98450703b7ee11ecffa7f40dbe451681dbb8d7bf0639a80d9f45f81e",
+                "status": "rotated",
+                "createdAt": 1790017100,
+                "expiresAt": 1792609100,
+                "replacedBy": "r-21"
+              },
+              {
+                "id": "r-21",
+                "familyId": "fam-1",
+                "userId": "u_3141",
+                "deviceId": "tablet",
+                "tokenHash": "c07387b06f5a17550169b07a21d9e9861bf3250851928d37a3cfdd84f1b23dcc",
+                "status": "active",
+                "createdAt": 1790018000,
+                "expiresAt": 1792610000
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

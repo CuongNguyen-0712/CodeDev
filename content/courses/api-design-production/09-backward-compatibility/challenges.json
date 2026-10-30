@@ -1,0 +1,395 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_adp_321",
+      "name": "breaking-change-direction-quiz",
+      "type": "quiz",
+      "title": "Breaking for whom? Responses and requests",
+      "description": "Two schema diffs from CodeDev pull requests: a new enum value in a course response read by the mobile apps, and two relaxed rules in an enrollment request body. Decide whether each statement is True or False.",
+      "difficulty": "medium",
+      "points": 20,
+      "hints": [
+        "Who reads the field in each diff? For a response, the old client reads what the server sends; for a request, the server reads what the old client sends.",
+        "Look at how the Android app turns the level string into its own type, and what happens to a value that type does not list.",
+        "A similar case: a payments API adds \"refunded\" to the status it returns, and an old dashboard that switches over status with no default branch shows an error page. The same API starts accepting \"EUR\" as a currency in requests: old clients that only ever send \"VND\" do not notice."
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Pull request #812 changes the response schema of GET /v1/courses/{id}:\n\n  level:\n    type: string\n-   enum: [beginner, intermediate, advanced]\n+   enum: [beginner, intermediate, advanced, expert]\n\nAndroid app 4.12 (in the store, installed by most Android learners) decodes the response with:\n\n@Serializable enum class Level { @SerialName(\"beginner\") BEGINNER, @SerialName(\"intermediate\") INTERMEDIATE, @SerialName(\"advanced\") ADVANCED }\n@Serializable data class CourseDto(val id: String, val title: String, val level: Level)\n\nStatement: \"Adding expert is a non-breaking change for Android 4.12, because the pull request only adds an enum value and removes none.\"",
+          "explanation": "False. In a response, the old client is the reader. Android 4.12 maps level onto a closed Kotlin enum, and with default settings the decoder rejects a value it does not list, so every course with level expert fails to decode - and with it the whole course list that contains it. Adding a value widens what the server may send, which is breaking for responses unless every client was written as a tolerant reader (an unknown value maps to a fallback such as UNKNOWN). The misconception is that \"only additions\" are always safe: they are safe for requests, not for enum values in responses.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Pull request #815 changes the request body schema of POST /v1/enrollments:\n\n  required: [courseId, source]       (was: [courseId, source, referralCode])\n  properties:\n    courseId:     { type: string }\n    referralCode: { type: string }\n    source:\n      type: string\n-     enum: [web, ios, android]\n+     enum: [web, ios, android, partner]\n\nThe server is the only reader of this body. Every existing client sends courseId, source (one of web, ios, android) and referralCode.\n\nStatement: \"Making referralCode optional and accepting the new source value partner are both non-breaking for existing clients.\"",
+          "explanation": "True. For a request body the server is the reader and the old clients are the writers. Every body an old client sends - with referralCode, with source web, ios or android - is still accepted, so nothing changes for them. Relaxing a request (a required field becomes optional, an enum accepts more values) is safe; tightening it (a new required field, a removed enum value, a stricter format) is breaking. That is the opposite direction from a response, where the same two edits - a field that may now be missing, a value the client has never seen - are the breaking ones.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_adp_322",
+      "name": "detect-breaking-response-changes",
+      "type": "mini_coding",
+      "title": "Detect breaking changes between two response schemas",
+      "description": "Before each release of the CodeDev API, CI compares the response schema of an endpoint in the last release with the one in the pull request and fails the build on a breaking change. Write breakingChanges(oldSchema, newSchema) and return the breaking changes for a RESPONSE, in the order defined below.\n\nSchema (a subset of JSON Schema / OpenAPI): type is one of \"object\", \"array\", \"string\", \"number\", \"integer\", \"boolean\"; properties (object only, missing = no properties); required (object only, the names that are always present, missing = []); items (array only, the schema of every element); enum (string/number/integer only, the allowed values, missing = any value); nullable (missing = false). Property names are letters, digits and underscores.\n\nPaths: the root is \"\" (empty string); a property appends \"/<name>\"; array items append \"/[]\" (\"/lessons/[]/title\" is the title of every lesson).\n\nCompare a node (old o, new n, path p) from the root, reporting in this order:\n1. o.type differs from n.type -> { \"kind\": \"type_changed\", \"path\": p } and stop: report nothing else for this node or below it. Exception: number -> integer is not a change to report (every integer is a number); integer -> number is.\n2. o is not nullable and n is -> { \"kind\": \"now_nullable\", \"path\": p }.\n3. o has an enum: if n has none -> { \"kind\": \"enum_dropped\", \"path\": p }; otherwise, for every value of n.enum that is not in o.enum, in n.enum order -> { \"kind\": \"enum_value_added\", \"path\": p, \"value\": <the value> }.\n4. object: for each property of o, in o's property order: missing from n -> { \"kind\": \"property_removed\", \"path\": p + \"/\" + name } and nothing else for it; otherwise, if it is in o.required but not in n.required -> { \"kind\": \"now_optional\", \"path\": p + \"/\" + name }, then compare the two property schemas.\n5. array: compare o.items with n.items at p + \"/[]\".\n\nNever reported (not breaking for a response): new properties, required or not; optional -> required; nullable -> not nullable; removed enum values; an enum on a node that had none.\n\nThe runner reads { \"old\": Schema, \"new\": Schema } and prints the returned array as JSON; only enum_value_added objects have a value key.",
+      "difficulty": "medium",
+      "points": 40,
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "hints": [
+        "For a response, the server writes and the old client reads. For each kind of edit, ask: can the old client now receive something it has never received before - a missing field, a null, a new value, a different type?",
+        "Write one recursive function compare(o, n, path, out) that applies rules 1 to 3 to the node itself, then loops over the old properties (rule 4) or descends into items (rule 5). Return right after type_changed, and loop over o.properties, not n.properties, so that the order follows the old schema.",
+        "The same walk on a different structure: comparing two versions of a config file tree, where a removed key is reported as \"/db/host removed\", and a key whose value changed from a table to a string is reported once as \"/cache type changed\" without looking at the old table's keys. The walk visits the old tree's keys in their original order and appends \"/<key>\" to the path on the way down."
+      ],
+      "tests": [
+        {
+          "name": "The incident PR: new enum value, nullable date and a removed property are reported",
+          "input": {
+            "old": {
+              "type": "object",
+              "required": ["id", "slug", "title", "level", "publishedAt", "enrollmentCount"],
+              "properties": {
+                "id": { "type": "string" },
+                "slug": { "type": "string" },
+                "title": { "type": "string" },
+                "level": { "type": "string", "enum": ["beginner", "intermediate", "advanced"] },
+                "publishedAt": { "type": "string" },
+                "enrollmentCount": { "type": "integer" }
+              }
+            },
+            "new": {
+              "type": "object",
+              "required": ["id", "slug", "title", "level", "publishedAt"],
+              "properties": {
+                "id": { "type": "string" },
+                "slug": { "type": "string" },
+                "title": { "type": "string" },
+                "subtitle": { "type": "string" },
+                "level": { "type": "string", "enum": ["beginner", "intermediate", "advanced", "expert"] },
+                "publishedAt": { "type": "string", "nullable": true }
+              }
+            }
+          },
+          "expected": [
+            { "kind": "enum_value_added", "path": "/level", "value": "expert" },
+            { "kind": "now_nullable", "path": "/publishedAt" },
+            { "kind": "property_removed", "path": "/enrollmentCount" }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Additive changes report nothing: a new optional and a new required property",
+          "input": {
+            "old": {
+              "type": "object",
+              "required": ["id", "title"],
+              "properties": {
+                "id": { "type": "string" },
+                "title": { "type": "string" }
+              }
+            },
+            "new": {
+              "type": "object",
+              "required": ["id", "title", "durationMinutes"],
+              "properties": {
+                "id": { "type": "string" },
+                "title": { "type": "string" },
+                "subtitle": { "type": "string" },
+                "durationMinutes": { "type": "integer" }
+              }
+            }
+          },
+          "expected": [],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A required property that became optional and a type change, in old property order",
+          "input": {
+            "old": {
+              "type": "object",
+              "required": ["id", "title", "enrollmentCount"],
+              "properties": {
+                "id": { "type": "string" },
+                "title": { "type": "string" },
+                "enrollmentCount": { "type": "integer" }
+              }
+            },
+            "new": {
+              "type": "object",
+              "required": ["id", "enrollmentCount"],
+              "properties": {
+                "id": { "type": "string" },
+                "title": { "type": "string" },
+                "enrollmentCount": { "type": "string" }
+              }
+            }
+          },
+          "expected": [
+            { "kind": "now_optional", "path": "/title" },
+            { "kind": "type_changed", "path": "/enrollmentCount" }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Nested objects and array items are compared, with /[] in the path for items",
+          "input": {
+            "old": {
+              "type": "object",
+              "required": ["id", "instructor", "lessons"],
+              "properties": {
+                "id": { "type": "string" },
+                "instructor": {
+                  "type": "object",
+                  "required": ["name"],
+                  "properties": {
+                    "name": { "type": "string" },
+                    "avatarUrl": { "type": "string" }
+                  }
+                },
+                "lessons": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["id", "title", "durationMinutes", "kind"],
+                    "properties": {
+                      "id": { "type": "string" },
+                      "title": { "type": "string" },
+                      "durationMinutes": { "type": "integer" },
+                      "kind": { "type": "string", "enum": ["video", "article", "quiz"] }
+                    }
+                  }
+                }
+              }
+            },
+            "new": {
+              "type": "object",
+              "required": ["id", "instructor", "lessons"],
+              "properties": {
+                "id": { "type": "string" },
+                "instructor": {
+                  "type": "object",
+                  "required": ["name"],
+                  "properties": {
+                    "name": { "type": "string", "nullable": true }
+                  }
+                },
+                "lessons": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["id", "durationMinutes", "kind"],
+                    "properties": {
+                      "id": { "type": "string" },
+                      "durationMinutes": { "type": "number" },
+                      "kind": { "type": "string", "enum": ["video", "article", "lab", "quiz", "coding"] }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "expected": [
+            { "kind": "now_nullable", "path": "/instructor/name" },
+            { "kind": "property_removed", "path": "/instructor/avatarUrl" },
+            { "kind": "property_removed", "path": "/lessons/[]/title" },
+            { "kind": "type_changed", "path": "/lessons/[]/durationMinutes" },
+            { "kind": "enum_value_added", "path": "/lessons/[]/kind", "value": "lab" },
+            { "kind": "enum_value_added", "path": "/lessons/[]/kind", "value": "coding" }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Narrowing a response is safe: removed enum value, non-null, number to integer, now required",
+          "input": {
+            "old": {
+              "type": "object",
+              "required": ["id"],
+              "properties": {
+                "id": { "type": "string" },
+                "level": { "type": "string", "enum": ["beginner", "intermediate", "advanced", "legacy"] },
+                "rating": { "type": "number", "nullable": true },
+                "score": { "type": "number" },
+                "tags": { "type": "array", "items": { "type": "string", "nullable": true } }
+              }
+            },
+            "new": {
+              "type": "object",
+              "required": ["id", "level", "rating"],
+              "properties": {
+                "id": { "type": "string" },
+                "level": { "type": "string", "enum": ["beginner", "intermediate", "advanced"] },
+                "rating": { "type": "number" },
+                "score": { "type": "integer" },
+                "tags": { "type": "array", "items": { "type": "string", "enum": ["backend", "frontend"] } }
+              }
+            }
+          },
+          "expected": [],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A type change is reported once with nothing below it; a dropped enum list is reported",
+          "input": {
+            "old": {
+              "type": "object",
+              "required": ["instructor", "level", "lessons"],
+              "properties": {
+                "instructor": {
+                  "type": "object",
+                  "required": ["name", "bio"],
+                  "properties": {
+                    "name": { "type": "string" },
+                    "bio": { "type": "string" }
+                  }
+                },
+                "level": { "type": "string", "enum": ["beginner", "intermediate", "advanced"] },
+                "lessons": { "type": "array", "items": { "type": "string" } }
+              }
+            },
+            "new": {
+              "type": "object",
+              "required": ["instructor", "level", "lessons"],
+              "properties": {
+                "instructor": { "type": "string" },
+                "level": { "type": "string" },
+                "lessons": { "type": "object", "properties": {} }
+              }
+            }
+          },
+          "expected": [
+            { "kind": "type_changed", "path": "/instructor" },
+            { "kind": "enum_dropped", "path": "/level" },
+            { "kind": "type_changed", "path": "/lessons" }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Defaults and the root: a nullable root array whose items lost their required list",
+          "input": {
+            "old": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["id", "title"],
+                "properties": {
+                  "id": { "type": "string" },
+                  "title": { "type": "string" }
+                }
+              }
+            },
+            "new": {
+              "type": "array",
+              "nullable": true,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": { "type": "string" },
+                  "title": { "type": "string" },
+                  "slug": { "type": "string" }
+                }
+              }
+            }
+          },
+          "expected": [
+            { "kind": "now_nullable", "path": "" },
+            { "kind": "now_optional", "path": "/[]/id" },
+            { "kind": "now_optional", "path": "/[]/title" }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Larger schema: reports follow the old schema's property order, not the new one's",
+          "input": {
+            "old": {
+              "type": "object",
+              "required": ["id", "title", "level", "price", "publishedAt", "stats", "tags"],
+              "properties": {
+                "id": { "type": "string" },
+                "title": { "type": "string" },
+                "level": { "type": "string", "enum": ["beginner", "intermediate", "advanced"] },
+                "price": {
+                  "type": "object",
+                  "required": ["amount", "currency"],
+                  "properties": {
+                    "amount": { "type": "integer" },
+                    "currency": { "type": "string", "enum": ["VND"] }
+                  }
+                },
+                "publishedAt": { "type": "string" },
+                "stats": {
+                  "type": "object",
+                  "required": ["enrollments", "rating"],
+                  "properties": {
+                    "enrollments": { "type": "integer" },
+                    "rating": { "type": "number" }
+                  }
+                },
+                "tags": { "type": "array", "items": { "type": "string", "enum": ["backend", "frontend"] } }
+              }
+            },
+            "new": {
+              "type": "object",
+              "required": ["tags", "stats", "price", "level", "title", "id"],
+              "properties": {
+                "tags": { "type": "array", "items": { "type": "string", "enum": ["backend", "frontend", "ai"] } },
+                "stats": {
+                  "type": "object",
+                  "properties": {
+                    "enrollments": { "type": "integer" }
+                  }
+                },
+                "price": {
+                  "type": "object",
+                  "required": ["amount", "currency"],
+                  "properties": {
+                    "currency": { "type": "string", "enum": ["VND", "USD"] },
+                    "amount": { "type": "number" }
+                  }
+                },
+                "level": { "type": "string", "enum": ["beginner", "intermediate", "advanced", "expert"] },
+                "title": { "type": "string", "nullable": true },
+                "id": { "type": "string" }
+              }
+            }
+          },
+          "expected": [
+            { "kind": "now_nullable", "path": "/title" },
+            { "kind": "enum_value_added", "path": "/level", "value": "expert" },
+            { "kind": "type_changed", "path": "/price/amount" },
+            { "kind": "enum_value_added", "path": "/price/currency", "value": "USD" },
+            { "kind": "property_removed", "path": "/publishedAt" },
+            { "kind": "now_optional", "path": "/stats/enrollments" },
+            { "kind": "property_removed", "path": "/stats/rating" },
+            { "kind": "enum_value_added", "path": "/tags/[]", "value": "ai" }
+          ],
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

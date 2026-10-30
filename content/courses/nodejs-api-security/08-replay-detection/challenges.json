@@ -1,0 +1,1042 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nas_311",
+      "name": "replay-detection-quiz",
+      "type": "quiz",
+      "title": "What reuse detection must revoke",
+      "description": "The security event and the refresh store right after a replay on CodeDev, and a first attempt at reuse detection from a pull request. Decide whether each statement is True or False.",
+      "difficulty": "medium",
+      "points": 20,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A stolen refresh token was replayed against POST /v1/auth/refresh. The service emitted:\n\n{ \"type\": \"refresh_reuse_detected\", \"userId\": \"u_1042\", \"familyId\": \"fam-81\", \"deviceId\": \"laptop\", \"at\": 1790000900 }\n\nThe store for u_1042 right afterwards:\n\nr-7  fam-81  laptop  revoked  replacedBy r-8\nr-8  fam-81  laptop  revoked\nr-5  fam-64  phone   active\n\nThe learner's laptop browser holds r-8 in its __Secure-cd_refresh cookie.\n\nStatement: \"The next silent refresh from the learner's laptop fails, so she has to sign in again on that laptop, while her phone session keeps working.\"",
+          "explanation": "True. Reuse detection cannot tell which party presented the replayed token and which one holds the newest token, so it revokes every record of family fam-81, including r-8, the newest one. Whoever holds r-8 - here the learner's own browser, in other cases the attacker - gets token_revoked on the next refresh and must authenticate again; that is the price that also locks the attacker out. Family fam-64 started from a different login on another device, so the phone keeps working. The misconception is that the victim's current token can be spared: the server has no way to know which copy belongs to the victim.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A pull request adds reuse detection to the refresh service. The validate step now reads:\n\nif (record.status === \"rotated\") {\n    record.status = \"revoked\";\n    events.emit({ type: \"refresh_reuse_detected\", userId: record.userId, familyId: record.familyId, deviceId: record.deviceId, at });\n    throw new AuthError(\"token_reuse_detected\");\n}\n\nScenario: an attacker copied r-7, refreshed with it first and received r-8. Ten minutes later the learner's browser sends r-7 and gets token_reuse_detected.\n\nStatement: \"With this change the attacker loses access at that moment, because the replayed token r-7 is now revoked.\"",
+          "explanation": "False. r-7 was already useless: it had been rotated, so revoking it changes nothing. The attacker is holding r-8, which is still active, and can keep refreshing for up to 90 days; the alert fires but nothing is stopped. Reuse detection has to revoke the whole family - every record with the same familyId, the active one included - because the server cannot tell whether the active token belongs to the attacker or to the learner. The misconception is to treat the presented token as the stolen one; the dangerous token is the newest one in the family.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_nas_312",
+      "name": "detect-refresh-token-replay",
+      "type": "mini_coding",
+      "title": "Detect refresh token replay and revoke the family",
+      "description": "Extend the CodeDev refresh session service from lesson 7 with reuse detection. The test runner creates RefreshSessionService(newTokens, emit), plays a script of operations at fake clock times (unix seconds) and prints { results, events, store }; events are what you passed to emit, in order.\n\nUnchanged from lesson 7 (login and the private issue helper are already written in the starter): families \"fam-1\", \"fam-2\", ... per login; records \"r-1\", \"r-2\", ... and access ids \"at-1\", ... in creation order; refresh tokens taken in order from newTokens; tokenHash = sha256 hex; expiresAt = min(at + 2592000, familyLoginAt + 7776000); access tokens expire at at + 900; only successful operations consume tokens and ids; a successful refresh issues a new token in the same family and sets the old record to status \"rotated\" with replacedBy = the new record's id.\n\nWrite refresh(token, at) and logout(token, at). Both find the record by the sha256 of token and check in this order:\n1. no record -> throw new AuthError(\"unknown_token\").\n2. status \"revoked\" -> \"token_revoked\".\n3. status \"rotated\" -> reuse detected: set status \"revoked\" on EVERY record of that family (rotated and active alike; keep replacedBy), call emit({ type: \"refresh_reuse_detected\", userId, familyId, deviceId, at }) exactly once with the family's values and the current time, then throw \"token_reuse_detected\". This check comes before the expiry check: a rotated token counts as reuse even after its own expiresAt. No grace window.\n4. at >= expiresAt -> \"token_expired\" (no event, nothing changes).\nOtherwise refresh rotates as in lesson 7, and logout sets status \"revoked\" on every record of the token's family (the runner prints { loggedOut: true }); logout emits no event.\n\nOther families - of the same user or of other users - are never touched. Errors 1, 2 and 4 change nothing, so a family that is already revoked never produces a second event.",
+      "difficulty": "hard",
+      "points": 50,
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "hints": [
+        "When a rotated token comes back, which token in its family is the dangerous one, and who holds it? What must be true of a family after detection so that the next replay of any of its tokens cannot raise the alert again?",
+        "Put the four checks in one private validate(token, at) shared by refresh and logout, and the revocation in one private revokeFamily(familyId) that walks every record and matches on familyId. Detection is a side effect inside the rotated branch: revoke, emit, then throw. Compare your revokeFamily with what logout needs.",
+        "A similar rule on a different domain: a hotel issues a new key card at every visit to the desk and deactivates the previous one. If a deactivated card is ever swiped, the hotel cannot tell whether the guest or a thief holds the newest card, so it deactivates every card issued for that room booking, logs one incident for the booking, and asks the guest to show ID at the desk. A second swipe of any of those cards is just \"card deactivated\" - the booking already has its incident - and the guest's other booking in another room keeps working."
+      ],
+      "tests": [
+        {
+          "name": "Attacker refreshes first; the victim's retry with the old token revokes the whole family",
+          "input": {
+            "newTokens": [
+              "rt_v1Lp9qX2",
+              "rt_a2Zt7mK4",
+              "rt_spare001"
+            ],
+            "ops": [
+              {
+                "op": "login",
+                "at": 1790000000,
+                "userId": "u_1042",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "refresh",
+                "at": 1790000060,
+                "token": "rt_v1Lp9qX2"
+              },
+              {
+                "op": "refresh",
+                "at": 1790000900,
+                "token": "rt_v1Lp9qX2"
+              },
+              {
+                "op": "refresh",
+                "at": 1790000960,
+                "token": "rt_a2Zt7mK4"
+              }
+            ]
+          },
+          "expected": {
+            "results": [
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_v1Lp9qX2",
+                "refreshExpiresAt": 1792592000,
+                "accessTokenId": "at-1",
+                "accessExpiresAt": 1790000900
+              },
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_a2Zt7mK4",
+                "refreshExpiresAt": 1792592060,
+                "accessTokenId": "at-2",
+                "accessExpiresAt": 1790000960
+              },
+              {
+                "error": "token_reuse_detected"
+              },
+              {
+                "error": "token_revoked"
+              }
+            ],
+            "events": [
+              {
+                "type": "refresh_reuse_detected",
+                "userId": "u_1042",
+                "familyId": "fam-1",
+                "deviceId": "laptop",
+                "at": 1790000900
+              }
+            ],
+            "store": [
+              {
+                "id": "r-1",
+                "familyId": "fam-1",
+                "userId": "u_1042",
+                "deviceId": "laptop",
+                "tokenHash": "f58cfe6bfeadfbe284944bb0369e3c7d8266a6aa6cac37bd401a6e473d33f391",
+                "status": "revoked",
+                "createdAt": 1790000000,
+                "expiresAt": 1792592000,
+                "replacedBy": "r-2"
+              },
+              {
+                "id": "r-2",
+                "familyId": "fam-1",
+                "userId": "u_1042",
+                "deviceId": "laptop",
+                "tokenHash": "7b9b7e81296d4964f3c7ab437616bdfc409ae98ad5a6b5f173b041ae6c582179",
+                "status": "revoked",
+                "createdAt": 1790000060,
+                "expiresAt": 1792592060
+              }
+            ]
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Victim refreshes first; the replay revokes that family only, the phone keeps working",
+          "input": {
+            "newTokens": [
+              "rt_lap0001a",
+              "rt_pho0001a",
+              "rt_lap0002a",
+              "rt_pho0002a",
+              "rt_spare002"
+            ],
+            "ops": [
+              {
+                "op": "login",
+                "at": 1790000000,
+                "userId": "u_1042",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "at": 1790000005,
+                "userId": "u_1042",
+                "deviceId": "phone"
+              },
+              {
+                "op": "refresh",
+                "at": 1790000900,
+                "token": "rt_lap0001a"
+              },
+              {
+                "op": "refresh",
+                "at": 1790001000,
+                "token": "rt_lap0001a"
+              },
+              {
+                "op": "refresh",
+                "at": 1790001800,
+                "token": "rt_lap0002a"
+              },
+              {
+                "op": "refresh",
+                "at": 1790001900,
+                "token": "rt_pho0001a"
+              }
+            ]
+          },
+          "expected": {
+            "results": [
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_lap0001a",
+                "refreshExpiresAt": 1792592000,
+                "accessTokenId": "at-1",
+                "accessExpiresAt": 1790000900
+              },
+              {
+                "familyId": "fam-2",
+                "refreshToken": "rt_pho0001a",
+                "refreshExpiresAt": 1792592005,
+                "accessTokenId": "at-2",
+                "accessExpiresAt": 1790000905
+              },
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_lap0002a",
+                "refreshExpiresAt": 1792592900,
+                "accessTokenId": "at-3",
+                "accessExpiresAt": 1790001800
+              },
+              {
+                "error": "token_reuse_detected"
+              },
+              {
+                "error": "token_revoked"
+              },
+              {
+                "familyId": "fam-2",
+                "refreshToken": "rt_pho0002a",
+                "refreshExpiresAt": 1792593900,
+                "accessTokenId": "at-4",
+                "accessExpiresAt": 1790002800
+              }
+            ],
+            "events": [
+              {
+                "type": "refresh_reuse_detected",
+                "userId": "u_1042",
+                "familyId": "fam-1",
+                "deviceId": "laptop",
+                "at": 1790001000
+              }
+            ],
+            "store": [
+              {
+                "id": "r-1",
+                "familyId": "fam-1",
+                "userId": "u_1042",
+                "deviceId": "laptop",
+                "tokenHash": "63a176174d8cab600de72e71fbda9b921d337049d32c8ec332a7c9d88bb22b15",
+                "status": "revoked",
+                "createdAt": 1790000000,
+                "expiresAt": 1792592000,
+                "replacedBy": "r-3"
+              },
+              {
+                "id": "r-2",
+                "familyId": "fam-2",
+                "userId": "u_1042",
+                "deviceId": "phone",
+                "tokenHash": "595e37195c97f2b7a352afe59de2b25f4607c2b4811173a057b9f669bd4618f4",
+                "status": "rotated",
+                "createdAt": 1790000005,
+                "expiresAt": 1792592005,
+                "replacedBy": "r-4"
+              },
+              {
+                "id": "r-3",
+                "familyId": "fam-1",
+                "userId": "u_1042",
+                "deviceId": "laptop",
+                "tokenHash": "c89986fa774bf422d49aff8a670016df19edd7387bbf088736dc558c0805708a",
+                "status": "revoked",
+                "createdAt": 1790000900,
+                "expiresAt": 1792592900
+              },
+              {
+                "id": "r-4",
+                "familyId": "fam-2",
+                "userId": "u_1042",
+                "deviceId": "phone",
+                "tokenHash": "844e7af789bc5487de43590ae914e50851133ded9739d844dbaa4ece80098a32",
+                "status": "active",
+                "createdAt": 1790001900,
+                "expiresAt": 1792593900
+              }
+            ]
+          },
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Replaying again or presenting any older token of a revoked family emits no second event",
+          "input": {
+            "newTokens": [
+              "rt_ch000001",
+              "rt_ch000002",
+              "rt_ch000003",
+              "rt_spare003"
+            ],
+            "ops": [
+              {
+                "op": "login",
+                "at": 1790000000,
+                "userId": "u_1042",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "refresh",
+                "at": 1790000900,
+                "token": "rt_ch000001"
+              },
+              {
+                "op": "refresh",
+                "at": 1790001800,
+                "token": "rt_ch000002"
+              },
+              {
+                "op": "refresh",
+                "at": 1790002000,
+                "token": "rt_ch000001"
+              },
+              {
+                "op": "refresh",
+                "at": 1790002100,
+                "token": "rt_ch000001"
+              },
+              {
+                "op": "refresh",
+                "at": 1790002200,
+                "token": "rt_ch000002"
+              },
+              {
+                "op": "refresh",
+                "at": 1790002300,
+                "token": "rt_ch000003"
+              },
+              {
+                "op": "logout",
+                "at": 1790002400,
+                "token": "rt_ch000003"
+              }
+            ]
+          },
+          "expected": {
+            "results": [
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_ch000001",
+                "refreshExpiresAt": 1792592000,
+                "accessTokenId": "at-1",
+                "accessExpiresAt": 1790000900
+              },
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_ch000002",
+                "refreshExpiresAt": 1792592900,
+                "accessTokenId": "at-2",
+                "accessExpiresAt": 1790001800
+              },
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_ch000003",
+                "refreshExpiresAt": 1792593800,
+                "accessTokenId": "at-3",
+                "accessExpiresAt": 1790002700
+              },
+              {
+                "error": "token_reuse_detected"
+              },
+              {
+                "error": "token_revoked"
+              },
+              {
+                "error": "token_revoked"
+              },
+              {
+                "error": "token_revoked"
+              },
+              {
+                "error": "token_revoked"
+              }
+            ],
+            "events": [
+              {
+                "type": "refresh_reuse_detected",
+                "userId": "u_1042",
+                "familyId": "fam-1",
+                "deviceId": "laptop",
+                "at": 1790002000
+              }
+            ],
+            "store": [
+              {
+                "id": "r-1",
+                "familyId": "fam-1",
+                "userId": "u_1042",
+                "deviceId": "laptop",
+                "tokenHash": "e58f7fe58816896b79129b0ac1ab0abcb45e2661577aadda9ceb9aa9afc30449",
+                "status": "revoked",
+                "createdAt": 1790000000,
+                "expiresAt": 1792592000,
+                "replacedBy": "r-2"
+              },
+              {
+                "id": "r-2",
+                "familyId": "fam-1",
+                "userId": "u_1042",
+                "deviceId": "laptop",
+                "tokenHash": "542603338e803e5ec96a703f580d8ea0626be5a7fcab4ed6cedb0c4a02400a77",
+                "status": "revoked",
+                "createdAt": 1790000900,
+                "expiresAt": 1792592900,
+                "replacedBy": "r-3"
+              },
+              {
+                "id": "r-3",
+                "familyId": "fam-1",
+                "userId": "u_1042",
+                "deviceId": "laptop",
+                "tokenHash": "345e8e474d0ed42d372220ddb4a0ce89eb0376ae7e216d3dd369d5847131cec8",
+                "status": "revoked",
+                "createdAt": 1790001800,
+                "expiresAt": 1792593800
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Logout revokes the family without an alert; a rotated token presented to logout is reuse",
+          "input": {
+            "newTokens": [
+              "rt_lo00001b",
+              "rt_lo00002b",
+              "rt_lo00003b",
+              "rt_lo00004b",
+              "rt_spare004"
+            ],
+            "ops": [
+              {
+                "op": "login",
+                "at": 1790000000,
+                "userId": "u_1042",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "refresh",
+                "at": 1790000900,
+                "token": "rt_lo00001b"
+              },
+              {
+                "op": "logout",
+                "at": 1790001000,
+                "token": "rt_lo00002b"
+              },
+              {
+                "op": "refresh",
+                "at": 1790001100,
+                "token": "rt_lo00001b"
+              },
+              {
+                "op": "refresh",
+                "at": 1790001200,
+                "token": "rt_lo00002b"
+              },
+              {
+                "op": "login",
+                "at": 1790001300,
+                "userId": "u_1042",
+                "deviceId": "phone"
+              },
+              {
+                "op": "refresh",
+                "at": 1790001400,
+                "token": "rt_lo00003b"
+              },
+              {
+                "op": "logout",
+                "at": 1790001500,
+                "token": "rt_lo00003b"
+              },
+              {
+                "op": "refresh",
+                "at": 1790001600,
+                "token": "rt_lo00004b"
+              }
+            ]
+          },
+          "expected": {
+            "results": [
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_lo00001b",
+                "refreshExpiresAt": 1792592000,
+                "accessTokenId": "at-1",
+                "accessExpiresAt": 1790000900
+              },
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_lo00002b",
+                "refreshExpiresAt": 1792592900,
+                "accessTokenId": "at-2",
+                "accessExpiresAt": 1790001800
+              },
+              {
+                "loggedOut": true
+              },
+              {
+                "error": "token_revoked"
+              },
+              {
+                "error": "token_revoked"
+              },
+              {
+                "familyId": "fam-2",
+                "refreshToken": "rt_lo00003b",
+                "refreshExpiresAt": 1792593300,
+                "accessTokenId": "at-3",
+                "accessExpiresAt": 1790002200
+              },
+              {
+                "familyId": "fam-2",
+                "refreshToken": "rt_lo00004b",
+                "refreshExpiresAt": 1792593400,
+                "accessTokenId": "at-4",
+                "accessExpiresAt": 1790002300
+              },
+              {
+                "error": "token_reuse_detected"
+              },
+              {
+                "error": "token_revoked"
+              }
+            ],
+            "events": [
+              {
+                "type": "refresh_reuse_detected",
+                "userId": "u_1042",
+                "familyId": "fam-2",
+                "deviceId": "phone",
+                "at": 1790001500
+              }
+            ],
+            "store": [
+              {
+                "id": "r-1",
+                "familyId": "fam-1",
+                "userId": "u_1042",
+                "deviceId": "laptop",
+                "tokenHash": "a86fdae888d27f0c34241b06fc9f4f6b464a8094b2e090cfa7d28ae018516e36",
+                "status": "revoked",
+                "createdAt": 1790000000,
+                "expiresAt": 1792592000,
+                "replacedBy": "r-2"
+              },
+              {
+                "id": "r-2",
+                "familyId": "fam-1",
+                "userId": "u_1042",
+                "deviceId": "laptop",
+                "tokenHash": "b50bd88d1ab63fe2d80a35db0f66fa35e8a062a483eb4c8167672b86755070cb",
+                "status": "revoked",
+                "createdAt": 1790000900,
+                "expiresAt": 1792592900
+              },
+              {
+                "id": "r-3",
+                "familyId": "fam-2",
+                "userId": "u_1042",
+                "deviceId": "phone",
+                "tokenHash": "913a6fdf06b181475f2a270d2c3d0c238424a06909f9f0ec1cbd63227f3c70f1",
+                "status": "revoked",
+                "createdAt": 1790001300,
+                "expiresAt": 1792593300,
+                "replacedBy": "r-4"
+              },
+              {
+                "id": "r-4",
+                "familyId": "fam-2",
+                "userId": "u_1042",
+                "deviceId": "phone",
+                "tokenHash": "c1a93a83e50b05e6776d4a2e56384be75e5691e3f9aabcbaaf8b5394991211a2",
+                "status": "revoked",
+                "createdAt": 1790001400,
+                "expiresAt": 1792593400
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Other users and other devices are untouched, and a fresh login after the alert works",
+          "input": {
+            "newTokens": [
+              "rt_u1lap001",
+              "rt_u1pho001",
+              "rt_u2lap001",
+              "rt_u1lap002",
+              "rt_u1pho002",
+              "rt_u2lap002",
+              "rt_u1pho003",
+              "rt_u2lap003",
+              "rt_u1lap101",
+              "rt_u1lap102",
+              "rt_spare005"
+            ],
+            "ops": [
+              {
+                "op": "login",
+                "at": 1790000000,
+                "userId": "u_1042",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "login",
+                "at": 1790000010,
+                "userId": "u_1042",
+                "deviceId": "phone"
+              },
+              {
+                "op": "login",
+                "at": 1790000020,
+                "userId": "u_2077",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "refresh",
+                "at": 1790000900,
+                "token": "rt_u1lap001"
+              },
+              {
+                "op": "refresh",
+                "at": 1790000910,
+                "token": "rt_u1pho001"
+              },
+              {
+                "op": "refresh",
+                "at": 1790000920,
+                "token": "rt_u2lap001"
+              },
+              {
+                "op": "refresh",
+                "at": 1790001000,
+                "token": "rt_u1lap001"
+              },
+              {
+                "op": "refresh",
+                "at": 1790001100,
+                "token": "rt_u1pho002"
+              },
+              {
+                "op": "refresh",
+                "at": 1790001200,
+                "token": "rt_u2lap002"
+              },
+              {
+                "op": "refresh",
+                "at": 1790001300,
+                "token": "rt_u1lap002"
+              },
+              {
+                "op": "login",
+                "at": 1790001400,
+                "userId": "u_1042",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "refresh",
+                "at": 1790002300,
+                "token": "rt_u1lap101"
+              }
+            ]
+          },
+          "expected": {
+            "results": [
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_u1lap001",
+                "refreshExpiresAt": 1792592000,
+                "accessTokenId": "at-1",
+                "accessExpiresAt": 1790000900
+              },
+              {
+                "familyId": "fam-2",
+                "refreshToken": "rt_u1pho001",
+                "refreshExpiresAt": 1792592010,
+                "accessTokenId": "at-2",
+                "accessExpiresAt": 1790000910
+              },
+              {
+                "familyId": "fam-3",
+                "refreshToken": "rt_u2lap001",
+                "refreshExpiresAt": 1792592020,
+                "accessTokenId": "at-3",
+                "accessExpiresAt": 1790000920
+              },
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_u1lap002",
+                "refreshExpiresAt": 1792592900,
+                "accessTokenId": "at-4",
+                "accessExpiresAt": 1790001800
+              },
+              {
+                "familyId": "fam-2",
+                "refreshToken": "rt_u1pho002",
+                "refreshExpiresAt": 1792592910,
+                "accessTokenId": "at-5",
+                "accessExpiresAt": 1790001810
+              },
+              {
+                "familyId": "fam-3",
+                "refreshToken": "rt_u2lap002",
+                "refreshExpiresAt": 1792592920,
+                "accessTokenId": "at-6",
+                "accessExpiresAt": 1790001820
+              },
+              {
+                "error": "token_reuse_detected"
+              },
+              {
+                "familyId": "fam-2",
+                "refreshToken": "rt_u1pho003",
+                "refreshExpiresAt": 1792593100,
+                "accessTokenId": "at-7",
+                "accessExpiresAt": 1790002000
+              },
+              {
+                "familyId": "fam-3",
+                "refreshToken": "rt_u2lap003",
+                "refreshExpiresAt": 1792593200,
+                "accessTokenId": "at-8",
+                "accessExpiresAt": 1790002100
+              },
+              {
+                "error": "token_revoked"
+              },
+              {
+                "familyId": "fam-4",
+                "refreshToken": "rt_u1lap101",
+                "refreshExpiresAt": 1792593400,
+                "accessTokenId": "at-9",
+                "accessExpiresAt": 1790002300
+              },
+              {
+                "familyId": "fam-4",
+                "refreshToken": "rt_u1lap102",
+                "refreshExpiresAt": 1792594300,
+                "accessTokenId": "at-10",
+                "accessExpiresAt": 1790003200
+              }
+            ],
+            "events": [
+              {
+                "type": "refresh_reuse_detected",
+                "userId": "u_1042",
+                "familyId": "fam-1",
+                "deviceId": "laptop",
+                "at": 1790001000
+              }
+            ],
+            "store": [
+              {
+                "id": "r-1",
+                "familyId": "fam-1",
+                "userId": "u_1042",
+                "deviceId": "laptop",
+                "tokenHash": "4d9887915ea2bbfe5df2048e0c95efda03b09124f0ba7a0c178a5c6083e67b5b",
+                "status": "revoked",
+                "createdAt": 1790000000,
+                "expiresAt": 1792592000,
+                "replacedBy": "r-4"
+              },
+              {
+                "id": "r-2",
+                "familyId": "fam-2",
+                "userId": "u_1042",
+                "deviceId": "phone",
+                "tokenHash": "b689a0b29691ccdb5c60e3ee0384c6eba6255d745cbee05e4eb57d4b5ea71ded",
+                "status": "rotated",
+                "createdAt": 1790000010,
+                "expiresAt": 1792592010,
+                "replacedBy": "r-5"
+              },
+              {
+                "id": "r-3",
+                "familyId": "fam-3",
+                "userId": "u_2077",
+                "deviceId": "laptop",
+                "tokenHash": "34a98363e3a6cfbe37c7fd06ec3bb7d454f4551f8eb2719cc46979f597470ae5",
+                "status": "rotated",
+                "createdAt": 1790000020,
+                "expiresAt": 1792592020,
+                "replacedBy": "r-6"
+              },
+              {
+                "id": "r-4",
+                "familyId": "fam-1",
+                "userId": "u_1042",
+                "deviceId": "laptop",
+                "tokenHash": "136898ffb6f672eb2f9ac651dc9daf4712e426bddf71c18e7c2746f50c6ebd7e",
+                "status": "revoked",
+                "createdAt": 1790000900,
+                "expiresAt": 1792592900
+              },
+              {
+                "id": "r-5",
+                "familyId": "fam-2",
+                "userId": "u_1042",
+                "deviceId": "phone",
+                "tokenHash": "112c2f75e7a129d25b03b8897b98beb5df088d38653c8fd6ceec391eebc0e7c8",
+                "status": "rotated",
+                "createdAt": 1790000910,
+                "expiresAt": 1792592910,
+                "replacedBy": "r-7"
+              },
+              {
+                "id": "r-6",
+                "familyId": "fam-3",
+                "userId": "u_2077",
+                "deviceId": "laptop",
+                "tokenHash": "2c3362f253a131e09ec1235b692ef6e0fd5a1b364f9e20e49e9bda1c46a455ce",
+                "status": "rotated",
+                "createdAt": 1790000920,
+                "expiresAt": 1792592920,
+                "replacedBy": "r-8"
+              },
+              {
+                "id": "r-7",
+                "familyId": "fam-2",
+                "userId": "u_1042",
+                "deviceId": "phone",
+                "tokenHash": "7e7197f9c723ed591008afb0166de786ef6a95f03277b913ed65dd1d52668f3d",
+                "status": "active",
+                "createdAt": 1790001100,
+                "expiresAt": 1792593100
+              },
+              {
+                "id": "r-8",
+                "familyId": "fam-3",
+                "userId": "u_2077",
+                "deviceId": "laptop",
+                "tokenHash": "c2a0c17b0c64860e4018b3d1e7bbf69d1500f86f43f5fbd8efd2365d5a614f86",
+                "status": "active",
+                "createdAt": 1790001200,
+                "expiresAt": 1792593200
+              },
+              {
+                "id": "r-9",
+                "familyId": "fam-4",
+                "userId": "u_1042",
+                "deviceId": "laptop",
+                "tokenHash": "42ee600573b33340d014e1f6d9a618dc436aabcf1b2eda7fff5cd9bcdf03b604",
+                "status": "rotated",
+                "createdAt": 1790001400,
+                "expiresAt": 1792593400,
+                "replacedBy": "r-10"
+              },
+              {
+                "id": "r-10",
+                "familyId": "fam-4",
+                "userId": "u_1042",
+                "deviceId": "laptop",
+                "tokenHash": "b1724b0ce86cefb73bcbf2c0e427825ca771b9292123ee3df49481e7aa1ee21b",
+                "status": "active",
+                "createdAt": 1790002300,
+                "expiresAt": 1792594300
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Status before expiry: an expired rotated token still alerts; unknown and expired tokens do not",
+          "input": {
+            "newTokens": [
+              "rt_ex00001c",
+              "rt_ex00002c",
+              "rt_ex00003c",
+              "rt_ex00004c",
+              "rt_spare006"
+            ],
+            "ops": [
+              {
+                "op": "login",
+                "at": 1790000000,
+                "userId": "u_1042",
+                "deviceId": "laptop"
+              },
+              {
+                "op": "refresh",
+                "at": 1790000100,
+                "token": "rt_ex00001c"
+              },
+              {
+                "op": "refresh",
+                "at": 1792592050,
+                "token": "rt_ex00002c"
+              },
+              {
+                "op": "login",
+                "at": 1792592060,
+                "userId": "u_1042",
+                "deviceId": "phone"
+              },
+              {
+                "op": "refresh",
+                "at": 1795184060,
+                "token": "rt_ex00004c"
+              },
+              {
+                "op": "refresh",
+                "at": 1792600000,
+                "token": "rt_not-ours1"
+              },
+              {
+                "op": "refresh",
+                "at": 1792600100,
+                "token": "rt_ex00001c"
+              },
+              {
+                "op": "refresh",
+                "at": 1792600200,
+                "token": "rt_ex00003c"
+              }
+            ]
+          },
+          "expected": {
+            "results": [
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_ex00001c",
+                "refreshExpiresAt": 1792592000,
+                "accessTokenId": "at-1",
+                "accessExpiresAt": 1790000900
+              },
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_ex00002c",
+                "refreshExpiresAt": 1792592100,
+                "accessTokenId": "at-2",
+                "accessExpiresAt": 1790001000
+              },
+              {
+                "familyId": "fam-1",
+                "refreshToken": "rt_ex00003c",
+                "refreshExpiresAt": 1795184050,
+                "accessTokenId": "at-3",
+                "accessExpiresAt": 1792592950
+              },
+              {
+                "familyId": "fam-2",
+                "refreshToken": "rt_ex00004c",
+                "refreshExpiresAt": 1795184060,
+                "accessTokenId": "at-4",
+                "accessExpiresAt": 1792592960
+              },
+              {
+                "error": "token_expired"
+              },
+              {
+                "error": "unknown_token"
+              },
+              {
+                "error": "token_reuse_detected"
+              },
+              {
+                "error": "token_revoked"
+              }
+            ],
+            "events": [
+              {
+                "type": "refresh_reuse_detected",
+                "userId": "u_1042",
+                "familyId": "fam-1",
+                "deviceId": "laptop",
+                "at": 1792600100
+              }
+            ],
+            "store": [
+              {
+                "id": "r-1",
+                "familyId": "fam-1",
+                "userId": "u_1042",
+                "deviceId": "laptop",
+                "tokenHash": "988cff096cf7de70e7ff84ab91df8aac59f6710d55e8c174c972d033674c26a5",
+                "status": "revoked",
+                "createdAt": 1790000000,
+                "expiresAt": 1792592000,
+                "replacedBy": "r-2"
+              },
+              {
+                "id": "r-2",
+                "familyId": "fam-1",
+                "userId": "u_1042",
+                "deviceId": "laptop",
+                "tokenHash": "e8ddfc7b759cb308c508bd5b51078739005330e4b62cb9f4409a14c339b595d9",
+                "status": "revoked",
+                "createdAt": 1790000100,
+                "expiresAt": 1792592100,
+                "replacedBy": "r-3"
+              },
+              {
+                "id": "r-3",
+                "familyId": "fam-1",
+                "userId": "u_1042",
+                "deviceId": "laptop",
+                "tokenHash": "00622c43f9e07cc46229eba3c4aa181878697aa471b08928e902d090c34cc179",
+                "status": "revoked",
+                "createdAt": 1792592050,
+                "expiresAt": 1795184050
+              },
+              {
+                "id": "r-4",
+                "familyId": "fam-2",
+                "userId": "u_1042",
+                "deviceId": "phone",
+                "tokenHash": "7598662e7c96fcad746d22ff2738efd21a07d45b8278cdc9fc7276f6555420bb",
+                "status": "active",
+                "createdAt": 1792592060,
+                "expiresAt": 1795184060
+              }
+            ]
+          },
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

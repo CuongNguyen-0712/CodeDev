@@ -1,0 +1,56 @@
+{
+  "publicId": "api-design-production",
+  "title": "API Design for Production: Contracts, Pagination & Safe Changes",
+  "concept": "Design HTTP APIs that clients can rely on for years: resources and status codes, one error contract, contract-first OpenAPI, cursor pagination, safe filtering and sorting, idempotency keys and backward-compatible changes, each taught from a real API incident and graded with small TypeScript programs.",
+  "description": "An intermediate course for backend developers whose API already has clients they cannot update overnight. Every lesson starts from an incident on the CodeDev learning platform's public API - a mobile app that shows the same course twice while scrolling, an error body that is different on every endpoint, a retried request that enrolls a learner twice, a sort parameter that reaches the SQL string, a renamed field that breaks every app still on last month's version - and fixes it with production API design: resource modeling, mapping outcomes to status codes, a single error contract with a trace id, OpenAPI as the contract and contract tests, cursor pagination with a stable order, whitelisted filters and sorts, idempotency keys, detecting breaking changes between schema versions, and shipping a breaking change with a compatibility window and deprecation. 10 lessons with quizzes on real requests and responses and hands-on TypeScript challenges.",
+  "level": "intermediate",
+  "durationMinutes": 240,
+  "instructor": "CodeDev Engineering Team",
+  "language": "TypeScript",
+  "category": "Backend Development",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 100,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    { "priceType": "points", "amount": 300 },
+    { "priceType": "money", "amount": 149000, "currency": "VND" }
+  ],
+  "completionRules": {},
+  "careerRoles": ["backend_developer", "fullstack_developer", "qa_engineer"],
+  "skills": { "api_design": 5, "typescript": 3, "system_design": 3, "testing": 2 },
+  "goals": ["grow_in_role", "build_projects", "interview_prep"],
+  "industries": ["software_product", "ecommerce", "fintech"],
+  "prerequisites": ["web-http-fundamentals"],
+  "modules": [
+    {
+      "orderIndex": 1,
+      "title": "Resources & Contracts",
+      "lessons": [
+        { "orderIndex": 1, "folder": "01-resources-urls", "title": "Design resources and URLs from the domain", "sanityId": "lesson-adp-1-1" },
+        { "orderIndex": 2, "folder": "02-status-codes", "title": "Map business outcomes to status codes", "sanityId": "lesson-adp-1-2" },
+        { "orderIndex": 3, "folder": "03-error-contract", "title": "One error contract for every endpoint", "sanityId": "lesson-adp-1-3" },
+        { "orderIndex": 4, "folder": "04-openapi-contract", "title": "Contract first: OpenAPI and contract tests", "sanityId": "lesson-adp-1-4" }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "Collections",
+      "lessons": [
+        { "orderIndex": 1, "folder": "05-cursor-pagination", "title": "Cursor pagination with a stable order", "sanityId": "lesson-adp-2-1" },
+        { "orderIndex": 2, "folder": "06-offset-pagination-bug", "title": "Why offset pagination skips and repeats rows", "sanityId": "lesson-adp-2-2" },
+        { "orderIndex": 3, "folder": "07-filter-sort", "title": "Filtering and sorting with a whitelist", "sanityId": "lesson-adp-2-3" }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Retries & Change",
+      "lessons": [
+        { "orderIndex": 1, "folder": "08-idempotency-keys", "title": "Idempotency keys: retry without doing it twice", "sanityId": "lesson-adp-3-1" },
+        { "orderIndex": 2, "folder": "09-backward-compatibility", "title": "Detect breaking changes between response schemas", "sanityId": "lesson-adp-3-2" },
+        { "orderIndex": 3, "folder": "10-ship-breaking-change", "title": "Ship a breaking change safely", "sanityId": "lesson-adp-3-3" }
+      ]
+    }
+  ]
+}

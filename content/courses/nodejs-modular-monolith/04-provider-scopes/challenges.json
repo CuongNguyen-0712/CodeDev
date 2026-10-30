@@ -1,0 +1,45 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nmm_141",
+      "name": "provider-scopes-quiz",
+      "type": "quiz",
+      "title": "One instance or many? Read the logs",
+      "description": "A singleton that held the current learner, a request-scoped provider deep in the injection chain, and a shutdown hook that never ran. Decide whether each statement is True or False.",
+      "difficulty": "medium",
+      "points": 20,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "@Injectable()   // default scope\nexport class RequestContext {\n  userId?: string;\n}\n\n// AuthGuard.canActivate:      this.ctx.userId = request.user.id;\n// ProgressService.complete:   await this.lessons.findById(lessonId);\n//                             await this.repo.markDone(this.ctx.userId, lessonId);\n\nThe app runs as a single Node.js process. Log of two requests that overlap:\n\n08:14:02.101 [req-a] guard     userId=u_17\n08:14:02.103 [req-b] guard     userId=u_42\n08:14:02.140 [req-a] markDone  user=u_42 lesson=lsn_3\n08:14:02.151 [req-b] markDone  user=u_42 lesson=lsn_8\n\nStatement: \"Request req-a could only have read u_42 if the two requests ran on different threads; in one Node.js process, a field set at the start of a request stays the same until that request's own code changes it.\"",
+          "explanation": "False. Node.js runs JavaScript on one thread, but every await hands control back to the event loop, which runs other requests' code in between. A default-scope provider is a single instance shared by every request, so while req-a was waiting for findById, req-b's guard overwrote ctx.userId, and req-a then saved lesson 3 for learner u_42. The misconception is that \"single-threaded\" means \"one request at a time\": requests interleave at every await. Per-request data belongs in the method arguments, in AsyncLocalStorage, or in a request-scoped provider - never in a field of a singleton.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The fix makes the context request-scoped. Nothing else changes:\n\n@Injectable({ scope: Scope.REQUEST })\nexport class RequestContext {\n  constructor(@Inject(REQUEST) private readonly req: Request) {}\n  get userId() { return this.req.user.id; }\n}\n\n@Injectable()   // default scope\nexport class ProgressService {\n  constructor(private readonly ctx: RequestContext, private readonly repo: ProgressRepository) {\n    console.log('ProgressService created');\n  }\n}\n\n@Controller('progress')\nexport class ProgressController {\n  constructor(private readonly progress: ProgressService) {}\n}\n\nThe app starts, then receives three requests to POST /progress/lessons/:id/complete.\n\nStatement: \"After the three requests, the line 'ProgressService created' appears in the log exactly once, because ProgressService itself is still declared with the default scope.\"",
+          "explanation": "False. Request scope bubbles up the injection chain: ProgressService depends on a request-scoped provider, so Nest has to create a new ProgressService for every request to give it that request's RequestContext, and the same happens to ProgressController. The log shows the line once per request - three times - and not at startup. ProgressRepository is not affected, because it does not depend on anything request-scoped. The misconception is that the scope you write in @Injectable() is the scope you get; it is the narrowest scope among the provider and everything it depends on.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "NotificationsService batches \"lesson completed\" emails and sends them every 30 seconds. To lose nothing on deploy, it flushes on shutdown:\n\n@Injectable()\nexport class NotificationsService implements OnApplicationShutdown {\n  async onApplicationShutdown(signal?: string) {\n    const sent = await this.flush();\n    this.logger.log(`flushed ${sent} pending notifications (${signal})`);\n  }\n}\n\n// main.ts\nconst app = await NestFactory.create(AppModule);\nawait app.listen(3000);\n\nDeploy log of the old container:\n\n10:02:11 Received SIGTERM\n10:02:11 container exited with code 143\n\nThe \"flushed ... pending notifications\" line is missing, and learners report missing emails for lessons completed just before 10:02.\n\nStatement: \"The flush never ran because main.ts does not call app.enableShutdownHooks(), so Nest did not listen for SIGTERM and never called onApplicationShutdown.\"",
+          "explanation": "True. Shutdown hooks (onModuleDestroy, beforeApplicationShutdown, onApplicationShutdown) are disabled by default because listening for signals has a cost. Without app.enableShutdownHooks(), SIGTERM ends the process with Node's default behaviour - exit code 143 is 128 + 15, killed by SIGTERM - and no hook runs. With it, Nest calls the hooks before the process exits, and the log line would show (SIGTERM). The misconception is that implementing OnApplicationShutdown is enough on its own; onModuleInit and onApplicationBootstrap run without extra setup, the shutdown hooks do not.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        }
+      ]
+    }
+  ]
+}

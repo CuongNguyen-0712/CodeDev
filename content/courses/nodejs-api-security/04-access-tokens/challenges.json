@@ -1,0 +1,628 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nas_141",
+      "name": "access-token-verify-quiz",
+      "type": "quiz",
+      "title": "Read the verifier, read the timeline",
+      "description": "A hand-written access token verifier from a pull request, and a log of requests made with an access token after the learner logged out. Decide whether each statement is True or False.",
+      "difficulty": "medium",
+      "points": 20,
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A pull request replaces the JWT library in the CodeDev API with this verifier (hmac(alg, key, data) returns the base64url HMAC for \"HS256\" or \"HS512\"):\n\nfunction verifyAccess(token: string, key: string, now: number) {\n    const [h, p, s] = token.split(\".\");\n    const header = JSON.parse(Buffer.from(h, \"base64url\").toString());\n    const claims = JSON.parse(Buffer.from(p, \"base64url\").toString());\n    const expected = header.alg === \"none\" ? \"\" : hmac(header.alg, key, `${h}.${p}`);\n    if (s !== expected) return null;\n    if (now >= claims.exp) return null;\n    return claims;   // { sub, sid, exp, ... }\n}\n\nStatement: \"An attacker who has never seen the signing key can get claims with any sub they choose accepted by this function.\"",
+          "explanation": "True. The verifier lets the token choose its own algorithm. A token with the header {\"alg\":\"none\"}, any payload (for example sub \"user_1\" and an exp in the future) and an empty third part gives expected = \"\" and s = \"\", so the comparison passes and the forged claims are returned. This is the alg \"none\" attack that RFC 8725 warns about: the verifier must decide the algorithm itself (here: exactly HS256) and reject everything else before it computes anything. The misconception is that checking the signature is enough; it is not when the attacker picks how the signature is checked.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Access tokens on https://api.codedev.test live 900 seconds and are checked only for signature and exp. Logs for learner user_1042 on a shared library computer:\n\n10:02:40 POST /v1/auth/login        200  access token iat=10:02:40 exp=10:17:40\n10:04:05 POST /v1/auth/logout       204  refresh token revoked, cookie cleared\n10:06:30 GET  /v1/users/me/progress 200  Authorization: Bearer <the same access token>\n\nA teammate proposes ACCESS_TTL_S = 300 (5 minutes) as the fix.\n\nStatement: \"With the 5-minute TTL, the request at 10:06:30 would have been rejected.\"",
+          "explanation": "False. Logout revoked the refresh token, but nothing on the server tracks the access token: it is accepted until its own exp. With a 300 s TTL the token issued at 10:02:40 expires at 10:07:40, so the request at 10:06:30 is still accepted. A short TTL shrinks the window in which a stolen or logged-out access token keeps working; it does not revoke anything. The misconception is that a shorter lifetime is a form of logout. Cutting a token off before exp needs server state, such as the session version of lesson 6.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_nas_142",
+      "name": "sign-verify-access-token",
+      "type": "mini_coding",
+      "title": "Sign and verify a short-lived HS256 access token",
+      "description": "CodeDev's API issues JWT-shaped access tokens that live 900 seconds. Write sign and verify with node:crypto; time comes from the fake clock now (unix seconds), never from Date.now().\n\nFormat: <header>.<payload>.<signature>, each part base64url without padding (Buffer#toString(\"base64url\")).\n\nsign(claims, key, now) returns the token string:\n- header: exactly {\"alg\":\"HS256\",\"typ\":\"JWT\"} (this key order), JSON.stringify then base64url.\n- payload: JSON.stringify({ ...claims, iat: now, exp: now + 900 }) then base64url. claims never contain iat or exp.\n- signature: HMAC-SHA256 with key (a string) over \"<header part>.<payload part>\", base64url.\n\nverify(token, key, now, options) with options = { issuer, audience } returns { ok: true, claims } (the decoded payload) or { ok: false, reason }. The checks run in this order; the first failing check gives the reason:\n1. \"malformed\": the token does not split on \".\" into exactly 3 parts; the header or payload part is empty or contains a character outside [A-Za-z0-9_-]; or a part does not decode to a JSON object (null and arrays are not objects). The signature part may be empty.\n2. \"unsupported_alg\": header.alg is not exactly \"HS256\" (\"none\", \"HS512\", \"hs256\" and a missing alg are all rejected).\n3. \"bad_signature\": the signature part is not equal to the base64url HMAC-SHA256 of \"<header part>.<payload part>\". Compare with crypto.timingSafeEqual; a signature of a different length is a bad signature, not an exception.\n4. \"invalid_claims\": exp is not a finite number (missing, string...), or nbf is present and is not a finite number.\n5. \"expired\": now >= exp + 30 (30 seconds of leeway for clock skew: still valid at exp + 29, expired at exp + 30).\n6. \"not_yet_valid\": nbf is present and now < nbf - 30.\n7. \"wrong_issuer\": claims.iss !== options.issuer.\n8. \"wrong_audience\": claims.aud is neither equal to options.audience nor an array that contains it.\n\nverify must never throw on bad input. The runner reads { key, ops } and prints one result per op.",
+      "difficulty": "medium",
+      "points": 40,
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "hints": [
+        "Which parts of the token may you read before the signature has been checked, and what may you decide from them? What should happen to a token whose header says how it wants to be verified?",
+        "Follow the numbered checks exactly, one early return each. Parse the two JSON parts inside try/catch, check the alg against the single value you accept, then build the expected signature string yourself and compare Buffers of equal length with timingSafeEqual. Only after that read exp, nbf, iss and aud.",
+        "The same shape on a different problem: a webhook receiver checks a header \"t=<unix>,v1=<hex hmac>\". It rejects a header without both fields (malformed), recomputes HMAC-SHA256 over \"<t>.<body>\", compares with timingSafeEqual after a length check (bad signature), and only then rejects requests where now - t >= 300 (too old). A forged request with a fresh timestamp fails on the signature, never on the timestamp."
+      ],
+      "tests": [
+        {
+          "name": "sign builds the exact HS256 token and verify accepts it 60 seconds later",
+          "input": {
+            "key": "cd-test-access-key-2026-10",
+            "ops": [
+              {
+                "op": "sign",
+                "claims": {
+                  "sub": "user_1042",
+                  "sid": "fam_7a1c",
+                  "iss": "https://api.codedev.test",
+                  "aud": "codedev-api"
+                },
+                "now": 1792800000
+              },
+              {
+                "op": "verify",
+                "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEwNDIiLCJzaWQiOiJmYW1fN2ExYyIsImlzcyI6Imh0dHBzOi8vYXBpLmNvZGVkZXYudGVzdCIsImF1ZCI6ImNvZGVkZXYtYXBpIiwiaWF0IjoxNzkyODAwMDAwLCJleHAiOjE3OTI4MDA5MDB9.YJkJwTDOKp3jDo5NDD7rCEeVvOUYxdBgy1XbwejAKo0",
+                "now": 1792800060,
+                "options": {
+                  "issuer": "https://api.codedev.test",
+                  "audience": "codedev-api"
+                }
+              }
+            ]
+          },
+          "expected": [
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEwNDIiLCJzaWQiOiJmYW1fN2ExYyIsImlzcyI6Imh0dHBzOi8vYXBpLmNvZGVkZXYudGVzdCIsImF1ZCI6ImNvZGVkZXYtYXBpIiwiaWF0IjoxNzkyODAwMDAwLCJleHAiOjE3OTI4MDA5MDB9.YJkJwTDOKp3jDo5NDD7rCEeVvOUYxdBgy1XbwejAKo0",
+            {
+              "ok": true,
+              "claims": {
+                "sub": "user_1042",
+                "sid": "fam_7a1c",
+                "iss": "https://api.codedev.test",
+                "aud": "codedev-api",
+                "iat": 1792800000,
+                "exp": 1792800900
+              }
+            }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "30 s leeway: accepted at exp + 29, expired at exp + 30; alg none is rejected",
+          "input": {
+            "key": "cd-test-access-key-2026-10",
+            "ops": [
+              {
+                "op": "verify",
+                "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEwNDIiLCJzaWQiOiJmYW1fN2ExYyIsImlzcyI6Imh0dHBzOi8vYXBpLmNvZGVkZXYudGVzdCIsImF1ZCI6ImNvZGVkZXYtYXBpIiwiaWF0IjoxNzkyODAwMDAwLCJleHAiOjE3OTI4MDA5MDB9.YJkJwTDOKp3jDo5NDD7rCEeVvOUYxdBgy1XbwejAKo0",
+                "now": 1792800929,
+                "options": {
+                  "issuer": "https://api.codedev.test",
+                  "audience": "codedev-api"
+                }
+              },
+              {
+                "op": "verify",
+                "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEwNDIiLCJzaWQiOiJmYW1fN2ExYyIsImlzcyI6Imh0dHBzOi8vYXBpLmNvZGVkZXYudGVzdCIsImF1ZCI6ImNvZGVkZXYtYXBpIiwiaWF0IjoxNzkyODAwMDAwLCJleHAiOjE3OTI4MDA5MDB9.YJkJwTDOKp3jDo5NDD7rCEeVvOUYxdBgy1XbwejAKo0",
+                "now": 1792800930,
+                "options": {
+                  "issuer": "https://api.codedev.test",
+                  "audience": "codedev-api"
+                }
+              },
+              {
+                "op": "verify",
+                "token": "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJ1c2VyXzEwNDIiLCJzaWQiOiJmYW1fN2ExYyIsImlzcyI6Imh0dHBzOi8vYXBpLmNvZGVkZXYudGVzdCIsImF1ZCI6ImNvZGVkZXYtYXBpIiwiaWF0IjoxNzkyODAwMDAwLCJleHAiOjE3OTI4MDA5MDB9.",
+                "now": 1792800060,
+                "options": {
+                  "issuer": "https://api.codedev.test",
+                  "audience": "codedev-api"
+                }
+              }
+            ]
+          },
+          "expected": [
+            {
+              "ok": true,
+              "claims": {
+                "sub": "user_1042",
+                "sid": "fam_7a1c",
+                "iss": "https://api.codedev.test",
+                "aud": "codedev-api",
+                "iat": 1792800000,
+                "exp": 1792800900
+              }
+            },
+            {
+              "ok": false,
+              "reason": "expired"
+            },
+            {
+              "ok": false,
+              "reason": "unsupported_alg"
+            }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Tampered payload, wrong key, truncated or empty signature are bad_signature",
+          "input": {
+            "key": "cd-test-access-key-2026-10",
+            "ops": [
+              {
+                "op": "verify",
+                "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEiLCJzaWQiOiJmYW1fN2ExYyIsImlzcyI6Imh0dHBzOi8vYXBpLmNvZGVkZXYudGVzdCIsImF1ZCI6ImNvZGVkZXYtYXBpIiwiaWF0IjoxNzkyODAwMDAwLCJleHAiOjE3OTI4MDA5MDB9.YJkJwTDOKp3jDo5NDD7rCEeVvOUYxdBgy1XbwejAKo0",
+                "now": 1792800060,
+                "options": {
+                  "issuer": "https://api.codedev.test",
+                  "audience": "codedev-api"
+                }
+              },
+              {
+                "op": "verify",
+                "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEwNDIiLCJzaWQiOiJmYW1fN2ExYyIsImlzcyI6Imh0dHBzOi8vYXBpLmNvZGVkZXYudGVzdCIsImF1ZCI6ImNvZGVkZXYtYXBpIiwiaWF0IjoxNzkyODAwMDAwLCJleHAiOjE3OTI4MDA5MDB9.RgnOuZVqTMSC_Q-zuLgHXygXC8k-mB433pVtaZFMJDs",
+                "now": 1792800060,
+                "options": {
+                  "issuer": "https://api.codedev.test",
+                  "audience": "codedev-api"
+                }
+              },
+              {
+                "op": "verify",
+                "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEwNDIiLCJzaWQiOiJmYW1fN2ExYyIsImlzcyI6Imh0dHBzOi8vYXBpLmNvZGVkZXYudGVzdCIsImF1ZCI6ImNvZGVkZXYtYXBpIiwiaWF0IjoxNzkyODAwMDAwLCJleHAiOjE3OTI4MDA5MDB9.YJkJwTDOKp3jDo5NDD7rCEeVvOUYxdBgy1Xbwe",
+                "now": 1792800060,
+                "options": {
+                  "issuer": "https://api.codedev.test",
+                  "audience": "codedev-api"
+                }
+              },
+              {
+                "op": "verify",
+                "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEwNDIiLCJzaWQiOiJmYW1fN2ExYyIsImlzcyI6Imh0dHBzOi8vYXBpLmNvZGVkZXYudGVzdCIsImF1ZCI6ImNvZGVkZXYtYXBpIiwiaWF0IjoxNzkyODAwMDAwLCJleHAiOjE3OTI4MDA5MDB9.",
+                "now": 1792800060,
+                "options": {
+                  "issuer": "https://api.codedev.test",
+                  "audience": "codedev-api"
+                }
+              }
+            ]
+          },
+          "expected": [
+            {
+              "ok": false,
+              "reason": "bad_signature"
+            },
+            {
+              "ok": false,
+              "reason": "bad_signature"
+            },
+            {
+              "ok": false,
+              "reason": "bad_signature"
+            },
+            {
+              "ok": false,
+              "reason": "bad_signature"
+            }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Order: alg before signature, signature before exp (expired forgeries are not 'expired')",
+          "input": {
+            "key": "cd-test-access-key-2026-10",
+            "ops": [
+              {
+                "op": "verify",
+                "token": "eyJhbGciOiJub25lIn0.eyJzdWIiOiJ1c2VyXzEwNDIiLCJzaWQiOiJmYW1fN2ExYyIsImlzcyI6Imh0dHBzOi8vYXBpLmNvZGVkZXYudGVzdCIsImF1ZCI6ImNvZGVkZXYtYXBpIiwiaWF0IjoxNzkyNzk2NDAwLCJleHAiOjE3OTI3OTczMDB9.",
+                "now": 1792800000,
+                "options": {
+                  "issuer": "https://api.codedev.test",
+                  "audience": "codedev-api"
+                }
+              },
+              {
+                "op": "verify",
+                "token": "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEwNDIiLCJzaWQiOiJmYW1fN2ExYyIsImlzcyI6Imh0dHBzOi8vYXBpLmNvZGVkZXYudGVzdCIsImF1ZCI6ImNvZGVkZXYtYXBpIiwiaWF0IjoxNzkyODAwMDAwLCJleHAiOjE3OTI4MDA5MDB9.h-FxGnmXSbs5ObNeXq2ip7J7J0Bbb4qmcc8CIr190rs",
+                "now": 1792800060,
+                "options": {
+                  "issuer": "https://api.codedev.test",
+                  "audience": "codedev-api"
+                }
+              },
+              {
+                "op": "verify",
+                "token": "eyJhbGciOiJoczI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEwNDIiLCJzaWQiOiJmYW1fN2ExYyIsImlzcyI6Imh0dHBzOi8vYXBpLmNvZGVkZXYudGVzdCIsImF1ZCI6ImNvZGVkZXYtYXBpIiwiaWF0IjoxNzkyODAwMDAwLCJleHAiOjE3OTI4MDA5MDB9.06yF2kpYMnd0A8IcjyaftnXkGJFuRNY3jJPvSqYfOGk",
+                "now": 1792800060,
+                "options": {
+                  "issuer": "https://api.codedev.test",
+                  "audience": "codedev-api"
+                }
+              },
+              {
+                "op": "verify",
+                "token": "eyJ0eXAiOiJKV1QifQ.eyJzdWIiOiJ1c2VyXzEwNDIiLCJzaWQiOiJmYW1fN2ExYyIsImlzcyI6Imh0dHBzOi8vYXBpLmNvZGVkZXYudGVzdCIsImF1ZCI6ImNvZGVkZXYtYXBpIiwiaWF0IjoxNzkyODAwMDAwLCJleHAiOjE3OTI4MDA5MDB9.v_UZ85x8u1ABYo0W_RwGYw21znr33cHTsUBaHlZbgNE",
+                "now": 1792800060,
+                "options": {
+                  "issuer": "https://api.codedev.test",
+                  "audience": "codedev-api"
+                }
+              },
+              {
+                "op": "verify",
+                "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEwNDIiLCJzaWQiOiJmYW1fN2ExYyIsImlzcyI6Imh0dHBzOi8vYXBpLmNvZGVkZXYudGVzdCIsImF1ZCI6ImNvZGVkZXYtYXBpIiwiaWF0IjoxNzkyNzk2NDAwLCJleHAiOjE3OTI3OTczMDB9.YJkJwTDOKp3jDo5NDD7rCEeVvOUYxdBgy1XbwejAKo0",
+                "now": 1792800000,
+                "options": {
+                  "issuer": "https://api.codedev.test",
+                  "audience": "codedev-api"
+                }
+              },
+              {
+                "op": "verify",
+                "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEwNDIiLCJzaWQiOiJmYW1fN2ExYyIsImlzcyI6Imh0dHBzOi8vYXBpLmNvZGVkZXYudGVzdCIsImF1ZCI6ImNvZGVkZXYtYXBpIiwiaWF0IjoxNzkyNzk2NDAwLCJleHAiOjE3OTI3OTczMDB9.nEDMikzHQ7w73tkoGNxJjQ_vFhQIQQRFTb-CtGKPtRY",
+                "now": 1792800000,
+                "options": {
+                  "issuer": "https://api.codedev.test",
+                  "audience": "codedev-api"
+                }
+              }
+            ]
+          },
+          "expected": [
+            {
+              "ok": false,
+              "reason": "unsupported_alg"
+            },
+            {
+              "ok": false,
+              "reason": "unsupported_alg"
+            },
+            {
+              "ok": false,
+              "reason": "unsupported_alg"
+            },
+            {
+              "ok": false,
+              "reason": "unsupported_alg"
+            },
+            {
+              "ok": false,
+              "reason": "bad_signature"
+            },
+            {
+              "ok": false,
+              "reason": "expired"
+            }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Malformed tokens get reason malformed instead of throwing",
+          "input": {
+            "key": "cd-test-access-key-2026-10",
+            "ops": [
+              {
+                "op": "verify",
+                "token": "",
+                "now": 1792800000,
+                "options": {
+                  "issuer": "https://api.codedev.test",
+                  "audience": "codedev-api"
+                }
+              },
+              {
+                "op": "verify",
+                "token": "abc",
+                "now": 1792800000,
+                "options": {
+                  "issuer": "https://api.codedev.test",
+                  "audience": "codedev-api"
+                }
+              },
+              {
+                "op": "verify",
+                "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEwNDIiLCJzaWQiOiJmYW1fN2ExYyIsImlzcyI6Imh0dHBzOi8vYXBpLmNvZGVkZXYudGVzdCIsImF1ZCI6ImNvZGVkZXYtYXBpIiwiaWF0IjoxNzkyODAwMDAwLCJleHAiOjE3OTI4MDA5MDB9",
+                "now": 1792800000,
+                "options": {
+                  "issuer": "https://api.codedev.test",
+                  "audience": "codedev-api"
+                }
+              },
+              {
+                "op": "verify",
+                "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEwNDIiLCJzaWQiOiJmYW1fN2ExYyIsImlzcyI6Imh0dHBzOi8vYXBpLmNvZGVkZXYudGVzdCIsImF1ZCI6ImNvZGVkZXYtYXBpIiwiaWF0IjoxNzkyODAwMDAwLCJleHAiOjE3OTI4MDA5MDB9.YJkJwTDOKp3jDo5NDD7rCEeVvOUYxdBgy1XbwejAKo0.extra",
+                "now": 1792800000,
+                "options": {
+                  "issuer": "https://api.codedev.test",
+                  "audience": "codedev-api"
+                }
+              },
+              {
+                "op": "verify",
+                "token": ".eyJzdWIiOiJ1c2VyXzEwNDIiLCJzaWQiOiJmYW1fN2ExYyIsImlzcyI6Imh0dHBzOi8vYXBpLmNvZGVkZXYudGVzdCIsImF1ZCI6ImNvZGVkZXYtYXBpIiwiaWF0IjoxNzkyODAwMDAwLCJleHAiOjE3OTI4MDA5MDB9.YJkJwTDOKp3jDo5NDD7rCEeVvOUYxdBgy1XbwejAKo0",
+                "now": 1792800000,
+                "options": {
+                  "issuer": "https://api.codedev.test",
+                  "audience": "codedev-api"
+                }
+              },
+              {
+                "op": "verify",
+                "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9=.eyJzdWIiOiJ1c2VyXzEwNDIiLCJzaWQiOiJmYW1fN2ExYyIsImlzcyI6Imh0dHBzOi8vYXBpLmNvZGVkZXYudGVzdCIsImF1ZCI6ImNvZGVkZXYtYXBpIiwiaWF0IjoxNzkyODAwMDAwLCJleHAiOjE3OTI4MDA5MDB9.YJkJwTDOKp3jDo5NDD7rCEeVvOUYxdBgy1XbwejAKo0",
+                "now": 1792800000,
+                "options": {
+                  "issuer": "https://api.codedev.test",
+                  "audience": "codedev-api"
+                }
+              },
+              {
+                "op": "verify",
+                "token": "bm90IGpzb24.eyJzdWIiOiJ1c2VyXzEwNDIiLCJzaWQiOiJmYW1fN2ExYyIsImlzcyI6Imh0dHBzOi8vYXBpLmNvZGVkZXYudGVzdCIsImF1ZCI6ImNvZGVkZXYtYXBpIiwiaWF0IjoxNzkyODAwMDAwLCJleHAiOjE3OTI4MDA5MDB9.YJkJwTDOKp3jDo5NDD7rCEeVvOUYxdBgy1XbwejAKo0",
+                "now": 1792800000,
+                "options": {
+                  "issuer": "https://api.codedev.test",
+                  "audience": "codedev-api"
+                }
+              },
+              {
+                "op": "verify",
+                "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.WzEsMl0.clDetu9c0rqC1dPpwZw7cV829e_FMC3MRQdIVuDHdXM",
+                "now": 1792800000,
+                "options": {
+                  "issuer": "https://api.codedev.test",
+                  "audience": "codedev-api"
+                }
+              },
+              {
+                "op": "verify",
+                "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.bnVsbA.ray-hHT5jiQLtYzxbOVl53Zt6AHTMZL_MW6rpN1EpT4",
+                "now": 1792800000,
+                "options": {
+                  "issuer": "https://api.codedev.test",
+                  "audience": "codedev-api"
+                }
+              }
+            ]
+          },
+          "expected": [
+            {
+              "ok": false,
+              "reason": "malformed"
+            },
+            {
+              "ok": false,
+              "reason": "malformed"
+            },
+            {
+              "ok": false,
+              "reason": "malformed"
+            },
+            {
+              "ok": false,
+              "reason": "malformed"
+            },
+            {
+              "ok": false,
+              "reason": "malformed"
+            },
+            {
+              "ok": false,
+              "reason": "malformed"
+            },
+            {
+              "ok": false,
+              "reason": "malformed"
+            },
+            {
+              "ok": false,
+              "reason": "malformed"
+            },
+            {
+              "ok": false,
+              "reason": "malformed"
+            }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Missing or non-numeric exp/nbf are invalid_claims; nbf allows 30 s of skew",
+          "input": {
+            "key": "cd-test-access-key-2026-10",
+            "ops": [
+              {
+                "op": "verify",
+                "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEwNDIiLCJzaWQiOiJmYW1fN2ExYyIsImlzcyI6Imh0dHBzOi8vYXBpLmNvZGVkZXYudGVzdCIsImF1ZCI6ImNvZGVkZXYtYXBpIn0.zko2z9JqwIWf8tqFdFBLy1jMMyGwg4hrMgXKzX-rnbY",
+                "now": 1792800000,
+                "options": {
+                  "issuer": "https://api.codedev.test",
+                  "audience": "codedev-api"
+                }
+              },
+              {
+                "op": "verify",
+                "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEwNDIiLCJzaWQiOiJmYW1fN2ExYyIsImlzcyI6Imh0dHBzOi8vYXBpLmNvZGVkZXYudGVzdCIsImF1ZCI6ImNvZGVkZXYtYXBpIiwiaWF0IjoxNzkyODAwMDAwLCJleHAiOiIxNzkyODAwOTAwIn0.m147FW-HNK48NadXtyNie-F0KcQFxqP36xadaUgmUx8",
+                "now": 1792800000,
+                "options": {
+                  "issuer": "https://api.codedev.test",
+                  "audience": "codedev-api"
+                }
+              },
+              {
+                "op": "verify",
+                "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEwNDIiLCJzaWQiOiJmYW1fN2ExYyIsImlzcyI6Imh0dHBzOi8vYXBpLmNvZGVkZXYudGVzdCIsImF1ZCI6ImNvZGVkZXYtYXBpIiwiaWF0IjoxNzkyODAwMDAwLCJleHAiOjE3OTI4MDA5MDAsIm5iZiI6InNvb24ifQ.KRMko62DJK0qpVoCq9wySeYqabSryckxiHGF94n__Dw",
+                "now": 1792800000,
+                "options": {
+                  "issuer": "https://api.codedev.test",
+                  "audience": "codedev-api"
+                }
+              },
+              {
+                "op": "verify",
+                "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEwNDIiLCJzaWQiOiJmYW1fN2ExYyIsImlzcyI6Imh0dHBzOi8vYXBpLmNvZGVkZXYudGVzdCIsImF1ZCI6ImNvZGVkZXYtYXBpIiwiaWF0IjoxNzkyODAwMDAwLCJleHAiOjE3OTI4MDA5MDAsIm5iZiI6MTc5MjgwMDEwMH0.lLTEHuLGYIO7UTJx10BKaRVdY5qk0t2CuXGxBnotBF8",
+                "now": 1792800069,
+                "options": {
+                  "issuer": "https://api.codedev.test",
+                  "audience": "codedev-api"
+                }
+              },
+              {
+                "op": "verify",
+                "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEwNDIiLCJzaWQiOiJmYW1fN2ExYyIsImlzcyI6Imh0dHBzOi8vYXBpLmNvZGVkZXYudGVzdCIsImF1ZCI6ImNvZGVkZXYtYXBpIiwiaWF0IjoxNzkyODAwMDAwLCJleHAiOjE3OTI4MDA5MDAsIm5iZiI6MTc5MjgwMDEwMH0.lLTEHuLGYIO7UTJx10BKaRVdY5qk0t2CuXGxBnotBF8",
+                "now": 1792800070,
+                "options": {
+                  "issuer": "https://api.codedev.test",
+                  "audience": "codedev-api"
+                }
+              }
+            ]
+          },
+          "expected": [
+            {
+              "ok": false,
+              "reason": "invalid_claims"
+            },
+            {
+              "ok": false,
+              "reason": "invalid_claims"
+            },
+            {
+              "ok": false,
+              "reason": "invalid_claims"
+            },
+            {
+              "ok": false,
+              "reason": "not_yet_valid"
+            },
+            {
+              "ok": true,
+              "claims": {
+                "sub": "user_1042",
+                "sid": "fam_7a1c",
+                "iss": "https://api.codedev.test",
+                "aud": "codedev-api",
+                "iat": 1792800000,
+                "exp": 1792800900,
+                "nbf": 1792800100
+              }
+            }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Issuer is checked before audience; aud may be an array that contains the audience",
+          "input": {
+            "key": "cd-test-access-key-2026-10",
+            "ops": [
+              {
+                "op": "verify",
+                "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEwNDIiLCJzaWQiOiJmYW1fN2ExYyIsImlzcyI6Imh0dHBzOi8vZXZpbC5leGFtcGxlIiwiYXVkIjoib3RoZXItYXBpIiwiaWF0IjoxNzkyODAwMDAwLCJleHAiOjE3OTI4MDA5MDB9.nJ3894Xj-6_bZ13WRq3UqksKc-37QefqJelfLEnZCug",
+                "now": 1792800000,
+                "options": {
+                  "issuer": "https://api.codedev.test",
+                  "audience": "codedev-api"
+                }
+              },
+              {
+                "op": "verify",
+                "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEwNDIiLCJhdWQiOiJjb2RlZGV2LWFwaSIsImlhdCI6MTc5MjgwMDAwMCwiZXhwIjoxNzkyODAwOTAwfQ.Nywtw9PkHUcJxVN6bPXYnzokb2NOufAdQ1tJ2TP4IT4",
+                "now": 1792800000,
+                "options": {
+                  "issuer": "https://api.codedev.test",
+                  "audience": "codedev-api"
+                }
+              },
+              {
+                "op": "verify",
+                "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEwNDIiLCJzaWQiOiJmYW1fN2ExYyIsImlzcyI6Imh0dHBzOi8vYXBpLmNvZGVkZXYudGVzdCIsImF1ZCI6WyJjb2RlZGV2LWFkbWluIiwiY29kZWRldi1hcGkiXSwiaWF0IjoxNzkyODAwMDAwLCJleHAiOjE3OTI4MDA5MDB9.fhAxoltJDlRNI9SuYGietuNzTJ8tbO0tsH2N_MKdJuc",
+                "now": 1792800000,
+                "options": {
+                  "issuer": "https://api.codedev.test",
+                  "audience": "codedev-api"
+                }
+              },
+              {
+                "op": "verify",
+                "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEwNDIiLCJzaWQiOiJmYW1fN2ExYyIsImlzcyI6Imh0dHBzOi8vYXBpLmNvZGVkZXYudGVzdCIsImF1ZCI6WyJjb2RlZGV2LWFkbWluIl0sImlhdCI6MTc5MjgwMDAwMCwiZXhwIjoxNzkyODAwOTAwfQ.nb37YRJ-QVqjse5vcRWMJkEsVbFFAEJK1HVePC90th0",
+                "now": 1792800000,
+                "options": {
+                  "issuer": "https://api.codedev.test",
+                  "audience": "codedev-api"
+                }
+              },
+              {
+                "op": "verify",
+                "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEwNDIiLCJpc3MiOiJodHRwczovL2FwaS5jb2RlZGV2LnRlc3QiLCJpYXQiOjE3OTI4MDAwMDAsImV4cCI6MTc5MjgwMDkwMH0.xZcYDLg2okxnCrz9CmVqSUSN70rql5L-UdfCk5rnMU0",
+                "now": 1792800000,
+                "options": {
+                  "issuer": "https://api.codedev.test",
+                  "audience": "codedev-api"
+                }
+              }
+            ]
+          },
+          "expected": [
+            {
+              "ok": false,
+              "reason": "wrong_issuer"
+            },
+            {
+              "ok": false,
+              "reason": "wrong_issuer"
+            },
+            {
+              "ok": true,
+              "claims": {
+                "sub": "user_1042",
+                "sid": "fam_7a1c",
+                "iss": "https://api.codedev.test",
+                "aud": [
+                  "codedev-admin",
+                  "codedev-api"
+                ],
+                "iat": 1792800000,
+                "exp": 1792800900
+              }
+            },
+            {
+              "ok": false,
+              "reason": "wrong_audience"
+            },
+            {
+              "ok": false,
+              "reason": "wrong_audience"
+            }
+          ],
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

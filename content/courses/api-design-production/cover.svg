@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Course cover: API design for production (a paged response with a cursor, a deprecated field kept beside its replacement). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0E1726"/>
+      <stop offset="0.55" stop-color="#110F16"/>
+      <stop offset="1" stop-color="#0D0B13"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.74" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#3B82F6" stop-opacity="0.26"/>
+      <stop offset="1" stop-color="#3B82F6" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.6" fill="#FFFFFF" fill-opacity="0.07"/>
+    </pattern>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#dots)"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- Copy -->
+  <g font-family="Segoe UI, Inter, Arial, sans-serif">
+    <rect x="112" y="152" width="92" height="92" rx="20" fill="#3B82F6"/>
+    <text x="158" y="211" text-anchor="middle" font-family="Consolas, Menlo, monospace" font-size="34" font-weight="800" fill="#FFFFFF">/v1</text>
+    <text x="110" y="330" font-family="Consolas, Menlo, monospace" font-size="30" font-weight="600" letter-spacing="6" fill="#93C5FD">BACKEND · API DESIGN</text>
+    <text x="106" y="430" font-size="80" font-weight="800" fill="#F4F2F8">API Design for</text>
+    <text x="106" y="530" font-size="80" font-weight="800" fill="#F4F2F8">Production</text>
+    <text x="110" y="600" font-size="34" font-weight="500" fill="#B8B2C8">Contracts · Pagination · Safe changes</text>
+    <g font-family="Consolas, Menlo, monospace" font-size="26" fill="#DBEAFE">
+      <rect x="110" y="660" width="122" height="52" rx="26" fill="#13203A" stroke="#3B82F6"/>
+      <text x="171" y="695" text-anchor="middle">cursor</text>
+      <rect x="248" y="660" width="94" height="52" rx="26" fill="#13203A" stroke="#3B82F6"/>
+      <text x="295" y="695" text-anchor="middle">422</text>
+      <rect x="358" y="660" width="232" height="52" rx="26" fill="#13203A" stroke="#3B82F6"/>
+      <text x="474" y="695" text-anchor="middle">Idempotency-Key</text>
+      <rect x="606" y="660" width="108" height="52" rx="26" fill="#13203A" stroke="#3B82F6"/>
+      <text x="660" y="695" text-anchor="middle">Sunset</text>
+    </g>
+  </g>
+
+  <!-- Response panel -->
+  <g font-family="Consolas, Menlo, monospace">
+    <rect x="900" y="170" width="600" height="560" rx="18" fill="#15111F" stroke="#2C2440" stroke-width="2"/>
+    <rect x="900" y="170" width="600" height="56" rx="18" fill="#1C1629"/>
+    <rect x="900" y="208" width="600" height="18" fill="#1C1629"/>
+    <circle cx="934" cy="198" r="8" fill="#F2555A"/>
+    <circle cx="960" cy="198" r="8" fill="#F2C14E"/>
+    <circle cx="986" cy="198" r="8" fill="#3DBE7B"/>
+    <text x="1020" y="206" font-size="22" fill="#B8B2C8">GET /v1/courses?limit=2</text>
+
+    <g font-size="21">
+      <text x="930" y="270" fill="#3DBE7B">HTTP/2 200</text>
+      <text x="930" y="304" fill="#F2C14E">Deprecation: @1798761600</text>
+      <line x1="924" y1="324" x2="1476" y2="324" stroke="#2C2440"/>
+      <text x="930" y="362" fill="#E4DCFB">{ "data": [</text>
+      <text x="954" y="396" fill="#E4DCFB">{ "id": "crs_9f2", "level": "beginner",</text>
+      <text x="978" y="430" fill="#F2A3A6">"priceVnd": 0,</text>
+      <text x="978" y="464" fill="#9FE3BF">"price": { "amount": 0 } },</text>
+      <text x="954" y="498" fill="#E4DCFB">{ "id": "crs_8c1", ... } ],</text>
+      <text x="930" y="532" fill="#E4DCFB">  "page": {</text>
+      <text x="954" y="566" fill="#93C5FD">"nextCursor": "eyJwdWJsaXNoZWRBdCI6",</text>
+      <text x="954" y="600" fill="#E4DCFB">"limit": 2 } }</text>
+    </g>
+
+    <rect x="924" y="630" width="552" height="72" rx="10" fill="#10241A" stroke="#3DBE7B"/>
+    <text x="948" y="674" font-size="20" fill="#9FE3BF">old field kept, new field added</text>
+  </g>
+</svg>
