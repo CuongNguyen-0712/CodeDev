@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">Same symptom, four causes</text>
+  <text x="40" y="82" font-size="16" fill="#475569">The cause is where the correct fact was when the model answered. Each cause needs a different fix.</text>
+
+  <rect x="40" y="104" width="1120" height="48" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="600" y="134" font-size="16" font-weight="700" fill="#334155" text-anchor="middle">Symptom in all four bug reports: a fluent, specific, friendly answer that is wrong</text>
+
+  <!-- Panel 1: hallucination -->
+  <rect x="40" y="172" width="265" height="388" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="58" y="204" font-size="18" font-weight="700" fill="#b91c1c">Hallucination</text>
+  <text x="58" y="226" font-size="13" fill="#64748b">invented, never true</text>
+  <rect x="58" y="242" width="229" height="58" rx="6" fill="#ffffff" stroke="#fca5a5" stroke-width="2"/>
+  <g font-family="Consolas, 'Courier New', monospace" font-size="13" fill="#334155">
+    <text x="70" y="265">npm install</text>
+    <text x="70" y="287">codedev-test-helpers</text>
+  </g>
+  <text x="58" y="332" font-size="13" font-weight="700" fill="#334155">Evidence</text>
+  <text x="58" y="354" font-size="13" fill="#475569">No version was ever</text>
+  <text x="58" y="374" font-size="13" fill="#475569">published to the registry.</text>
+  <text x="58" y="414" font-size="13" font-weight="700" fill="#334155">Fix</text>
+  <text x="58" y="436" font-size="13" fill="#475569">Check names against the</text>
+  <text x="58" y="456" font-size="13" fill="#475569">registry; allow "not sure".</text>
+  <text x="58" y="530" font-size="14" font-weight="700" fill="#b91c1c">Fact: nowhere</text>
+
+  <!-- Panel 2: knowledge cutoff -->
+  <rect x="325" y="172" width="265" height="388" rx="8" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="343" y="204" font-size="18" font-weight="700" fill="#b45309">Knowledge cutoff</text>
+  <text x="343" y="226" font-size="13" fill="#64748b">true once, changed later</text>
+  <rect x="343" y="242" width="229" height="58" rx="6" fill="#ffffff" stroke="#fcd34d" stroke-width="2"/>
+  <g font-family="Consolas, 'Courier New', monospace" font-size="13" fill="#334155">
+    <text x="355" y="265">GET /v2/leaderboard</text>
+    <text x="355" y="287">    ?period=week</text>
+  </g>
+  <text x="343" y="332" font-size="13" font-weight="700" fill="#334155">Evidence</text>
+  <text x="343" y="354" font-size="13" fill="#475569">Correct before the cutoff;</text>
+  <text x="343" y="374" font-size="13" fill="#475569">the changelog shows v3 later.</text>
+  <text x="343" y="414" font-size="13" font-weight="700" fill="#334155">Fix</text>
+  <text x="343" y="436" font-size="13" fill="#475569">Send the current docs</text>
+  <text x="343" y="456" font-size="13" fill="#475569">in the prompt (lesson 6).</text>
+  <text x="343" y="530" font-size="14" font-weight="700" fill="#b45309">Fact: in an old version</text>
+
+  <!-- Panel 3: missing context -->
+  <rect x="610" y="172" width="265" height="388" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+  <text x="628" y="204" font-size="18" font-weight="700" fill="#1d4ed8">Missing context</text>
+  <text x="628" y="226" font-size="13" fill="#64748b">known to CodeDev, never sent</text>
+  <rect x="628" y="242" width="229" height="58" rx="6" fill="#ffffff" stroke="#93c5fd" stroke-width="2"/>
+  <g font-family="Consolas, 'Courier New', monospace" font-size="13" fill="#334155">
+    <text x="640" y="265">change &lt;= to &lt;</text>
+    <text x="640" y="287">(there is no loop)</text>
+  </g>
+  <text x="628" y="332" font-size="13" font-weight="700" fill="#334155">Evidence</text>
+  <text x="628" y="354" font-size="13" fill="#475569">The learner's code was</text>
+  <text x="628" y="374" font-size="13" fill="#475569">not in the prompt.</text>
+  <text x="628" y="414" font-size="13" font-weight="700" fill="#334155">Fix</text>
+  <text x="628" y="436" font-size="13" fill="#475569">Send the code and the</text>
+  <text x="628" y="456" font-size="13" fill="#475569">failing test output.</text>
+  <text x="628" y="530" font-size="14" font-weight="700" fill="#1d4ed8">Fact: in your system</text>
+
+  <!-- Panel 4: ambiguous prompt -->
+  <rect x="895" y="172" width="265" height="388" rx="8" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2"/>
+  <text x="913" y="204" font-size="18" font-weight="700" fill="#6d28d9">Ambiguous prompt</text>
+  <text x="913" y="226" font-size="13" fill="#64748b">right answer, wrong question</text>
+  <rect x="913" y="242" width="229" height="58" rx="6" fill="#ffffff" stroke="#c4b5fd" stroke-width="2"/>
+  <g font-family="Consolas, 'Courier New', monospace" font-size="13" fill="#334155">
+    <text x="925" y="265">"How do I start over?"</text>
+    <text x="925" y="287">-&gt; leave the course</text>
+  </g>
+  <text x="913" y="332" font-size="13" font-weight="700" fill="#334155">Evidence</text>
+  <text x="913" y="354" font-size="13" fill="#475569">The answer is right for</text>
+  <text x="913" y="374" font-size="13" fill="#475569">another reading.</text>
+  <text x="913" y="414" font-size="13" font-weight="700" fill="#334155">Fix</text>
+  <text x="913" y="436" font-size="13" fill="#475569">Send the page context or</text>
+  <text x="913" y="456" font-size="13" fill="#475569">ask a clarifying question.</text>
+  <text x="913" y="530" font-size="14" font-weight="700" fill="#6d28d9">Fact: in the user's head</text>
+</svg>

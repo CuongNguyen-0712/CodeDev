@@ -1,0 +1,40 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_ailf_111",
+      "name": "tokens-next-token-quiz",
+      "type": "quiz",
+      "title": "Read the AI Hint prototype logs",
+      "description": "Two pieces of evidence from the first AI Hint prototype: a timing log with token counts, and a hint that names a function nobody gave the model. Decide whether each statement is true or false.",
+      "difficulty": "easy",
+      "points": 10,
+      "hints": [
+        "For each statement, ask what the model actually does between receiving the prompt and returning the last token. Which part of that work grows with the input, and which part with the output?",
+        "In the timing log, compare how much the input changed with how much the output changed between the two calls. In the hint evidence, search the prompt that was sent for the names the model used.",
+        "A similar case: a summary request with 2,000 input tokens and 50 output tokens returns in 0.9 s; the same document with a request for a 500-token summary takes 7 s. Separately, a model asked about an internal CodeDev service writes \"use the /internal/v2/metrics endpoint\" although that path appears nowhere in the prompt - the path was generated, not read."
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The AI Hint prototype logs every call with the token counts from the API's usage data. Same model, same instructions, two different challenges:\n\ncall  challenge        input_tokens  output_tokens  total_time\n#1    sum-of-array          912            41         1.1 s\n#2    average-score         958           402         6.0 s\n\nStatement: \"Call #2 was slower mainly because the model generates its answer one token at a time, so 361 more output tokens cost far more time than 46 more input tokens.\"",
+          "explanation": "True. The input is processed in one pass, so 46 extra input tokens add very little time. Every output token, by contrast, needs its own sequential model step: the model must choose token n before it can compute token n + 1. Going from 41 to 402 output tokens multiplies the number of those steps by about ten, which matches the jump from 1.1 s to 6.0 s. The common misconception is that response time depends mostly on how much text you send; for typical requests it depends mostly on how much text the model writes, which is why a length instruction or an output limit is the cheapest speed-up.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The prompt the prototype sent for the grade-submission challenge (complete):\n\nYou write one short hint for a learner. Do not give the full solution.\nChallenge: Write gradeSubmission(results) that returns the share of passed tests, rounded to 2 decimals.\nLearner code:\nfunction gradeSubmission(results) {\n  return results.filter(r => r.passed).length / results.length;\n}\n\nThe model's answer:\n\"Call isValidSubmission() from lib/grading.js before you compute the score.\"\n\nA search of the whole CodeDev repository finds no file lib/grading.js and no function isValidSubmission.\n\nStatement: \"Because the hint names an exact file and function, the model must have looked them up in a code base while it was writing the answer.\"",
+          "explanation": "False. The prompt is complete and contains neither name, and the repository has neither. A language model does not search anything while generating: at each step it picks a token that is likely given the text so far, based on patterns from its training data. Validation helpers named like isValidSubmission in files named like lib/grading.js are common in code the model was trained on, so the sentence is very plausible - and invented. The common misconception is that specific, confident details are a sign of a lookup; the generation loop produces specific details for wrong answers just as fluently as for right ones. Facts about your system must be put into the prompt or fetched by a real tool, then checked.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        }
+      ]
+    }
+  ]
+}

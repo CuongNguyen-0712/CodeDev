@@ -1,0 +1,52 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nae_111",
+      "name": "hint-service-anatomy-quiz",
+      "type": "quiz",
+      "title": "Read the Hint Service: where did it fail?",
+      "description": "Two pieces of evidence from the Hint Service rebuild: a client-side snippet that reads the provider key from an environment variable, and the log of one hint request whose model call succeeded.",
+      "difficulty": "medium",
+      "points": 10,
+      "hints": [
+        "For each piece of evidence, ask where the code runs (the learner's browser or your server) and which of the six steps of a hint request the log line belongs to.",
+        "Look at the prefix of the environment variable and at what a bundler does with such variables when it builds client code. In the log, compare the line of the model call with the lines after it.",
+        "A similar case: a log shows `llm.complete 8000 ms error=TimeoutError` followed by `respond status=200 source=fallback`, with no validate line. The model never answered, so nothing reached validation: that request failed on latency, and the learner got the static hint. Read each line as one step and find the first step that did not succeed."
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "A teammate proposes this to remove the server round trip. It lives in a React component that is bundled for the browser by Next.js:\n\nconst response = await fetch(\"https://llm-provider.example/v1/chat\", {\n  method: \"POST\",\n  headers: { Authorization: \"Bearer \" + process.env.NEXT_PUBLIC_LLM_KEY },\n  body: JSON.stringify({ model: \"model-small\", messages }),\n});\n\n.env.local (not committed to git):\nNEXT_PUBLIC_LLM_KEY=prov_live_8f3c...\n\nStatement: \"The key stays secret because it is read from an environment variable in a file that is not committed to git.\"",
+          "explanation": "False. Next.js inlines every NEXT_PUBLIC_ variable into the client JavaScript at build time, so the key is shipped as plain text to every visitor's browser, where DevTools or the downloaded bundle reveal it. Keeping .env.local out of git protects the repository, not the bundle. The fix is architectural: the browser calls CodeDev's own POST /challenges/:id/hints, and only the server reads the key and calls the provider. The common misconception is that \"environment variable\" means \"secret\"; whether a value is secret depends on where the code that reads it runs.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Hint Service log for one request (learner u_17 asked for a level 2 hint):\n\nhint_req h_9f2 challenge=c_42 level=2\n  check_request     ok\n  render_prompt     2 ms     template=hint.v3\n  llm.complete      4180 ms  model=model-large inputTokens=1830 outputTokens=96 status=ok\n  validate          1 ms     ok=false errors=[\"hint: must be 1-400 characters after trimming\"]\n  respond           0 ms     status=200 source=fallback\n\nStatement: \"This request failed on format: the model call itself succeeded, and the answer was rejected by validation before it reached the learner, who got the static hint instead.\"",
+          "explanation": "True. The llm.complete line shows status=ok with tokens in both directions, so the provider answered. The validate line shows the answer broke the contract (the hint text was empty or longer than 400 characters), and respond shows source=fallback with status 200: the learner received the challenge's static level 2 hint, not an error. Note that the 1830 input and 96 output tokens were still paid for. The common misconception is that a successful model call means a successful feature; the model's answer only counts once it passes the contract check.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

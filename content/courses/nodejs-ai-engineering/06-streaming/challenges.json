@@ -1,0 +1,343 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_nae_221",
+      "name": "streamed-hint-quiz",
+      "type": "quiz",
+      "title": "Read the stream before you trust it",
+      "description": "Two pieces of evidence from the first week of the streaming Hint Service: a client parser that worked on localhost and failed in production, and a hint stream that ended early.",
+      "difficulty": "medium",
+      "points": 10,
+      "hints": [
+        "For each piece of evidence, ask what the network guarantees about where one chunk ends and the next begins, and what the server guarantees about how a stream ends.",
+        "In the first item, compare the position in the error message with the length of the chunk that was parsed. In the second, look for the line that should close a complete stream and check whether it is there.",
+        "A similar case: a log file is uploaded in 64 KB pieces and a parser splits each piece on newlines. The last line of a piece is usually half a line, so the bug is in the parser, not in the program that wrote the log."
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The browser reads the Hint Service stream with this code. It passed every manual test on localhost:\n\nconst reader = res.body.pipeThrough(new TextDecoderStream()).getReader();\nfor (;;) {\n  const { value, done } = await reader.read();\n  if (done) break;\n  if (value.startsWith(\"data: [DONE]\")) break;\n  const frame = JSON.parse(value.slice(6));   // \"data: \" is 6 characters\n  hintBox.textContent += frame.delta;\n}\n\nProduction error log, behind the CDN, same day:\n\nSyntaxError: Unterminated string in JSON at position 26\n  value = 'data: {\"delta\":\"Check what sumSc'   (length 32)\nSyntaxError: Unexpected token 'e', \"eturns\"}\\n\\n\"... is not valid JSON\n  value = 'ores returns\"}\\n\\ndata: {\"delta\":\" for []\"}\\n\\n'   (length 43)\n\nStatement: \"These errors show that the model produced invalid JSON in its deltas, so the fix is a stricter prompt that tells the model to always close its strings.\"",
+          "explanation": "False. The model's frames are fine: the first value is the start of a frame and the second value is the rest of it plus a whole second frame. The network (here the CDN and TCP) delivered the same bytes in different pieces than on localhost, and the client assumed one chunk = one frame. A reader chunk can end anywhere, even inside a JSON string, and can hold several frames. The fix is in the client: append chunks to a buffer and only parse an event after its terminating empty line. The common misconception is to blame the model for every JSON error; read where the error happens before you change the prompt.",
+          "options": [
+            {
+              "text": "True",
+              "correct": false
+            },
+            {
+              "text": "False",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The Hint Service caches each finished level-2 hint for 24 hours, keyed by challenge and failing test. Server log for one request (the stream to the provider was read with the gateway's streaming call):\n\n10:41:07.112 hint.stream start  challenge=c_17 level=2 model=model-large\n10:41:07.950 first delta received (838 ms)\n10:41:09.402 provider stream ended  frames=23  done_received=false\n10:41:09.403 assembled text: \"Look at what your loop does when the array is empty: the first\"\n10:41:09.404 cache.set c_17:test_3:level2 (ttl 24h)\n\nStatement: \"Writing this text to the cache was a mistake, because a stream that ends without the [DONE] marker is incomplete even when every frame in it was valid.\"",
+          "explanation": "True. The stream ended without the end marker (done_received=false) and the text visibly stops in the middle of a sentence. Every frame parsed, but parsed frames only prove that what arrived is well formed, not that everything arrived: a dropped connection, a proxy timeout or a provider restart all end the body early in the same way. The right handling is to keep the partial text for the learner who is watching, mark it as incomplete, and not cache or log it as a finished hint; otherwise every learner with the same failing test gets the broken hint for 24 hours. The common misconception is that the end of the response body means the end of the answer.",
+          "options": [
+            {
+              "text": "True",
+              "correct": true
+            },
+            {
+              "text": "False",
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_nae_222",
+      "name": "assemble-streamed-hint",
+      "type": "mini_coding",
+      "title": "Assemble a streamed hint",
+      "description": "The browser reads the Hint Service's streaming endpoint with fetch, because EventSource cannot send a POST body. Write assembleStream(chunks): chunks is an async iterable of decoded text chunks, split at arbitrary positions (inside a line, inside the JSON, between \\r and \\n). Lines end with \\n or \\r\\n. A line starting with \":\" is a comment. Other lines are \"field: value\" or \"field:value\" (remove one leading space from the value); only the fields data and event matter. An empty line ends the current event: an event without data lines is ignored; otherwise its payload is its data values joined with \\n. Event name \"error\" -> return { complete: false, reason: \"error\", text, frames }. Payload exactly [DONE] -> return { complete: true, text, frames }. Otherwise the payload must be JSON of an object with a string delta: append it to text and count it in frames; anything else -> return { complete: false, reason: \"bad_frame\", text, frames }. Other event names are normal frames. If the chunks end before a complete [DONE] event (including its empty line), return { complete: false, reason: \"cut\", text, frames }; an event still being read at the end is never applied. text = applied deltas in order, frames = number of applied deltas.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "javascript",
+        "filePath": "assembleStream.js",
+        "executionMode": "browser",
+        "timeLimitMs": 2000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "hints": [
+        "A chunk is not a frame and not even a line. What do you have to keep between two iterations of the for await loop so that a line split across chunks is read only once it is whole?",
+        "Look at three places: the buffer (append each chunk, then cut off complete lines up to each \\n and keep the rest), the state of the current event (its name and its data values, reset after every empty line), and the code after the loop, which only runs when the stream ended without a stop.",
+        "A worked trace on different input: chunks \"event: no\", \"te\\ndata: {\\\"delta\\\":\\\"hi\\\"}\\n\" and \"\\n\". After chunk 1 the buffer holds \"event: no\" and no line is complete. After chunk 2 two lines are complete: event = \"note\", data = ['{\"delta\":\"hi\"}']; the buffer is empty. Chunk 3 is an empty line, so the event ends: \"note\" is not \"error\", the payload is not [DONE], delta is \"hi\" -> text \"hi\", frames 1. Then the chunks run out with no [DONE], so the stream was cut."
+      ],
+      "tests": [
+        {
+          "name": "A clean stream with one frame per chunk and [DONE] is complete",
+          "input": {
+            "streams": [
+              [
+                "data: {\"delta\":\"What does \"}\n\n",
+                "data: {\"delta\":\"sumScores return \"}\n\n",
+                "data: {\"delta\":\"for an empty array?\"}\n\n",
+                "data: [DONE]\n\n"
+              ]
+            ]
+          },
+          "expected": [
+            {
+              "complete": true,
+              "text": "What does sumScores return for an empty array?",
+              "frames": 3
+            }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "Chunks split inside a line and inside the JSON, with a keep-alive comment, still assemble",
+          "input": {
+            "streams": [
+              [
+                "da",
+                "ta: {\"delta\":\"Look at the lo",
+                "op bound\"}\n",
+                "\n: keep-alive\n\ndata: {\"del",
+                "ta\":\"ary in line 4.\"}\n\ndata: [DO",
+                "NE]\n\n"
+              ]
+            ]
+          },
+          "expected": [
+            {
+              "complete": true,
+              "text": "Look at the loop boundary in line 4.",
+              "frames": 2
+            }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "A stream that ends without [DONE], or is empty, is cut and keeps the partial text",
+          "input": {
+            "streams": [
+              [
+                "data: {\"delta\":\"Compare your \"}\n\n",
+                "data: {\"delta\":\"output with the \"}\n\n"
+              ],
+              []
+            ]
+          },
+          "expected": [
+            {
+              "complete": false,
+              "reason": "cut",
+              "text": "Compare your output with the ",
+              "frames": 2
+            },
+            {
+              "complete": false,
+              "reason": "cut",
+              "text": "",
+              "frames": 0
+            }
+          ],
+          "hidden": false,
+          "score": 5
+        },
+        {
+          "name": "An event: error frame stops the stream with reason error; frames after it are ignored",
+          "input": {
+            "streams": [
+              [
+                "data: {\"delta\":\"Check the \"}\n\n",
+                "event: error\ndata: {\"message\":\"provider overloaded\"}\n\n",
+                "data: {\"delta\":\"ignored\"}\n\ndata: [DONE]\n\n"
+              ],
+              [
+                "data: {\"delta\":\"A\"}\n\nevent: err",
+                "or\ndata: {}\n",
+                "\n"
+              ]
+            ]
+          },
+          "expected": [
+            {
+              "complete": false,
+              "reason": "error",
+              "text": "Check the ",
+              "frames": 1
+            },
+            {
+              "complete": false,
+              "reason": "error",
+              "text": "A",
+              "frames": 1
+            }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "CRLF split between chunks, data without a space, multi-line data and events without data",
+          "input": {
+            "streams": [
+              [
+                "data:{\"delta\":\"one \"}\r",
+                "\n\r\n",
+                "id: 7\r\nevent: ping\r\n\r\n",
+                "data: {\"delta\":\r\ndata: \"two\"}\r\n\r\n",
+                "retry: 3000\n\ndata: [DONE]\r\n\r\n"
+              ],
+              [
+                "event: ping\n\n",
+                ": still thinking\n\n",
+                "data: {\"delta\":\"  spaces stay  \"}\n\n",
+                "data: [DONE]\n\n"
+              ]
+            ]
+          },
+          "expected": [
+            {
+              "complete": true,
+              "text": "one two",
+              "frames": 2
+            },
+            {
+              "complete": true,
+              "text": "  spaces stay  ",
+              "frames": 1
+            }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "[DONE] without its closing empty line is a cut stream; anything after a complete [DONE] is ignored",
+          "input": {
+            "streams": [
+              [
+                "data: {\"delta\":\"Almost\"}\n\ndata: [DONE]"
+              ],
+              [
+                "data: {\"delta\":\"Half\"}\n\ndata: {\"delta\":\" a frame\"}\n"
+              ],
+              [
+                "data: {\"delta\":\"Done\"}\n\ndata: [DONE]\n\ndata: {\"delta\":\" twice\"}\n\n"
+              ],
+              [
+                "data: {\"delta\":\"\"}\n\n",
+                "data: {\"delta\":\"x\"}\n\n",
+                "data: [DONE]\n\n"
+              ]
+            ]
+          },
+          "expected": [
+            {
+              "complete": false,
+              "reason": "cut",
+              "text": "Almost",
+              "frames": 1
+            },
+            {
+              "complete": false,
+              "reason": "cut",
+              "text": "Half",
+              "frames": 1
+            },
+            {
+              "complete": true,
+              "text": "Done",
+              "frames": 1
+            },
+            {
+              "complete": true,
+              "text": "x",
+              "frames": 2
+            }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "Bad frames: invalid JSON, no delta, a non-string delta, null or a lowercase [done] give bad_frame",
+          "input": {
+            "streams": [
+              [
+                "data: {\"delta\":\"ok \"}\n\ndata: {\"delta\":\"bro\n\n"
+              ],
+              [
+                "data: {\"text\":\"wrong field\"}\n\n"
+              ],
+              [
+                "data: {\"delta\":42}\n\n"
+              ],
+              [
+                "data: null\n\n"
+              ],
+              [
+                "data: {\"delta\":\"a\"}\n\ndata: [done]\n\n"
+              ]
+            ]
+          },
+          "expected": [
+            {
+              "complete": false,
+              "reason": "bad_frame",
+              "text": "ok ",
+              "frames": 1
+            },
+            {
+              "complete": false,
+              "reason": "bad_frame",
+              "text": "",
+              "frames": 0
+            },
+            {
+              "complete": false,
+              "reason": "bad_frame",
+              "text": "",
+              "frames": 0
+            },
+            {
+              "complete": false,
+              "reason": "bad_frame",
+              "text": "",
+              "frames": 0
+            },
+            {
+              "complete": false,
+              "reason": "bad_frame",
+              "text": "a",
+              "frames": 1
+            }
+          ],
+          "hidden": true,
+          "score": 5
+        },
+        {
+          "name": "A long hint: 3000 frames cut into 7-character chunks are assembled in order",
+          "input": {
+            "generate": {
+              "frames": 3000,
+              "chunkSize": 7
+            }
+          },
+          "expected": [
+            {
+              "complete": true,
+              "text": {
+                "length": 16890,
+                "start": "w0 w1 w2 w3 ",
+                "end": "w2998 w2999 "
+              },
+              "frames": 3000
+            }
+          ],
+          "hidden": true,
+          "score": 5
+        }
+      ]
+    }
+  ]
+}

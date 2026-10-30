@@ -1,0 +1,50 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_ailf_211",
+      "name": "hallucination-cutoff-quiz",
+      "type": "quiz",
+      "title": "Classify the wrong answer: hallucination, cutoff or missing context",
+      "description": "Three wrong answers from the first week of the CodeDev AI beta, each with the evidence around it: a registry lookup, a changelog and a model card, and the exact prompt the tutor sent. Decide what the evidence shows about the cause before you decide on a fix.",
+      "difficulty": "easy",
+      "points": 10,
+      "hints": [
+        "For each wrong claim, ask where the correct fact was when the model answered: nowhere, in an older version, in your own system, or in the user's head?",
+        "Compare dates (the model's training cutoff against the changelog) and compare the prompt that was actually sent with the details that appear in the answer.",
+        "A similar case: a chatbot says a CSS property is \"not supported in any browser\", but the property shipped in browsers a few months after the model's stated cutoff. The claim was true once and changed later, so the cause is the cutoff, and the fix is to give the model current documentation, not to ask it to try harder."
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "AI Hint, JavaScript course, answer shown to a learner:\n\n\"Install the helpers with npm install codedev-test-helpers, then use assertDeepEqual(actual, expected) from it to compare the arrays.\"\n\nnpm registry lookup for codedev-test-helpers: not found. No version of this package has ever been published, and no package with this name was ever removed.\nCodeDev's own packages on npm: @codedev/runner-types, @codedev/eslint-config (neither exports assertDeepEqual).\nModel card, model-small: training data cutoff 2025-06.\n\nStatement: \"This is a knowledge-cutoff problem: the package was most likely published after the model's training data ended.\"",
+          "explanation": "False. A cutoff problem means the model repeats something that was true before its cutoff and changed later. Here the evidence shows the package never existed at any time: no version was ever published or removed, and CodeDev's real packages do not export that function. The model generated a plausible name in a familiar pattern, which is a hallucination. The common misunderstanding is to blame the cutoff for every wrong answer; the fix for an invented package is to check names against the registry or the lockfile before anyone installs them, because an attacker could register the invented name.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Support bot answer to \"How do I read the weekly leaderboard from a script?\":\n\n\"Call GET /v2/leaderboard?period=week with your API key.\"\n\nCodeDev API changelog:\n2024-03-01  v2 released: GET /v2/leaderboard?period=day|week|month\n2026-02-10  v3 released: GET /v3/leaderboard?window=1d|7d|30d (period renamed to window); v2 deprecated\n2026-05-01  v2 removed: every /v2 route answers 410 Gone\n\nModel card, model-small: training data cutoff 2025-06.\nPrompt sent: system message + the question. No documentation was included.\n\nStatement: \"The answer matches the API as it was documented before the model's cutoff date, so the most likely cause is knowledge cutoff rather than invention.\"",
+          "explanation": "True. GET /v2/leaderboard?period=week was correct and publicly documented from 2024 until v3 replaced it in February 2026, after the model's 2025-06 cutoff. The model is repeating an answer that used to be right; it has no way to know about v3 because no current documentation was in the prompt. The usual misunderstanding is to call this a hallucination and try to fix it with a bigger model; a model trained on the same period would make the same mistake. The fix is to send the current docs (lesson 6).",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "AI tutor log, lesson \"Sum the even numbers\":\n\nmodel: model-small   temperature: 0.7\nmessages sent:\n  system: \"You are a friendly JavaScript tutor on CodeDev. Help the learner without giving away the full solution.\"\n  user:   \"Why does my solution fail test 3?\"\n\nanswer: \"Your loop goes one step too far: change <= to < in the for statement so you stop before the end of the array.\"\n\nThe learner's submission (stored in the submissions table, not sent): const sumEven = (xs) => xs.filter((x) => x % 2 === 0).reduce((a, b) => a + b);\nTest 3 input: [] (an empty array).\n\nStatement: \"Because the answer names a specific operator and a specific fix, the model most likely worked it out from the learner's code.\"",
+          "explanation": "False. The messages that were sent contain no code and no test output, and the learner's real solution has no loop: it fails test 3 because reduce without an initial value throws on an empty array. The model produced the most common beginner fix because that is a likely continuation of \"why does my solution fail\". This is missing context. The misunderstanding is treating specificity as evidence: a detail that was never in the prompt is a guess. The fix is to send the learner's code and the failing test's output with the question.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        }
+      ]
+    }
+  ]
+}

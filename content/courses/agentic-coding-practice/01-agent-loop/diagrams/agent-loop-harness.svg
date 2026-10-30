@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#334155"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="600" fill="#ffffff"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0f172a">A coding agent is a model in a loop. The harness is everything around it.</text>
+  <text x="40" y="82" font-size="16" fill="#475569">Feedforward shapes what the agent reads before it acts. Feedback checks what it did and sends the result back.</text>
+
+  <!-- Feedforward column -->
+  <rect x="40" y="110" width="270" height="300" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="60" y="142" font-size="18" font-weight="700" fill="#15803d">Feedforward</text>
+  <text x="60" y="164" font-size="13" fill="#64748b">guides given before the agent acts</text>
+  <rect x="60" y="182" width="230" height="58" rx="6" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+  <text x="76" y="206" font-size="15" font-weight="700" fill="#166534">Spec and tasks</text>
+  <text x="76" y="226" font-size="13" fill="#334155">criteria, out of scope (lesson 2)</text>
+  <rect x="60" y="250" width="230" height="58" rx="6" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+  <text x="76" y="274" font-size="15" font-weight="700" fill="#166534">AGENTS.md</text>
+  <text x="76" y="294" font-size="13" fill="#334155">commands, map, never-do (lesson 3)</text>
+  <rect x="60" y="318" width="230" height="58" rx="6" fill="#ffffff" stroke="#86efac" stroke-width="2"/>
+  <text x="76" y="342" font-size="15" font-weight="700" fill="#166534">Agent Skills</text>
+  <text x="76" y="362" font-size="13" fill="#334155">loaded when relevant (lesson 4)</text>
+
+  <!-- The loop -->
+  <rect x="500" y="120" width="200" height="54" rx="27" fill="#f8fafc" stroke="#334155" stroke-width="2"/>
+  <text x="600" y="153" font-size="16" font-weight="700" fill="#0f172a" text-anchor="middle">1  Read context</text>
+  <rect x="350" y="215" width="200" height="54" rx="27" fill="#f8fafc" stroke="#334155" stroke-width="2"/>
+  <text x="450" y="248" font-size="16" font-weight="700" fill="#0f172a" text-anchor="middle">2  Plan</text>
+  <rect x="500" y="310" width="200" height="54" rx="27" fill="#f8fafc" stroke="#334155" stroke-width="2"/>
+  <text x="600" y="343" font-size="16" font-weight="700" fill="#0f172a" text-anchor="middle">3  Call a tool</text>
+  <rect x="650" y="215" width="200" height="54" rx="27" fill="#f8fafc" stroke="#334155" stroke-width="2"/>
+  <text x="750" y="248" font-size="16" font-weight="700" fill="#0f172a" text-anchor="middle">4  Observe</text>
+
+  <path d="M515,174 L470,213" stroke="#334155" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <path d="M470,269 L515,308" stroke="#334155" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <path d="M685,310 L730,271" stroke="#334155" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <path d="M730,215 L685,176" stroke="#334155" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <text x="600" y="248" font-size="13" fill="#64748b" text-anchor="middle">repeat</text>
+
+  <g font-family="Consolas, 'Courier New', monospace" font-size="13" fill="#475569">
+    <text x="600" y="384" text-anchor="middle">read_file, edit_file, run "npm test"</text>
+  </g>
+  <rect x="430" y="396" width="340" height="30" rx="6" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="600" y="416" font-size="13" fill="#334155" text-anchor="middle">exit: "done", or a step, time or cost limit</text>
+
+  <!-- Feedback column -->
+  <rect x="890" y="110" width="270" height="300" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+  <text x="910" y="142" font-size="18" font-weight="700" fill="#1d4ed8">Feedback</text>
+  <text x="910" y="164" font-size="13" fill="#64748b">checks run after the agent acts</text>
+  <g font-size="14" fill="#1e3a8a">
+    <rect x="910" y="182" width="230" height="36" rx="6" fill="#ffffff" stroke="#93c5fd" stroke-width="2"/>
+    <text x="926" y="205">Types and lint</text>
+    <rect x="910" y="226" width="230" height="36" rx="6" fill="#ffffff" stroke="#93c5fd" stroke-width="2"/>
+    <text x="926" y="249">Related tests (lesson 5)</text>
+    <rect x="910" y="270" width="230" height="36" rx="6" fill="#ffffff" stroke="#93c5fd" stroke-width="2"/>
+    <text x="926" y="293">Scope check (lesson 7)</text>
+    <rect x="910" y="314" width="230" height="36" rx="6" fill="#ffffff" stroke="#93c5fd" stroke-width="2"/>
+    <text x="926" y="337">Mutation score (lesson 8)</text>
+    <rect x="910" y="358" width="230" height="36" rx="6" fill="#ffffff" stroke="#93c5fd" stroke-width="2"/>
+    <text x="926" y="381">Human review (lesson 11)</text>
+  </g>
+
+  <path d="M310,147 L496,147" stroke="#16a34a" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
+  <path d="M890,242 L854,242" stroke="#2563eb" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- Sandbox band -->
+  <rect x="40" y="446" width="1120" height="124" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+  <text x="60" y="476" font-size="17" font-weight="700" fill="#334155">The sandbox and the permission policy: every tool call passes through them</text>
+  <rect x="60" y="492" width="330" height="62" rx="6" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="76" y="516" font-size="15" font-weight="700" fill="#15803d">allow</text>
+  <text x="76" y="538" font-size="13" font-family="Consolas, 'Courier New', monospace" fill="#166534">read, edit src/, npm test, git diff</text>
+  <rect x="410" y="492" width="330" height="62" rx="6" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="426" y="516" font-size="15" font-weight="700" fill="#b45309">ask</text>
+  <text x="426" y="538" font-size="13" fill="#92400e">new dependency, migration, other paths</text>
+  <rect x="760" y="492" width="380" height="62" rx="6" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="776" y="516" font-size="15" font-weight="700" fill="#b91c1c">deny</text>
+  <text x="776" y="538" font-size="13" fill="#991b1b">rm -rf, push --force, production env, .env</text>
+</svg>

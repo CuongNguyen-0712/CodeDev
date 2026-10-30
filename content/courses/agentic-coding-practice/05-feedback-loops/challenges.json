@@ -1,0 +1,64 @@
+{
+  "challenges": [
+    {
+      "publicId": "chal_quiz_acp_211",
+      "name": "after-edit-hooks-quiz",
+      "type": "quiz",
+      "title": "Is this feedback loop telling the agent the truth?",
+      "description": "Two after-edit hook sessions from the course reviews work: one where the hook picked the tests to run, one where its output went back to the agent.",
+      "difficulty": "medium",
+      "points": 10,
+      "hints": [
+        "For each session, ask what the hook could see. Does an import graph know about every way one file can affect a test?",
+        "Look at what the agent did right after each hook ran: did it get the failure text, and what kind of file did it edit?",
+        "A similar case: a change to .env.test sets the database name every test connects to. No test file imports .env.test, yet every test that touches the database depends on it."
+      ],
+      "questions": [
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "The after-edit hook selects tests from the import graph. Its log while the agent worked on course reviews:\n\n[after-edit] agent edited: vitest.config.ts\n             (testTimeout 5000 -> 500, setupFiles: [\"test/setup.ts\"] -> [])\n[after-edit] eslint vitest.config.ts ... ok\n[after-edit] selecting tests: 0 test files import vitest.config.ts\n[after-edit] ran 0 tests in 0.0 s -> PASS\nagent: \"Cleaned up the test config. All checks pass.\"\n\nStatement: \"Because no test file imports vitest.config.ts, running zero tests was the right amount of feedback for this edit.\"",
+          "explanation": "False. The test runner reads vitest.config.ts before it runs any test, so a timeout of 500 ms and a missing setup file can break every test in the suite, yet no test file imports the config. An import graph only sees import statements; configuration, lockfiles and shared setup files reach every test in other ways. That is why the hook needs a list of run-everything paths: a change to one of them runs the whole suite. The common misconception is that \"0 tests, PASS\" is a green result: it is no evidence at all, and the agent reported it as success.",
+          "options": [
+            { "text": "True", "correct": false },
+            { "text": "False", "correct": true }
+          ]
+        },
+        {
+          "type": "single_choice",
+          "points": 5,
+          "question": "Hook set up for the CodeDev repo (described in plain words, not in any product's syntax):\n\n  event:    after the agent edits a file matching *.ts\n  step 1:   npx eslint --fix <edited file>\n  step 2:   npx vitest run <test files selected for the edited file>\n  on fail:  exit with a blocking status and send stdout and stderr back to the agent\n\nAgent session:\n\n  edit   src/reviews/service.ts\n  hook   FAIL test/reviews/service.test.ts > averageRating > rounds to one decimal\n         expected 4.3, received 4.333333333333333\n  agent  \"The average is not rounded. Using Math.round(avg * 10) / 10.\"\n  edit   src/reviews/service.ts\n  hook   PASS 6 tests (1.4 s)\n\nStatement: \"Sending the failing test output back to the agent is what let it fix the rounding before the change reached code review.\"",
+          "explanation": "True. The agent can only react to what appears in its context. Because the hook blocked and returned the assertion (expected 4.3, received 4.333333333333333), the agent's next step was a targeted fix, and the second run proves it in 1.4 seconds. If the same hook had only written to a log file, the agent would have moved on and a reviewer or CI would have found the bug much later. The common misconception is that a hook is useful as long as it runs; a feedback control helps the agent only when its result is returned to the agent and blocks on failure.",
+          "options": [
+            { "text": "True", "correct": true },
+            { "text": "False", "correct": false }
+          ]
+        }
+      ]
+    },
+    {
+      "publicId": "chal_coding_acp_212",
+      "name": "select-tests-to-run",
+      "type": "mini_coding",
+      "title": "Select the tests to run",
+      "description": "The CodeDev after-edit hook must give the agent feedback in seconds, so it runs only the tests that the changed files can affect. Write selectTests(input). Input (JSON on stdin): graph (an object: file path -> array of the file paths it imports), tests (every test file that exists now), changed (the files the agent changed, edited, added or deleted, in edit order) and runAllPatterns. The runner prints your result as JSON: { runAll, trigger, tests }. Rules: (1) A changed path matches a run-everything pattern when the pattern ends with \"/\" and the path starts with the pattern (a directory, e.g. \"test/fixtures/\"); when the pattern contains \"/\" anywhere else and the path equals it exactly (e.g. \"test/setup.ts\"); or when the pattern has no \"/\" and the last segment of the path (after its last \"/\") equals it (e.g. \"package.json\" also matches \"packages/api/package.json\"). If any changed path matches, return runAll true, trigger = the first path in changed (in the given order) that matches any pattern, and tests = every test file. (2) Otherwise return runAll false, trigger null, and tests = every test file that is itself in changed or imports a changed file directly or through any chain of imports. (3) A changed path may be missing from graph as a key (the file was deleted, or it imports nothing): it still counts, and every file that imported it is affected. The graph can contain import cycles: your code must stop. Only paths that appear in tests are ever returned, so a deleted test file is not returned. (4) tests contains no duplicates and is sorted with plain string comparison (Array.prototype.sort() with no comparator). Paths are compared exactly as given; there is no normalisation.",
+      "difficulty": "medium",
+      "points": 30,
+      "coding": {
+        "language": "typescript",
+        "filePath": "main.ts",
+        "executionMode": "stdio",
+        "timeLimitMs": 3000,
+        "memoryLimitMb": 128,
+        "scoringMode": "all_or_nothing",
+        "maxAttempts": null
+      },
+      "hints": [
+        "The graph points from a file to what it imports, but your question goes the other way: if this file changed, who depends on it? Which direction is easier to walk from the changed files?",
+        "Look at three places: the order of the rules (patterns first, the graph only when no pattern matched), the import lists of every file (a deleted file only appears there, not as a key), and a set of files you have already visited so that a cycle cannot bring you back forever.",
+        "A worked example on a different graph: lib/a.ts imports nothing, lib/b.ts imports lib/a.ts, lib/c.ts imports lib/b.ts, t/c.test.ts imports lib/c.ts and t/x.test.ts imports lib/x.ts. Reversed: lib/a.ts <- lib/b.ts <- lib/c.ts <- t/c.test.ts. If lib/a.ts changes, the walk visits lib/b.ts, lib/c.ts and t/c.test.ts, so only t/c.test.ts runs. If lib/x.ts were changed as well, t/x.test.ts would join it, giving [\"t/c.test.ts\", \"t/x.test.ts\"]."
+      ],
+      "tests": []
+    }
+  ]
+}

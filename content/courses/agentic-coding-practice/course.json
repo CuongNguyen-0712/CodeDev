@@ -1,0 +1,57 @@
+{
+  "publicId": "agentic-coding-practice",
+  "title": "Agentic Coding in Practice: Spec, Skills & Harness",
+  "concept": "Put a coding agent inside a harness you control: write a spec and tasks small enough for an agent, set up instruction files and Agent Skills, run tests, lint and mutation testing as automatic feedback, limit which commands the agent may run and which files it may touch, harden a vibe-coded app and stay the owner of code you did not type - each taught from a real change to a learning platform and graded with hidden tests.",
+  "description": "An intermediate course for developers who already use a coding agent every day and want its work to be safe to merge. Every lesson starts from a change on the CodeDev learning platform - a course-review feature built from a one-line prompt, an AGENTS.md that grew to 900 lines, an agent that ran a migration against production, a diff that quietly edited the billing module, tests that pass with every mutant alive, a vibe-coded app with an open admin API and an API key in the browser bundle - and turns it into a control you can check: spec, plan and tasks, instruction files, SKILL.md, hooks that run tests and lint, command policies, scope checks, mutation scores, test selection and the habits that keep cognitive debt low. 11 lessons with quizzes on real agent sessions and TypeScript challenges, including \"Spot the AI Mistake\" fixes. No real model is called.",
+  "level": "intermediate",
+  "durationMinutes": 330,
+  "instructor": "CodeDev Engineering Team",
+  "language": "TypeScript",
+  "category": "AI Engineering",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 100,
+  "accessModel": "premium",
+  "publishStatus": "draft",
+  "offers": [
+    { "priceType": "points", "amount": 300 },
+    { "priceType": "money", "amount": 149000, "currency": "VND" }
+  ],
+  "completionRules": {},
+  "recommendedLevel": { "min": 6, "max": 12 },
+  "careerRoles": ["backend_developer", "fullstack_developer", "frontend_developer", "devops_engineer", "qa_engineer"],
+  "skills": { "typescript": 3, "testing": 4, "system_design": 2, "machine_learning": 1 },
+  "goals": ["grow_in_role", "build_projects"],
+  "prerequisites": ["ai-assisted-development", "test-automation-foundations"],
+  "modules": [
+    {
+      "orderIndex": 1,
+      "title": "Spec, Instructions & Skills",
+      "lessons": [
+        { "orderIndex": 1, "folder": "01-agent-loop", "title": "How a coding agent works: the loop, the tools and the permissions", "sanityId": "lesson-acp-1-1" },
+        { "orderIndex": 2, "folder": "02-spec-plan-tasks", "title": "Spec-driven development: spec, plan and tasks an agent can finish", "sanityId": "lesson-acp-1-2" },
+        { "orderIndex": 3, "folder": "03-instruction-files", "title": "Instruction files: what belongs in AGENTS.md and what does not", "sanityId": "lesson-acp-1-3" },
+        { "orderIndex": 4, "folder": "04-agent-skills", "title": "Agent Skills: write a SKILL.md the agent loads at the right time", "sanityId": "lesson-acp-1-4" }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "The Harness",
+      "lessons": [
+        { "orderIndex": 1, "folder": "05-feedback-loops", "title": "Feedforward and feedback: hooks that run the right tests", "sanityId": "lesson-acp-2-1" },
+        { "orderIndex": 2, "folder": "06-command-policy", "title": "Least privilege: a command policy for the agent", "sanityId": "lesson-acp-2-2" },
+        { "orderIndex": 3, "folder": "07-change-scope", "title": "Keep the change in scope: check the agent's diff", "sanityId": "lesson-acp-2-3" },
+        { "orderIndex": 4, "folder": "08-mutation-testing", "title": "Mutation testing: are the agent's tests strong enough?", "sanityId": "lesson-acp-2-4" }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Owning the Result",
+      "lessons": [
+        { "orderIndex": 1, "folder": "09-harden-vibe-app", "title": "Harden the vibe-coded app: rank the risks, fix the worst first", "sanityId": "lesson-acp-3-1" },
+        { "orderIndex": 2, "folder": "10-secret-in-client", "title": "Spot the AI mistake: the API key in the browser bundle", "sanityId": "lesson-acp-3-2" },
+        { "orderIndex": 3, "folder": "11-cognitive-debt", "title": "Cognitive debt: review, own and understand the agent's code", "sanityId": "lesson-acp-3-3" }
+      ]
+    }
+  ]
+}

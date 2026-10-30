@@ -1,0 +1,51 @@
+{
+  "publicId": "ai-llm-foundations",
+  "title": "AI & LLM Foundations for Developers: Tokens, Context, Cost & Hallucination",
+  "concept": "Understand how a large language model produces text well enough to build with it: tokens and next-token prediction, cost and latency per token, the context window, temperature and repeatability, hallucination and knowledge cutoff, grounding with citations, choosing a model and keeping sensitive data out of prompts - each taught from a real decision on a learning platform and checked with a fake model, so every exercise is deterministic.",
+  "description": "A beginner course for developers who use or plan to ship AI features and want to reason about them like engineers instead of guessing. Every lesson starts from a situation on the CodeDev learning platform - a hint feature whose bill is ten times the estimate, a tutor that forgets the start of a long conversation, a support bot that confidently invents an API parameter, a prompt that contains a learner's email - and works it out with numbers and evidence: tokens, cost and latency, context windows, temperature, hallucination and knowledge cutoff, grounding and \"I am not sure\" answers, model selection, data privacy and transparency duties. 10 lessons with quizzes on real prompts and logs and hands-on JavaScript challenges that run against a fake LLM - no API key and no real model calls.",
+  "level": "beginner",
+  "durationMinutes": 210,
+  "instructor": "CodeDev Engineering Team",
+  "language": "JavaScript",
+  "category": "AI Engineering",
+  "cost": 0,
+  "pointPrice": 0,
+  "reward": 50,
+  "accessModel": "free",
+  "publishStatus": "draft",
+  "completionRules": {},
+  "careerRoles": ["student", "frontend_developer", "backend_developer", "fullstack_developer", "ml_engineer"],
+  "skills": { "machine_learning": 3, "javascript": 2, "api_design": 1 },
+  "goals": ["fundamentals", "first_job", "grow_in_role"],
+  "prerequisites": [],
+  "modules": [
+    {
+      "orderIndex": 1,
+      "title": "How LLMs Work",
+      "lessons": [
+        { "orderIndex": 1, "folder": "01-tokens-next-token", "title": "How an LLM writes text: tokens & next-token prediction", "sanityId": "lesson-ailf-1-1" },
+        { "orderIndex": 2, "folder": "02-cost-latency", "title": "How to estimate the cost and latency of an LLM call", "sanityId": "lesson-ailf-1-2" },
+        { "orderIndex": 3, "folder": "03-context-window", "title": "Context windows: what the model sees and what gets cut", "sanityId": "lesson-ailf-1-3" },
+        { "orderIndex": 4, "folder": "04-temperature-sampling", "title": "Temperature & sampling: why the same prompt answers differently", "sanityId": "lesson-ailf-1-4" }
+      ]
+    },
+    {
+      "orderIndex": 2,
+      "title": "When Models Are Wrong",
+      "lessons": [
+        { "orderIndex": 1, "folder": "05-hallucination-cutoff", "title": "Hallucination & knowledge cutoff: why models are confidently wrong", "sanityId": "lesson-ailf-2-1" },
+        { "orderIndex": 2, "folder": "06-grounding-citations", "title": "Grounding answers in documents: citations & \"I am not sure\"", "sanityId": "lesson-ailf-2-2" },
+        { "orderIndex": 3, "folder": "07-confident-wrong-answer", "title": "The confident wrong answer: classify the cause, fix the prompt", "sanityId": "lesson-ailf-2-3" }
+      ]
+    },
+    {
+      "orderIndex": 3,
+      "title": "Using LLMs Responsibly",
+      "lessons": [
+        { "orderIndex": 1, "folder": "08-choosing-a-model", "title": "How to choose a model: quality, cost, latency & where data goes", "sanityId": "lesson-ailf-3-1" },
+        { "orderIndex": 2, "folder": "09-data-privacy-transparency", "title": "What never goes into a prompt: sensitive data & telling users it is AI", "sanityId": "lesson-ailf-3-2" },
+        { "orderIndex": 3, "folder": "10-review-ai-cost-code", "title": "Spot the AI mistake: the cost report that was off by a thousand", "sanityId": "lesson-ailf-3-3" }
+      ]
+    }
+  ]
+}
