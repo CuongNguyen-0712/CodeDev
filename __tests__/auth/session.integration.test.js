@@ -238,4 +238,15 @@ describe.skipIf(!hasDb)("session lifecycle (PostgreSQL)", () => {
         await expect(authService.getSessionStatus(sessionId)).rejects.toMatchObject({ status: 503, errorCode: "AUTH_UNAVAILABLE" });
         spy.mockRestore();
     });
+    it("retention deletes sessions that ended long ago with their tokens, and keeps live ones", async () => {
+        const old = await newSession();
+        const live = await newSession();
+        await sql(`UPDATE identity.sessions SET revoked_at = now() - interval '40 days', is_revoked = true WHERE id = $1`, [old.sessionId]);
+
+        await sessionDb.purgeEnded({ days: 30, limit: 1000 });
+
+        expect(await one(`SELECT id FROM identity.sessions WHERE id = $1`, [old.sessionId])).toBeUndefined();
+        expect(await tokensOf(old.sessionId)).toHaveLength(0);
+        expect(await one(`SELECT id FROM identity.sessions WHERE id = $1`, [live.sessionId])).toBeDefined();
+    });
 });

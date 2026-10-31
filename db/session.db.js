@@ -405,6 +405,24 @@ export const sessionDb = {
         );
         return { recoveryCleared: recovery.rowCount, outboxDeleted: outbox.rowCount };
     },
+
+    /**
+     * Deletes sessions that ended (revoked or past their absolute expiry) `days` ago, with their
+     * refresh token chains (ON DELETE CASCADE). Returns how many sessions; call until it is < limit.
+     */
+    purgeEnded: async ({ days = 30, limit = 1000 } = {}) => {
+        const res = await sql(
+            `DELETE FROM identity.sessions
+             WHERE id IN (
+                 SELECT id FROM identity.sessions
+                 WHERE absolute_expires_at < now() - make_interval(days => $1)
+                    OR revoked_at < now() - make_interval(days => $1)
+                 LIMIT $2
+             );`,
+            [days, limit]
+        );
+        return res.rowCount;
+    },
 };
 
 export default sessionDb;

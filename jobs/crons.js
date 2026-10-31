@@ -1,12 +1,13 @@
 import { inngest } from "@/lib/inngest";
 import { runAccountMaintenance } from "@/services/accountMaintenance.service";
-import { cleanupAuthState } from "@/services/authOutbox.service";
 import { auditSummary, runExpAudit } from "@/services/expAudit.service";
+import { runRetention } from "@/services/retention.service";
 
 const MAX_BATCHES = 20; // 50 accounts each: 1,000 a night is far above today's volume
 
 /**
- * Unverified-account reminders and purges, then auth housekeeping (was vercel.json at 03:00).
+ * Unverified-account reminders and purges, then retention of auth state, sessions and code runs
+ * (was vercel.json at 03:00).
  * One step per batch of 50, so the work is never cut by a function's maxDuration.
  */
 export const accountMaintenance = inngest.createFunction(
@@ -20,7 +21,7 @@ export const accountMaintenance = inngest.createFunction(
             totals.failed += report.failed;
             if (report.reminded + report.purged === 0) break;
         }
-        await step.run("cleanup", () => cleanupAuthState());
+        await step.run("cleanup", () => runRetention());
         return totals;
     }
 );

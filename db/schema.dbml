@@ -440,19 +440,19 @@ Table challenge.code_runs {
   source_snapshot jsonb [not null]
   stdin text
   status varchar(30) [not null, default: 'queued']
-  queued_at timestamp [not null, default: `now()`]
-  started_at timestamp
-  finished_at timestamp
-  deadline_at timestamp
-  published_at timestamp
+  queued_at timestamptz [not null, default: `now()`]
+  started_at timestamptz
+  finished_at timestamptz
+  deadline_at timestamptz
+  published_at timestamptz
   sandbox varchar(100)
   result jsonb
   error text
 
   indexes {
-    deadline_at [name: 'idx_code_runs_active_deadline', note: 'WHERE ((status)::text = ANY ((ARRAY[\'queued\'::character varying, \'running\'::character varying])::text[]))']
+    deadline_at [name: 'idx_code_runs_active_deadline', note: 'WHERE ((status)::text = ANY (ARRAY[(\'queued\'::character varying)::text, (\'running\'::character varying)::text]))']
     (challenge_id, queued_at) [name: 'idx_code_runs_challenge_created']
-    finished_at [name: 'idx_code_runs_done_recent', note: 'WHERE ((status)::text = \'completed\'::text)']
+    finished_at [name: 'idx_code_runs_finished', note: 'WHERE (finished_at IS NOT NULL)']
     queued_at [name: 'idx_code_runs_queued', note: 'WHERE ((status)::text = \'queued\'::text)']
     submission_id [name: 'idx_code_runs_submission']
     (user_id, queued_at) [name: 'idx_code_runs_user_created']
@@ -968,7 +968,6 @@ Table identity.accounts {
   indexes {
     (provider_account_id, provider) [unique, name: 'account_provider_pkey']
     (user_id, provider) [unique, name: 'accounts_user_provider_uq']
-    user_id [name: 'idx_accounts_user']
   }
 }
 
@@ -1109,8 +1108,6 @@ Table identity.sessions {
 
   indexes {
     user_id [name: 'idx_sessions_active', note: 'WHERE (revoked_at IS NULL)']
-    expires_at [name: 'idx_sessions_expires_at']
-    idle_expires_at [name: 'idx_sessions_idle_expires_at']
     user_id [name: 'idx_sessions_user_id']
   }
 }
@@ -1133,7 +1130,7 @@ Table identity.users {
   updated_at timestamp [default: `now()`]
   status public.user_status_enum [not null, default: 'active']
   id bigint [pk, increment]
-  email varchar(255) [not null, unique]
+  email varchar(255) [not null]
   email_verified boolean [default: false]
   purge_after timestamptz
   purge_reminded_at timestamptz

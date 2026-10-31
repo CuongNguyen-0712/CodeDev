@@ -183,6 +183,38 @@ export const codeRunDb = {
         return res.rows[0];
     },
 
+    /**
+     * Retention, one batch: manual runs (sample tests) are deleted after `manualDays`; submit runs
+     * keep their row (the submission links to it) but drop the code and graded output after
+     * `submitDays` (the code is kept with the submission on S3). Returns rows changed.
+     */
+    purgeOld: async ({ manualDays = 14, submitDays = 30, limit = 1000 } = {}) => {
+        const manual = await sql(
+            `DELETE FROM challenge.code_runs
+             WHERE id IN (
+                 SELECT id FROM challenge.code_runs
+                 WHERE finished_at < now() - make_interval(days => $1) AND run_type = 'manual'
+                 LIMIT $2
+             );`,
+            [manualDays, limit]
+        );
+        // shortcut: only runs that finished within the last 90 days are checked, so scrubbed rows
+        // are not rescanned forever; a retention job down for 60+ days leaves older ones as they are.
+        const submit = await sql(
+            `UPDATE challenge.code_runs SET source_snapshot = source_snapshot - 'code', result = NULL
+             WHERE id IN (
+                 SELECT id FROM challenge.code_runs
+                 WHERE finished_at < now() - make_interval(days => $1)
+                   AND finished_at > now() - interval '90 days'
+                   AND run_type = 'submit'
+                   AND (source_snapshot ? 'code' OR result IS NOT NULL)
+                 LIMIT $2
+             );`,
+            [submitDays, limit]
+        );
+        return manual.rowCount + submit.rowCount;
+    },
+
     /** Queued runs whose Inngest event never went out (or went out minutes ago without a start). */
     listUnpublished: async ({ limit = 100 } = {}) => {
         const res = await sql(

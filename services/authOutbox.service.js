@@ -211,8 +211,9 @@ export function ensureAuthOutboxWorker() {
             await processAuthOutbox();
             if (Date.now() - lastCleanup > CLEANUP_INTERVAL_MS) {
                 lastCleanup = Date.now();
-                await cleanupAuthState();
-                // Imported lazily: account maintenance imports this module.
+                // Imported lazily: retention and account maintenance import this module.
+                const { runRetention } = await import("@/services/retention.service");
+                await runRetention();
                 const { runAccountMaintenance } = await import("@/services/accountMaintenance.service");
                 await runAccountMaintenance();
             }

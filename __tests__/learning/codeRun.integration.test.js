@@ -163,4 +163,22 @@ describe.skipIf(!hasDb)("queued code runs (PostgreSQL)", () => {
         expect(await challengeService.getCodeRun({ userId: stuck.publicId, runId: stuckRun }))
             .toMatchObject({ status: "cancelled", error: { status: 503 } });
     });
+    it("retention deletes old manual runs and scrubs the code of old submit runs only", async () => {
+        const user = await makeUser("retention");
+        const manualOld = await newRun(user);
+        await codeRunDb.finish({ publicId: manualOld, status: "completed" });
+        const submitOld = await newRun(user, { runType: "submit" });
+        await codeRunDb.finish({ publicId: submitOld, status: "completed", result: { graded: [] } });
+        const manualNew = await newRun(user);
+        await codeRunDb.finish({ publicId: manualNew, status: "completed" });
+        await sql(`UPDATE challenge.code_runs SET finished_at = now() - interval '40 days' WHERE public_id = ANY($1)`, [[manualOld, submitOld]]);
+
+        await codeRunDb.purgeOld({ limit: 1000 });
+
+        expect(await codeRunDb.get({ publicId: manualOld })).toBeNull();
+        expect(await codeRunDb.get({ publicId: manualNew })).not.toBeNull();
+        const scrubbed = await codeRunDb.get({ publicId: submitOld });
+        expect(scrubbed.source_snapshot).not.toHaveProperty("code");
+        expect(scrubbed.result).toBeNull();
+    });
 });
