@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { quizQuestionsView } from "@/services/challenge.service";
+import { quizQuestionsView } from "@/lib/challenges/quiz";
 
 describe("quizQuestionsView", () => {
     it("sends the question and its options without the answer key", () => {

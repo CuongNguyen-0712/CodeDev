@@ -8,19 +8,21 @@ import { cacheKeys, TTL, invalidateUserCache } from "@/lib/cacheKeys";
 import { publishToUser } from "@/lib/pusher";
 import { events } from "@/lib/realtime";
 import { ApiError } from "@/lib/error/apiError";
-import { outputsMatch, parseJsonSafe, stdoutMatches, stdoutValue, toJsonValue } from "@/lib/challenges/compare";
+import { parseJsonSafe } from "@/lib/challenges/compare";
 import { executeTests, sandboxKey, serverExecutionEnabled, totalSlots } from "@/lib/challenges/codeRunner";
 import { isProductionEnv } from "@/lib/appEnv.mjs";
 import { detectEntryName } from "@/lib/challenges/entry";
 import { pickQuestions } from "@/lib/challenges/questionBank";
+import {
+    MAX_QUIZ_ATTEMPTS, QUIZ_COOLDOWN_SECONDS, QUIZ_PASS_RATIO, evaluateQuizHistory, gradeQuiz, normaliseAnswer, quizStateView,
+} from "@/lib/challenges/quiz";
+import { gradeTests, normaliseTestCases, summariseGrading, testView } from "@/lib/challenges/grading";
 import { normalizedCodeHash } from "@/lib/challenges/codeHash";
 import { MAX_SOURCE_BYTES, queueCapacity } from "@/lib/challenges/limits";
 import { codeRunDb } from "@/db/codeRun.db";
 import { codeRunsViaInngest, inngest } from "@/lib/inngest";
 
-export const QUIZ_PASS_RATIO = 0.7;
-export const MAX_QUIZ_ATTEMPTS = 3;
-export const QUIZ_COOLDOWN_SECONDS = 60;
+export { QUIZ_PASS_RATIO, MAX_QUIZ_ATTEMPTS, QUIZ_COOLDOWN_SECONDS };
 export const MAX_CODING_ATTEMPTS = 5;
 
 // A started submission must be finished (hidden tests reported) within this window.
@@ -130,88 +132,6 @@ async function afterSubmission({ userId, ctx, passed, rewards }) {
 
 // ------------------------------------------------------------------ quiz
 
-function normaliseAnswer(question, raw) {
-    const valid = new Set((question.all_options || []).map(String));
-
-    let selected = [];
-    if (question.question_type === "multiple_choice") {
-        selected = Array.isArray(raw) ? [...new Set(raw.map(String))] : [];
-    } else if (raw !== undefined && raw !== null && !Array.isArray(raw)) {
-        selected = [String(raw)];
-    }
-
-    // Ignore option ids that do not belong to this question.
-    return selected.filter((optId) => valid.has(optId));
-}
-
-function gradeQuiz(questions, answers) {
-    let earnedPoints = 0;
-    let totalPoints = 0;
-    const results = {};
-    const rows = [];
-
-    for (const q of questions) {
-        const qId = q.question_id;
-        const points = Number(q.points) || 0;
-        const correct = (q.correct_options || []).map(String);
-        const selected = normaliseAnswer(q, answers?.[qId]);
-
-        totalPoints += points;
-
-        let isCorrect = false;
-        if (q.question_type === "single_choice") {
-            isCorrect = selected.length === 1 && correct.includes(selected[0]);
-        } else if (q.question_type === "multiple_choice") {
-            isCorrect = selected.length === correct.length && selected.every((optId) => correct.includes(optId));
-        }
-
-        if (isCorrect) earnedPoints += points;
-
-        for (const optionId of selected) {
-            rows.push({ questionId: qId, optionId, isCorrect });
-        }
-
-        results[qId] = {
-            isCorrect,
-            selected,
-            explanation: q.explanation,
-            correctOptionIds: correct,
-        };
-    }
-
-    const ratio = totalPoints > 0 ? earnedPoints / totalPoints : 0;
-
-    return {
-        earnedPoints,
-        totalPoints,
-        percentage: Math.round(ratio * 100),
-        passed: totalPoints > 0 && ratio >= QUIZ_PASS_RATIO,
-        results,
-        rows,
-    };
-}
-
-/**
- * What the browser may see of a graded quiz. The correct options (and explanations) are only
- * revealed once the quiz is passed; otherwise each question just says whether it was right.
- */
-function quizView(graded) {
-    const results = Object.fromEntries(Object.entries(graded.results).map(([qId, r]) => [qId, {
-        isCorrect: r.isCorrect,
-        selected: r.selected,
-        explanation: graded.passed ? r.explanation : null,
-        correctOptionIds: graded.passed ? r.correctOptionIds : [],
-    }]));
-
-    return {
-        earnedPoints: graded.earnedPoints,
-        totalPoints: graded.totalPoints,
-        percentage: graded.percentage,
-        passed: graded.passed,
-        results,
-    };
-}
-
 // Answer key + question content. Only quizQuestionsView leaves the server; edits reach learners
 // within the TTL. An empty key is not cached, so questions added to a draft quiz show up immediately.
 async function cachedQuizKey(challengeId) {
@@ -239,69 +159,6 @@ async function loadQuizKey(ctx, { allowEmpty = false } = {}) {
     return pickQuestions(questions, { userDbId: ctx.user_db_id, count: ctx.quiz_display_count });
 }
 
-/**
- * Groups attempt rows into graded attempts and derives the learner's quiz status.
- * `rows`: getQuizAttempts output (question_id, option_id, attempt_no, wait_seconds).
- */
-function evaluateQuizHistory(questions, rows) {
-    const byAttempt = new Map();
-    for (const row of rows) {
-        if (!byAttempt.has(row.attempt_no)) byAttempt.set(row.attempt_no, { attemptNo: row.attempt_no, submittedAt: row.created_at, chosen: [] });
-        byAttempt.get(row.attempt_no).chosen.push(row);
-    }
-
-    const attempts = [...byAttempt.values()].map((attempt) => {
-        const answers = {};
-        for (const q of questions) {
-            const chosen = attempt.chosen.filter((r) => r.question_id === q.question_id).map((r) => r.option_id);
-            if (chosen.length === 0) continue;
-            answers[q.question_id] = q.question_type === "multiple_choice" ? chosen : chosen[0];
-        }
-        return { ...attempt, answers, graded: gradeQuiz(questions, answers) };
-    });
-
-    const passedAttempt = attempts.find((a) => a.graded.passed) || null;
-    const latest = attempts[attempts.length - 1] || null;
-    const waitSeconds = Number(rows[0]?.wait_seconds) || 0;
-
-    return { attempts, passedAttempt, latest, waitSeconds };
-}
-
-/** The learner's questions without answers: no correct options, no explanations. */
-export const quizQuestionsView = (questions) => questions.map((q) => ({
-    id: q.question_id,
-    content: q.content,
-    type: q.question_type,
-    points: Number(q.points) || 0,
-    options: q.options || [],
-}));
-
-function quizStateView(ctx, history, questions) {
-    const attemptsUsed = history.attempts.length;
-    const passed = Boolean(history.passedAttempt);
-    const attemptsLeft = passed ? 0 : Math.max(0, MAX_QUIZ_ATTEMPTS - attemptsUsed);
-    const waitSeconds = attemptsLeft > 0 ? history.waitSeconds : 0;
-    // A passed quiz shows the passing attempt; otherwise the most recent one.
-    const shown = history.passedAttempt || history.latest;
-
-    return {
-        challengeId: ctx.id,
-        attempted: attemptsUsed > 0,
-        attemptsUsed,
-        maxAttempts: MAX_QUIZ_ATTEMPTS,
-        attemptsLeft,
-        cooldownSeconds: QUIZ_COOLDOWN_SECONDS,
-        waitSeconds,
-        nextAttemptAt: waitSeconds > 0 ? new Date(Date.now() + waitSeconds * 1000).toISOString() : null,
-        canSubmit: !passed && attemptsLeft > 0 && waitSeconds === 0,
-        submittedAt: shown?.submittedAt ?? null,
-        answers: shown?.answers ?? null,
-        ...(shown ? quizView(shown.graded) : { passed: false, results: {} }),
-        passed,
-        questions: quizQuestionsView(questions),
-    };
-}
-
 async function loadQuizHistory(ctx, questions) {
     const res = await challengeDb.getQuizAttempts({
         userDbId: ctx.user_db_id,
@@ -319,90 +176,6 @@ function maxCodingAttempts(definition) {
 }
 
 const pendingKey = (submissionId) => `challenge:pending:${submissionId}`;
-
-function normaliseTestCases(testCases = []) {
-    return testCases.map((tc) => ({
-        id: String(tc.id),
-        name: tc.name || "Test case",
-        input: parseJsonSafe(tc.input, {}),
-        expected: tc.expected,
-        score: Number(tc.score) || 0,
-        isSample: Boolean(tc.is_sample),
-        isHidden: Boolean(tc.is_hidden),
-    }));
-}
-
-/**
- * Grades reported outputs ({ [testId]: { output, error, timeMs, timedOut } }) per test. javascript
- * outputs are function return values; every other language is graded on its stdout.
- */
-function gradeTests(testCases, results, language = "javascript") {
-    const stdio = language !== "javascript";
-    return testCases.map((tc) => {
-        const reported = results?.[tc.id] || null;
-        const timeMs = Math.max(0, Math.min(Math.round(Number(reported?.timeMs) || 0), 600000));
-
-        let status = "failed";
-        if (!reported) {
-            status = "error";
-        } else if (reported.timedOut) {
-            status = "timeout";
-        } else if (reported.error) {
-            status = "error";
-        } else if (stdio ? stdoutMatches(reported.output, tc.expected) : outputsMatch(reported.output, tc.expected)) {
-            status = "passed";
-        }
-
-        return {
-            testCaseId: tc.id,
-            name: tc.name,
-            isHidden: tc.isHidden,
-            status,
-            timeMs,
-            weight: tc.score,
-            actual: tc.isHidden ? undefined : stdio ? stdoutValue(reported?.output) : toJsonValue(reported?.output),
-            expected: tc.isHidden ? undefined : parseJsonSafe(tc.expected),
-            error: tc.isHidden ? undefined : (reported?.error ? String(reported.error).slice(0, 500) : null),
-        };
-    });
-}
-
-function summariseGrading(graded, { scoringMode, points }) {
-    const testsTotal = graded.length;
-    const testsPassed = graded.filter((t) => t.status === "passed").length;
-    const allPassed = testsTotal > 0 && testsPassed === testsTotal;
-
-    let score = 0;
-    if (scoringMode === "test_case") {
-        const totalWeight = graded.reduce((sum, t) => sum + (t.weight || 1), 0);
-        const passedWeight = graded.filter((t) => t.status === "passed").reduce((sum, t) => sum + (t.weight || 1), 0);
-        score = totalWeight > 0 ? Math.round((points * passedWeight / totalWeight) * 100) / 100 : 0;
-    } else {
-        score = allPassed ? points : 0;
-    }
-
-    const testResults = graded.map((t) => ({
-        testCaseId: t.testCaseId,
-        status: t.status,
-        timeMs: t.timeMs,
-        score: t.status === "passed" ? (t.weight || 0) : 0,
-    }));
-
-    return { testResults, testsTotal, testsPassed, allPassed, score };
-}
-
-function testView(t) {
-    return {
-        id: t.testCaseId,
-        name: t.name,
-        isHidden: t.isHidden,
-        status: t.status,
-        timeMs: t.timeMs,
-        actual: t.actual,
-        expected: t.expected,
-        error: t.error,
-    };
-}
 
 function submissionView(row) {
     if (!row) return null;
