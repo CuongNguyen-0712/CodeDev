@@ -47,6 +47,19 @@ Chưa làm: `EXPLAIN ANALYZE` trên dữ liệu thật, `pg_stat_user_indexes`, 
 | C2 | Cột `timestamp` không TZ trong `code_runs` (migration `20261030_001`) được so sánh với `now()`. `ranking_scores` dùng `created_at::timestamp` | migration `20261030_001` | Low |
 | C3 | `course-details` gọi `decodeURIComponent` trên giá trị đã decode, nên id chứa `%` sẽ ném `URIError` và trả 500 | `app/api/course/course-details/route.js:21` | Low (bug) |
 
+## Trạng thái thực hiện (2026-11-01)
+
+Đã chạy migration trên DB local. Production chưa chạy, theo thứ tự `20261101_001` → `004`. Mỗi `CREATE INDEX` khoá ghi bảng của nó trong lúc build, nên chạy lúc ít traffic.
+
+| Phase | Commit | Đã làm | Chưa làm / lý do |
+|---|---|---|---|
+| 0 | | | Chưa đo baseline: cần `pg_stat_statements` trên Neon production |
+| 1 | `e03b6fb` | Migration `001`: index, throttle `last_seen`. Sửa query `codeRun`, comments, `getPermissions`, `course-details`, quiz key | |
+| 2 | `0c8d950` | Migration `002`: `profile.ranking_snapshot` (materialized view, refresh concurrently ≤ 5 phút một lần khi có người đọc). Điểm của chính viewer vẫn tính live | |
+| 3 | `bb29c5c` | Migration `003`: bỏ câu hỏi quiz khỏi `learning_progress_content`, thêm trigram cho search user. Cache course details (public + viewer), cache recommendation candidates. Invalidate realtime theo đúng key. Webhook Sanity | Không tách version key "My learning": `last_seen` đã throttle, phần lợi còn lại nhỏ hơn chi phí thêm 1 lần đọc Redis mỗi request |
+| 4 | `75edb8b` | Migration `004`: `code_runs` sang `timestamptz`, drop index thừa. Retention hằng ngày cho sessions/tokens và code runs. Timeout và `max` của pool lấy từ env | Không gộp `post_points → award_exp → award_achievements` vào một function (mục này vốn là tuỳ chọn) |
+| 5 | `d47f015`, `91b27f0` | Tách rõ API (đọc) và server action (ghi), xem [api-conventions.md](api-conventions.md). Mọi route app đi qua `apiRoute`. Keyset cho comments và `/api/users`. Xoá route chết, logout chuyển sang `POST /api/auth/logout`, tách health. Logic link tài khoản chuyển vào service. Tách `lib/challenges/quiz.js` và `grading.js` | Các list `courses`, `orders`, `experience`, `course-progress` vẫn dùng cursor cũ (ghi trong api-conventions §4). Không bỏ flow nộp code chấm trên trình duyệt (dev cần khi không có runner) |
+
 ## 3. Kế hoạch theo phase
 
 Thứ tự ưu tiên: đo → quick win không đổi hành vi → hot path → retention → chuẩn hoá API. Mỗi phase là một PR riêng, chạy `npm test` và `npm run db:compare` trước khi merge.
