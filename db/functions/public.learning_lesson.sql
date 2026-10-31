@@ -22,7 +22,8 @@ BEGIN
 
   UPDATE learning.history h2
   SET last_seen = now()
-  WHERE h2.user_id = v_user_id AND h2.lesson_id = p_lesson_id;
+  WHERE h2.user_id = v_user_id AND h2.lesson_id = p_lesson_id
+    AND (h2.last_seen IS NULL OR h2.last_seen < now() - interval '1 minute');
 
   RETURN QUERY
   SELECT l.id, l.module_id, l.content_type, l.content_source, h.status::varchar

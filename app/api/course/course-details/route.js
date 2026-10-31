@@ -5,6 +5,9 @@ import { ApiError, errorResponse } from "@/lib/error/apiError";
 
 import { courseService } from "@/services/course.service";
 
+// catalog.course.public_id is a slug (varchar 255); searchParams already decoded it.
+const PUBLIC_ID = /^[A-Za-z0-9_-]{1,255}$/;
+
 export async function GET(req) {
     try {
         const session = await getAuthSession({ allowLocked: true }); // public read (plan 12.3)
@@ -17,8 +20,11 @@ export async function GET(req) {
         if (!courseId) {
             throw new ApiError("Missing credentials", 400);
         }
+        if (!PUBLIC_ID.test(courseId)) {
+            throw new ApiError("Invalid course id", 400);
+        }
 
-        const data = { userId, courseId: decodeURIComponent(courseId) };
+        const data = { userId, courseId };
 
         const response = await courseService.getDetails(data);
 

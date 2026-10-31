@@ -212,21 +212,25 @@ function quizView(graded) {
     };
 }
 
+// Server-side only (never sent to the client); edits reach learners within the TTL.
+// An empty key is not cached, so questions added to a draft quiz show up immediately.
+async function cachedQuizKey(challengeId) {
+    return (await redis.remember(
+        cacheKeys.challengeDefinition(challengeId, "quiz-key"),
+        TTL.CHALLENGE_DEFINITION,
+        async () => {
+            const rows = (await challengeDb.getQuizAnswerKey({ challengeId }))?.rows || [];
+            return rows.length > 0 ? rows : null;
+        }
+    )) || [];
+}
+
 async function loadQuizKey(ctx) {
     if (ctx.type !== "quiz") {
         throw new ApiError("This challenge is not a quiz", 400);
     }
 
-    // Server-side only (never sent to the client); edits reach learners within the TTL.
-    // An empty key is not cached, so questions added to a draft quiz show up immediately.
-    const questions = (await redis.remember(
-        cacheKeys.challengeDefinition(ctx.id, "quiz-key"),
-        TTL.CHALLENGE_DEFINITION,
-        async () => {
-            const rows = (await challengeDb.getQuizAnswerKey({ challengeId: ctx.id }))?.rows || [];
-            return rows.length > 0 ? rows : null;
-        }
-    )) || [];
+    const questions = await cachedQuizKey(ctx.id);
 
     if (questions.length === 0) {
         throw new ApiError("This quiz has no questions yet", 409);
@@ -672,8 +676,7 @@ export const challengeService = {
                 return withState(ch, Boolean(ch.coding_passed), Number(ch.coding_attempts) >= max);
             }
 
-            const keyResponse = await challengeDb.getQuizAnswerKey({ challengeId: ch.id });
-            const questions = pickQuestions(keyResponse?.rows || [], { userDbId: ch.user_db_id, count: ch.quiz_display_count });
+            const questions = pickQuestions(await cachedQuizKey(ch.id), { userDbId: ch.user_db_id, count: ch.quiz_display_count });
             // A quiz without questions cannot be passed, so it cannot block the lesson either.
             if (questions.length === 0) return withState(ch, true, false);
 
@@ -936,7 +939,7 @@ export const challengeService = {
         if (!codeRunsViaInngest()) {
             const executed = await challengeService.executeCodeRun(publicId);
             if (executed.status === "graded") await challengeService.finalizeCodeRun(publicId);
-            return codeRunView(await codeRunDb.get({ publicId }));
+            return codeRunView(await codeRunDb.getStatus({ publicId }));
         }
 
         await publishCodeRun({ publicId, userPublicId: userId, challengeId: ctx.id, kind, sandbox });
@@ -946,11 +949,11 @@ export const challengeService = {
     /** Polled by the browser until the run leaves queued / running. */
     getCodeRun: async ({ userId, runId }) => {
         if (!/^run_[a-z0-9]{26}$/.test(String(runId || ""))) throw new ApiError("Invalid run id", 400);
-        let run = await codeRunDb.get({ publicId: runId });
+        let run = await codeRunDb.getStatus({ publicId: runId });
         if (!run || run.user_public_id !== userId) throw new ApiError("Run not found", 404);
         // Past its deadline: end it now instead of waiting for the sweeper.
-        if ((run.status === "queued" || run.status === "running") && (await codeRunDb.expire({ publicId: runId }))) {
-            run = await codeRunDb.get({ publicId: runId });
+        if (run.expired && (await codeRunDb.expire({ publicId: runId }))) {
+            run = await codeRunDb.getStatus({ publicId: runId });
         }
         return codeRunView(run);
     },
@@ -964,7 +967,7 @@ export const challengeService = {
         if (!run) {
             // Started after its deadline (a long queue): end it so the learner is not blocked.
             await codeRunDb.expire({ publicId: runId });
-            return { status: (await codeRunDb.get({ publicId: runId }))?.status || "missing" };
+            return { status: (await codeRunDb.getStatus({ publicId: runId }))?.status || "missing" };
         }
 
         try {

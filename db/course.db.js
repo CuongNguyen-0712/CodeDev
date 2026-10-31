@@ -359,7 +359,8 @@ export const courseDb = {
     },
 
     // Records that the learner opened a lesson (resume point) and touched the course.
-    // Locked lessons are ignored.
+    // Locked lessons are ignored. At most once a minute per lesson: a reload or a quick
+    // back-and-forth neither rewrites the rows nor drops the user's caches again.
     touchLesson: async ({ userId, courseId, lessonId }) => {
         const query = `
             WITH u AS (SELECT id FROM identity.users WHERE public_id = $1),
@@ -371,6 +372,7 @@ export const courseDb = {
                        AND h.course_id = (SELECT id FROM c)
                        AND h.lesson_id = $3::bigint
                        AND h.status <> 'enrolled'
+                       AND (h.last_seen IS NULL OR h.last_seen < now() - interval '1 minute')
                      RETURNING h.lesson_id
                  ),
                  course AS (
@@ -449,6 +451,8 @@ export const courseDb = {
 
         params.push(courseId);
         conditions.push(`m.reference_id = (select id from catalog.course where public_id = $${params.length})`);
+        // Matches idx_comment_course_created (partial on is_deleted = false).
+        conditions.push(`m.is_deleted = false`, `m.is_hidden = false`);
 
         if (lastCreated) {
             params.push(lastCreated);

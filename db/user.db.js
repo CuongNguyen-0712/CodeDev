@@ -143,7 +143,7 @@ export const userDb = {
             JOIN identity.roles r ON rp.role_id = r.id
             JOIN identity.user_roles ur ON r.id = ur.role_id
             JOIN identity.users u ON u.id = ur.user_id
-            WHERE u.public_id = $1 OR u.id::text = $1`
+            WHERE u.public_id = $1`
 
         return await sql(query, params);
     },

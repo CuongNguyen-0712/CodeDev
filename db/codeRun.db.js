@@ -51,6 +51,20 @@ export const codeRunDb = {
         return res.rows[0] || null;
     },
 
+    /**
+     * What the browser poll needs, without source_snapshot (up to 384 KB). `expired`: still
+     * queued/running past its deadline, so the caller only issues the UPDATE when it does something.
+     */
+    getStatus: async ({ publicId }) => {
+        const res = await sql(
+            `SELECT cr.public_id, cr.run_type, cr.status, cr.result, cr.error, u.public_id AS user_public_id,
+                    ${EXPIRED.replaceAll("status", "cr.status").replaceAll("deadline_at", "cr.deadline_at")} AS expired
+             FROM challenge.code_runs cr JOIN identity.users u ON u.id = cr.user_id WHERE cr.public_id = $1;`,
+            [publicId]
+        );
+        return res.rows[0] || null;
+    },
+
     /** The submission a submit run created (its public id is derived from the run's). */
     submission: async ({ publicId }) => {
         const res = await sql(
@@ -146,15 +160,25 @@ export const codeRunDb = {
      */
     load: async () => {
         // Only runs still within their deadline count: an expired one must not make the queue
-        // look full or the runner look stuck for everyone.
+        // look full or the runner look stuck for everyone. Two scans, one per partial index
+        // (an OR across them read the whole table).
         const res = await sql(
-            `SELECT
-                 COUNT(*) FILTER (WHERE ${STILL_VALID})::int AS active,
-                 COALESCE(EXTRACT(EPOCH FROM now() - MIN(queued_at) FILTER (WHERE status = 'queued' AND deadline_at > now())), 0)::int AS oldest_wait_sec,
-                 COALESCE(EXTRACT(EPOCH FROM now() - MAX(finished_at) FILTER (WHERE status = 'completed')), 1e9)::bigint AS since_last_done_sec,
-                 AVG(EXTRACT(EPOCH FROM finished_at - started_at)) FILTER (WHERE status = 'completed' AND started_at IS NOT NULL)::float AS avg_job_sec
-             FROM challenge.code_runs
-             WHERE status IN ('queued', 'running') OR finished_at > now() - interval '10 minutes';`
+            `WITH active AS (
+                 SELECT COUNT(*) FILTER (WHERE ${STILL_VALID})::int AS active,
+                        MIN(queued_at) FILTER (WHERE status = 'queued' AND deadline_at > now()) AS oldest_queued_at
+                 FROM challenge.code_runs
+                 WHERE status IN ('queued', 'running')
+             ), done AS (
+                 SELECT MAX(finished_at) AS last_done_at,
+                        AVG(EXTRACT(EPOCH FROM finished_at - started_at)) FILTER (WHERE started_at IS NOT NULL) AS avg_job_sec
+                 FROM challenge.code_runs
+                 WHERE status = 'completed' AND finished_at > now() - interval '10 minutes'
+             )
+             SELECT active.active,
+                    COALESCE(EXTRACT(EPOCH FROM now() - active.oldest_queued_at), 0)::int AS oldest_wait_sec,
+                    COALESCE(EXTRACT(EPOCH FROM now() - done.last_done_at), 1e9)::bigint AS since_last_done_sec,
+                    done.avg_job_sec::float AS avg_job_sec
+             FROM active, done;`
         );
         return res.rows[0];
     },

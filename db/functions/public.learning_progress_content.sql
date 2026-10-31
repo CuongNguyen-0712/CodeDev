@@ -30,10 +30,12 @@ BEGIN
         RAISE EXCEPTION 'You have not registered this course.';
     END IF;
 
+    -- Throttled: a page view only rewrites the row when the status changes or a minute passed.
     UPDATE learning.register
     SET status = CASE WHEN status = 'enrolled' THEN 'in_progress' ELSE status END,
         last_seen = now()
-    WHERE user_id = v_user_id AND course_id = v_course_id AND is_deleted = false;
+    WHERE user_id = v_user_id AND course_id = v_course_id AND is_deleted = false
+      AND (status = 'enrolled' OR last_seen IS NULL OR last_seen < now() - interval '1 minute');
 
     IF v_register_status = 'enrolled' THEN
         UPDATE learning.history h
