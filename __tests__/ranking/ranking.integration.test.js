@@ -51,6 +51,7 @@ describe.skipIf(!hasDb)("ranking and public profiles (PostgreSQL)", () => {
         await addExp(a, 900000);
         await addExp(b, 900300);
         await addExp(c, 900300); // same score as b, reached later
+        await rankingDb.refreshSnapshot(); // other learners' scores come from the snapshot
     });
 
     afterAll(async () => {

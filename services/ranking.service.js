@@ -26,6 +26,21 @@ const toEntry = (row) => ({
     tierTitle: row.tier_title || null,
 });
 
+/**
+ * Recomputes profile.ranking_snapshot when the last refresh is older than TTL.RANKING_SNAPSHOT.
+ * The first reader after that pays for it; refreshes from other instances skip (advisory lock).
+ */
+export async function ensureRankingSnapshot() {
+    await redis.remember(cacheKeys.rankingSnapshot(), TTL.RANKING_SNAPSHOT, async () => {
+        await rankingDb.refreshSnapshot();
+        return new Date().toISOString();
+    });
+}
+
+const getTiers = (board) =>
+    redis.remember(cacheKeys.rankingTiers(board), TTL.RANKING_TIERS, async () =>
+        (await rankingDb.getTiers(board)).rows.map((row) => ({ tier: row.tier, title: row.title, minScore: Number(row.min_score) })));
+
 async function standing({ board, period, userKey }) {
     const result = await rankingDb.getStanding({ board, since: periodSince(period), userKey });
     return toStanding(result.rows[0]);
@@ -35,6 +50,7 @@ export const rankingService = {
     /** One board: top 50 (when public), the viewer's standing and the tier ladder. */
     getBoard: async ({ userId, board, period }) => {
         const isPublic = isRankingPublic();
+        await ensureRankingSnapshot();
 
         const [top, me, tiers] = await Promise.all([
             isPublic
@@ -44,7 +60,7 @@ export const rankingService = {
                 })
                 : null,
             standing({ board, period, userKey: userId }),
-            rankingDb.getTiers(board),
+            getTiers(board),
         ]);
 
         return {
@@ -54,12 +70,13 @@ export const rankingService = {
             updatedAt: top?.updatedAt || null,
             entries: top?.entries || [],
             me,
-            tiers: tiers.rows.map((row) => ({ tier: row.tier, title: row.title, minScore: Number(row.min_score) })),
+            tiers,
         };
     },
 
     /** All-time standing on every board for one learner (`userKey` = public_id). */
     getRanks: async (userKey) => {
+        await ensureRankingSnapshot();
         const rows = await Promise.all(BOARDS.map((board) => standing({ board, period: "all", userKey })));
         return Object.fromEntries(BOARDS.map((board, index) => [board, rows[index]]));
     },

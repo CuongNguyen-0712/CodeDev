@@ -1,7 +1,7 @@
 import { socialDb } from "@/db/social.db";
 import { ApiError } from "@/lib/error/apiError";
 import { rankingDb } from "@/db/ranking.db";
-import { isRankingPublic } from "@/services/ranking.service";
+import { ensureRankingSnapshot, isRankingPublic } from "@/services/ranking.service";
 
 export const socialService = {
     getUsersSocial: async ({ userId, search, limit = 10, offset = 0 }) => {
@@ -15,6 +15,7 @@ export const socialService = {
         if (!isRankingPublic() || rows.length === 0) return rows;
 
         // Overall rank badge, only for learners shown on the leaderboard (others get none).
+        await ensureRankingSnapshot();
         const tiers = await rankingDb.getOverallTiers(rows.map((row) => row.id));
         const byId = new Map(tiers.rows.map((row) => [row.id, { tier: Number(row.tier), title: row.tier_title }]));
         return rows.map((row) => ({ ...row, rank: byId.get(row.id) || null }));
