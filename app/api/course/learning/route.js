@@ -1,48 +1,19 @@
-import { NextResponse } from "next/server";
-import { getAuthSession } from "@/lib/session";
-
-import { ApiError, errorResponse } from "@/lib/error/apiError";
-
+import { ApiError } from "@/lib/error/apiError";
 import { getLessonContent } from "@/lib/lessonContent";
-
+import { apiRoute } from "@/lib/routeHandler";
 import { courseService } from "@/services/course.service";
 
-export async function GET(req) {
-    try {
-        const session = await getAuthSession();
+/** GET /api/course/learning?lessonId=: the lesson body, for learners who can open the lesson. */
+export const GET = apiRoute(async ({ req, userId }) => {
+    const lessonId = new URL(req.url).searchParams.get("lessonId");
+    if (!lessonId) throw new ApiError("Missing lessonId", 400);
 
-        if (!session) {
-            throw new ApiError("Unauthorized", 401);
-        }
+    const response = await courseService.getLearning({ userId, lessonId });
+    if (!response?.source) throw new ApiError("Lesson not available", 404);
 
-        const userId = session.user.id;
-        const { searchParams } = new URL(req.url);
+    // Access was checked above per user; the lesson body itself is the same for everyone.
+    const lesson = await getLessonContent(response.source);
+    if (!lesson) throw new ApiError("Lesson content not found", 404);
 
-        const lessonId = searchParams.get('lessonId');
-
-        if (!lessonId) {
-            throw new ApiError("Missing credentials", 400);
-        }
-
-        const data = { userId, lessonId };
-
-        const response = await courseService.getLearning(data);
-
-        const source = response?.source;
-
-        if (!source) {
-            throw new ApiError("Lesson not available", 404);
-        }
-
-        // Access was checked above per user; the lesson body itself is the same for everyone.
-        const lesson = await getLessonContent(source);
-
-        if (!lesson) {
-            throw new ApiError("Lesson content not found", 404);
-        }
-
-        return NextResponse.json({ success: true, data: lesson }, { status: 200 });
-    } catch (error) {
-        return errorResponse(error, "api/course/learning");
-    }
-}
+    return lesson;
+}, { context: "api/course/learning" });

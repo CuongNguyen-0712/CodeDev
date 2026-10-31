@@ -18,6 +18,8 @@ const formatError = (error) => {
 
     const customError = new Error(message);
     customError.status = status;
+    customError.code = error.code ?? error.response?.data?.code ?? error.data?.code;
+    customError.retryAfter = error.response?.data?.retryAfter ?? error.data?.retryAfter;
     customError.data = error.response?.data || error.data;
     customError.response = error.response;
 

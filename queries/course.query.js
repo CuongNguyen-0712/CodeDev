@@ -71,13 +71,9 @@ export const courseQueries = {
             queryFn: ({ pageParam }) =>
                 courseClient.getComments({
                     courseId,
-                    lastCreated: pageParam
+                    cursor: pageParam || undefined
                 }),
-            getNextPageParam: (lastPage) => {
-                if (!lastPage.hasMore) return undefined;
-
-                return lastPage.lastCreated;
-            },
+            getNextPageParam: (lastPage) => lastPage.nextCursor || undefined,
             enabled: !!courseId,
             ...QUERY_TIMES.live,
             // New comments and votes arrive over Pusher; a focus refetch would reload every page.

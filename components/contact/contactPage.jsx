@@ -49,7 +49,7 @@ export default function Contact({ state, setState }) {
         pending: true,
         error: null,
         search: '',
-        offset: 0,
+        cursor: null,
         limit: 20,
     })
 
@@ -74,26 +74,26 @@ export default function Contact({ state, setState }) {
         const role = filter.toLowerCase();
 
         try {
-            const currentOffset = social.offset;
-            const response = await api.get('get/getUsersSocial', {
+            const response = await api.get('users', {
                 params: {
                     search: social.search.trim(),
-                    offset: currentOffset.toString(),
+                    cursor: social.cursor || undefined,
                     limit: social.limit,
                 }
             })
 
             // lib/axios resolves to the response body: { success, data, message }.
             if (response?.success) {
-                const data = Array.isArray(response.data) ? response.data : [];
+                const data = Array.isArray(response.data?.items) ? response.data.items : [];
+                const nextCursor = response.data?.nextCursor || null;
                 setSocial(prev => ({
                     ...prev,
                     data: {
                         ...prev.data,
                         [role]: uniqWith([...prev.data[role] ?? [], ...data], (a, b) => a.id === b.id),
                     },
-                    hasMore: data.length >= prev.limit,
-                    offset: currentOffset + prev.limit,
+                    hasMore: Boolean(nextCursor),
+                    cursor: nextCursor,
                     pending: false
                 }))
             }
@@ -106,7 +106,7 @@ export default function Contact({ state, setState }) {
     }
 
     // The initial load is queued by the search reset below, so every
-    // fetch goes through the queue and reads the current offset.
+    // fetch goes through the queue and reads the current cursor.
     const processQueue = async () => {
         if (processingRef.current || apiQueue.length === 0) return;
 
@@ -114,7 +114,7 @@ export default function Contact({ state, setState }) {
 
         const task = apiQueue[0];
 
-        // Fetches queued together (e.g. on mount) would read the same offset; run one.
+        // Fetches queued together (e.g. on mount) would read the same cursor; run one.
         let consumed = 1;
         if (task.type === "fetch") {
             while (consumed < apiQueue.length && apiQueue[consumed].type === "fetch") consumed++;
@@ -149,7 +149,7 @@ export default function Contact({ state, setState }) {
                     user: [],
                     team: []
                 },
-                offset: 0,
+                cursor: null,
                 hasMore: true,
                 pending: true
             }))
@@ -166,7 +166,7 @@ export default function Contact({ state, setState }) {
                 team: []
             },
             pending: true,
-            offset: 0,
+            cursor: null,
             hasMore: true
         }));
         // Queue it so the fetch runs after the reset above is applied
@@ -177,7 +177,7 @@ export default function Contact({ state, setState }) {
 
     const isVisible = state !== false;
     const people = social.data[filter.toLowerCase()] || [];
-    const isInitialLoading = social.pending && social.offset === 0;
+    const isInitialLoading = social.pending && !social.cursor;
     const hasQuery = social.search.trim().length > 0;
     const countLabel = `${people.length}${social.hasMore ? '+' : ''} ${people.length === 1 ? 'person' : 'people'}`;
     const listLabel = isInitialLoading

@@ -19,6 +19,23 @@ async function afterProgressChange({ userId, courseId, reason }) {
     publishToUser(userId, events.PROGRESS_UPDATED, { courseId: courseId || null, reason });
 }
 
+// Keyset cursor of the comment list: (created_at, id) of the last row, opaque to the client.
+// created_at travels as the database's own text (microseconds, no time zone), not a JS Date.
+function encodeCommentCursor(row) {
+    return Buffer.from(JSON.stringify([row.cursor_at, row.cursor_id])).toString("base64url");
+}
+
+export function decodeCommentCursor(raw) {
+    if (!raw) return null;
+    try {
+        const [createdAt, id] = JSON.parse(Buffer.from(String(raw), "base64url").toString("utf-8"));
+        if (/^\d{4}-\d{2}-\d{2}[ T][\d:.]{8,15}$/.test(createdAt) && /^\d{1,19}$/.test(id)) return { createdAt, id };
+    } catch {
+        // fall through
+    }
+    throw new ApiError("Invalid cursor", 400);
+}
+
 /** Short hash of a normalised list query (search case-folded, filters canonical). */
 function listHash(kind, state, extra) {
     return crypto.createHash("sha1").update(listCacheIdentity(kind, state, extra)).digest("hex").slice(0, 16);
@@ -249,7 +266,8 @@ export const courseService = {
 
         const LIMIT = 20
         const hasMore = response.rowCount > LIMIT
-        const data = response.rows.slice(0, LIMIT).map((item) => ({
+        const rows = response.rows.slice(0, LIMIT);
+        const items = rows.map(({ cursor_id, cursor_at, ...item }) => ({
             ...item,
             upvotes: Number(item.upvotes) || 0,
             downvotes: Number(item.downvotes) || 0,
@@ -257,9 +275,8 @@ export const courseService = {
         }));
 
         return {
-            data,
-            hasMore,
-            lastCreated: hasMore ? data[LIMIT - 1]?.created_at : null
+            items,
+            nextCursor: hasMore ? encodeCommentCursor(rows[rows.length - 1]) : null,
         }
     },
 

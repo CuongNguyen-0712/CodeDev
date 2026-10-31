@@ -57,6 +57,6 @@ export const authClient = {
     },
 
     logout: async () => {
-        return await apiClient.patch('/user/logout');
+        return await apiClient.post('/auth/logout');
     }
 };

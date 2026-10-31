@@ -1,19 +1,9 @@
-import { NextResponse } from "next/server";
-
-import { ApiError, errorResponse } from "@/lib/error/apiError";
-
+import { apiRoute } from "@/lib/routeHandler";
 import { roadmapService } from "@/services/roadmap.service";
 
-export async function GET(req) {
-    try {
-        const { searchParams } = new URL(req.url);
-
-        const data = {};
-
-        const response = await roadmapService.getList(data);
-
-        return NextResponse.json({ success: true, data: response }, { status: 200 });
-    } catch (error) {
-        return errorResponse(error, "api/roadmap/list");
-    }
-}
+/** GET /api/roadmap/list: published roadmaps (same for everyone). */
+export const GET = apiRoute(() => roadmapService.getList({}), {
+    context: "api/roadmap/list",
+    auth: "none",
+    cacheControl: "public, max-age=60, s-maxage=600, stale-while-revalidate=3600",
+});

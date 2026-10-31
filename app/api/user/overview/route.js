@@ -1,24 +1,5 @@
-import { NextResponse } from "next/server";
-import { getAuthSession } from "@/lib/session";
-
-import { ApiError, errorResponse } from "@/lib/error/apiError";
-
+import { apiRoute } from "@/lib/routeHandler";
 import { userService } from "@/services/user.service";
 
-export async function GET() {
-    try {
-        const session = await getAuthSession();
-
-        if (!session) {
-            throw new ApiError("Unauthorized", 401);
-        }
-
-        const userId = session.user.id;
-
-        const response = await userService.getOverview(userId);
-
-        return NextResponse.json({ success: true, data: response }, { status: 200 });
-    } catch (error) {
-        return errorResponse(error, "api/user/overview");
-    }
-}
+/** GET /api/user/overview: dashboard summary of the signed-in learner. */
+export const GET = apiRoute(({ userId }) => userService.getOverview(userId), { context: "api/user/overview" });

@@ -224,7 +224,7 @@ export const useCourseComment = () => {
                     if (!oldData?.pages) return oldData;
 
                     const exists = oldData.pages.some((page) =>
-                        page.data?.some((item) => item.id === newComment.id)
+                        page.items?.some((item) => item.id === newComment.id)
                     );
 
                     if (exists) return oldData;
@@ -232,7 +232,7 @@ export const useCourseComment = () => {
                     const firstPage = oldData.pages[0];
                     const updatedFirstPage = {
                         ...firstPage,
-                        data: [newComment, ...(firstPage?.data || [])],
+                        items: [newComment, ...(firstPage?.items || [])],
                     };
 
                     return {
@@ -268,7 +268,7 @@ export const useCourseVotingComment = () => {
                     ...old,
                     pages: old.pages.map((page) => ({
                         ...page,
-                        data: (page.data || []).map((item) => {
+                        items: (page.items || []).map((item) => {
                             if (item.id !== commentId) return item;
 
                             const prevVote = item.vote;
@@ -310,7 +310,7 @@ export const useCourseVotingComment = () => {
                         ...old,
                         pages: old.pages.map((page) => ({
                             ...page,
-                            data: (page.data || []).map((item) => {
+                            items: (page.items || []).map((item) => {
                                 if (item.id !== commentId) return item;
 
                                 return {

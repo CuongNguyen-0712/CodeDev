@@ -58,7 +58,7 @@ export default function CommentPage({ courseId }) {
         courseQueries.comments(courseId)
     );
 
-    const rawComments = data?.pages?.flatMap(page => page.data || []) || [];
+    const rawComments = data?.pages?.flatMap(page => page.items || []) || [];
     const comments = uniqBy(rawComments, 'id');
 
     // Realtime discussion feed (new comments + vote counts from other learners).
@@ -80,14 +80,14 @@ export default function CommentPage({ courseId }) {
             updateComments((oldData) => {
                 // The author already has it from the mutation response.
                 const exists = oldData.pages.some(page =>
-                    page.data?.some(item => item.id === newComment.id)
+                    page.items?.some(item => item.id === newComment.id)
                 );
                 if (exists) return oldData;
 
                 const [firstPage, ...rest] = oldData.pages;
                 return {
                     ...oldData,
-                    pages: [{ ...firstPage, data: [newComment, ...(firstPage?.data || [])] }, ...rest],
+                    pages: [{ ...firstPage, items: [newComment, ...(firstPage?.items || [])] }, ...rest],
                 };
             });
         },
@@ -99,7 +99,7 @@ export default function CommentPage({ courseId }) {
                 ...oldData,
                 pages: oldData.pages.map((page) => ({
                     ...page,
-                    data: (page.data || []).map((item) => item.id !== commentId ? item : {
+                    items: (page.items || []).map((item) => item.id !== commentId ? item : {
                         ...item,
                         upvotes: Number(upvotes) || 0,
                         downvotes: Number(downvotes) || 0,

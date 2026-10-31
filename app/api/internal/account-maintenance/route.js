@@ -1,5 +1,6 @@
-import crypto from "crypto";
 import { NextResponse } from "next/server";
+
+import { hasBearerSecret } from "@/lib/requestGuard";
 
 import { runAccountMaintenance } from "@/services/accountMaintenance.service";
 
@@ -16,11 +17,7 @@ async function handle(req) {
     const secrets = [process.env.CRON_SECRET, process.env.AUTH_CRON_SECRET].filter(Boolean);
     if (secrets.length === 0) return NextResponse.json({ success: false, message: "Not found" }, { status: 404 });
 
-    const presented = Buffer.from((req.headers.get("authorization") || "").replace(/^Bearer\s+/i, ""));
-    const allowed = secrets.some((secret) => {
-        const expected = Buffer.from(secret);
-        return presented.length === expected.length && crypto.timingSafeEqual(presented, expected);
-    });
+    const allowed = hasBearerSecret(req, secrets);
     if (!allowed) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
 
     const dryRun = new URL(req.url).searchParams.get("dryRun") === "1";

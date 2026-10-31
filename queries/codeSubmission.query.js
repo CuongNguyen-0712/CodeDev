@@ -1,6 +1,4 @@
-import { getCodingHistoryAction, getSubmissionCodeAction } from "@/actions/codeSubmission.actions";
-import { unwrapActionResult } from "@/lib/actionResult";
-import { callWithAuthRetry } from "@/lib/actionResult";
+import { challengeClient } from "@/clients/challenge.client";
 import { challengeKeys } from "@/keys/challenge.keys";
 import { QUERY_TIMES } from "@/lib/queryTimes";
 
@@ -16,7 +14,7 @@ export const codeSubmissionQueries = {
     history(challengeId) {
         return {
             queryKey: codeSubmissionKeys.history(challengeId),
-            queryFn: async () => unwrapActionResult(await callWithAuthRetry(() => getCodingHistoryAction({ challengeId }))),
+            queryFn: ({ signal }) => challengeClient.getSubmissions(challengeId, { signal }),
             ...QUERY_TIMES.personal,
             refetchOnWindowFocus: false,
             retry: retryServerErrors,
@@ -27,7 +25,7 @@ export const codeSubmissionQueries = {
     code(challengeId, submissionId) {
         return {
             queryKey: codeSubmissionKeys.code(challengeId, submissionId),
-            queryFn: async () => unwrapActionResult(await callWithAuthRetry(() => getSubmissionCodeAction({ challengeId, submissionId }))),
+            queryFn: ({ signal }) => challengeClient.getSubmissionCode(challengeId, submissionId, { signal }),
             ...QUERY_TIMES.immutable,
             refetchOnWindowFocus: false,
             retry: retryServerErrors,

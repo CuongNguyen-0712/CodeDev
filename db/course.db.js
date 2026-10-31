@@ -454,7 +454,7 @@ export const courseDb = {
     },
 
     getComments: async (data) => {
-        const { userId, courseId, lastCreated } = data;
+        const { userId, courseId, cursor } = data;
 
         const conditions = [];
         const params = [];
@@ -468,9 +468,9 @@ export const courseDb = {
         // Matches idx_comment_course_created (partial on is_deleted = false).
         conditions.push(`m.is_deleted = false`, `m.is_hidden = false`);
 
-        if (lastCreated) {
-            params.push(lastCreated);
-            conditions.push(`m.created_at < $${params.length}`);
+        if (cursor) {
+            params.push(cursor.createdAt, cursor.id);
+            conditions.push(`(m.created_at, m.id) < ($${params.length - 1}::timestamp, $${params.length}::bigint)`);
         }
 
         const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -486,7 +486,9 @@ export const courseDb = {
                 m.upvotes as upvotes,
                 m.downvotes as downvotes,
                 ${userId ? `coalesce(v.voting, null) as vote,` : 'null as vote,'}
-                m.created_at as created_at
+                m.created_at as created_at,
+                m.id::text as cursor_id,
+                m.created_at::text as cursor_at
             FROM community.comment m
             JOIN profile.info i ON m.user_id = i.user_id
             JOIN identity.users u on m.user_id = u.id
@@ -497,7 +499,7 @@ export const courseDb = {
                 ''
             }
             ${whereSQL}
-            ORDER BY m.created_at DESC
+            ORDER BY m.created_at DESC, m.id DESC
             LIMIT 21
         `
 

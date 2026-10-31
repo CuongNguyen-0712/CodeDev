@@ -1,7 +1,5 @@
-import { NextResponse } from "next/server";
-import { getAuthSession } from "@/lib/session";
-
-import { ApiError, errorResponse } from "@/lib/error/apiError";
+import { ApiError } from "@/lib/error/apiError";
+import { apiRoute } from "@/lib/routeHandler";
 import { parseListQuery } from "@/lib/listFilters";
 
 import { userService } from "@/services/user.service";
@@ -20,26 +18,10 @@ function decodeCursor(raw) {
     throw new ApiError("Invalid cursor", 400);
 }
 
-export async function GET(req) {
-    try {
-        const session = await getAuthSession();
-
-        if (!session) {
-            throw new ApiError("Unauthorized", 401);
-        }
-
-        const userId = session.user.id;
-
-        const { searchParams } = new URL(req.url);
-
-        // status defaults to enrolled + in_progress; `status=all` lists every enrolment.
-        const { search, filter } = parseListQuery("learning", searchParams);
-        const nextCursor = decodeCursor(searchParams.get("nextCursor"));
-
-        const response = await userService.getCourseProgress({ userId, search, filter, nextCursor });
-
-        return NextResponse.json({ success: true, data: response }, { status: 200 });
-    } catch (error) {
-        return errorResponse(error, "api/user/course-progress");
-    }
-}
+/** GET /api/user/course-progress: "My learning" list (status defaults to enrolled + in_progress; `status=all` lists every enrolment). */
+export const GET = apiRoute(async ({ req, userId }) => {
+    const { searchParams } = new URL(req.url);
+    const { search, filter } = parseListQuery("learning", searchParams);
+    const nextCursor = decodeCursor(searchParams.get("nextCursor"));
+    return userService.getCourseProgress({ userId, search, filter, nextCursor });
+}, { context: "api/user/course-progress" });

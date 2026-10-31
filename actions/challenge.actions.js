@@ -4,20 +4,6 @@ import { challengeService } from "@/services/challenge.service";
 import { rateLimiters } from "@/lib/rateLimit";
 import { runAction } from "@/lib/serverAction";
 
-export async function getCodingWorkspaceAction({ challengeId }) {
-    return runAction(
-        ({ userId }) => challengeService.getCodingWorkspace({ userId, challengeId }),
-        { context: "getCodingWorkspaceAction" }
-    );
-}
-
-export async function getQuizStateAction({ challengeId }) {
-    return runAction(
-        ({ userId }) => challengeService.getQuizState({ userId, challengeId }),
-        { context: "getQuizStateAction" }
-    );
-}
-
 export async function submitQuizAction({ challengeId, answers }) {
     return runAction(
         ({ userId }) => challengeService.submitQuiz({ userId, challengeId, answers: answers || {} }),
@@ -33,18 +19,11 @@ export async function openChallengeHintAction({ challengeId, level }) {
 }
 
 // Graded by the code runner: Run (`manual`, sample tests, nothing recorded) or Submit (`submit`).
-// Returns at once with `status: "queued"`; poll getCodeRunAction until it finishes.
+// Returns at once with `status: "queued"`; poll GET /api/code-runs/:runId until it finishes.
 export async function queueCodeRunAction({ challengeId, code, kind }) {
     return runAction(
         ({ userId }) => challengeService.queueCodeRun({ userId, challengeId, code, kind }),
         { limiter: kind === "submit" ? rateLimiters.codeSubmit : rateLimiters.codeRun, context: "queueCodeRunAction" }
-    );
-}
-
-export async function getCodeRunAction({ runId }) {
-    return runAction(
-        ({ userId }) => challengeService.getCodeRun({ userId, runId }),
-        { limiter: rateLimiters.codeRunPoll, context: "getCodeRunAction" }
     );
 }
 

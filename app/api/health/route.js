@@ -7,24 +7,35 @@ import { appEnv } from "@/lib/appEnv.mjs";
 import { inngestEnabled } from "@/lib/inngest";
 import { codeRunDb } from "@/db/codeRun.db";
 import { deadLetterDb } from "@/db/deadLetter.db";
+import { hasBearerSecret } from "@/lib/requestGuard";
 
 export const dynamic = "force-dynamic";
+
+const checkDatabase = () => sql("SELECT 1 AS ok")
+    .then(() => ({ status: "healthy" }))
+    .catch((error) => {
+        console.error("[health] database check failed:", error?.message);
+        return { status: "down" };
+    });
 
 /**
  * Liveness / readiness probe for Docker and uptime checks.
  * 200 when PostgreSQL answers (Redis outages only degrade: the app falls back to memory;
  * storage outages only degrade: coding challenges fail, the rest of the site works).
+ * Anyone gets `{ status }` from one cheap query; the full report (cache, storage, queue, dead
+ * letters) needs `Authorization: Bearer $HEALTH_TOKEN` (or the cron secret).
  */
-export async function GET() {
+export async function GET(req) {
     const startedAt = Date.now();
 
+    if (!hasBearerSecret(req, [process.env.HEALTH_TOKEN, process.env.CRON_SECRET, process.env.AUTH_CRON_SECRET])) {
+        const database = await checkDatabase();
+        const up = database.status === "healthy";
+        return NextResponse.json({ status: up ? "ok" : "down" }, { status: up ? 200 : 503, headers: { "Cache-Control": "no-store" } });
+    }
+
     const [database, cache, storage, jobs] = await Promise.all([
-        sql("SELECT 1 AS ok")
-            .then(() => ({ status: "healthy" }))
-            .catch((error) => {
-                console.error("[health] database check failed:", error?.message);
-                return { status: "down" };
-            }),
+        checkDatabase(),
         redis.ping().then((alive) => ({ ...redis.health(), reachable: alive })),
         checkStorage()
             .then(() => ({ status: "healthy" }))

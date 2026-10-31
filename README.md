@@ -123,7 +123,7 @@ Useful while developing:
 
 | URL | What |
 |---|---|
-| http://localhost:3000/api/health | Database, cache and storage status |
+| http://localhost:3000/api/health | `{ status }`; with `Authorization: Bearer $HEALTH_TOKEN`: database, cache, storage and job status |
 | http://127.0.0.1:8025 | Mailpit inbox (every email sent in development) |
 | http://127.0.0.1:9001 | MinIO console |
 | http://localhost:3000/studio | Sanity Studio |
@@ -219,7 +219,7 @@ only run once Inngest is connected):
 3. Push the branch; Vercel builds from it.
 4. In the Inngest dashboard the `codedev` app is synced with its functions (re-sync after a deploy
    that adds or changes functions, unless the integration does it).
-5. Check `/api/health` on the deployment: `status: "ok"` and `jobs.inngest: true`.
+5. Check `/api/health` on the deployment with `Authorization: Bearer $HEALTH_TOKEN`: `status: "ok"` and `jobs.inngest: true`.
 
 **Self-hosting**: `npm run docker:app` builds a standalone, non-root Node 24 image (`Dockerfile`)
 and starts it with Redis and the sandbox from `compose.yml`. See [docs/docker.md](docs/docker.md).

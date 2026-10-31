@@ -180,16 +180,4 @@ export const userService = {
 
         return true;
     },
-
-    getFriends: async (data) => {
-        const { userId, search } = data;
-
-        const result = await userDb.getFriends({ userId, search });
-
-        if (!result) {
-            throw new ApiError("Failed to get friends, try again later", 500);
-        }
-
-        return result.rows || result;
-    }
 }

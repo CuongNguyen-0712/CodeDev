@@ -1,10 +1,10 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import {
-    submitQuizAction, queueCodeRunAction, getCodeRunAction, startCodingSubmissionAction, finishCodingSubmissionAction, openChallengeHintAction,
+    submitQuizAction, queueCodeRunAction, startCodingSubmissionAction, finishCodingSubmissionAction, openChallengeHintAction,
 } from "@/actions/challenge.actions";
-import { unwrapActionResult } from "@/queries/challenge.query";
-import { callWithAuthRetry } from "@/lib/actionResult";
+import { callWithAuthRetry, unwrapActionResult } from "@/lib/actionResult";
+import { challengeClient } from "@/clients/challenge.client";
 
 import { challengeKeys } from "@/keys/challenge.keys";
 import { userKeys } from "@/keys/user.keys";
@@ -25,9 +25,10 @@ async function runQueued({ challengeId, code, kind }) {
         if (waited > POLL_LIMIT_MS) {
             throw Object.assign(new Error("Grading is taking longer than usual. Reload the page in a minute to see the result."), { status: 504 });
         }
-        await new Promise((resolve) => setTimeout(resolve, waited < POLL_FAST_FOR_MS ? POLL_FAST_MS : POLL_SLOW_MS));
-        const runId = run.runId;
-        run = unwrapActionResult(await callWithAuthRetry(() => getCodeRunAction({ runId })));
+        // Jitter spreads the polls of runs queued at the same moment.
+        const delay = (waited < POLL_FAST_FOR_MS ? POLL_FAST_MS : POLL_SLOW_MS) * (0.85 + Math.random() * 0.3);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        run = await challengeClient.getCodeRun(run.runId);
     }
     if (run.error) throw Object.assign(new Error(run.error.message), { status: run.error.status });
     return run;

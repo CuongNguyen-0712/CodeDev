@@ -13,14 +13,12 @@ import {
     readLinkIntentCookie, clearLinkIntentCookie, setLinkConflictCookie,
 } from "@/lib/authCookies";
 import { auditAuth } from "@/lib/authAudit";
-import { invalidateUserCache } from "@/lib/cacheKeys";
 import { readAuthToken } from "@/lib/session";
 import { verifiedProviderEmail } from "@/lib/oauthEmail";
 import { splitDisplayName, usernameBase } from "@/lib/username";
 
 import { accountLinkService } from "@/services/accountLink.service";
 import { authService } from "@/services/auth.service";
-import { userDb } from "@/db/user.db";
 
 import { SESSION_ERROR, isFatalSessionError } from "@/constants/auth";
 
@@ -57,70 +55,23 @@ function readHeader(req, name) {
 const authError = (code) => `/auth/error?error=${code}`;
 const settingsResult = (query) => `/settings?${query}#settings-signin`;
 
-// 23505: a concurrent link inserted the same account; a second pass sees who owns it (CD409).
-const linkWithRetry = (args) =>
-    authService.linkProviderAccount(args).catch((err) => (err?.code === "23505" ? authService.linkProviderAccount(args) : Promise.reject(err)));
-
 /**
- * "Connect" from Settings (plan 10.4): links the provider account to the user in the intent
- * cookie and redirects back to Settings. Returning a URL means next-auth writes no new session,
- * so the current one (cookies, `sid`, other tabs) stays exactly as it was.
+ * "Connect" from Settings (plan 10.4): accountLinkService links the account, this maps the outcome
+ * to a Settings URL. Returning a URL means next-auth writes no new session, so the current one
+ * (cookies, `sid`, other tabs) stays exactly as it was.
  */
 async function connectFromSettings({ intent, account, profile, meta }) {
     await clearLinkIntentCookie();
     const provider = account.provider;
+    const { status, conflict } = await accountLinkService.connectFromSettings({ intent, account, profile, ip: meta.ip });
 
-    let active = null;
-    try {
-        active = await authService.getSessionStatus(intent.sessionId);
-    } catch {
-        return settingsResult(`linkError=Callback&provider=${provider}`);
+    if (conflict) {
+        await setLinkConflictCookie({
+            userId: intent.userId, sessionId: intent.sessionId, provider,
+            ownerUsername: conflict.owner_username, deletable: conflict.deletable, purgeAfter: conflict.purge_after,
+        });
     }
-    if (!active || active.userId !== intent.userId) return settingsResult(`linkError=LinkExpired&provider=${provider}`);
-
-    // Ownership is proven by the OAuth round trip itself; the email is only shown and audited.
-    const providerEmail = await verifiedProviderEmail({ provider, account, profile }).catch(() => null);
-
-    try {
-        // One account per provider (accounts_user_provider_uq): a second one is refused.
-        const { providers } = await accountLinkService.listMethods(intent.userId);
-        if (providers.some((p) => p.provider === provider)) return settingsResult(`linkError=AlreadyConnected&provider=${provider}`);
-
-        // A provider account nobody has linked yet, whose verified email belongs to another verified
-        // CodeDev account, is refused: that email is the other account's identity. The learner
-        // connects one with a different email. (Already linked to someone: the CD409 path below.)
-        if (providerEmail) {
-            const [owned, emailOwner] = await Promise.all([
-                accountLinkService.linkConflict({ userId: intent.userId, provider, providerAccountId: account.providerAccountId }),
-                userDb.emailOwnedByOther({ userId: intent.userId, email: providerEmail }),
-            ]);
-            if (!owned && emailOwner?.verified) {
-                auditAuth("account.link_refused", { userId: intent.userId, sessionId: intent.sessionId, ip: meta.ip, provider, reason: "email_in_use" });
-                return settingsResult(`linkError=EmailInUse&provider=${provider}`);
-            }
-        }
-
-        await linkWithRetry({ userId: intent.userId, provider, providerAccountId: account.providerAccountId, providerEmail });
-    } catch (err) {
-        if (err?.code === "CD409") {
-            // Unverified account (plan 12.4): offer to switch to the owner, who signed in just now.
-            const conflict = await accountLinkService.linkConflict({ userId: intent.userId, provider, providerAccountId: account.providerAccountId }).catch(() => null);
-            if (conflict && !conflict.email_verified) {
-                await setLinkConflictCookie({
-                    userId: intent.userId, sessionId: intent.sessionId, provider,
-                    ownerUsername: conflict.owner_username, deletable: conflict.deletable, purgeAfter: conflict.purge_after,
-                });
-            }
-            return settingsResult(`linkError=OAuthAccountInUse&provider=${provider}`);
-        }
-        console.error("[auth] Connecting from Settings failed:", err);
-        return settingsResult(`linkError=Callback&provider=${provider}`);
-    }
-
-    auditAuth("account.linked", { userId: intent.userId, sessionId: intent.sessionId, ip: meta.ip, provider, reason: "settings" });
-    await invalidateUserCache(intent.userId);
-    await accountLinkService.notify({ userId: intent.userId, provider, action: "connected", ip: meta.ip });
-    return settingsResult(`linked=${provider}`);
+    return settingsResult(status === "linked" ? `linked=${provider}` : `linkError=${status}&provider=${provider}`);
 }
 
 /**
@@ -411,7 +362,7 @@ export const authOptions = {
 
     events: {
         // next-auth's own sign-out also ends the server session and drops the refresh cookie,
-        // so a client that skips PATCH /api/user/logout cannot leave a live session behind.
+        // so a client that skips POST /api/auth/logout cannot leave a live session behind.
         async signOut({ token }) {
             const sessionId = tokenSessionId(token);
             if (token?.id && sessionId) {

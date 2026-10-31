@@ -9,8 +9,10 @@ import { ApiError } from "@/lib/error/apiError";
 import { auditAuth } from "@/lib/authAudit";
 import { generateRefreshToken, hashRefreshToken } from "@/lib/auth.util";
 import { invalidateUserCache } from "@/lib/cacheKeys";
+import { verifiedProviderEmail } from "@/lib/oauthEmail";
 import { sendMail } from "@/lib/mail";
 import { failureGuards, rateLimiters } from "@/lib/rateLimit";
+import { authService } from "@/services/auth.service";
 import { dispatchAuthOutbox } from "@/services/authOutbox.service";
 
 import AccountEmailTemplate from "@/components/templates/accountEmailTemplate";
@@ -43,7 +45,68 @@ async function mail(to, subject, props) {
     await sendMail({ to, subject, html: await render(message), text: await render(message, { plainText: true }) });
 }
 
+// 23505: a concurrent link inserted the same account; a second pass sees who owns it (CD409).
+const linkWithRetry = (args) =>
+    authService.linkProviderAccount(args).catch((err) => (err?.code === "23505" ? authService.linkProviderAccount(args) : Promise.reject(err)));
+
 export const accountLinkService = {
+    /**
+     * "Connect" from Settings (plan 10.4): links the provider account to the user of the intent
+     * cookie (`intent` = { userId, sessionId }). Returns `{ status: "linked" }` or `{ status:
+     * <Settings linkError code>, conflict? }`; `conflict` (an unverified owner, plan 12.4) is what
+     * the caller stores in the link-conflict cookie.
+     */
+    connectFromSettings: async ({ intent, account, profile, ip = null }) => {
+        const provider = account.provider;
+
+        let active = null;
+        try {
+            active = await authService.getSessionStatus(intent.sessionId);
+        } catch {
+            return { status: "Callback" };
+        }
+        if (!active || active.userId !== intent.userId) return { status: "LinkExpired" };
+
+        // Ownership is proven by the OAuth round trip itself; the email is only shown and audited.
+        const providerEmail = await verifiedProviderEmail({ provider, account, profile }).catch(() => null);
+        const conflictOf = () => accountLinkService.linkConflict({ userId: intent.userId, provider, providerAccountId: account.providerAccountId });
+
+        try {
+            // One account per provider (accounts_user_provider_uq): a second one is refused.
+            const { providers } = await accountLinkService.listMethods(intent.userId);
+            if (providers.some((p) => p.provider === provider)) return { status: "AlreadyConnected" };
+
+            // A provider account nobody has linked yet, whose verified email belongs to another verified
+            // CodeDev account, is refused: that email is the other account's identity. The learner
+            // connects one with a different email. (Already linked to someone: the CD409 path below.)
+            if (providerEmail) {
+                const [owned, emailOwner] = await Promise.all([
+                    conflictOf(),
+                    userDb.emailOwnedByOther({ userId: intent.userId, email: providerEmail }),
+                ]);
+                if (!owned && emailOwner?.verified) {
+                    auditAuth("account.link_refused", { userId: intent.userId, sessionId: intent.sessionId, ip, provider, reason: "email_in_use" });
+                    return { status: "EmailInUse" };
+                }
+            }
+
+            await linkWithRetry({ userId: intent.userId, provider, providerAccountId: account.providerAccountId, providerEmail });
+        } catch (err) {
+            if (err?.code === "CD409") {
+                // Unverified owner (plan 12.4): the caller offers to switch to them.
+                const conflict = await conflictOf().catch(() => null);
+                return { status: "OAuthAccountInUse", conflict: conflict && !conflict.email_verified ? conflict : null };
+            }
+            console.error("[auth] Connecting from Settings failed:", err);
+            return { status: "Callback" };
+        }
+
+        auditAuth("account.linked", { userId: intent.userId, sessionId: intent.sessionId, ip, provider, reason: "settings" });
+        await invalidateUserCache(intent.userId);
+        await accountLinkService.notify({ userId: intent.userId, provider, action: "connected", ip });
+        return { status: "linked" };
+    },
+
     /**
      * Pending OAuth claim (plan 11.1, 11.3 B): mails the owner of `link.targetUserId` a link that
      * confirms it. `link.mode`: 'claim' (unverified account) | 'confirm' (verified account).

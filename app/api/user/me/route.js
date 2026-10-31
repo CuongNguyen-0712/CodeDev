@@ -1,24 +1,5 @@
-import { NextResponse } from "next/server";
-import { getAuthSession } from "@/lib/session";
-
-import { ApiError, errorResponse } from "@/lib/error/apiError";
-
+import { apiRoute } from "@/lib/routeHandler";
 import { userService } from "@/services/user.service";
 
-export async function GET() {
-    try {
-        const session = await getAuthSession({ allowLocked: true }); // the lock page reads it (plan 12.3)
-
-        if (!session) {
-            throw new ApiError("Unauthorized", 401);
-        }
-
-        const userId = session.user.id;
-
-        const response = await userService.getMe(userId);
-
-        return NextResponse.json({ success: true, data: response }, { status: 200 });
-    } catch (error) {
-        return errorResponse(error, "api/user/me");
-    }
-}
+/** GET /api/user/me: the signed-in profile (the verify-lock page reads it too, plan 12.3). */
+export const GET = apiRoute(({ userId }) => userService.getMe(userId), { context: "api/user/me", allowLocked: true });

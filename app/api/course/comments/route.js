@@ -1,38 +1,11 @@
-import { NextResponse } from "next/server";
-import { getAuthSession } from "@/lib/session";
-
-import { ApiError, errorResponse } from "@/lib/error/apiError";
+import { apiRoute, requirePublicId } from "@/lib/routeHandler";
 import { rateLimiters } from "@/lib/rateLimit";
-import { courseService } from "@/services/course.service";
+import { courseService, decodeCommentCursor } from "@/services/course.service";
 
-export async function GET(req) {
-    try {
-        const rateCheck = await rateLimiters.commentRead.limitRequest(req);
-        if (!rateCheck.allowed) {
-            return rateCheck.response;
-        }
-
-        const session = await getAuthSession({ allowLocked: true }); // public read (plan 12.3)
-
-        const userId = session?.user?.id || null;
-
-        const { searchParams } = new URL(req.url);
-        const courseId = searchParams.get('courseId');
-        const lastCreated = searchParams.get('lastCreated');
-
-        if (!courseId) {
-            throw new ApiError("Missing credentials", 400);
-        }
-
-        const data = { userId, courseId, lastCreated };
-
-        const response = await courseService.getComments(data);
-
-        return NextResponse.json(
-            { success: true, data: response },
-            { status: 200, headers: rateCheck.headers }
-        );
-    } catch (error) {
-        return errorResponse(error, "api/course/comments");
-    }
-}
+/** GET /api/course/comments?courseId=&cursor= -> { items, nextCursor } (public read, plan 12.3). */
+export const GET = apiRoute(async ({ req, userId }) => {
+    const { searchParams } = new URL(req.url);
+    const courseId = requirePublicId(searchParams.get("courseId"), "course id");
+    const cursor = decodeCommentCursor(searchParams.get("cursor"));
+    return courseService.getComments({ userId, courseId, cursor });
+}, { context: "api/course/comments", auth: "optional", allowLocked: true, limiter: rateLimiters.commentRead });

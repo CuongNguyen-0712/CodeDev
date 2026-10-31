@@ -493,40 +493,4 @@ export const userDb = {
 
         return await sql(query, params);
     },
-
-    getFriends: async ({ userId, search }) => {
-        const params = [];
-        const conditions = [];
-
-        params.push(userId);
-
-        if (search && search.trim()) {
-            params.push(`%${search.toLowerCase()}%`);
-            conditions.push(`LOWER(u.username) LIKE $${params.length}`);
-        }
-
-        const whereSQL = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
-
-        const query = `
-            SELECT
-                i.id as id,
-                u.username,
-                i.image,
-                i.nickname,
-                i.exp_level AS level,
-                lvl.title AS "levelTitle",
-                f.status
-            FROM identity.users u
-            INNER JOIN profile.info i ON i.user_id = u.id AND i.user_id != (select id from identity.users where public_id = $1)
-            LEFT JOIN profile.exp_level lvl ON lvl.level = i.exp_level
-            INNER JOIN community.friend f ON (
-                (f.sender_id = (select id from identity.users where public_id = $1) AND f.receiver_id = u.id)
-                OR
-                (f.receiver_id = (select id from identity.users where public_id = $1) AND f.sender_id = u.id)
-            )
-            ${whereSQL}
-        `;
-
-        return await sql(query, params);
-    }
 }

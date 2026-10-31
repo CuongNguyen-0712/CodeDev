@@ -8,12 +8,13 @@ import { clearRefreshCookie, clearSessionCookie } from "@/lib/authCookies";
 import { authService } from "@/services/auth.service";
 
 /**
- * Logout of the current session: revoke in PostgreSQL (+ outbox for Redis), then expire the
- * refresh and session cookies with the attributes they were set with.
+ * POST /api/auth/logout: ends the current session. Revokes it in PostgreSQL (+ outbox for Redis),
+ * then expires the refresh and session cookies with the attributes they were set with.
+ * Own handler, not apiRoute: it must accept an expired or already revoked session.
  * Idempotent: signing out of a session that is already gone (revoked elsewhere, expired, access
  * token expired) still succeeds so the client can always finish.
  */
-export async function PATCH(req) {
+export async function POST(req) {
     try {
         assertSameOrigin(req);
 
@@ -31,6 +32,6 @@ export async function PATCH(req) {
 
         return NextResponse.json({ success: true }, { status: 200, headers: { "Cache-Control": "no-store" } });
     } catch (error) {
-        return errorResponse(error, "api/user/logout");
+        return errorResponse(error, "api/auth/logout");
     }
 }
