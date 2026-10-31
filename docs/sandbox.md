@@ -10,6 +10,16 @@ browser's report.
 
 ## Flow
 
+With a code runner configured, Run (other languages) and Submit are **queued code runs**
+(docs/queue-execution-plan.md 2.4): `queueCodeRunAction` writes a `challenge.code_runs` row and
+returns at once; the Inngest function `code-run` (jobs/codeRun.js) executes it (step `execute`,
+the steps 2-3 below) and grades it (step `finalize`: a sample failure ends without using an
+attempt, otherwise steps 5-6 in one go); the browser polls `getCodeRunAction`. Without Inngest the
+same two steps run inside the request. Each sandbox takes at most its slot count of runs (Inngest
+concurrency keyed by sandbox name), each learner one run at a time; inputs are capped at 384 KB
+per job and every job at 120 s (lib/challenges/limits.js). The two-step flow below remains for
+development without a runner.
+
 ```
 browser ──Run──> Web Worker (lib/challenges/runner.js)          quick feedback, never graded
 browser ──Submit──> codedev_app: startCodingSubmission

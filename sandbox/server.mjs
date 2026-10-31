@@ -48,6 +48,8 @@ const MAX_BODY_BYTES = 512 * 1024;
 const MAX_SOURCE_BYTES = 64 * 1024;
 const MAX_TESTS = 50;
 const MAX_INPUT_BYTES = 128 * 1024;
+const MAX_TOTAL_INPUT_BYTES = 384 * 1024; // lib/challenges/limits.js
+const MAX_JOB_MS = 120_000;               // lib/challenges/limits.js: compile + every test
 const LIMITS = { timeLimitMs: [100, 10_000], memoryLimitMb: [32, 256] };
 const STARTUP_OVERHEAD_MS = 1000; // process start, not counted against the challenge time limit
 const MAX_RESULT_BYTES = 512 * 1024;
@@ -72,16 +74,32 @@ class HttpError extends Error {
 const freeSlots = Array.from({ length: MAX_CONCURRENCY }, (_, i) => `run0${i + 1}`);
 const slotCount = freeSlots.length;
 const waiting = [];
+// Average job time, for a Retry-After that matches the real wait.
+let avgJobMs = 5000;
 
-function acquire() {
+function retryAfterSeconds() {
+    return String(Math.max(1, Math.ceil(((waiting.length + 1) / slotCount) * avgJobMs / 1000)));
+}
+
+/** A free slot, or a place in the queue. A caller that gives up (signal aborted) leaves the queue. */
+function acquire(signal) {
     if (freeSlots.length) return Promise.resolve(freeSlots.pop());
     if (waiting.length >= MAX_QUEUE) throw new HttpError(503, "Code runner is busy, try again shortly");
-    return new Promise((resolve) => waiting.push(resolve));
+    return new Promise((resolve, reject) => {
+        const entry = { resolve, signal };
+        waiting.push(entry);
+        signal.addEventListener("abort", () => {
+            const index = waiting.indexOf(entry);
+            if (index >= 0) waiting.splice(index, 1);
+            reject(new HttpError(499, "Client closed the request"));
+        }, { once: true });
+    });
 }
 
 function release(slot) {
-    const next = waiting.shift();
-    if (next) next(slot);
+    let next;
+    while ((next = waiting.shift()) && next.signal.aborted) { /* skip callers that left */ }
+    if (next) next.resolve(slot);
     else freeSlots.push(slot);
 }
 
@@ -112,6 +130,9 @@ function validate(body) {
         if (Buffer.byteLength(JSON.stringify(input)) > MAX_INPUT_BYTES) throw new HttpError(413, `input of test ${t.id} is too large`);
         return { id: t.id, input };
     });
+    if (tests.reduce((sum, t) => sum + Buffer.byteLength(JSON.stringify(t.input)), 0) > MAX_TOTAL_INPUT_BYTES) {
+        throw new HttpError(413, "test inputs are too large together");
+    }
     const javascript = body.language === "javascript";
     return {
         language: body.language,
@@ -199,7 +220,7 @@ function runTest({ code, harness, entry, input, timeLimitMs, memoryLimitMb }) {
 }
 
 /** One job through run-job in `slot`: compile once, run every test (see sandbox/vercel/run-job). */
-function runJob(job, slot) {
+function runJob(job, slot, signal) {
     return new Promise((resolve, reject) => {
         const jobId = randomBytes(12).toString("hex");
         fs.writeFileSync(path.join(JOBS_DIR, `${jobId}.json`), JSON.stringify({
@@ -220,8 +241,10 @@ function runJob(job, slot) {
         let stdout = "";
         let stderr = "";
         // run-job kills each test at its own limit; this only catches a stuck run-job.
-        const budget = COMPILE_BUDGET_MS + job.tests.length * (job.timeLimitMs + 2 * STARTUP_OVERHEAD_MS) + 5000;
+        const budget = Math.min(MAX_JOB_MS, COMPILE_BUDGET_MS + job.tests.length * (job.timeLimitMs + 2 * STARTUP_OVERHEAD_MS) + 5000);
         const timer = setTimeout(() => child.kill("SIGKILL"), budget);
+        // Nobody is waiting for the answer any more: free the slot now (run-job cleans it on the next job).
+        signal.addEventListener("abort", () => child.kill("SIGKILL"), { once: true });
 
         child.stdout.on("data", (chunk) => { if (stdout.length < 4 * MAX_RESULT_BYTES) stdout += chunk.toString("utf8"); });
         child.stderr.on("data", (chunk) => { if (stderr.length < MAX_STDERR_BYTES) stderr += chunk.toString("utf8"); });
@@ -256,16 +279,19 @@ function runJob(job, slot) {
     });
 }
 
-async function execute(job) {
-    const slot = await acquire();
+async function execute(job, signal) {
+    const slot = await acquire(signal);
+    const startedAt = Date.now();
     try {
-        if (RUN_JOB) return await runJob(job, slot);
+        if (RUN_JOB) return await runJob(job, slot, signal);
         const results = {};
         for (const test of job.tests) {
+            if (signal.aborted) throw new HttpError(499, "Client closed the request");
             results[test.id] = await runTest({ ...job, input: test.input });
         }
         return results;
     } finally {
+        avgJobMs = Math.round(0.8 * avgJobMs + 0.2 * (Date.now() - startedAt));
         release(slot);
     }
 }
@@ -322,12 +348,16 @@ const server = http.createServer(async (req, res) => {
         if (!authorized(req)) throw new HttpError(401, "Unauthorized");
 
         const job = validate(await readJson(req));
-        const results = await execute(job);
+        // The app gave up (its own timeout) or went away: stop queueing / running this job.
+        const gone = new AbortController();
+        res.on("close", () => { if (!res.writableFinished) gone.abort(); });
+        const results = await execute(job, gone.signal);
         return send(res, 200, { results });
     } catch (error) {
         const status = error instanceof HttpError ? error.status : 500;
+        if (status === 499 || res.destroyed) return undefined;
         if (status === 500) console.error("[sandbox] execute failed:", error?.message);
-        return send(res, status, { error: status === 500 ? "Internal error" : error.message }, status === 503 ? { "retry-after": "2" } : {});
+        return send(res, status, { error: status === 500 ? "Internal error" : error.message }, status === 503 ? { "retry-after": retryAfterSeconds() } : {});
     }
 });
 

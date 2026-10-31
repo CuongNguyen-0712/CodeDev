@@ -293,7 +293,7 @@ export default function ChallengeSection({ embeddedIds = NO_EMBEDS }) {
                 <div id={challengeAnchorId(items[0].id)} className="scroll-mt-16 space-y-4">
                     <ChallengeHeader challenge={items[0]} isDone={completed.has(items[0].id)} isExhausted={exhausted.has(items[0].id)} />
                     <ChallengeHints challenge={items[0]} isDone={completed.has(items[0].id)} />
-                    <ChallengeBody challenge={items[0]} onPassed={handlePassed} onExhausted={handleExhausted} />
+                    <ChallengeBody key={items[0].id} challenge={items[0]} onPassed={handlePassed} onExhausted={handleExhausted} />
                 </div>
             ) : (
                 <Tabs value={activeId} onValueChange={handleTabChange} className="gap-4">

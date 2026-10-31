@@ -44,7 +44,7 @@ const FAQS = [
     {
         id: 'challenge-limit',
         q: 'Why does a submission say I have to wait before retrying?',
-        a: 'Quiz and coding submissions are rate limited to keep the grader responsive. Wait for the number of seconds shown in the message, then submit again.',
+        a: 'A quiz opens its next attempt one minute after the previous one, and quiz and coding submissions are rate limited to keep the grader responsive. Wait for the countdown shown on the challenge, then submit again.',
     },
     {
         id: 'points',

@@ -33,7 +33,7 @@ Notices: "GitHub was connected / disconnected" mail (`email.account_notice` outb
 
 Audit events: `account.linked` (`reason`: `claim` | `email` | `settings`), `account.link_required` (`reason`: mode), `account.unlinked`, `account.purged`. `log_in` only returns `active` users.
 
-**Unverified accounts (11.2, 12)** — the trigger `identity.users_purge_after` sets two deadlines on insert of an unverified user: `verify_lock_at` = sign-up + 168 hours (end of the grace period, see the lock below) and `purge_after` = sign-up + 336 hours (deletion). Verifying clears both for good. A verified account that changes its email gets `verify_lock_at` = now + 168 hours again but never `purge_after`; a never-verified account that changes its email keeps its deadlines. Migration `20261026_003` gave existing unverified accounts at least 48 hours before the lock and never moved a deletion earlier. `GET|POST /api/internal/account-maintenance[?dryRun=1]` (daily Vercel Cron in `vercel.json`, `Authorization: Bearer $CRON_SECRET` or `$AUTH_CRON_SECRET`; locally the outbox worker runs it every 10 min):
+**Unverified accounts (11.2, 12)** — the trigger `identity.users_purge_after` sets two deadlines on insert of an unverified user: `verify_lock_at` = sign-up + 168 hours (end of the grace period, see the lock below) and `purge_after` = sign-up + 336 hours (deletion). Verifying clears both for good. A verified account that changes its email gets `verify_lock_at` = now + 168 hours again but never `purge_after`; a never-verified account that changes its email keeps its deadlines. Migration `20261026_003` gave existing unverified accounts at least 48 hours before the lock and never moved a deletion earlier. `GET|POST /api/internal/account-maintenance[?dryRun=1]` (daily by the Inngest function `account-maintenance`; by hand with `Authorization: Bearer $CRON_SECRET` or `$AUTH_CRON_SECRET`; without Inngest the in-process outbox worker runs it every 10 min):
 - 2 days before the lock: one reminder ("Verify your email by <date> to keep using CodeDev"), `lock_reminded_at` set.
 - 2 days before the deletion: one reminder ("Verify your email by <date> to keep your CodeDev account"), `purge_reminded_at` set.
 - The banner shows the lock date while it is ahead, then the deletion date (`/api/user/me` → `verify_lock_at`, `purge_after`).
@@ -56,7 +56,7 @@ Audit events: `account.linked` (`reason`: `claim` | `email` | `settings`), `acco
 - Consumed token otherwise → replay: session and all its tokens revoked, outbox event written.
 - Commit not acknowledged → `503`, client retries with the same key.
 
-**Logout / revoke** — revoke + outbox event in one transaction; the event (Redis invalidation, realtime notice) is processed right after commit and retried by the outbox worker (every 15 s in-process, or `POST /api/internal/auth-outbox`).
+**Logout / revoke** — revoke + outbox event in one transaction; the event (Redis invalidation, realtime notice) is processed right after commit. With Inngest the other outbox events (email, storage) are delivered by `outbox-deliver` and retried there, up to `max_attempts`, then kept in `ops.dead_letters`; without Inngest the in-process worker retries every 15 s.
 
 **Client** — `lib/authRefresh.js`: single-flight per tab, Web Lock across tabs, BroadcastChannel to share results, same key across retries. Refresh 60 s before expiry while the tab is visible, or on demand after `ACCESS_TOKEN_EXPIRED` (axios interceptor / `callWithAuthRetry`), retrying the original request once. Terminal refresh errors sign every tab out.
 
@@ -79,9 +79,8 @@ Revocation is committed in PostgreSQL first. Redis may say "active" until the ou
 | `AUTH_JWT_ISSUER` / `AUTH_JWT_AUDIENCE` | `codedev` / `codedev-web` | use distinct values per environment |
 | `AUTH_ALLOWED_ORIGINS` | — | extra origins for refresh / logout |
 | `AUTH_ACCEPT_LEGACY_JWT` | `true` | set `false` 30 days after deploying (all pre-iss/aud cookies expired) |
-| `AUTH_CRON_SECRET` | — | enables `POST /api/internal/auth-outbox` (and the account maintenance route) |
-| `CRON_SECRET` | — | Vercel Cron's bearer token for `/api/internal/account-maintenance`; set it in Vercel or the job answers 404 |
-| `AUTH_OUTBOX_WORKER` | on | `off` disables the in-process worker |
+| `AUTH_CRON_SECRET` / `CRON_SECRET` | — | bearer token to run `/api/internal/account-maintenance` and `/api/internal/exp-audit` by hand; unset, they answer 404 |
+| `AUTH_OUTBOX_WORKER` | on | `off` disables the in-process worker (it only runs while Inngest is not configured) |
 | `MAIL_FROM` | dev: `CodeDev <dev@codedev.local>` | sending address, `you@gmail.com` or `CodeDev <you@gmail.com>`; with Gmail it must be the signed-in account |
 | `MAIL_PASSWORD` | — | Google App Password of `MAIL_FROM` (spaces ignored). Set → `smtp.gmail.com:465` in any environment. Empty → development / test use Mailpit `127.0.0.1:1025`; production sends nothing (outbox retries) and the start-up check logs `mail: …` |
 | `MAIL_HOST` / `MAIL_PORT` | — / 465 | optional: another SMTP provider instead of Gmail (Resend later) |

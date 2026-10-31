@@ -9,16 +9,18 @@ import { publishToUser } from "@/lib/pusher";
 import { events } from "@/lib/realtime";
 import { ApiError } from "@/lib/error/apiError";
 import { outputsMatch, parseJsonSafe, stdoutMatches, stdoutValue, toJsonValue } from "@/lib/challenges/compare";
-import { executeTests, serverExecutionEnabled } from "@/lib/challenges/codeRunner";
+import { executeTests, sandboxKey, serverExecutionEnabled, totalSlots } from "@/lib/challenges/codeRunner";
 import { isProductionEnv } from "@/lib/appEnv.mjs";
 import { detectEntryName } from "@/lib/challenges/entry";
 import { pickQuestions } from "@/lib/challenges/questionBank";
 import { normalizedCodeHash } from "@/lib/challenges/codeHash";
+import { MAX_SOURCE_BYTES, queueCapacity } from "@/lib/challenges/limits";
+import { codeRunDb } from "@/db/codeRun.db";
+import { codeRunsViaInngest, inngest } from "@/lib/inngest";
 
 export const QUIZ_PASS_RATIO = 0.7;
-export const MAX_SOURCE_BYTES = 64 * 1024;
 export const MAX_QUIZ_ATTEMPTS = 3;
-export const QUIZ_COOLDOWN_SECONDS = 5 * 60;
+export const QUIZ_COOLDOWN_SECONDS = 60;
 export const MAX_CODING_ATTEMPTS = 5;
 
 // A started submission must be finished (hidden tests reported) within this window.
@@ -402,11 +404,12 @@ function submissionView(row) {
  * Runs the tests in the code runner (sandbox) with the challenge's own limits and harness.
  * Returns outputs in the browser's report shape, so gradeTests grades both the same way.
  */
-async function runOnServer({ definition, code, testCases }) {
+async function runOnServer({ definition, code, testCases, sandbox = null }) {
     const language = codingLanguage(definition);
     if (language !== "javascript") {
         return executeTests({
             language,
+            sandbox,
             code,
             tests: testCases.map((tc) => ({ id: tc.id, input: tc.input })),
             timeLimitMs: Number(definition.time_limit_ms) || 2000,
@@ -424,6 +427,7 @@ async function runOnServer({ definition, code, testCases }) {
 
     return executeTests({
         language,
+        sandbox,
         code,
         harness: harnessCode,
         entry: detectEntryName(starterCode || code),
@@ -466,6 +470,132 @@ async function loadCodingDefinition(ctx) {
     return definition;
 }
 
+/**
+ * Uses one attempt: uploads the code snapshot to S3, then records a `pending` submission, rolling
+ * the object back if that write fails. A queued run passes a fixed `submissionPublicId`, so a
+ * retried step finds the submission it already created instead of spending a second attempt.
+ */
+async function recordCodingAttempt({ userId, ctx, definition, language, code, submissionPublicId }) {
+    const starterFile = (definition.files || []).find((f) => f.role === "starter" || !f.role) || null;
+    const { ext, mime } = languageFile(language);
+    const size = Buffer.byteLength(code, "utf8");
+
+    const objectKey = `coding/submissions/${userId}/${ctx.public_id}/${ulid()}.${ext}`;
+    await s3.putText({
+        key: objectKey,
+        body: code,
+        contentType: `${mime}; charset=utf-8`,
+        metadata: { challenge: ctx.public_id },
+    });
+
+    try {
+        return await challengeDb.createPendingCodingSubmission({
+            userDbId: ctx.user_db_id,
+            challengeId: ctx.id,
+            language,
+            maxAttempts: maxCodingAttempts(definition),
+            asset: {
+                publicId: `ast_${ulid().toLowerCase()}`,
+                objectKey,
+                mimeType: mime,
+                size,
+                originalName: starterFile?.file_path || `solution.${ext}`,
+            },
+            submission: {
+                publicId: submissionPublicId,
+                snapshot: {
+                    s3_key: objectKey,
+                    s3_bucket: bucketForKey(objectKey),
+                    snapshot_size: size,
+                    code_sha256: crypto.createHash("sha256").update(code).digest("hex"),
+                    code_norm_sha256: normalizedCodeHash(code),
+                },
+            },
+            workspace: {
+                publicId: `ws_${ulid().toLowerCase()}`,
+                filePath: starterFile?.file_path || `solution.${ext}`,
+            },
+        });
+    } catch (error) {
+        // If the COMMIT outcome is unknown the row may reference this object: keep it
+        // (an orphaned object is harmless, a dangling asset row is not).
+        if (error?.commitUncertain) {
+            console.error("[challenge] Commit outcome unknown, keeping S3 snapshot:", objectKey);
+        } else {
+            await s3.delete(objectKey).catch((cleanupError) => {
+                console.error("[challenge] Failed to roll back S3 snapshot:", objectKey, cleanupError?.message);
+            });
+        }
+        throw error;
+    }
+}
+
+// ------------------------------------------------------------------ queued code runs
+// docs/queue-execution-plan.md 2.4-2.6: Run and Submit become rows of challenge.code_runs, graded by
+// the Inngest function jobs/codeRun.js (execute -> finalize). Without Inngest the same two steps
+// run inside the request.
+
+const RUN_DEADLINE_SEC = { manual: 45, submit: 180 };
+const MAX_ACTIVE_RUNS = 200; // hard cap, whatever the capacity estimate says
+const RESULT_TEXT_MAX = 2048; // chars of output / error kept per test
+
+const clipText = (value) => (typeof value === "string" && value.length > RESULT_TEXT_MAX ? `${value.slice(0, RESULT_TEXT_MAX)}…` : value);
+
+/**
+ * Refuses a new run the sandboxes could not finish before its deadline (it would only wait and be
+ * cancelled), or while runs wait and none has finished lately (runner stuck).
+ */
+async function admitCodeRun(kind) {
+    const load = await codeRunDb.load();
+    const slots = totalSlots();
+    const avgJobSec = Math.max(3, Number(load.avg_job_sec) || 5);
+    const capacity = queueCapacity({ slots, avgJobSec, deadlineSec: RUN_DEADLINE_SEC[kind], hardCap: MAX_ACTIVE_RUNS });
+    if (load.active >= capacity) {
+        const retryAfter = Math.min(120, Math.max(5, Math.ceil(((load.active - capacity + 1) * avgJobSec) / slots)));
+        throw new ApiError(`Many solutions are being graded right now. Try again in about ${retryAfter} seconds; no attempt was used.`, 503, { expose: true, retryAfter });
+    }
+    if (load.oldest_wait_sec > 60 && Number(load.since_last_done_sec) > 60) {
+        throw new ApiError("The code runner is not responding right now. Try again in a minute; no attempt was used.", 503, { expose: true, retryAfter: 60 });
+    }
+}
+
+/** Sends the run to Inngest; a failed send stays queued and the sweeper sends it again. */
+async function publishCodeRun({ publicId, userPublicId, challengeId, kind, sandbox }) {
+    try {
+        await inngest.send({
+            id: `exec-${publicId}`,
+            name: "code/run.requested",
+            data: { runId: publicId, userId: userPublicId, challengeId: String(challengeId), kind, sandbox },
+        });
+        await codeRunDb.markPublished({ publicId });
+    } catch (error) {
+        console.error("[code-run] publish failed, the sweeper will retry:", publicId, error?.message);
+    }
+}
+
+const runKind = (run) => (run.run_type === "manual" ? "manual" : "submit");
+
+/** What the browser gets for a run: still waiting, the graded tests, or why it could not finish. */
+async function codeRunView(run) {
+    const view = { runId: run.public_id, kind: runKind(run), status: run.status };
+    if (run.status === "queued") return { ...view, position: await codeRunDb.position({ publicId: run.public_id }) };
+    if (run.status === "running") return view;
+
+    if (run.status === "completed") {
+        const result = run.result || {};
+        if (result.rejected) return { ...view, error: result.rejected };
+        const tests = (result.graded || []).map((t) => (view.kind === "manual" ? { ...testView(t), output: t.output ?? null } : testView(t)));
+        if (view.kind === "manual") return { ...view, tests };
+        // The submission commits just before its outcome is written: keep polling until then.
+        return result.outcome ? { ...view, ...result.outcome, tests } : { ...view, status: "running" };
+    }
+
+    const message = run.error || (run.status === "cancelled"
+        ? "Grading did not start in time. Try again; no attempt was used."
+        : "Grading could not finish. Try again; no attempt was used.");
+    return { ...view, error: { status: 503, message } };
+}
+
 export const challengeService = {
     // ---------------------------------------------------------------- quiz
 
@@ -493,7 +623,9 @@ export const challengeService = {
         // Partial submissions would waste an attempt: require an answer for every question.
         const unanswered = questions.filter((q) => normaliseAnswer(q, answers?.[q.question_id]).length === 0);
         if (unanswered.length > 0) {
-            throw new ApiError("Answer every question before submitting", 400);
+            throw new ApiError("Answer every question before submitting", 400, {
+                details: { missingQuestionIds: unanswered.map((q) => q.question_id) },
+            });
         }
 
         const graded = gradeQuiz(questions, answers || {});
@@ -611,6 +743,8 @@ export const challengeService = {
             timeLimitMs: Number(definition.time_limit_ms) || 2000,
             scoringMode: definition.scoring_mode,
             maxAttempts: maxCodingAttempts(definition),
+            // The code runner grades Run (other languages) and Submit as queued runs (queueCodeRun).
+            serverGraded: serverExecutionEnabled(),
             starterCode: starterCode ?? "",
             harnessCode: harnessCode ?? null,
             tests: publicTests,
@@ -629,30 +763,6 @@ export const challengeService = {
     },
 
     /**
-     * "Run" for languages the browser cannot execute: runs the sample tests in the code runner and
-     * grades them. Nothing is recorded and no attempt is used; hidden tests never run here.
-     */
-    runCodingSamples: async ({ userId, challengeId, code }) => {
-        const ctx = await resolveContext({ userId, challengeId });
-        assertSourceSize(code);
-        const definition = await loadCodingDefinition(ctx);
-        if (!serverExecutionEnabled()) throw codeRunnerRequired();
-
-        const language = codingLanguage(definition);
-        const samples = normaliseTestCases(definition.test_cases).filter((tc) => !tc.isHidden);
-        if (samples.length === 0) return { tests: [] };
-
-        const executed = await runOnServer({ definition, code, testCases: samples });
-        return {
-            tests: gradeTests(samples, executed, language).map((t) => ({
-                ...testView(t),
-                // Raw stdout keeps the learner's formatting in the output panel.
-                output: executed[t.testCaseId]?.output ?? null,
-            })),
-        };
-    },
-
-    /**
      * Submission step 1. Requires every sample test to pass, then snapshots the code to S3 and
      * records a `pending` submission (this is what uses up an attempt) before revealing the
      * hidden test inputs for step 2.
@@ -660,7 +770,6 @@ export const challengeService = {
     startCodingSubmission: async ({ userId, challengeId, code, results }) => {
         const ctx = await resolveContext({ userId, challengeId });
         assertSourceSize(code);
-        const size = Buffer.byteLength(code, "utf8");
 
         const definition = await loadCodingDefinition(ctx);
         const language = codingLanguage(definition);
@@ -686,61 +795,8 @@ export const challengeService = {
             throw new ApiError(`Pass every sample test before submitting ("${failingSample.name}" did not pass).`, 409);
         }
 
-        const starterFile = (definition.files || []).find((f) => f.role === "starter" || !f.role) || null;
-        const { ext, mime } = languageFile(language);
         const codeSha256 = crypto.createHash("sha256").update(code).digest("hex");
-
-        // 1) Upload the snapshot; 2) record the attempt; 3) roll the object back if the DB write fails.
-        const objectKey = `coding/submissions/${userId}/${ctx.public_id}/${ulid()}.${ext}`;
-        await s3.putText({
-            key: objectKey,
-            body: code,
-            contentType: `${mime}; charset=utf-8`,
-            metadata: { challenge: ctx.public_id },
-        });
-
-        let created;
-        try {
-            created = await challengeDb.createPendingCodingSubmission({
-                userDbId: ctx.user_db_id,
-                challengeId: ctx.id,
-                language,
-                maxAttempts: maxCodingAttempts(definition),
-                asset: {
-                    publicId: `ast_${ulid().toLowerCase()}`,
-                    objectKey,
-                    mimeType: mime,
-                    size,
-                    originalName: starterFile?.file_path || `solution.${ext}`,
-                },
-                submission: {
-                    publicId: `sub_${ulid().toLowerCase()}`,
-                    snapshot: {
-                        s3_key: objectKey,
-                        s3_bucket: bucketForKey(objectKey),
-                        snapshot_size: size,
-                        code_sha256: codeSha256,
-                        code_norm_sha256: normalizedCodeHash(code),
-                    },
-                },
-                workspace: {
-                    publicId: `ws_${ulid().toLowerCase()}`,
-                    filePath: starterFile?.file_path || `solution.${ext}`,
-                },
-            });
-        } catch (error) {
-            // If the COMMIT outcome is unknown the row may reference this object: keep it
-            // (an orphaned object is harmless, a dangling asset row is not).
-            if (error?.commitUncertain) {
-                console.error("[challenge] Commit outcome unknown, keeping S3 snapshot:", objectKey);
-            } else {
-                await s3.delete(objectKey).catch((cleanupError) => {
-                    console.error("[challenge] Failed to roll back S3 snapshot:", objectKey, cleanupError?.message);
-                });
-            }
-            throw error;
-        }
-
+        const created = await recordCodingAttempt({ userId, ctx, definition, language, code, submissionPublicId: `sub_${ulid().toLowerCase()}` });
         const submissionId = created.submission.public_id;
 
         await redis.set(pendingKey(submissionId), {
@@ -840,6 +896,230 @@ export const challengeService = {
             maxAttempts: maxCodingAttempts(definition),
             tests: graded.map(testView),
         };
+    },
+
+    // ---------------------------------------------------------------- queued code runs
+
+    /**
+     * Queues a Run (`manual`: sample tests, nothing recorded) or a Submit (`submit`: every test; an
+     * attempt is used only once the sample tests pass) and returns at once with `status: "queued"`.
+     * Without Inngest the run is graded inside this request and returned finished.
+     */
+    queueCodeRun: async ({ userId, challengeId, code, kind }) => {
+        if (kind !== "manual" && kind !== "submit") throw new ApiError("Invalid run kind", 400);
+        const ctx = await resolveContext({ userId, challengeId });
+        assertSourceSize(code);
+        const definition = await loadCodingDefinition(ctx);
+        if (!serverExecutionEnabled()) throw codeRunnerRequired();
+
+        const testCases = normaliseTestCases(definition.test_cases);
+        if (testCases.length === 0) throw new ApiError("This challenge has no test cases yet", 409);
+        if (kind === "manual" && !testCases.some((tc) => !tc.isHidden)) return { kind, status: "completed", tests: [] };
+
+        // A dead run of this learner must not hold the one-active-run slot (or count as load).
+        await codeRunDb.expireForUser({ userDbId: ctx.user_db_id });
+        await admitCodeRun(kind);
+        const language = codingLanguage(definition);
+        const publicId = `run_${ulid().toLowerCase()}`;
+        const sandbox = sandboxKey(language, publicId);
+        await codeRunDb.create({
+            publicId,
+            userDbId: ctx.user_db_id,
+            challengeId: ctx.id,
+            runType: kind,
+            language,
+            code,
+            sandbox,
+            deadlineSec: RUN_DEADLINE_SEC[kind],
+        });
+
+        if (!codeRunsViaInngest()) {
+            const executed = await challengeService.executeCodeRun(publicId);
+            if (executed.status === "graded") await challengeService.finalizeCodeRun(publicId);
+            return codeRunView(await codeRunDb.get({ publicId }));
+        }
+
+        await publishCodeRun({ publicId, userPublicId: userId, challengeId: ctx.id, kind, sandbox });
+        return { runId: publicId, kind, status: "queued", position: await codeRunDb.position({ publicId }) };
+    },
+
+    /** Polled by the browser until the run leaves queued / running. */
+    getCodeRun: async ({ userId, runId }) => {
+        if (!/^run_[a-z0-9]{26}$/.test(String(runId || ""))) throw new ApiError("Invalid run id", 400);
+        let run = await codeRunDb.get({ publicId: runId });
+        if (!run || run.user_public_id !== userId) throw new ApiError("Run not found", 404);
+        // Past its deadline: end it now instead of waiting for the sweeper.
+        if ((run.status === "queued" || run.status === "running") && (await codeRunDb.expire({ publicId: runId }))) {
+            run = await codeRunDb.get({ publicId: runId });
+        }
+        return codeRunView(run);
+    },
+
+    /**
+     * Step 1 (jobs/codeRun.js): runs the tests in the sandbox and stores the graded outcome on the
+     * run. Throws on runner trouble (retried); a 4xx (access gone, inputs too large) ends the run.
+     */
+    executeCodeRun: async (runId) => {
+        const run = await codeRunDb.start({ publicId: runId });
+        if (!run) {
+            // Started after its deadline (a long queue): end it so the learner is not blocked.
+            await codeRunDb.expire({ publicId: runId });
+            return { status: (await codeRunDb.get({ publicId: runId }))?.status || "missing" };
+        }
+
+        try {
+            const ctx = await resolveContext({ userId: run.user_public_id, challengeId: String(run.challenge_id) });
+            const definition = await loadCodingDefinition(ctx);
+            const language = codingLanguage(definition);
+            const all = normaliseTestCases(definition.test_cases);
+            const testCases = runKind(run) === "manual" ? all.filter((tc) => !tc.isHidden) : all;
+
+            const executed = await runOnServer({ definition, code: run.source_snapshot?.code || "", testCases, sandbox: run.sandbox });
+            const graded = gradeTests(testCases, executed, language).map((t) => ({
+                ...t,
+                actual: clipText(t.actual),
+                error: clipText(t.error),
+                // Raw stdout keeps the learner's formatting in the output panel.
+                output: t.isHidden ? undefined : clipText(executed[t.testCaseId]?.output ?? null),
+            }));
+            await codeRunDb.saveResult({ publicId: runId, result: { language, graded } });
+            return { status: "graded" };
+        } catch (error) {
+            if (!(error instanceof ApiError) || error.status >= 500) throw error;
+            await codeRunDb.finish({ publicId: runId, status: "failed", error: error.message });
+            return { status: "failed" };
+        }
+    },
+
+    /**
+     * Step 2: a Run just completes. A Submit whose sample tests failed completes without using an
+     * attempt (as before); otherwise the attempt is recorded and graded once, points included.
+     * Safe to retry: the submission id is derived from the run id, and every write is conditional.
+     */
+    finalizeCodeRun: async (runId) => {
+        const run = await codeRunDb.get({ publicId: runId });
+        if (!run || run.status !== "running" || !run.result?.graded) return { status: run?.status || "missing" };
+
+        if (runKind(run) === "manual") {
+            await codeRunDb.finish({ publicId: runId, status: "completed" });
+            return { status: "completed" };
+        }
+
+        const graded = run.result.graded;
+        const failingSample = graded.find((t) => !t.isHidden && t.status !== "passed");
+        const reject = async (status, message) => {
+            await codeRunDb.finish({ publicId: runId, status: "completed", result: { ...run.result, rejected: { status, message } } });
+            return { status: "completed", rejected: status };
+        };
+        if (failingSample) return reject(409, `Pass every sample test before submitting ("${failingSample.name}" did not pass).`);
+
+        const userId = run.user_public_id;
+        const ctx = await resolveContext({ userId, challengeId: String(run.challenge_id) });
+        const definition = await loadCodingDefinition(ctx);
+        const submissionPublicId = `sub_${runId.slice("run_".length)}`;
+
+        let attempts = null;
+        if (!(await codeRunDb.submission({ publicId: submissionPublicId }))) {
+            try {
+                ({ attempts } = await recordCodingAttempt({ userId, ctx, definition, language: run.language, code: run.source_snapshot?.code || "", submissionPublicId }));
+            } catch (error) {
+                if (error instanceof ApiError && error.status === 429) return reject(429, error.message);
+                if (error?.code !== "23505") throw error; // 23505: a crashed earlier try created it
+            }
+        }
+
+        const points = Number(ctx.points) || 0;
+        const grading = summariseGrading(graded, { scoringMode: definition.scoring_mode, points });
+        const firstError = graded.find((t) => t.error)?.error || null;
+        const executionTimeMs = graded.reduce((sum, t) => sum + t.timeMs, 0);
+        const status = grading.allPassed ? "passed" : "failed";
+        const outcome = (submission, rewards = {}) => ({
+            challengeId: ctx.id,
+            submissionId: submission.public_id,
+            submittedAt: new Date(submission.submitted_at).toISOString(),
+            status,
+            passed: grading.allPassed,
+            score: Number(grading.score) || 0,
+            points,
+            testsPassed: grading.testsPassed,
+            testsTotal: grading.testsTotal,
+            ...rewards,
+            attempts,
+            maxAttempts: maxCodingAttempts(definition),
+        });
+
+        const submission = await codeRunDb.submission({ publicId: submissionPublicId });
+        if (submission.status !== "pending") {
+            // Graded by an earlier try that stopped before marking the run (its rewards are already
+            // credited): still refresh the learner's caches and other tabs, which that try may have missed.
+            await codeRunDb.mergeResult({ publicId: runId, patch: { outcome: outcome(submission) } });
+            await codeRunDb.finish({ publicId: runId, status: "completed" });
+            await afterSubmission({ userId, ctx, passed: grading.allPassed, rewards: rewardView() });
+            return { status: "completed" };
+        }
+
+        const saved = await challengeDb.finalizeCodingSubmission({
+            userDbId: ctx.user_db_id,
+            challengeId: ctx.id,
+            submissionPublicId,
+            language: run.language,
+            status,
+            score: grading.score,
+            passed: grading.allPassed,
+            points,
+            snapshot: {
+                tests_total: grading.testsTotal,
+                tests_passed: grading.testsPassed,
+                has_hidden_failed: graded.some((t) => t.isHidden && t.status !== "passed"),
+                execution_time_ms: executionTimeMs,
+                error_message: firstError,
+            },
+            run: {
+                existing: true,
+                publicId: runId,
+                stdout: null,
+                stderr: firstError,
+                executionTimeMs,
+                passedTests: grading.testsPassed,
+                totalTests: grading.testsTotal,
+            },
+            testResults: grading.testResults,
+        });
+
+        const rewards = rewardView(saved);
+        await codeRunDb.mergeResult({ publicId: runId, patch: { outcome: outcome(saved.submission, rewards) } });
+        await afterSubmission({ userId, ctx, passed: grading.allPassed, rewards });
+        return { status: "completed", passed: grading.allPassed };
+    },
+
+    /** The run failed for good (retries used up): end it with a message. No attempt was used. */
+    failCodeRun: async (runId, reason) => {
+        if (reason) console.error("[code-run] failed:", runId, reason);
+        await codeRunDb.finish({
+            publicId: runId,
+            status: "failed",
+            error: "The code runner could not grade this run. Try again; no attempt was used.",
+        });
+    },
+
+    /** Sweeper: ends runs stuck long after their deadline, and re-sends runs whose event never went out. */
+    sweepCodeRuns: async () => {
+        const expired = await codeRunDb.expireAll();
+
+        let republished = 0;
+        if (codeRunsViaInngest()) {
+            for (const run of await codeRunDb.listUnpublished()) {
+                await publishCodeRun({
+                    publicId: run.public_id,
+                    userPublicId: run.user_public_id,
+                    challengeId: run.challenge_id,
+                    kind: runKind(run),
+                    sandbox: run.sandbox,
+                });
+                republished += 1;
+            }
+        }
+        return { expired, republished };
     },
 
     // ---------------------------------------------------------------- hints

@@ -31,6 +31,9 @@ export default defineConfig({
             PUSHER_KEY: "",
             PUSHER_SECRET: "",
             AUTH_OUTBOX_WORKER: "off",
+            // Background work runs inline in tests (lib/inngest.js), never through an Inngest server.
+            INNGEST_EVENT_KEY: "",
+            INNGEST_DEV: "",
             APP_ENV: "test",
             // Storage tests run against the local MinIO when it is reachable (never the remote bucket).
             STORAGE_PROVIDER: "minio",

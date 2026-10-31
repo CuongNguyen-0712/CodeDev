@@ -19,6 +19,7 @@
     "db:migrate:prod": "node db/tools/migrate.mjs --env .env.production",
     "db:compare": "node db/tools/compare-schema.mjs",
     "db:export": "node db/tools/export-schema.mjs",
+    "dlq": "node scripts/dlq.mjs",
     "mail:test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/mail-test.mjs"
   },
   "dependencies": {
@@ -44,6 +45,7 @@
     "crypto": "^1.0.1",
     "dotenv": "^18.0.9",
     "eslint-config-next": "^16.4.3",
+    "inngest": "^4.24.0",
     "ioredis": "^6.0.0",
     "jose": "^6.2.13",
     "lodash": "^4.18.1",

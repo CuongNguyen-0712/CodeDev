@@ -17,7 +17,7 @@ import { AUTH } from "@/lib/authConfig";
 import { redis } from "@/lib/cache";
 import { cacheKeys } from "@/lib/cacheKeys";
 import { auditAuth } from "@/lib/authAudit";
-import { processAuthOutbox, ensureAuthOutboxWorker } from "@/services/authOutbox.service";
+import { dispatchAuthOutbox, ensureAuthOutboxWorker } from "@/services/authOutbox.service";
 
 // Revoked / expired sessions are remembered briefly to spare PostgreSQL repeated lookups.
 const INACTIVE_CACHE_TTL_SEC = 60;
@@ -53,7 +53,7 @@ async function cacheInactiveSession(sessionId) {
 /** Cache invalidation for a revocation that just committed; the outbox worker retries failures. */
 async function dispatchOutbox(outboxId) {
     if (!outboxId) return;
-    await processAuthOutbox({ ids: [outboxId], limit: 1 });
+    await dispatchAuthOutbox([outboxId]);
 }
 
 const FAILURE = {

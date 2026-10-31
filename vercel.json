@@ -1,6 +1,0 @@
-{
-  "crons": [
-    { "path": "/api/internal/account-maintenance", "schedule": "0 3 * * *" },
-    { "path": "/api/internal/exp-audit", "schedule": "30 3 * * *" }
-  ]
-}

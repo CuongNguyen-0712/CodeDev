@@ -313,14 +313,18 @@ export const sessionDb = {
     /**
      * Claims due events with a lease: `available_at` moves forward, so a crashed worker's events
      * become visible again after `leaseSec`. SKIP LOCKED lets several instances share the queue.
+     * The lease outlasts the slowest handler (SMTP gives up after ~40s), so a slow send is never
+     * claimed and sent a second time. `eventTypes` limits the claim to those types.
      */
-    claimOutbox: async ({ limit = 50, leaseSec = 30, ids = null } = {}) => {
+    claimOutbox: async ({ limit = 50, leaseSec = 120, ids = null, eventTypes = null } = {}) => {
         const res = await sql(
             `WITH due AS (
                  SELECT id FROM identity.auth_outbox
                  WHERE processed_at IS NULL
+                   AND dead_at IS NULL
                    AND available_at <= now()
                    AND ($3::bigint[] IS NULL OR id = ANY($3::bigint[]))
+                   AND ($4::text[] IS NULL OR event_type = ANY($4::text[]))
                  ORDER BY id
                  LIMIT $1
                  FOR UPDATE SKIP LOCKED
@@ -329,8 +333,8 @@ export const sessionDb = {
              SET attempts = o.attempts + 1, available_at = now() + make_interval(secs => $2)
              FROM due
              WHERE o.id = due.id
-             RETURNING o.id::text, o.event_type, o.payload, o.attempts;`,
-            [limit, leaseSec, ids]
+             RETURNING o.id::text, o.event_type, o.payload, o.attempts, o.max_attempts;`,
+            [limit, leaseSec, ids, eventTypes]
         );
         return res.rows;
     },
@@ -339,11 +343,52 @@ export const sessionDb = {
         await sql(`UPDATE identity.auth_outbox SET processed_at = now(), last_error = NULL WHERE id = $1;`, [id]);
     },
 
+    /** Records a failure and schedules the retry; an event out of attempts is marked dead instead. */
     failOutbox: async ({ id, error, retryInSec }) => {
-        await sql(
-            `UPDATE identity.auth_outbox SET last_error = left($2, 500), available_at = now() + make_interval(secs => $3) WHERE id = $1;`,
+        const res = await sql(
+            `UPDATE identity.auth_outbox
+             SET last_error = left($2, 500),
+                 available_at = now() + make_interval(secs => $3),
+                 dead_at = CASE WHEN attempts >= max_attempts THEN now() END
+             WHERE id = $1
+             RETURNING dead_at IS NOT NULL AS dead;`,
             [id, String(error || "unknown error"), retryInSec]
         );
+        return { dead: Boolean(res.rows[0]?.dead) };
+    },
+
+    /** Gives up on an event (a permanent error, or the queue ran out of retries). */
+    killOutbox: async ({ id, error }) => {
+        await sql(
+            `UPDATE identity.auth_outbox SET dead_at = now(), last_error = left($2, 500)
+             WHERE id = $1 AND processed_at IS NULL AND dead_at IS NULL;`,
+            [id, String(error || "unknown error")]
+        );
+    },
+
+    outboxState: async ({ id }) => {
+        const res = await sql(
+            `SELECT event_type, payload, attempts, processed_at, dead_at, available_at FROM identity.auth_outbox WHERE id = $1;`,
+            [id]
+        );
+        return res.rows[0] || null;
+    },
+
+    markOutboxPublished: async ({ ids }) => {
+        await sql(`UPDATE identity.auth_outbox SET published_at = now() WHERE id = ANY($1::bigint[]);`, [ids]);
+    },
+
+    /** Pending events whose Inngest event never went out, or went out long ago without a result. */
+    listStaleOutbox: async ({ olderThanMin = 15, limit = 100 } = {}) => {
+        const res = await sql(
+            `SELECT id::text FROM identity.auth_outbox
+             WHERE processed_at IS NULL AND dead_at IS NULL
+               AND created_at < now() - interval '1 minute'
+               AND (published_at IS NULL OR published_at < now() - make_interval(mins => $1))
+             ORDER BY id LIMIT $2;`,
+            [olderThanMin, limit]
+        );
+        return res.rows.map((r) => r.id);
     },
 
     /** Drops expired recovery blobs and old processed outbox rows. Token history is kept. */

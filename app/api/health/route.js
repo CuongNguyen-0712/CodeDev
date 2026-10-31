@@ -4,6 +4,9 @@ import { redis } from "@/lib/cache";
 import { sql } from "@/lib/db";
 import { checkStorage, storageInfo } from "@/lib/s3";
 import { appEnv } from "@/lib/appEnv.mjs";
+import { inngestEnabled } from "@/lib/inngest";
+import { codeRunDb } from "@/db/codeRun.db";
+import { deadLetterDb } from "@/db/deadLetter.db";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +18,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
     const startedAt = Date.now();
 
-    const [database, cache, storage] = await Promise.all([
+    const [database, cache, storage, jobs] = await Promise.all([
         sql("SELECT 1 AS ok")
             .then(() => ({ status: "healthy" }))
             .catch((error) => {
@@ -29,13 +32,26 @@ export async function GET() {
                 console.error("[health] storage check failed:", error?.name, error?.message);
                 return { status: "down" };
             }),
+        // Background work (docs/queue-execution-plan.md): dead letters of the last hour degrade.
+        Promise.all([deadLetterDb.countOpen({ hours: 1 }), codeRunDb.load()])
+            .then(([deadLetters, runs]) => ({
+                status: deadLetters > 0 ? "degraded" : "healthy",
+                inngest: inngestEnabled(),
+                deadLettersLastHour: deadLetters,
+                codeRunsActive: runs.active,
+                oldestQueuedSec: runs.oldest_wait_sec,
+            }))
+            .catch((error) => {
+                console.error("[health] jobs check failed:", error?.message);
+                return { status: "unknown" };
+            }),
     ]);
 
     const healthy = database.status === "healthy";
 
     return NextResponse.json(
         {
-            status: healthy ? (cache.reachable && storage.status === "healthy" ? "ok" : "degraded") : "down",
+            status: healthy ? (cache.reachable && storage.status === "healthy" && jobs.status === "healthy" ? "ok" : "degraded") : "down",
             environment: appEnv(),
             database,
             storage: { provider: storageInfo().provider, status: storage.status },
@@ -45,6 +61,7 @@ export async function GET() {
                 reachable: cache.reachable,
                 degradedSince: cache.degradedSince,
             },
+            jobs,
             tookMs: Date.now() - startedAt,
         },
         { status: healthy ? 200 : 503, headers: { "Cache-Control": "no-store" } }

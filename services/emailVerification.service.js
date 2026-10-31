@@ -9,7 +9,7 @@ import { invalidateUserCache } from "@/lib/cacheKeys";
 import { sendMail } from "@/lib/mail";
 import { publishToUser } from "@/lib/pusher";
 import { events } from "@/lib/realtime";
-import { processAuthOutbox } from "@/services/authOutbox.service";
+import { dispatchAuthOutbox } from "@/services/authOutbox.service";
 
 import VerifyEmailTemplate from "@/components/templates/verifyEmailTemplate";
 
@@ -30,7 +30,7 @@ export const emailVerificationService = {
     request: async (userId) => {
         try {
             const outboxId = await emailTokenDb.enqueue("email.verify_requested", { userId });
-            await processAuthOutbox({ ids: [outboxId], limit: 1 });
+            await dispatchAuthOutbox([outboxId]);
             return true;
         } catch (error) {
             console.error("[email-verify] could not queue:", error?.message);
@@ -45,7 +45,7 @@ export const emailVerificationService = {
     remind: async (userId, kind = "purge") => {
         try {
             const outboxId = await emailTokenDb.enqueue("email.verify_requested", { userId, reminder: kind });
-            await processAuthOutbox({ ids: [outboxId], limit: 1 });
+            await dispatchAuthOutbox([outboxId]);
             return true;
         } catch (error) {
             console.error("[email-verify] could not queue the reminder:", error?.message);

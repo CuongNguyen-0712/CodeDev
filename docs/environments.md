@@ -121,7 +121,8 @@ Set in the Vercel project (Production scope), with values distinct from developm
 `AWS_SECRET_ACCESS_KEY`, `S3_BUCKET`, `S3_PRIVATE_BUCKET`, `DATABASE_URL`, `REDIS_URL` /
 `REDIS_TOKEN`, `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `REFRESH_TOKEN_HASH_SECRET`,
 `REFRESH_TOKEN_RECOVERY_KEY`, `AUTH_JWT_ISSUER`, `AUTH_JWT_AUDIENCE`, `MAIL_FROM` (the Gmail
-address), `MAIL_PASSWORD` (its App Password; see [auth.md](auth.md)), `CRON_SECRET` (the daily
-account maintenance cron in `vercel.json`). Never set `MINIO_*` there.
+address), `MAIL_PASSWORD` (its App Password; see [auth.md](auth.md)), `INNGEST_EVENT_KEY` and
+`INNGEST_SIGNING_KEY` (background jobs and the daily crons, [queue-execution-plan.md](queue-execution-plan.md)),
+`CRON_SECRET` (only to run `/api/internal/*` by hand). Never set `MINIO_*` there.
 `.env.local` leaves `MAIL_PASSWORD` empty, so development mail goes to Mailpit, never to real
 inboxes; `npm run mail:test -- --env <file>` checks either side.

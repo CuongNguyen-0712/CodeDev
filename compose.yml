@@ -67,6 +67,19 @@ services:
       - "127.0.0.1:8025:8025" # web inbox
     networks: [backend]
 
+  # ------------------------------------------------------------------ background jobs (development)
+  # Inngest dev server for `next dev` with INNGEST_DEV=1 (docs/queue-execution-plan.md); dashboard
+  # at http://127.0.0.1:8288. The app sends events to :8288 and the dev server calls back
+  # /api/inngest on the host. In-memory: runs are gone after a restart (functions sync again).
+  inngest:
+    profiles: [dev]
+    image: inngest/inngest:v1.46.0
+    restart: unless-stopped
+    command: ["inngest", "dev", "--no-discovery", "-u", "http://host.docker.internal:${APP_DEV_PORT:-3000}/api/inngest"]
+    ports:
+      - "127.0.0.1:8288:8288"
+    networks: [backend]
+
   # ------------------------------------------------------------------ optional local database
   # The usual setup is a natively installed PostgreSQL 18 on 5432; this one listens on 5433.
   postgres:
@@ -180,6 +193,8 @@ services:
       REDIS_TOKEN: ""
       CODE_RUNNER_URL: http://sandbox-gateway:4100
       CODE_RUNNER_TOKEN: ${CODE_RUNNER_TOKEN:-}
+      # Same value the sandbox gets as MAX_CONCURRENCY: the queue's per-sandbox concurrency limit.
+      CODE_RUNNER_CONCURRENCY: ${CODE_RUNNER_CONCURRENCY:-2}
     ports:
       - "${APP_PORT:-3000}:3000"
     depends_on:

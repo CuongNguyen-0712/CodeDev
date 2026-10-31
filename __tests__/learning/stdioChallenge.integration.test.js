@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 /**
  * A Python (stdio) coding challenge through the app's service layer, end to end: workspace,
- * "Run" in the code runner, two-step submission graded on the server, points and EXP.
+ * Run and Submit as code runs graded in the code runner, the two-step submission, points and EXP.
  *
  * Needs: DATABASE_URL with the python-rag-from-scratch seed applied, the codedev_sandbox
  * container (CODE_RUNNER_URL/TOKEN in .env.local) and MinIO with the starter uploaded.
@@ -63,6 +63,7 @@ describe.skipIf(!ready)("python stdio challenge through the service layer", () =
         const snapshots = await sql(`SELECT source_snapshot->>'s3_key' AS key FROM challenge.code_submissions WHERE user_id = $1`, [user.id]);
         for (const { key } of snapshots.rows) await s3.delete(key).catch(() => {});
         await sql(`DELETE FROM challenge.coding_workspaces WHERE user_id = $1`, [user.id]);
+        await sql(`DELETE FROM challenge.code_runs WHERE user_id = $1`, [user.id]);
         await sql(`DELETE FROM challenge.code_submissions WHERE user_id = $1`, [user.id]);
         await sql(`DELETE FROM storage.assets WHERE owner_id = $1`, [user.id]);
         await sql(`DELETE FROM learning.history WHERE user_id = $1`, [user.id]);
@@ -79,35 +80,48 @@ describe.skipIf(!ready)("python stdio challenge through the service layer", () =
         expect(workspace.tests).toHaveLength(3);
     });
 
+    // No Inngest in tests: the run is graded inside the call and comes back finished.
+    const run = (code, kind = "manual") => challengeService.queueCodeRun({ userId: user.publicId, challengeId: challenge.id, code, kind });
+
     it("runs the sample tests in the code runner (starter fails, solution passes)", async () => {
-        const failing = await challengeService.runCodingSamples({ userId: user.publicId, challengeId: challenge.id, code: starter() });
+        const failing = await run(starter());
+        expect(failing).toMatchObject({ kind: "manual", status: "completed" });
         expect(failing.tests.map((t) => t.status)).toContain("failed");
 
-        const passing = await challengeService.runCodingSamples({ userId: user.publicId, challengeId: challenge.id, code: solution() });
+        const passing = await run(solution());
         expect(passing.tests).toHaveLength(3);
         expect(passing.tests.every((t) => t.status === "passed")).toBe(true);
         expect(passing.tests[0]).toMatchObject({ actual: ["a b c d", "d e f g", "g h i j"] });
     }, 60_000);
 
     it("shows a syntax error as the test error", async () => {
-        const broken = await challengeService.runCodingSamples({ userId: user.publicId, challengeId: challenge.id, code: "def chunk_words(:\n" });
+        const broken = await run("def chunk_words(:\n");
         expect(broken.tests[0]).toMatchObject({ status: "error" });
         expect(broken.tests[0].error).toMatch(/SyntaxError/);
     }, 60_000);
 
-    it("grades a submission on the server and awards points and EXP once", async () => {
+    it("rejects a submission whose sample tests fail without using an attempt", async () => {
+        const rejected = await run(starter(), "submit");
+        expect(rejected).toMatchObject({ kind: "submit", status: "completed", error: { status: 409 } });
+        expect((await one(`SELECT COUNT(*)::int AS n FROM challenge.code_submissions WHERE user_id = $1`, [user.id])).n).toBe(0);
+    }, 60_000);
+
+    it("grades a queued submission on the server and awards points and EXP", async () => {
+        const graded = await run(solution(), "submit");
+        expect(graded).toMatchObject({ kind: "submit", passed: true, testsPassed: 8, testsTotal: 8, attempts: 1, awardedPoints: 30, awardedExp: 20 });
+        expect(graded.submissionId).toMatch(/^sub_[a-z0-9]{26}$/);
+        const row = await one(`SELECT status, submission_id IS NOT NULL AS linked FROM challenge.code_runs WHERE public_id = $1`, [graded.runId]);
+        expect(row).toEqual({ status: "completed", linked: true });
+    }, 120_000);
+
+    it("grades a two-step submission on the server and awards points and EXP only once", async () => {
         const started = await challengeService.startCodingSubmission({ userId: user.publicId, challengeId: challenge.id, code: solution(), results: {} });
         expect(started.hiddenTests).toEqual([]); // hidden inputs never reach the browser
 
         const finished = await challengeService.finishCodingSubmission({
             userId: user.publicId, challengeId: challenge.id, submissionId: started.submissionId, results: {},
         });
-        expect(finished).toMatchObject({ passed: true, testsPassed: 8, testsTotal: 8, awardedPoints: 30, awardedExp: 20 });
-
-        const again = await challengeService.startCodingSubmission({ userId: user.publicId, challengeId: challenge.id, code: solution(), results: {} });
-        const second = await challengeService.finishCodingSubmission({
-            userId: user.publicId, challengeId: challenge.id, submissionId: again.submissionId, results: {},
-        });
-        expect(second).toMatchObject({ passed: true, awardedPoints: 0, awardedExp: 0 });
+        // The queued submission above already earned them.
+        expect(finished).toMatchObject({ passed: true, testsPassed: 8, testsTotal: 8, awardedPoints: 0, awardedExp: 0 });
     }, 120_000);
 });

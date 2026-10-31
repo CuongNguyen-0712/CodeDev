@@ -11,7 +11,7 @@ import { generateRefreshToken, hashRefreshToken } from "@/lib/auth.util";
 import { invalidateUserCache } from "@/lib/cacheKeys";
 import { sendMail } from "@/lib/mail";
 import { failureGuards, rateLimiters } from "@/lib/rateLimit";
-import { processAuthOutbox } from "@/services/authOutbox.service";
+import { dispatchAuthOutbox } from "@/services/authOutbox.service";
 
 import AccountEmailTemplate from "@/components/templates/accountEmailTemplate";
 
@@ -30,7 +30,7 @@ const hashToken = (token) => hashRefreshToken(`link-account|${token}`);
 async function queue(eventType, payload) {
     try {
         const outboxId = await emailTokenDb.enqueue(eventType, payload);
-        await processAuthOutbox({ ids: [outboxId], limit: 1 });
+        await dispatchAuthOutbox([outboxId]);
         return true;
     } catch (error) {
         console.error(`[account-link] could not queue ${eventType}:`, error?.message);
@@ -116,7 +116,7 @@ export const accountLinkService = {
         }
         if (result.status !== "linked") return { status: result.status, mode: result.mode };
 
-        if (result.outboxIds.length) await processAuthOutbox({ ids: result.outboxIds, limit: result.outboxIds.length });
+        if (result.outboxIds.length) await dispatchAuthOutbox(result.outboxIds);
         await invalidateUserCache(result.userId);
         const claim = result.mode === "claim";
         if (claim) await failureGuards.login.reset(result.username).catch(() => { });
@@ -166,7 +166,7 @@ export const accountLinkService = {
 
         auditAuth("account.purged", { userId, sessionId, ip, reason: "user_requested", count: result.files });
         // As the maintenance job does: sessions to Redis, files to storage.
-        await processAuthOutbox({ ids: result.outboxIds, limit: result.outboxIds.length });
+        await dispatchAuthOutbox(result.outboxIds);
     },
 
     /** Settings > Sign-in methods. */

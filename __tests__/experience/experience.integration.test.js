@@ -115,6 +115,29 @@ describe.skipIf(!hasDb)("EXP and levels (PostgreSQL)", () => {
         expect(await attempt(true)).toMatchObject({ awardedPoints: 10, awardedExp: 4, level: 1, previousLevel: 1 });
     });
 
+    it("keeps the next quiz attempt closed for QUIZ_COOLDOWN_SECONDS and says how many seconds are left", async () => {
+        const { QUIZ_COOLDOWN_SECONDS } = await import("@/services/challenge.service");
+        expect(QUIZ_COOLDOWN_SECONDS).toBe(60);
+
+        const user = await makeUser("cooler");
+        const quiz = await makeChallenge(course.lessons[0], course.module, { type: "quiz", difficulty: "easy", points: 10 });
+        const question = await one(
+            `INSERT INTO challenge.questions (challenge_id, question, type, order_index, points) VALUES ($1, 'Q', 'single_choice', 1, 10) RETURNING id`,
+            [quiz.id]
+        );
+        const attempt = () => challengeDb.saveQuizAttempt({
+            userDbId: user.id, challengeId: quiz.id, passed: false, points: 10, maxAttempts: 3, cooldownSec: QUIZ_COOLDOWN_SECONDS,
+            rows: [{ questionId: question.id, optionId: null, isCorrect: false }],
+        });
+
+        await attempt();
+        const error = await attempt().catch((e) => e);
+        expect(error.status).toBe(429);
+        expect(error.retryAfter).toBeGreaterThan(0);
+        expect(error.retryAfter).toBeLessThanOrEqual(60);
+        expect(error.message).toMatch(/\d+ more seconds? before your next attempt/);
+    });
+
     it("opens hints in order and halves EXP once hint 3 is open (assisted)", async () => {
         const user = await makeUser("hinted");
         const other = await makeUser("unhinted");

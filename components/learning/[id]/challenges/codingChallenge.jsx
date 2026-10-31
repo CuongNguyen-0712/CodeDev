@@ -291,6 +291,7 @@ export default function CodingChallenge({ challenge, onPassed, onExhausted }) {
             const res = await submitCoding.mutateAsync({
                 challengeId: challenge.id,
                 code: submittedCode,
+                serverGraded: Boolean(workspace.serverGraded),
                 results: lastRun.payload,
                 // Hidden tests only exist client-side after the attempt is recorded.
                 runHidden: async (hidden) => {

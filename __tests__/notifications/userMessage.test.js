@@ -35,3 +35,24 @@ describe("userMessage", () => {
         expect(safe.code).toBe("X");
     });
 });
+
+describe("4xx details reach the client", () => {
+    it("carries retryAfter and details from an ApiError through toSafeError and unwrapActionResult", async () => {
+        const { ApiError, toSafeError } = await import("@/lib/error/apiError");
+        const { unwrapActionResult } = await import("@/lib/actionResult");
+
+        const safe = toSafeError(new ApiError("Answer every question", 400, { details: { missingQuestionIds: ["7"] }, retryAfter: 12 }));
+        expect(safe).toMatchObject({ status: 400, retryAfter: 12, details: { missingQuestionIds: ["7"] } });
+
+        const thrown = (() => { try { unwrapActionResult({ success: false, ...safe }); } catch (e) { return e; } })();
+        expect(thrown.details).toEqual({ missingQuestionIds: ["7"] });
+        expect(thrown.retryAfter).toBe(12);
+        expect(toUserError(thrown).details).toEqual({ missingQuestionIds: ["7"] });
+    });
+
+    it("never returns details for a 5xx", async () => {
+        const { ApiError, toSafeError } = await import("@/lib/error/apiError");
+        const safe = toSafeError(new ApiError("db down", 500, { details: { secret: 1 } }), "test");
+        expect(safe.details).toBeUndefined();
+    });
+});

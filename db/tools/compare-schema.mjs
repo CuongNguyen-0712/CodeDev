@@ -27,7 +27,7 @@ const option = (name, fallback) => (args.includes(name) ? args[args.indexOf(name
 const verbose = args.includes("--verbose");
 const sides = { left: option("--left", ".env.local"), right: option("--right", ".env.production") };
 
-export const SCHEMAS = ["public", "identity", "profile", "catalog", "course", "learning", "challenge", "roadmap", "community", "commerce", "storage"];
+export const SCHEMAS = ["public", "identity", "profile", "catalog", "course", "learning", "challenge", "roadmap", "community", "commerce", "storage", "ops"];
 
 const normalise = (def) => String(def ?? "")
     .replace(/::(character varying|text|integer|bigint|numeric|boolean)(\[\])?/g, "")

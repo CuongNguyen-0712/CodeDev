@@ -11,6 +11,7 @@ data volumes are kept under their old names, so nothing is lost.
 | `redis` | `redis:7-alpine` | always | `127.0.0.1:6379` | backend | `redis-cli ping` |
 | `minio` | Chainguard MinIO (pinned digest) | `dev` | `127.0.0.1:9000`, `127.0.0.1:9001` | backend | none (image has no shell) |
 | `postgres` | `postgres:18-alpine` | `db` | `127.0.0.1:5433` | backend | `pg_isready` |
+| `inngest` | `inngest/inngest:v1.46.0` (dev server, in-memory) | `dev` | `127.0.0.1:8288` (dashboard + event API) | backend | none (image has no curl/wget) |
 | `sandbox` | **`codedev_sandbox`** (`sandbox/vercel/Dockerfile`, target `docker`: Node 24, Python 3.14, gcc/g++ 15.2, JDK 21, Go 1.26, Rust 1.93) | `dev`, `app` | none | sandbox (internal) | `GET /health` |
 | `sandbox-gateway` | `codedev_sandbox` (`node gateway.mjs`) | `dev`, `app` | `127.0.0.1:4100` | sandbox, gateway | `GET /health` (proxied) |
 | `app` | **`codedev_app`** (`Dockerfile`) | `app` | `${APP_PORT:-3000}` | backend, gateway | `GET /api/health` |
@@ -26,6 +27,13 @@ data volumes are kept under their old names, so nothing is lost.
   `http://app:3000` past any edge proxy.
 - `container_name` is not set: names are `codedev-<service>-1`, so several projects can coexist.
 - `depends_on` uses `condition: service_healthy`; the app still retries Redis / storage itself.
+- `inngest` runs the background jobs for `next dev` started with `INNGEST_DEV=1`
+  ([queue-execution-plan.md](queue-execution-plan.md)). It calls the app back at
+  `http://host.docker.internal:${APP_DEV_PORT:-3000}/api/inngest` and syncs the functions on its
+  own (dashboard at http://127.0.0.1:8288). Docker Desktop resolves `host.docker.internal` by itself;
+  on Linux add `extra_hosts: ["host.docker.internal:host-gateway"]` to the service. The app
+  container (profile `app`) uses Inngest Cloud through `INNGEST_EVENT_KEY` / `INNGEST_SIGNING_KEY`,
+  not this dev server.
 
 ## Volumes
 

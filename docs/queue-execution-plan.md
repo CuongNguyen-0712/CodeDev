@@ -12,6 +12,51 @@ Cập nhật: 2026-10-30, bản 5. **Đã chọn Hướng B** (so sánh các hư
 - Docker self-host vẫn chạy được với `CODE_RUNNER_PROVIDER=docker` (sandbox trong `compose.yml`).
 - Quiz không hiện gợi ý "lần trước câu này sai". Chưa thiết kế bài coding nhiều file.
 
+## Trạng thái triển khai (2026-10-30)
+
+P0–P4 đã có code và test. Inngest chỉ hoạt động khi có `INNGEST_EVENT_KEY` + `INNGEST_SIGNING_KEY` (hoặc `INNGEST_DEV=1`). Khi chưa có key, mọi việc chạy inline như trước: outbox xử lý ngay sau commit, bài chấm chạy trong request. Riêng cron hằng ngày thì **không chạy** trên Vercel cho tới khi có key, vì `vercel.json` đã bị xoá.
+
+| Phần | File chính |
+|---|---|
+| Quiz (mục 5) | `services/challenge.service.js`, `db/challenge.db.js`, `lib/error/apiError.js`, `lib/serverAction.js`, `components/learning/[id]/challenges/quizChallenge.jsx` |
+| Giới hạn, rate limit, sandbox (4.1, 3) | `lib/challenges/limits.js`, `lib/rateLimit.js`, `lib/challenges/codeRunner.js`, `sandbox/server.mjs` |
+| Inngest | `lib/inngest.js`, `app/api/inngest/route.js`, `jobs/*.js` |
+| Job store | `db/migrations/20261030_001_background_jobs.sql`, `db/codeRun.db.js`, `db/deadLetter.db.js`, `scripts/dlq.mjs` |
+| Outbox (2.7) | `services/authOutbox.service.js`, `db/session.db.js` |
+| Chấm bài qua hàng đợi (2.4–2.6) | `services/challenge.service.js` (`queueCodeRun` … `sweepCodeRuns`), `actions/challenge.actions.js`, `mutations/challenge.mutation.js`, `lib/challenges/vercelRunner.js` |
+
+**Đã kiểm chứng trên local (Inngest dev server `inngest-cli@1.46.0` + `next dev` với `INNGEST_DEV=1`):**
+
+- **Đăng ký function.** 8 function (6 function + 2 handler `onFailure`) đăng ký không lỗi, tức cấu hình `concurrency`, `priority`, `throttle` và `timeouts` đều hợp lệ.
+- **Run và Submit trên UI.** Bài TypeScript chạy qua Inngest khoảng 4 giây:
+  - Run code starter: 0/2 sample pass.
+  - Run lời giải: 2/2 sample pass.
+  - Submit: "All 7 tests passed", cộng 20 điểm và 10 EXP.
+- **Outbox.** Event được giao qua `outbox-deliver`.
+- **Event lỗi vĩnh viễn.** Row bị đánh `dead_at`, sinh 2 dead letter (từ `onFailure` và `dead-letter-sink`).
+- **Run mất event.** Khi dev server khởi động lại, event của run bị rơi; `sweeper` chuyển run đó sang `cancelled` kèm thông báo "no attempt was used".
+- **Quiz trên UI:**
+  - Đếm ngược 60 giây.
+  - Câu sai hiện "Your answer is not correct yet" theo cả câu, không đánh dấu từng lựa chọn.
+  - Bấm làm lại thì không còn dấu đúng/sai của lần trước.
+  - Nộp trong lúc một tab khác vừa nộp thì nhận 429. Form vẫn giữ câu trả lời, hiện lỗi inline "Your answers are kept. You can submit again in 0:46." và khoá nút.
+  - Hết giờ chờ, nộp lại: "Passed 10/10".
+
+**Khác với thiết kế bên dưới:**
+
+- Function nằm ở `jobs/`, không phải `inngest/functions/`. Tránh trùng tên với gói `inngest`.
+- Không có step `notify`.
+  - Trình duyệt poll `getCodeRunAction` mỗi 1,5 giây.
+  - Submit vẫn phát `challenge-submitted` qua Pusher (`afterSubmission`) như trước.
+- Outbox:
+  - Không thêm cột `idempotency_key`. Event id `outbox-<id>` của Inngest đã chống gửi trùng, và handler đều idempotent.
+  - `emailTokenDb.enqueue` là một lệnh insert duy nhất, không có gì cần gộp chung transaction.
+  - `session.revoked` vẫn chạy inline trước, rồi mới gửi lên Inngest. Lệnh ghi Redis để thu hồi phiên không nên phải chờ hàng đợi.
+- Worker `setInterval` vẫn còn, nhưng chỉ chạy khi chưa cấu hình Inngest. Nó được xoá cùng các cờ fallback (xem 6.1).
+- Luồng hai bước `startCodingSubmission` / `finishCodingSubmission` (và key `challenge:pending:*`) vẫn còn, dành cho môi trường dev không có code runner (JS chấm bằng kết quả trình duyệt gửi lên). Khi có runner, client luôn đi qua `queueCodeRun`.
+- Chưa làm: cột `def_version` và cache verdict (P5).
+- Dev: service `inngest` trong `compose.yml` (profile `dev`, `inngest/inngest:v1.46.0`) chạy cùng `npm run services:up`; chạy `next dev` với `INNGEST_DEV=1`. Dashboard ở http://127.0.0.1:8288. Chi tiết: [docker.md](docker.md).
+
 ---
 
 ## 1. Hiện trạng cần sửa (tóm tắt khảo sát)
@@ -379,18 +424,16 @@ P0, P1 và P2 độc lập, làm song song được.
 
 Mỗi giai đoạn xoá phần nó thay thế, trong cùng PR. Không để hai đường cùng chạy lâu dài.
 
-| Khi | Xoá | Lý do |
+| Trạng thái | Xoá | Lý do |
 |---|---|---|
-| P3 | `ensureAuthOutboxWorker` (`services/authOutbox.service.js:123-151`) và lệnh import khởi động nó ở `services/auth.service.js:25`; biến `AUTH_OUTBOX_WORKER` (`vitest.config.mjs:33`) | Inngest `outbox-deliver` + `sweeper` thay `setInterval` |
-| P3 | Các lời gọi inline `processAuthOutbox({ ids })` ở `auth.service.js:54-56`, `emailVerification.service.js:33,48`, `accountLink.service.js:33,119,169`, `accountMaintenance.service.js:36` | Request không chờ SMTP nữa |
-| P3 | `app/api/internal/auth-outbox/route.js` | `sweeper` thay thế; route này cũng chưa từng nằm trong cron. Giữ `AUTH_CRON_SECRET`, vì route `account-maintenance` / `exp-audit` vẫn dùng |
-| P3 | `vercel.json` (chỉ chứa `crons`) | Cron chuyển sang Inngest. Giữ route `account-maintenance` / `exp-audit` để chạy tay |
-| P4 | `challenge:pending:<subId>`, `pendingKey`, `PENDING_SUBMISSION_TTL_SEC` và logic "expired" (`services/challenge.service.js:25,305,396,746-755`) | Thay bằng `code_runs.result` và trạng thái `cancelled`/`timeout` |
-| P4 | `finishCodingSubmissionAction` (`actions/challenge.actions.js`), mutation (`mutations/challenge.mutation.js`) và lời gọi phía client trong `codingChallenge.jsx`. Sửa `__tests__/learning/stdioChallenge.integration.test.js` theo luồng mới | Finalize chạy trong step `finalize` phía server |
-| P4 | Đường trả 503 khi hết slot và vòng thử 2 slot trong `vercelRunner.js:119-147` | Concurrency của Inngest chặn trước; hết slot thì throw để retry |
-| P4 | Hàng đợi in-memory của `sandbox/server.mjs` (`MAX_QUEUE` hạ về số slot) | Inngest đã xếp hàng |
-| Sau khi P3/P4 chạy ổn 2 tuần | Cờ `OUTBOX_DELIVERY=inline`, `CODE_EXEC_MODE=sync` và code đi kèm: `claimOutbox`/`failOutbox`/backoff (`db/session.db.js:317-346`, `authOutbox.service.js:100`), chấm bài đồng bộ trong action | Chỉ giữ một đường. Dev dùng Inngest dev server |
-| Mỗi giai đoạn | Cập nhật `docs/sandbox.md`, `docs/environments.md`, `.env.example` (thêm `INNGEST_*`, `CODE_RUNNER_POOL_SIZE`; bỏ `AUTH_OUTBOX_WORKER`) | Tài liệu khớp với code |
+| **Đã làm** | Các lời gọi inline `processAuthOutbox({ ids })` trong service, thay bằng `dispatchAuthOutbox(ids)` | Request không chờ SMTP nữa khi có Inngest |
+| **Đã làm** | `app/api/internal/auth-outbox/route.js` | `sweeper` thay thế. Giữ `AUTH_CRON_SECRET` cho route `account-maintenance` / `exp-audit` |
+| **Đã làm** | `vercel.json` | Cron chuyển sang Inngest. Route `/api/internal/*` giữ để chạy tay |
+| **Đã làm** | `runCodingSamples` (service + action) | Run trên server đi qua `queueCodeRun(kind: "manual")` |
+| **Đã làm** | Hằng số budget trùng lặp ở `codeRunner.js` / `vercelRunner.js` | Gom vào `lib/challenges/limits.js` |
+| Sau khi P3/P4 chạy ổn 2 tuần | `ensureAuthOutboxWorker`, `AUTH_OUTBOX_WORKER`, cờ `OUTBOX_DELIVERY` / `CODE_EXEC_MODE`, nhánh chấm inline trong `queueCodeRun` | Chỉ giữ một đường. Dev dùng Inngest dev server |
+| Khi bỏ chấm bằng trình duyệt ở dev | `startCodingSubmission` / `finishCodingSubmission` (cùng action, mutation), `challenge:pending:*`, `PENDING_SUBMISSION_TTL_SEC` | Lúc đó mọi môi trường đều có code runner |
+| Giữ | Vòng thử 2 slot trong `vercelRunner.js`, `MAX_QUEUE` của `sandbox/server.mjs` | Lớp bảo vệ thứ hai khi `concurrency` của Inngest cấu hình sai |
 
 Trước khi xoá bất cứ hàm nào, grep toàn bộ nơi gọi, kể cả `__tests__/`.
 
@@ -408,7 +451,135 @@ Trước khi xoá bất cứ hàm nào, grep toàn bộ nơi gọi, kể cả `_
   - Vercel Sandbox hết hạn mức: chấm bài dừng, `onFailure` hoàn lượt.
 - **At-least-once:** step có thể chạy lại, sandbox có thể chạy trùng một job (vô hại). Email có thể trùng trong trường hợp hiếm.
 - **Resume sandbox sau khi ngủ** làm lần chạy đầu chậm. Đo ở P4. Nếu chậm khó chấp nhận, giữ sandbox ấm trong giờ cao điểm.
-- **Chưa kiểm chứng bằng chạy thật:** cú pháp `priority.run`, tên event `inngest/function.failed`/`cancelled` với phiên bản SDK sẽ dùng, cách tính execution của gói đã chọn.
+- **Đã kiểm chứng (2026-10-30):** cú pháp `priority.run`, các event `inngest/function.failed`/`cancelled` (xem mục Trạng thái). Còn lại: cách tính execution của gói đã chọn.
+
+## 9. Rủi ro còn lại sau khi triển khai và hướng khắc phục
+
+Rà lại code ngày 2026-10-31. Các mục **R1–R3** là lỗi có thể gây ngừng dịch vụ, cần sửa trước khi bật Inngest trên production.
+
+**Đã sửa (2026-10-31):** R1, R2, R3, R5, R6, R8, R10, kèm test:
+
+- `__tests__/learning/codeRun.integration.test.js`: hết hạn tại chỗ, ân hạn cho job đang chạy, `load()` bỏ qua run hết hạn.
+- `__tests__/sandbox/limits.test.js`: sức chứa hàng đợi.
+- `__tests__/auth/inngestEnv.test.js`: kiểm tra env khi khởi động.
+
+Khác với hướng ban đầu:
+
+- **R1:** không tách `timeouts.start` theo loại run. Run quá hạn được đóng ngay khi gặp: lúc execute, lúc poll, lúc tạo run mới, và khi `sweeper` quét (`codeRunDb.expire*`). Job đang `running` có thêm 150 giây ân hạn, để một job bắt đầu sát deadline vẫn chạy xong.
+- **R3:** sức chứa = `queueCapacity()` (`lib/challenges/limits.js`), tính theo deadline của từng loại run và `avg_job_sec` của 10 phút gần nhất.
+
+Còn lại: R4, R7, R9, R11–R15.
+
+### Cao
+
+**R1. Run quá hạn bị kẹt ở `queued`, chặn cả user lẫn toàn hệ thống**
+
+- **Hiện tượng:**
+  - Run sample có `deadline_at = now()+45s`, nhưng `timeouts.start` của `code-run` là 3 phút.
+  - Khi hàng đợi chậm, function bắt đầu sau deadline: `codeRunDb.start()` trả `null`, và `executeCodeRun` (`services/challenge.service.js:949-951`) chỉ đọc lại trạng thái rồi thoát. Row vẫn `queued` cho tới khi `sweeper` chạy, chậm nhất là deadline + 2 phút + 10 phút.
+- **Hậu quả:**
+  - Unique index `uq_code_runs_user_active` khiến user đó không chạy hay nộp được gì trong ~12 phút.
+  - Client ngừng poll sau 6 phút, báo "taking longer than usual".
+  - `codeRunDb.load()` (`db/codeRun.db.js:116`) tính `oldest_wait_sec` cả trên run đã quá hạn. Chỉ một run kẹt cũng đủ làm admission trả 503 "not responding" cho **mọi** user.
+- **Khắc phục:**
+  1. Hết hạn tại chỗ: thêm `codeRunDb.expire({ publicId })`, chuyển `queued` → `cancelled` và `running` → `timeout` khi `deadline_at < now()`. Gọi nó ở:
+     - `executeCodeRun` khi `start()` trả `null`;
+     - `getCodeRun` (lần poll đầu sau deadline đóng run luôn);
+     - `queueCodeRun` trước khi insert, cho run cũ của chính user đó.
+  2. Admission chỉ tính run còn hạn: `MIN(queued_at) FILTER (WHERE status = 'queued' AND deadline_at > now())`.
+  3. Cho `timeouts.start` bằng deadline của từng loại: `manual` chỉ chờ tối đa ~45 giây. Có thể tách function `code-run` theo `kind`, hoặc giữ một function và dựa vào bước 1.
+  4. Test: run với `deadlineSec: -1` gọi `executeCodeRun` thì chuyển `cancelled`; user đó tạo run mới được ngay; `load()` không đếm run đã hết hạn.
+
+**R2. `INNGEST_DEV` trên production tắt kiểm tra chữ ký**
+
+- **Hiện tượng:** ở chế độ dev, `serve()` nhận request không có chữ ký. Nếu biến này lọt vào env production, ai cũng gọi được `/api/inngest` để chạy các step. Ví dụ: huỷ run của người khác, chạy `account-maintenance` nhiều lần (gửi email nhắc lặp lại).
+- **Khắc phục:** trong `lib/envCheck.mjs`, khi production:
+  - `INNGEST_DEV` có giá trị: đưa vào `fatal`.
+  - Thiếu `INNGEST_SIGNING_KEY` trong lúc có `INNGEST_EVENT_KEY`: đưa vào `errors`.
+  - Thêm test cho cả hai.
+
+**R3. Giới hạn hàng đợi không gắn với năng lực xử lý**
+
+- **Hiện tượng:** `MAX_ACTIVE_RUNS = 200`, trong khi mỗi sandbox chỉ 2 slot. Với job ~5 giây, 200 run cần ~500 giây, quá `timeouts.start` 3 phút. Phần lớn sẽ bị huỷ sau khi đã chờ, tốn lượt gửi event và làm người dùng khó chịu.
+- **Khắc phục:**
+  - Tính giới hạn theo năng lực: `maxQueued = tổng slot × floor(deadline / avgJobSec)`.
+    - `avgJobSec` lấy trung bình 10 phút gần nhất từ `finished_at - started_at`; tối thiểu 3 giây.
+    - Ví dụ: 2 slot × 180 / 5 ≈ 72.
+  - Trả 503 kèm `Retry-After` thật thay vì để người dùng chờ rồi mới bị huỷ.
+  - Giữ `MAX_ACTIVE_RUNS` làm trần cứng.
+
+**R4. Inngest hết hạn mức hoặc gặp sự cố: chấm bài ngừng mà không ai biết**
+
+- **Hiện tượng:** gói Free hết 50k execution thì **dừng hẳn**. Event vẫn được nhận nhưng không chạy, run nằm `queued` tới deadline. Email cũng không gửi.
+- **Khắc phục:**
+  1. Nâng gói trước khi mở cho người dùng thật.
+  2. `/api/health` báo `degraded` khi có run còn hạn chờ quá 60 giây (`oldestQueuedSec`). Gắn uptime monitor bên ngoài (UptimeRobot, Better Stack…) vào `/api/health` để có cảnh báo.
+  3. Tự fallback: nếu `inngest.send` của `queueCodeRun` lỗi, chấm inline trong request (đường `CODE_EXEC_MODE=sync` đã có) thay vì để run nằm chờ sweeper.
+
+**R5. Thứ tự deploy**
+
+- **Hiện tượng:**
+  - Code mới đọc/ghi các cột của migration `20261030_001`. Deploy trước khi migrate thì Run/Submit trả 500.
+  - `vercel.json` đã bị xoá: chưa đặt key Inngest thì cron hằng ngày không chạy.
+- **Khắc phục:** thêm vào checklist ở README, theo đúng thứ tự:
+  1. `npm run db:migrate:prod -- --yes`, rồi `npm run db:compare` báo "in sync".
+  2. Đặt `INNGEST_EVENT_KEY` và `INNGEST_SIGNING_KEY` trên Vercel (hoặc dùng tích hợp Inngest–Vercel).
+  3. Deploy.
+  4. Kiểm tra app đã sync trên dashboard Inngest và `/api/health` có `jobs.inngest: true`.
+
+### Trung bình
+
+**R6. Poll không có rate limit, tải tăng theo số người đang chờ**
+
+- **Hiện tượng:**
+  - `getCodeRunAction` không có limiter. Mỗi lần poll gồm một lần đọc session và hai query (`get` + `position`).
+  - 200 run chờ, poll 1,5 giây/lần ≈ 130 request/giây.
+- **Khắc phục:**
+  - Thêm limiter `codeRunPoll` 120/phút cho mỗi user.
+  - Client giãn nhịp: 1,5 giây trong 20 giây đầu, sau đó 3 giây.
+  - Chỉ tính `position` khi `status = 'queued'` (đã đúng). Có thể bỏ hẳn khi vượt 50.
+
+**R7. Bảng `code_runs` phình theo số lần bấm Run**
+
+- **Hiện tượng:** mỗi lần Run lưu code (≤ 64 KB) và kết quả (≤ 256 KB) vĩnh viễn. 1.000 lần/ngày × ~50 KB ≈ 50 MB/ngày trên Neon.
+- **Khắc phục:** thêm bước dọn vào `sweeper`, giới hạn 500 row mỗi lần:
+  - Xoá run `manual` đã kết thúc quá 7 ngày.
+  - Với run `submit` quá 30 ngày: bỏ `source_snapshot.code` (code đã nằm trên S3) và các trường `actual`/`output`/`error` trong `result.graded`.
+
+**R8. Nhánh thử lại của finalize bỏ qua việc xoá cache**
+
+- **Hiện tượng:** khi `finalizeCodeRun` thấy submission đã được chấm (một lần thử trước dừng giữa chừng), nó không gọi `afterSubmission`. Điểm và tiến độ trên UI cũ đi cho tới khi cache hết hạn (2–5 phút), và không có sự kiện Pusher.
+- **Khắc phục:** ở nhánh đó gọi `invalidateUserCache(userId)` và `publishToUser(CHALLENGE_SUBMITTED)` với `rewards` rỗng.
+
+**R9. Throttle outbox dùng chung cho mọi loại event**
+
+- **Hiện tượng:** `throttle 10/phút` áp lên cả `storage.purge` và `email.*`. Một đợt nhiều đăng ký sẽ làm việc xoá file của tài khoản bị purge chậm theo email.
+- **Khắc phục:**
+  - Gửi kèm `kind` trong event `outbox/created`, lấy `throttle.key = "event.data.kind"`.
+  - Hoặc tách hẳn `email-deliver` (có throttle) khỏi `outbox-deliver` (không throttle).
+  - Theo dõi thêm giới hạn ~500 thư/ngày của Gmail: vượt mức thì email rơi vào dead letter.
+
+**R10. Container app (Docker) lệch concurrency với sandbox**
+
+- **Hiện tượng:** `sandboxSlots()` đọc `CODE_RUNNER_CONCURRENCY`. Service `app` trong `compose.yml` không truyền biến này, chỉ `sandbox` nhận nó dưới tên `MAX_CONCURRENCY`. Nếu `.env.production` không đặt, hai bên có thể lệch nhau: sandbox trả 503 và bị retry thừa.
+- **Khắc phục:** thêm `CODE_RUNNER_CONCURRENCY: ${CODE_RUNNER_CONCURRENCY:-2}` vào `environment` của `app`.
+
+### Thấp
+
+| Mã | Rủi ro | Khắc phục |
+|---|---|---|
+| R11 | Vercel Sandbox Hobby (5 giờ CPU/tháng) hết hạn mức: không tạo được sandbox, các run thất bại sau retry | Đo CPU theo ngôn ngữ (đã ghi ở 4.3), nâng gói Pro trước khi mở rộng, tăng `CODE_RUNNER_POOL_SIZE` khi tải tăng |
+| R12 | `priority` cho Run (+60 giây) có thể làm Submit chờ lâu khi tải cao | Giảm xuống +20 giây, hoặc dành riêng 1 slot cho `submit` (concurrency key theo `kind`) |
+| R13 | Cài thêm gói npm phải dùng `--force` (xung đột peer tuỳ chọn `@sveltejs/kit` của `inngest`) | Ghi vào README. Không thêm `legacy-peer-deps` toàn cục, vì nó che các xung đột thật |
+| R14 | Dev server Inngest trong compose lưu trong bộ nhớ, `host.docker.internal` khác nhau giữa các OS | Đã ghi trong `docs/docker.md`. Linux thêm `extra_hosts` |
+| R15 | Email có thể gửi trùng (crash giữa lúc SMTP trả 250 và lúc ghi `processed_at`) | Chấp nhận. Nếu cần: dùng `Message-ID` cố định theo outbox id để client mail gộp thư trùng |
+
+### Thứ tự sửa đề xuất
+
+1. R1, R2, R3, R5 (cùng một PR, kèm test).
+2. R6, R8, R10 (vài dòng mỗi mục).
+3. R4 (uptime monitor + fallback inline), R7 (retention), R9.
+4. Theo dõi R11, R12 sau khi có số liệu tải thật.
 
 **Nguồn:**
 

@@ -187,9 +187,7 @@ export const challengeDb = {
                 throw new ApiError("You have used all attempts for this quiz", 409);
             }
             if (waitSeconds > 0) {
-                const error = new ApiError(`Please wait ${Math.ceil(waitSeconds / 60)} more minute(s) before your next attempt`, 429);
-                error.retryAfter = waitSeconds;
-                throw error;
+                throw new ApiError(`Please wait ${waitSeconds} more second${waitSeconds === 1 ? "" : "s"} before your next attempt`, 429, { retryAfter: waitSeconds });
             }
 
             await client.query(
@@ -427,7 +425,8 @@ export const challengeDb = {
 
     /**
      * Step 2: grades a `pending` submission exactly once and credits the challenge points
-     * (once per user and challenge, however many submissions pass).
+     * (once per user and challenge, however many submissions pass). A queued run (`run.existing`)
+     * is completed in place; otherwise a completed code_runs row is inserted.
      */
     finalizeCodingSubmission: async (data) => {
         const { userDbId, challengeId, submissionPublicId, language, status, score, snapshot, run, testResults, passed, points } = data;
@@ -454,17 +453,23 @@ export const challengeDb = {
             );
             const submissionRow = submissionRes.rows[0];
 
-            const runRes = await client.query(
-                `INSERT INTO challenge.code_runs (public_id, user_id, challenge_id, submission_id, run_type, language, source_snapshot, status, started_at, finished_at)
-                 VALUES ($1, $2, $3::bigint, $4, 'submit', $5, $6::jsonb, 'completed', $7, now())
-                 RETURNING id;`,
-                [
-                    run.publicId, userDbId, challengeId, submissionRow.id, language,
-                    JSON.stringify({ asset_id: pending.source_snapshot?.asset_id ?? null, s3_key: pending.source_snapshot?.s3_key ?? null }),
-                    run.startedAt,
-                ]
-            );
-            const runId = runRes.rows[0].id;
+            const runSnapshot = JSON.stringify({ asset_id: pending.source_snapshot?.asset_id ?? null, s3_key: pending.source_snapshot?.s3_key ?? null });
+            const runRes = run.existing
+                ? await client.query(
+                    `UPDATE challenge.code_runs
+                     SET submission_id = $2, source_snapshot = $3::jsonb, status = 'completed', finished_at = now()
+                     WHERE public_id = $1 AND status IN ('queued', 'running')
+                     RETURNING id;`,
+                    [run.publicId, submissionRow.id, runSnapshot]
+                )
+                : await client.query(
+                    `INSERT INTO challenge.code_runs (public_id, user_id, challenge_id, submission_id, run_type, language, source_snapshot, status, started_at, finished_at)
+                     VALUES ($1, $2, $3::bigint, $4, 'submit', $5, $6::jsonb, 'completed', $7, now())
+                     RETURNING id;`,
+                    [run.publicId, userDbId, challengeId, submissionRow.id, language, runSnapshot, run.startedAt]
+                );
+            const runId = runRes.rows[0]?.id;
+            if (!runId) throw new ApiError("This run was already finished", 409);
 
             await client.query(
                 `INSERT INTO challenge.code_run_results (run_id, stdout, stderr, exit_code, execution_time_ms, passed_tests, total_tests, score)

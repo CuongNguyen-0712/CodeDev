@@ -202,16 +202,24 @@ used. Storage tests run against the local MinIO when it is reachable and skip ot
 
 ## Deployment
 
-**Vercel** hosts the production site. `vercel.json` schedules two crons:
-account maintenance (`/api/internal/account-maintenance`, daily 03:00 UTC) and the EXP audit
-(`/api/internal/exp-audit`, daily 03:30 UTC). Coding submissions are graded on Vercel Sandbox
-(`CODE_RUNNER_PROVIDER=vercel`).
+**Vercel** hosts the production site. Background work runs on **Inngest** (functions in `jobs/`,
+served at `/api/inngest`; set `INNGEST_EVENT_KEY` and `INNGEST_SIGNING_KEY`): queued code runs,
+outbox delivery (email, storage, sessions), a sweeper every 10 minutes, account maintenance
+(daily 03:00 UTC) and the EXP audit (daily 03:30 UTC). The routes under `/api/internal/` still run
+those two daily jobs by hand. Coding submissions are graded on Vercel Sandbox
+(`CODE_RUNNER_PROVIDER=vercel`). Failed background work: `npm run dlq`. See
+[docs/queue-execution-plan.md](docs/queue-execution-plan.md).
 
-Release checklist:
+Release checklist (in this order: the code reads columns a migration adds, and the daily jobs
+only run once Inngest is connected):
 
 1. `npm run db:migrate:prod -- --yes`, then `npm run db:compare` must report "in sync".
-2. Push the branch; Vercel builds from it.
-3. Check `/api/health` on the deployment.
+2. Inngest keys in the Vercel project: `INNGEST_EVENT_KEY` and `INNGEST_SIGNING_KEY` (or the
+   Inngest Vercel integration). Never `INNGEST_DEV` in production: the start-up check refuses it.
+3. Push the branch; Vercel builds from it.
+4. In the Inngest dashboard the `codedev` app is synced with its functions (re-sync after a deploy
+   that adds or changes functions, unless the integration does it).
+5. Check `/api/health` on the deployment: `status: "ok"` and `jobs.inngest: true`.
 
 **Self-hosting**: `npm run docker:app` builds a standalone, non-root Node 24 image (`Dockerfile`)
 and starts it with Redis and the sandbox from `compose.yml`. See [docs/docker.md](docs/docker.md).

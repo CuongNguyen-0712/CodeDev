@@ -1,6 +1,6 @@
 import { accountPurgeDb } from "@/db/accountPurge.db";
 import { auditAuth } from "@/lib/authAudit";
-import { processAuthOutbox } from "@/services/authOutbox.service";
+import { dispatchAuthOutbox } from "@/services/authOutbox.service";
 import { emailVerificationService } from "@/services/emailVerification.service";
 
 /**
@@ -33,7 +33,7 @@ export async function runAccountMaintenance({ dryRun = false, limit = 50 } = {})
                 if (result.status === "purged") {
                     report.purged += 1;
                     auditAuth("account.purged", { userId, reason: "never_verified", count: result.files });
-                    await processAuthOutbox({ ids: result.outboxIds, limit: result.outboxIds.length });
+                    await dispatchAuthOutbox(result.outboxIds);
                 }
             } catch (error) {
                 report.failed += 1;

@@ -63,6 +63,14 @@ function formatCountdown(seconds) {
     return `${m}:${s}`;
 }
 
+const secondsFromNow = (seconds) => new Date(Date.now() + seconds * 1000).toISOString();
+
+// "1 minute", "90 seconds": the wait a fresh attempt starts.
+function formatWait(seconds) {
+    if (seconds % 60 === 0) return `${seconds / 60} minute${seconds === 60 ? '' : 's'}`;
+    return `${seconds} second${seconds === 1 ? '' : 's'}`;
+}
+
 export default function QuizChallenge({ challenge, onPassed, onExhausted }) {
     const { showAlert: alert } = useApp();
     const { status: authStatus } = useSession();
@@ -80,10 +88,15 @@ export default function QuizChallenge({ challenge, onPassed, onExhausted }) {
     const [currentStep, setCurrentStep] = useState(0);
     // True while the learner is answering a new attempt after a failed one.
     const [retaking, setRetaking] = useState(false);
+    // Why the last submit failed: { status, message, retryAt?, missingQuestionIds? }. The draft stays.
+    const [submitError, setSubmitError] = useState(null);
     const secondsLeft = useCountdown(state?.nextAttemptAt);
+    const retrySecondsLeft = useCountdown(submitError?.retryAt);
 
     const questions = (challenge.questions || []).filter((q) => SUPPORTED_TYPES.has(q.type));
-    const isSubmitted = Boolean(state?.attempted) && !retaking;
+    // A retake ends by itself once the quiz is passed or out of attempts (e.g. from another tab).
+    const isRetaking = retaking && !state?.passed && Number(state?.attemptsLeft ?? 1) > 0;
+    const isSubmitted = Boolean(state?.attempted) && !isRetaking;
     const result = isSubmitted ? state : null;
     const answers = result?.answers || draftAnswers;
     const isPassed = Boolean(state?.passed);
@@ -130,6 +143,11 @@ export default function QuizChallenge({ challenge, onPassed, onExhausted }) {
 
     const answeredCount = questions.filter(isAnswered).length;
     const canSubmit = answeredCount === questions.length;
+    // Questions the server reported unanswered, while they still are.
+    const missingIds = new Set((submitError?.missingQuestionIds || []).map(String));
+    const isMissing = (question) => missingIds.has(String(question.id)) && !isAnswered(question);
+    // Cooling down (from the server state or the last 429): the submit button waits.
+    const waitSeconds = Math.max(retrySecondsLeft, state?.canSubmit === false ? secondsLeft : 0);
 
     const handleSelectOption = (question, optionId) => {
         if (isSubmitted || isSubmitting || isLoadingState) return;
@@ -167,12 +185,14 @@ export default function QuizChallenge({ challenge, onPassed, onExhausted }) {
     };
 
     const handleSubmit = async () => {
-        if (!canSubmit || isSubmitting) return;
+        if (!canSubmit || isSubmitting || waitSeconds > 0) return;
+        const attemptsBefore = Number(state?.attemptsUsed ?? 0);
 
         try {
             const res = await submitQuiz.mutateAsync({ challengeId: challenge.id, answers: draftAnswers });
             setCurrentStep(0);
             setRetaking(false);
+            setSubmitError(null);
             setAnswers({});
 
             if (res.passed) {
@@ -182,19 +202,52 @@ export default function QuizChallenge({ challenge, onPassed, onExhausted }) {
                 });
                 onPassed?.(challenge.id);
             } else if (res.attemptsLeft > 0) {
-                alert(400, `You scored ${res.earnedPoints}/${res.totalPoints}. ${res.attemptsLeft} attempt(s) left, the next one opens in ${Math.round(res.cooldownSeconds / 60)} minutes.`);
+                alert(400, `You scored ${res.earnedPoints}/${res.totalPoints}. ${res.attemptsLeft} attempt(s) left, the next one opens in ${formatWait(res.cooldownSeconds)}.`);
             } else {
                 alert(400, `You scored ${res.earnedPoints}/${res.totalPoints}. You have used all ${res.maxAttempts} attempts.`);
             }
         } catch (error) {
-            setRetaking(false);
-            alert(error.status || 500, error.message || "Failed to submit challenge. Please try again.");
+            const status = error.status || 500;
+            const message = error.message || "Failed to submit challenge. Please try again.";
+
+            // Already passed or out of attempts: nothing left to answer, show the saved result.
+            if (status === 409) {
+                setRetaking(false);
+                setSubmitError(null);
+                alert(status, message);
+                return;
+            }
+
+            // A 5xx or a lost connection may still have saved the attempt: if the server now
+            // counts one more, show that result instead of the draft.
+            if (status >= 500) {
+                const fresh = await stateQuery.refetch();
+                if (Number(fresh.data?.attemptsUsed ?? 0) > attemptsBefore) {
+                    setRetaking(false);
+                    setSubmitError(null);
+                    setAnswers({});
+                    setCurrentStep(0);
+                    return;
+                }
+            }
+
+            // Otherwise keep the answers and say why, next to the submit button.
+            const missingQuestionIds = (error.details?.missingQuestionIds || []).map(String);
+            setSubmitError({
+                status,
+                message,
+                retryAt: error.retryAfter ? secondsFromNow(error.retryAfter) : null,
+                missingQuestionIds,
+            });
+            const firstMissing = questions.findIndex((q) => missingQuestionIds.includes(String(q.id)));
+            if (firstMissing >= 0) setCurrentStep(firstMissing);
         }
     };
 
     const handleRetake = () => {
         if (!state?.canSubmit) return;
         setAnswers({});
+        setSubmitError(null);
         setCurrentStep(0);
         setRetaking(true);
     };
@@ -232,7 +285,7 @@ export default function QuizChallenge({ challenge, onPassed, onExhausted }) {
                                 key={q.id}
                                 type="button"
                                 onClick={() => setCurrentStep(idx)}
-                                aria-label={`Question ${idx + 1}${graded ? (graded.isCorrect ? ', correct' : ', incorrect') : isAnswered(q) ? ', answered' : ''}`}
+                                aria-label={`Question ${idx + 1}${graded ? (graded.isCorrect ? ', correct' : ', incorrect') : isAnswered(q) ? ', answered' : isMissing(q) ? ', not answered' : ''}`}
                                 aria-current={isCurrent ? 'step' : undefined}
                                 className={cn(
                                     'flex size-6 items-center justify-center rounded-sm border text-xs tabular transition-colors',
@@ -244,7 +297,9 @@ export default function QuizChallenge({ challenge, onPassed, onExhausted }) {
                                                 : 'border-destructive/40 bg-destructive-soft text-destructive'
                                             : isAnswered(q)
                                                 ? 'border-primary/30 bg-primary-soft text-primary-soft-foreground'
-                                                : 'bg-background text-muted-foreground hover:text-foreground'
+                                                : isMissing(q)
+                                                    ? 'border-destructive/60 bg-background text-destructive'
+                                                    : 'bg-background text-muted-foreground hover:text-foreground'
                                 )}
                             >
                                 {idx + 1}
@@ -264,6 +319,13 @@ export default function QuizChallenge({ challenge, onPassed, onExhausted }) {
                     <p className="text-xs text-muted-foreground">
                         {isMultiple ? 'Select all answers that apply.' : 'Select one answer.'}
                     </p>
+                    {/* Before a pass the server grades whole questions, never single options. */}
+                    {isSubmitted && !isPassed && qResult && (
+                        <p className={cn('flex items-center gap-1.5 text-xs font-medium', qResult.isCorrect ? 'text-success' : 'text-destructive')}>
+                            {qResult.isCorrect ? <LuCheck className="size-3.5" aria-hidden="true" /> : <LuX className="size-3.5" aria-hidden="true" />}
+                            {qResult.isCorrect ? 'Your answer is correct' : 'Your answer is not correct yet'}
+                        </p>
+                    )}
                 </div>
 
                 <div
@@ -275,12 +337,11 @@ export default function QuizChallenge({ challenge, onPassed, onExhausted }) {
                     {(currentQuestion.options || []).map((option, optIdx) => {
                         const selected = isOptionSelected(currentQuestion, option.id);
                         const wasCorrect = correctOptions.includes(String(option.id));
-                        // Passed: every correct option is highlighted. Not passed: only the
-                        // learner's own choices are marked right or wrong (answers stay hidden).
-                        const outcome = !isSubmitted ? null
-                            : isPassed
-                                ? (selected && wasCorrect ? 'correct' : selected ? 'incorrect' : wasCorrect ? 'missed' : null)
-                                : (selected ? (qResult?.isCorrect ? 'correct' : 'incorrect') : null);
+                        // Passed: every option is marked against the answer key. Not passed: the
+                        // verdict is per question (above), so a correct pick is never marked wrong.
+                        const outcome = isSubmitted && isPassed
+                            ? (selected && wasCorrect ? 'correct' : selected ? 'incorrect' : wasCorrect ? 'missed' : null)
+                            : null;
 
                         return (
                             <button
@@ -292,11 +353,11 @@ export default function QuizChallenge({ challenge, onPassed, onExhausted }) {
                                 disabled={isSubmitted || isSubmitting || isLoadingState}
                                 className={cn(
                                     'flex w-full items-center gap-3 rounded-md border bg-background px-3 py-2.5 text-left text-sm transition-colors hover:border-primary/40 hover:bg-primary-soft/40 disabled:cursor-default',
-                                    selected && !isSubmitted && 'border-primary bg-primary-soft/60',
+                                    selected && !outcome && 'border-primary bg-primary-soft/60',
                                     outcome === 'correct' && 'border-success/50 bg-success-soft',
                                     outcome === 'incorrect' && 'border-destructive/50 bg-destructive-soft',
                                     outcome === 'missed' && 'border-success/60 bg-success-soft/60',
-                                    isSubmitted && !outcome && 'opacity-70 hover:border-border hover:bg-background'
+                                    isSubmitted && !outcome && !selected && 'opacity-70 hover:border-border hover:bg-background'
                                 )}
                             >
                                 <span
@@ -335,6 +396,19 @@ export default function QuizChallenge({ challenge, onPassed, onExhausted }) {
                     </div>
                 )}
             </div>
+
+            {submitError && !isSubmitted && (
+                <p role="alert" className="flex items-start gap-2 border-t bg-destructive-soft/40 px-4 py-2.5 text-sm text-destructive">
+                    <LuX className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                    <span>
+                        {retrySecondsLeft > 0
+                            ? `Your answers are kept. You can submit again in ${formatCountdown(retrySecondsLeft)}.`
+                            : submitError.retryAt
+                                ? 'Your answers are kept. You can submit again now.'
+                                : submitError.message}
+                    </span>
+                </p>
+            )}
 
             <div className="flex items-center justify-between gap-2 border-t px-4 py-3">
                 <Button variant="ghost" size="sm" onClick={handleBack} disabled={currentStep === 0 || isSubmitting}>
@@ -393,11 +467,20 @@ export default function QuizChallenge({ challenge, onPassed, onExhausted }) {
                             Continue
                             <LuArrowRight />
                         </Button>
-                    ) : state?.canSubmit === false ? null : (
-                        <Button size="sm" onClick={handleSubmit} disabled={!canSubmit || isSubmitting || isLoadingState}>
-                            {isSubmitting ? <LuLoaderCircle className="animate-spin" /> : <LuSend />}
-                            {isSubmitting ? 'Submitting...' : 'Submit answers'}
-                        </Button>
+                    ) : (
+                        <>
+                            {/* A background refresh never hides the button while answering: it says why it waits. */}
+                            {waitSeconds > 0 && !submitError && (
+                                <span role="status" className="flex items-center gap-1.5 text-xs text-muted-foreground tabular">
+                                    <LuClock className="size-3.5" aria-hidden="true" />
+                                    Opens in {formatCountdown(waitSeconds)}
+                                </span>
+                            )}
+                            <Button size="sm" onClick={handleSubmit} disabled={!canSubmit || isSubmitting || isLoadingState || waitSeconds > 0}>
+                                {isSubmitting ? <LuLoaderCircle className="animate-spin" /> : <LuSend />}
+                                {isSubmitting ? 'Submitting...' : 'Submit answers'}
+                            </Button>
+                        </>
                     )}
                 </div>
             </div>

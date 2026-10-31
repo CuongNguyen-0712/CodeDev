@@ -155,7 +155,34 @@ describe("code runner: API", () => {
             await new Promise((r) => setTimeout(r, 300));
             const rejected = await post(busy.url, { code: "function solve(){ return 1 }", entry: "solve", tests: [{ id: "t" }] });
             expect(rejected.status).toBe(503);
-            expect(rejected.headers.get("retry-after")).toBe("2");
+            // Estimated from the queue length and the average job time (5s before any job finished).
+            expect(Number(rejected.headers.get("retry-after"))).toBeGreaterThanOrEqual(1);
+            await slow;
+        } finally {
+            busy.child.kill();
+        }
+    }, 15_000);
+
+    it("drops a queued job whose caller went away, so its queue place frees up", async () => {
+        const busy = await startServer({ MAX_CONCURRENCY: "1", MAX_QUEUE: "1" });
+        const loop = { code: "function solve(){ while(true){} }", entry: "solve", tests: [{ id: "t" }] };
+        try {
+            const slow = post(busy.url, loop);
+            await new Promise((r) => setTimeout(r, 300));
+            const gone = new AbortController();
+            const abandoned = fetch(`${busy.url}/v1/execute`, {
+                method: "POST",
+                headers: { authorization: `Bearer ${TOKEN}`, "content-type": "application/json" },
+                body: JSON.stringify({ language: "javascript", timeLimitMs: 1000, memoryLimitMb: 64, ...loop }),
+                signal: gone.signal,
+            }).catch(() => null);
+            await new Promise((r) => setTimeout(r, 300));
+            expect((await (await fetch(`${busy.url}/health`)).json()).queued).toBe(1);
+
+            gone.abort();
+            await abandoned;
+            await new Promise((r) => setTimeout(r, 300));
+            expect((await (await fetch(`${busy.url}/health`)).json()).queued).toBe(0);
             await slow;
         } finally {
             busy.child.kill();
