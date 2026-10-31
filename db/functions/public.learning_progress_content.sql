@@ -93,26 +93,12 @@ BEGIN
                                     ), '[]'::jsonb),
                                     -- quiz_display_count set: a per-learner subset in a per-learner order,
                                     -- the same md5 ranking as lib/challenges/questionBank.js (grading).
-                                    'questions', CASE WHEN ch.type = 'quiz' THEN COALESCE((
-                                        SELECT jsonb_agg(
-                                            jsonb_build_object(
-                                                'id', q.id,
-                                                'content', q.question,
-                                                'type', q.type,
-                                                'points', COALESCE(q.points, 10),
-                                                'options', COALESCE((
-                                                    SELECT jsonb_agg(
-                                                        jsonb_build_object('id', o.id, 'content', o.option_text)
-                                                        ORDER BY o.id
-                                                    )
-                                                    FROM challenge.question_options o
-                                                    WHERE o.question_id = q.id
-                                                ), '[]'::jsonb)
-                                            )
-                                            ORDER BY q.rank
-                                        )
+                                    -- Points of the questions this learner gets (same md5 subset as grading). The
+                                    -- questions themselves load with the quiz state (GET /api/challenges/:id/quiz).
+                                    'quiz_points', CASE WHEN ch.type = 'quiz' THEN COALESCE((
+                                        SELECT SUM(COALESCE(q.points, 0))
                                         FROM (
-                                            SELECT q0.*,
+                                            SELECT q0.points,
                                                    ROW_NUMBER() OVER (ORDER BY
                                                        CASE WHEN ch.quiz_display_count IS NOT NULL
                                                             THEN md5(v_user_id::text || ':' || q0.id::text) COLLATE "C" END,
@@ -121,7 +107,7 @@ BEGIN
                                             WHERE q0.challenge_id = ch.id
                                         ) q
                                         WHERE ch.quiz_display_count IS NULL OR q.rank <= ch.quiz_display_count
-                                    ), '[]'::jsonb) END,
+                                    ), 0) END,
                                     'coding', CASE WHEN ch.type IN ('fix_bug', 'mini_coding') THEN jsonb_build_object(
                                         'language', COALESCE(cf.language, 'javascript'),
                                         'file_path', cf.file_path,

@@ -36,10 +36,27 @@ export const courseService = {
             return response.rows[0] ?? null;
         };
 
-        // Signed-in visitors get their own status/progress columns: never share those.
-        if (data?.userId || !data?.courseId) return load();
+        if (!data?.courseId) return load();
 
-        return redis.remember(cacheKeys.courseDetailsPublic(data.courseId), TTL.COURSE_DETAILS_PUBLIC, load);
+        const loadPublic = () => redis.remember(cacheKeys.courseDetailsPublic(data.courseId), TTL.COURSE_DETAILS_PUBLIC, () => courseDb
+            .getCourseDetails({ courseId: data.courseId })
+            .then((response) => response.rows[0] ?? null));
+
+        if (!data.userId) return loadPublic();
+
+        // Signed in: the shared published row plus the viewer's own columns (never cached together).
+        const [publicRow, viewer] = await Promise.all([loadPublic(), courseDb.getCourseViewerState(data)]);
+        // Not published: only its owners may see it, which the full per-user query decides.
+        if (!publicRow) return load();
+
+        const own = viewer.rows[0] || {};
+        return {
+            ...publicRow,
+            is_favorite: own.is_favorite ?? null,
+            status: own.status ?? null,
+            progress: own.progress ?? 0,
+            owned: own.owned ?? false,
+        };
     },
 
     /**

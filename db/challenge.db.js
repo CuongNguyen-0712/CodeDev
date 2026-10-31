@@ -114,15 +114,18 @@ export const challengeDb = {
         const query = `
             SELECT
                 q.id::text AS question_id,
+                q.question AS content,
                 COALESCE(q.points, 0) AS points,
                 q.type AS question_type,
                 q.explanation,
                 COALESCE(json_agg(o.id::text ORDER BY o.id) FILTER (WHERE o.is_correct = true), '[]'::json) AS correct_options,
-                COALESCE(json_agg(o.id::text ORDER BY o.id) FILTER (WHERE o.id IS NOT NULL), '[]'::json) AS all_options
+                COALESCE(json_agg(o.id::text ORDER BY o.id) FILTER (WHERE o.id IS NOT NULL), '[]'::json) AS all_options,
+                COALESCE(json_agg(json_build_object('id', o.id::text, 'content', o.option_text) ORDER BY o.id)
+                    FILTER (WHERE o.id IS NOT NULL), '[]'::json) AS options
             FROM challenge.questions q
             LEFT JOIN challenge.question_options o ON o.question_id = q.id
             WHERE q.challenge_id = $1::bigint
-            GROUP BY q.id, q.points, q.type, q.explanation, q.order_index
+            GROUP BY q.id, q.question, q.points, q.type, q.explanation, q.order_index
             ORDER BY q.order_index NULLS LAST, q.id;
         `;
 

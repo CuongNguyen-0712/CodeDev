@@ -2,6 +2,20 @@ import { sql } from "@/lib/db";
 import { escapeLike } from "@/lib/listFilters";
 
 export const courseDb = {
+    /** The viewer's own columns of a course page (merged into the cached public details). */
+    getCourseViewerState: async ({ userId, courseId }) => {
+        return sql(
+            `SELECT f.id AS is_favorite, r.status, COALESCE(r.progress, 0) AS progress,
+                    public.has_course_access(u.id, c.id) AS owned
+             FROM catalog.course c
+             CROSS JOIN (SELECT id FROM identity.users WHERE public_id = $1) u
+             LEFT JOIN learning.favorite f ON f.course_id = c.id AND f.user_id = u.id
+             LEFT JOIN learning.register r ON r.course_id = c.id AND r.user_id = u.id AND r.is_deleted = false
+             WHERE c.public_id = $2`,
+            [userId, courseId]
+        );
+    },
+
     getCourseDetails: async (data) => {
         const { userId, courseId } = data;
 

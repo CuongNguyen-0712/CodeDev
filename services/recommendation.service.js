@@ -1,4 +1,6 @@
 import { onboardingDb } from "@/db/onboarding.db";
+import { redis } from "@/lib/cache";
+import { cacheKeys, TTL } from "@/lib/cacheKeys";
 import { courseFit, levelOverride, recommendedLevel } from "@/lib/levels";
 
 /**
@@ -234,14 +236,18 @@ export function normaliseProfile(row = {}) {
 }
 
 export const recommendationService = {
-    /** Not cached in Redis: depends on entitlements and progress (React Query caches it client-side). */
+    /**
+     * The candidate catalog is the same for everyone and cached; the learner profile (entitlements,
+     * progress) is read live and the ranking runs per request.
+     */
     getForUser: async ({ userId, limit = 6 }) => {
-        const [profileRes, candidatesRes] = await Promise.all([
+        const [profileRes, candidates] = await Promise.all([
             onboardingDb.getLearnerProfile({ userId }),
-            onboardingDb.getRecommendationCandidates(),
+            redis.remember(cacheKeys.recommendationCandidates(), TTL.RECOMMENDATION_CANDIDATES,
+                async () => (await onboardingDb.getRecommendationCandidates()).rows),
         ]);
 
         const profile = normaliseProfile(profileRes.rows[0]);
-        return rankCourses(profile, candidatesRes.rows, { limit });
+        return rankCourses(profile, candidates || [], { limit });
     },
 };

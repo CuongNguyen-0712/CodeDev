@@ -212,11 +212,11 @@ function quizView(graded) {
     };
 }
 
-// Server-side only (never sent to the client); edits reach learners within the TTL.
-// An empty key is not cached, so questions added to a draft quiz show up immediately.
+// Answer key + question content. Only quizQuestionsView leaves the server; edits reach learners
+// within the TTL. An empty key is not cached, so questions added to a draft quiz show up immediately.
 async function cachedQuizKey(challengeId) {
     return (await redis.remember(
-        cacheKeys.challengeDefinition(challengeId, "quiz-key"),
+        cacheKeys.challengeDefinition(challengeId, "quiz-bank"),
         TTL.CHALLENGE_DEFINITION,
         async () => {
             const rows = (await challengeDb.getQuizAnswerKey({ challengeId }))?.rows || [];
@@ -225,14 +225,14 @@ async function cachedQuizKey(challengeId) {
     )) || [];
 }
 
-async function loadQuizKey(ctx) {
+async function loadQuizKey(ctx, { allowEmpty = false } = {}) {
     if (ctx.type !== "quiz") {
         throw new ApiError("This challenge is not a quiz", 400);
     }
 
     const questions = await cachedQuizKey(ctx.id);
 
-    if (questions.length === 0) {
+    if (questions.length === 0 && !allowEmpty) {
         throw new ApiError("This quiz has no questions yet", 409);
     }
 
@@ -267,7 +267,16 @@ function evaluateQuizHistory(questions, rows) {
     return { attempts, passedAttempt, latest, waitSeconds };
 }
 
-function quizStateView(ctx, history) {
+/** The learner's questions without answers: no correct options, no explanations. */
+export const quizQuestionsView = (questions) => questions.map((q) => ({
+    id: q.question_id,
+    content: q.content,
+    type: q.question_type,
+    points: Number(q.points) || 0,
+    options: q.options || [],
+}));
+
+function quizStateView(ctx, history, questions) {
     const attemptsUsed = history.attempts.length;
     const passed = Boolean(history.passedAttempt);
     const attemptsLeft = passed ? 0 : Math.max(0, MAX_QUIZ_ATTEMPTS - attemptsUsed);
@@ -289,6 +298,7 @@ function quizStateView(ctx, history) {
         answers: shown?.answers ?? null,
         ...(shown ? quizView(shown.graded) : { passed: false, results: {} }),
         passed,
+        questions: quizQuestionsView(questions),
     };
 }
 
@@ -609,10 +619,11 @@ export const challengeService = {
      */
     getQuizState: async ({ userId, challengeId }) => {
         const ctx = await resolveContext({ userId, challengeId });
-        const questions = await loadQuizKey(ctx);
+        // Empty: the UI shows "No questions yet" instead of an error.
+        const questions = await loadQuizKey(ctx, { allowEmpty: true });
         const history = await loadQuizHistory(ctx, questions);
 
-        return quizStateView(ctx, history);
+        return quizStateView(ctx, history, questions);
     },
 
     submitQuiz: async ({ userId, challengeId, answers }) => {
@@ -648,7 +659,7 @@ export const challengeService = {
         const rewards = rewardView(saved);
         await afterSubmission({ userId, ctx, passed: graded.passed, rewards });
 
-        const state = quizStateView(ctx, await loadQuizHistory(ctx, questions));
+        const state = quizStateView(ctx, await loadQuizHistory(ctx, questions), questions);
 
         return { ...state, ...rewards };
     },

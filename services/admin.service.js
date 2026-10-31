@@ -40,7 +40,13 @@ function mapCourse(row) {
 
 async function dropCatalogCaches(courseId) {
     try {
-        await redis.del(cacheKeys.courseDetailsPublic(courseId), cacheKeys.courseFilterOptions());
+        // Public course lists are keyed per query and expire within TTL.COURSE_LIST_PUBLIC.
+        await redis.del(
+            cacheKeys.courseDetailsPublic(courseId),
+            cacheKeys.courseFilterOptions(),
+            cacheKeys.catalogStats(),
+            cacheKeys.recommendationCandidates(),
+        );
     } catch (error) {
         console.error("[admin] cache invalidation failed:", error?.message);
     }

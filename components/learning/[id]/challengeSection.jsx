@@ -44,7 +44,7 @@ function writeHashChallengeId(challengeId) {
 
 function challengePoints(challenge) {
     if (challenge.type === "quiz") {
-        return (challenge.questions || []).reduce((sum, q) => sum + (Number(q.points) || 0), 0);
+        return Number(challenge.quiz_points) || 0;
     }
     return Number(challenge.points) || 0;
 }

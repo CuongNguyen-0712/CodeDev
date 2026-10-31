@@ -1,0 +1,208 @@
+-- =============================================================================
+-- 20261101_003_lighter_reads.sql
+--
+-- docs/performance-plan.md, Phase 3.
+--   1. learning_progress_content no longer embeds every quiz question with its options for the
+--      whole course on each page view: it returns `quiz_points`, and the questions come with the
+--      quiz state of the quiz the learner opens (services/challenge.service.js getQuizState).
+--   2. pg_trgm indexes for the user searches (admin user list, people search: ILIKE '%term%').
+-- =============================================================================
+
+BEGIN;
+
+-- 1. course page payload
+CREATE OR REPLACE FUNCTION public.learning_progress_content(p_user_public_id character varying, p_course_public_id character varying)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+    v_user_id bigint;
+    v_course_id bigint;
+    v_result jsonb;
+    v_register_status varchar;
+BEGIN
+    SELECT id INTO v_user_id FROM identity.users WHERE public_id = p_user_public_id;
+    IF v_user_id IS NULL THEN
+        RAISE EXCEPTION 'User not found';
+    END IF;
+
+    SELECT id INTO v_course_id FROM catalog.course WHERE public_id = p_course_public_id;
+    IF v_course_id IS NULL THEN
+        RAISE EXCEPTION 'Course not found';
+    END IF;
+
+    SELECT status INTO v_register_status
+    FROM learning.register
+    WHERE user_id = v_user_id AND course_id = v_course_id AND is_deleted = false;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'You have not registered this course.';
+    END IF;
+
+    -- Throttled: a page view only rewrites the row when the status changes or a minute passed.
+    UPDATE learning.register
+    SET status = CASE WHEN status = 'enrolled' THEN 'in_progress' ELSE status END,
+        last_seen = now()
+    WHERE user_id = v_user_id AND course_id = v_course_id AND is_deleted = false
+      AND (status = 'enrolled' OR last_seen IS NULL OR last_seen < now() - interval '1 minute');
+
+    IF v_register_status = 'enrolled' THEN
+        UPDATE learning.history h
+        SET status = 'in_progress', last_seen = now()
+        WHERE h.user_id = v_user_id
+          AND h.course_id = v_course_id
+          AND h.status = 'enrolled'
+          AND h.lesson_id = (
+              SELECT l.id
+              FROM course.module m
+              JOIN course.lesson l ON l.module_id = m.id
+              WHERE m.course_id = v_course_id AND m.is_deleted = false AND l.is_deleted = false
+              ORDER BY m.order_index, l.order_index
+              LIMIT 1
+          );
+    END IF;
+
+    WITH module_data AS (
+        SELECT
+            m.id,
+            m.title,
+            m.order_index,
+            COALESCE((
+                SELECT jsonb_agg(
+                    jsonb_build_object(
+                        'id', l.id::text,
+                        'module_id', l.module_id,
+                        'title', l.title,
+                        'order_index', l.order_index,
+                        'status', h.status,
+                        'content_source', l.content_source,
+                        'last_seen', h.last_seen,
+                        'challenges', COALESCE((
+                            SELECT jsonb_agg(
+                                jsonb_build_object(
+                                    'id', ch.id,
+                                    'public_id', ch.public_id,
+                                    'lesson_id', ch.lesson_id,
+                                    'name', ch.name,
+                                    'title', ch.title,
+                                    'description', ch.description,
+                                    'status', ch.status,
+                                    'difficulty', ch.difficulty,
+                                    'type', ch.type,
+                                    'points', COALESCE(ch.points, 0),
+                                    'exp', (SELECT r.amount FROM profile.exp_rule r WHERE r.is_active AND r.rule_key = CASE WHEN ch.type = 'quiz' THEN 'quiz.' || ch.difficulty ELSE 'coding.' || ch.type || '.' || ch.difficulty END),
+                                    -- Static hints: how many exist, and the text of the levels this learner opened.
+                                    'hints_total', (SELECT COUNT(*) FROM challenge.challenge_hints hn WHERE hn.challenge_id = ch.id),
+                                    'hints', COALESCE((
+                                        SELECT jsonb_agg(jsonb_build_object('level', hn.level, 'body', hn.body) ORDER BY hn.level)
+                                        FROM challenge.challenge_hints hn
+                                        JOIN challenge.hint_views hv
+                                          ON hv.challenge_id = hn.challenge_id AND hv.level = hn.level AND hv.user_id = v_user_id
+                                        WHERE hn.challenge_id = ch.id
+                                    ), '[]'::jsonb),
+                                    -- quiz_display_count set: a per-learner subset in a per-learner order,
+                                    -- the same md5 ranking as lib/challenges/questionBank.js (grading).
+                                    -- Points of the questions this learner gets (same md5 subset as grading). The
+                                    -- questions themselves load with the quiz state (GET /api/challenges/:id/quiz).
+                                    'quiz_points', CASE WHEN ch.type = 'quiz' THEN COALESCE((
+                                        SELECT SUM(COALESCE(q.points, 0))
+                                        FROM (
+                                            SELECT q0.points,
+                                                   ROW_NUMBER() OVER (ORDER BY
+                                                       CASE WHEN ch.quiz_display_count IS NOT NULL
+                                                            THEN md5(v_user_id::text || ':' || q0.id::text) COLLATE "C" END,
+                                                       q0.order_index NULLS LAST, q0.id) AS rank
+                                            FROM challenge.questions q0
+                                            WHERE q0.challenge_id = ch.id
+                                        ) q
+                                        WHERE ch.quiz_display_count IS NULL OR q.rank <= ch.quiz_display_count
+                                    ), 0) END,
+                                    'coding', CASE WHEN ch.type IN ('fix_bug', 'mini_coding') THEN jsonb_build_object(
+                                        'language', COALESCE(cf.language, 'javascript'),
+                                        'file_path', cf.file_path,
+                                        'time_limit_ms', COALESCE(cfg.time_limit_ms, 2000),
+                                        'execution_mode', cfg.execution_mode,
+                                        'tests_total', (SELECT COUNT(*) FROM challenge.challenge_test_cases tc WHERE tc.challenge_id = ch.id),
+                                        'tests_visible', (SELECT COUNT(*) FROM challenge.challenge_test_cases tc WHERE tc.challenge_id = ch.id AND tc.is_hidden = false)
+                                    ) END
+                                )
+                                ORDER BY ch.id
+                            )
+                            FROM challenge.challenges ch
+                            LEFT JOIN challenge.coding_configs cfg ON cfg.challenge_id = ch.id
+                            LEFT JOIN challenge.coding_files cf ON cf.challenge_id = ch.id AND cf.file_role = 'starter'
+                            WHERE ch.lesson_id = l.id
+                              AND ch.is_deleted = false
+                              AND ch.is_published = true
+                              AND ch.type IN ('quiz', 'fix_bug', 'mini_coding')
+                        ), '[]'::jsonb)
+                    )
+                    ORDER BY l.order_index
+                )
+                FROM course.lesson l
+                JOIN learning.history h
+                  ON h.lesson_id = l.id
+                 AND h.module_id = m.id
+                 AND h.user_id = v_user_id
+                 AND h.course_id = v_course_id
+                WHERE l.module_id = m.id AND l.is_deleted = false
+            ), '[]'::jsonb) AS lessons
+        FROM course.module m
+        WHERE m.course_id = v_course_id AND m.is_deleted = false
+    ),
+    progress_data AS (
+        SELECT
+            c.public_id, c.title, c.description, c.image, c.rating, c.modules, c.lessons,
+            c.level, c.concept, c.instructor, c.duration,
+            r.progress, r.status,
+            l.name AS language_name, l.logo AS language_logo, l.color AS language_color,
+            cat.name AS category_name
+        FROM catalog.course c
+        JOIN learning.register r ON r.course_id = c.id AND r.user_id = v_user_id AND r.is_deleted = false
+        JOIN catalog.language l ON l.id = c.language_id
+        JOIN catalog.category cat ON cat.id = c.category_id
+        WHERE c.id = v_course_id
+    )
+    SELECT jsonb_build_object(
+        'id', p.public_id,
+        'title', p.title,
+        'description', p.description,
+        'image', p.image,
+        'rating', p.rating,
+        'modules_count', p.modules,
+        'lessons_count', p.lessons,
+        'level', p.level,
+        'concept', p.concept,
+        'instructor', p.instructor,
+        'duration', p.duration,
+        'progress', p.progress,
+        'status', p.status,
+        'language_name', p.language_name,
+        'language_logo', p.language_logo,
+        'language_color', p.language_color,
+        'category_name', p.category_name,
+        'completion', public.course_completion_status(v_user_id, v_course_id),
+        'modules', COALESCE((
+            SELECT jsonb_agg(
+                jsonb_build_object('id', md.id, 'title', md.title, 'order_index', md.order_index, 'lessons', md.lessons)
+                ORDER BY md.order_index
+            )
+            FROM module_data md
+        ), '[]'::jsonb)
+    )
+    INTO v_result
+    FROM progress_data p;
+
+    RETURN v_result;
+END;
+$function$;
+
+COMMENT ON FUNCTION public.learning_progress_content(p_user_public_id character varying, p_course_public_id character varying) IS 'Body of learning_progress without the access check; call learning_progress instead';
+
+-- 2. user search
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+CREATE INDEX IF NOT EXISTS idx_users_username_trgm ON identity.users USING gin (username gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_users_email_trgm ON identity.users USING gin (email gin_trgm_ops);
+
+COMMIT;

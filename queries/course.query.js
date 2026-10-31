@@ -80,7 +80,8 @@ export const courseQueries = {
             },
             enabled: !!courseId,
             ...QUERY_TIMES.live,
-            refetchOnWindowFocus: true,
+            // New comments and votes arrive over Pusher; a focus refetch would reload every page.
+            refetchOnWindowFocus: false,
         };
     }
 }

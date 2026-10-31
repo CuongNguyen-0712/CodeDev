@@ -37,6 +37,21 @@ export function UserRealtimeBridge() {
         queryClient.invalidateQueries({ queryKey: userKeys.all });
     }, [queryClient]);
 
+    // Only what learning progress feeds (not sessions, sign-in methods, privacy). An in-flight
+    // refetch, e.g. from the tab that made the change, is reused instead of restarted.
+    const refreshProgress = useCallback((courseId = null) => {
+        const keys = [
+            userKeys.me(),
+            userKeys.overview(),
+            userKeys.courseProgress(),
+            userKeys.experience(),
+            userKeys.ranks(),
+            [...userKeys.all, 'ranking'],
+            courseId ? userKeys.learningProgress(courseId) : [...userKeys.all, 'learningProgress'],
+        ];
+        for (const queryKey of keys) queryClient.invalidateQueries({ queryKey }, { cancelRefetch: false });
+    }, [queryClient]);
+
     usePusherChannel(
         userId ? channels.user(userId) : null,
         {
@@ -60,7 +75,7 @@ export function UserRealtimeBridge() {
             },
 
             [events.PROGRESS_UPDATED]: ({ courseId } = {}) => {
-                refreshUserData();
+                refreshProgress(courseId);
                 // Roadmap pages show the learner's course progress.
                 queryClient.invalidateQueries({ queryKey: [...roadmapKeys.all, 'details'] });
                 if (courseId) {
@@ -70,7 +85,7 @@ export function UserRealtimeBridge() {
 
             [events.CHALLENGE_SUBMITTED]: ({ challengeId, passed, ...rewards } = {}) => {
                 // Not the open challenge workspace: refetching it could reset the editor.
-                refreshUserData();
+                refreshProgress();
                 const earned = (Number(rewards.awardedPoints) || 0) + (Number(rewards.awardedExp) || 0);
                 if (passed && earned > 0 && document.visibilityState !== "visible") {
                     // Surfaced when the user returns to a background tab. Rewards are given once

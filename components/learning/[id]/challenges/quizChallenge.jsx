@@ -93,7 +93,8 @@ export default function QuizChallenge({ challenge, onPassed, onExhausted }) {
     const secondsLeft = useCountdown(state?.nextAttemptAt);
     const retrySecondsLeft = useCountdown(submitError?.retryAt);
 
-    const questions = (challenge.questions || []).filter((q) => SUPPORTED_TYPES.has(q.type));
+    // The learner's questions come with the quiz state (not with the course page).
+    const questions = (state?.questions || []).filter((q) => SUPPORTED_TYPES.has(q.type));
     // A retake ends by itself once the quiz is passed or out of attempts (e.g. from another tab).
     const isRetaking = retaking && !state?.passed && Number(state?.attemptsLeft ?? 1) > 0;
     const isSubmitted = Boolean(state?.attempted) && !isRetaking;
@@ -122,6 +123,23 @@ export default function QuizChallenge({ challenge, onPassed, onExhausted }) {
         if (isExhausted) onExhausted?.(challenge.id, { initial: !submitQuiz.isSuccess });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isExhausted, challenge.id]);
+
+    if (stateQuery.isPending) {
+        return (
+            <div role="status" className="rounded-lg border border-dashed px-6 py-10 text-center text-sm text-muted-foreground">
+                Loading questions…
+            </div>
+        );
+    }
+
+    if (stateQuery.isError) {
+        return (
+            <div role="alert" className="flex flex-col items-center gap-3 rounded-lg border border-dashed px-6 py-10 text-center">
+                <p className="text-sm">{stateQuery.error?.message || "The questions could not be loaded."}</p>
+                <Button size="sm" variant="outline" onClick={() => stateQuery.refetch()}>Try again</Button>
+            </div>
+        );
+    }
 
     if (questions.length === 0) {
         return (

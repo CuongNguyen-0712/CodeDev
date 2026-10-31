@@ -1,4 +1,5 @@
 import { sql } from "@/lib/db";
+import { escapeLike } from "@/lib/listFilters";
 
 export const socialDb = {
     // Active users the caller has no friendship (pending or otherwise) with. Users who turned
@@ -13,8 +14,9 @@ export const socialDb = {
         ];
 
         if (search && search.trim()) {
-            params.push(`%${search.toLowerCase()}%`);
-            conditions.push(`LOWER(u.username) LIKE $${params.length}`);
+            params.push(`%${escapeLike(search.trim())}%`);
+            // ILIKE on the bare column: served by idx_users_username_trgm.
+            conditions.push(`u.username ILIKE $${params.length} ESCAPE '\\'`);
         }
 
         params.push(limit, offset);
