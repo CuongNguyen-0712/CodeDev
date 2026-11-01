@@ -1,6 +1,11 @@
-import { redirect } from "next/navigation";
+import AdminOverview from "@/components/admin/overview/adminOverview";
+import { adminTitlePrefix } from "@/lib/adminActor";
 
-// shortcut: the Overview dashboard lands in P1 (docs/admin-panel-plan.md 01); until then the first screen is Courses.
+// The layout title template only applies to child segments, so the index sets the full title.
+export async function generateMetadata() {
+    return { title: { absolute: `${adminTitlePrefix()}Overview · Admin` } };
+}
+
 export default function AdminIndex() {
-    redirect("/admin/courses");
+    return <AdminOverview />;
 }

@@ -1,12 +1,14 @@
 import { sessionDb } from "@/db/session.db";
 import { inngest, outboxViaInngest } from "@/lib/inngest";
 import { publishAuthOutbox } from "@/services/authOutbox.service";
+import { adminUserService } from "@/services/adminUser.service";
 import { challengeService } from "@/services/challenge.service";
 
 /**
  * Every hour, in one step (each step is a billed execution):
  *   - code runs stuck long past their deadline end as cancelled / timeout;
- *   - queued runs and outbox rows whose Inngest event never went out are sent again.
+ *   - queued runs and outbox rows whose Inngest event never went out are sent again;
+ *   - suspensions that ended are lifted (identity.users.status_until).
  * On the hour like ranking-refresh, so the database wakes once: every query keeps a Neon Free
  * compute awake for 5 minutes, and a 5-10 minute cron would use the monthly CU-hours in days.
  */
@@ -20,6 +22,7 @@ export const sweeper = inngest.createFunction(
             await publishAuthOutbox(ids);
             outbox = ids.length;
         }
-        return { ...codeRuns, outbox };
+        const suspensionsLifted = await adminUserService.liftEndedSuspensions();
+        return { ...codeRuns, outbox, suspensionsLifted };
     })
 );

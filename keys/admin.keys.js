@@ -7,4 +7,8 @@ export const adminKeys = {
     entitlements: (userId) => [...adminKeys.all, 'entitlements', userId],
     contentKpis: (courseId) => [...adminKeys.all, 'contentKpis', courseId],
     expAudit: () => [...adminKeys.all, 'expAudit'],
+    dashboard: () => [...adminKeys.all, 'dashboard'],
+    userList: (filters) => [...adminKeys.all, 'userList', filters],
+    user: (userId) => [...adminKeys.all, 'user', userId],
+    userActivity: (userId, kinds) => [...adminKeys.all, 'userActivity', userId, kinds],
 }

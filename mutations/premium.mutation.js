@@ -98,3 +98,6 @@ export const useAdminAdjustExperience = () => useAdminWrite((input) => adminClie
 export const useAdminGrant = () => useAdminWrite((input) => adminClient.grantEntitlement(input));
 export const useAdminRevoke = () => useAdminWrite((input) => adminClient.revokeEntitlement(input));
 export const useAdminRefund = () => useAdminWrite((input) => adminClient.refundOrder(input));
+export const useAdminSetUserStatus = () => useAdminWrite((input) => adminClient.setUserStatus(input));
+export const useAdminChangeUserRole = () => useAdminWrite(({ add, ...input }) => (add ? adminClient.addUserRole(input) : adminClient.removeUserRole(input)));
+export const useAdminRevokeUserSessions = () => useAdminWrite((input) => adminClient.revokeUserSessions(input));

@@ -46,6 +46,19 @@ export const adminClient = {
     getAudit: async () => (await apiClient.get('/admin/audit')).data,
     getContentKpis: async (courseId) => (await apiClient.get('/admin/content-kpis', { params: { course: courseId } })).data,
     getExpAudit: async () => (await apiClient.get('/admin/exp-audit')).data,
+    getDashboard: async () => (await apiClient.get('/admin/dashboard')).data,
+    listUsers: async ({ tab, q, role, cursor }) =>
+        (await apiClient.get('/admin/users/list', { params: { tab, q: q || undefined, role: role || undefined, cursor: cursor || undefined } })).data,
+    getUser: async (userId) => (await apiClient.get(`/admin/users/${encodeURIComponent(userId)}`)).data,
+    getUserActivity: async ({ userId, kinds, before }) => (await apiClient.get(`/admin/users/${encodeURIComponent(userId)}/activity`, {
+        params: { kinds: kinds?.length ? kinds.join(',') : undefined, before: before || undefined },
+    })).data,
+    setUserStatus: async ({ userId, ...input }) => (await apiClient.post(`/admin/users/${encodeURIComponent(userId)}/status`, input)).data,
+    addUserRole: async ({ userId, role, reason }) => (await apiClient.post(`/admin/users/${encodeURIComponent(userId)}/roles`, { role, reason })).data,
+    removeUserRole: async ({ userId, role, reason }) =>
+        (await apiClient.delete(`/admin/users/${encodeURIComponent(userId)}/roles`, { data: { role, reason } })).data,
+    revokeUserSessions: async ({ userId, reason }) =>
+        (await apiClient.delete(`/admin/users/${encodeURIComponent(userId)}/sessions`, { data: { reason } })).data,
 };
 
 /** Machine-readable error code of a failed API call (`INSUFFICIENT_POINTS`, `ALREADY_OWNED`, ...). */

@@ -122,4 +122,20 @@ export const adminQueries = {
         ...QUERY_TIMES.live,
         retry: false,
     }),
+    // Refetched every 60 s only while the tab is visible: a hidden admin tab never wakes the database.
+    dashboard: () => ({
+        queryKey: adminKeys.dashboard(),
+        queryFn: () => adminClient.getDashboard(),
+        ...QUERY_TIMES.live,
+        refetchInterval: 60_000,
+        refetchIntervalInBackground: false,
+        retry: retryTransient,
+    }),
+    user: (userId) => ({
+        queryKey: adminKeys.user(userId),
+        queryFn: () => adminClient.getUser(userId),
+        enabled: Boolean(userId),
+        ...QUERY_TIMES.live,
+        retry: retryTransient,
+    }),
 };

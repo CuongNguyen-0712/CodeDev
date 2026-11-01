@@ -25,9 +25,12 @@ describe("admin API routes", () => {
 
     it.each(files.map((file) => [path.relative(ADMIN_API, file), file]))("%s: every handler requires admin.read", (_name, file) => {
         const source = readFileSync(file, "utf8");
-        const handlers = source.match(/export const (GET|POST|PUT|PATCH|DELETE)\b/g) || [];
+        const exported = source.match(/export const (GET|POST|PUT|PATCH|DELETE)\b/g) || [];
+        // One check per apiRoute(...) body: a factory shared by POST and DELETE counts once.
+        const handlers = source.match(/apiRoute\(/g) || [];
         const checks = source.match(/requirePermission\(userId, (\[\s*)?"admin\.read"/g) || [];
 
+        expect(exported.length).toBeGreaterThan(0);
         expect(handlers.length).toBeGreaterThan(0);
         expect(checks.length).toBe(handlers.length);
     });

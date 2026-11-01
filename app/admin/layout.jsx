@@ -4,15 +4,13 @@ import Forbidden from "@/components/ui/forbidden";
 import AdminShell from "@/components/admin/shell/adminShell";
 
 import { adminEnabled } from "@/lib/adminMode";
-import { adminEnvironment, getAdminActor } from "@/lib/adminActor";
+import { adminEnvironment, adminTitlePrefix, getAdminActor } from "@/lib/adminActor";
 import { getAuthSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
-const TITLE_PREFIX = { production: "PROD · ", staging: "STAGING · ", development: "" };
-
 export async function generateMetadata() {
-    const prefix = TITLE_PREFIX[adminEnvironment()];
+    const prefix = adminTitlePrefix();
     return {
         title: { template: `${prefix}%s · Admin`, default: `${prefix}Admin` },
         robots: { index: false, follow: false },

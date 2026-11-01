@@ -1,80 +1,32 @@
 import { NextResponse } from "next/server";
 
-import { redis } from "@/lib/cache";
-import { sql } from "@/lib/db";
-import { checkStorage, storageInfo } from "@/lib/s3";
-import { appEnv } from "@/lib/appEnv.mjs";
-import { inngestEnabled } from "@/lib/inngest";
-import { codeRunDb } from "@/db/codeRun.db";
-import { deadLetterDb } from "@/db/deadLetter.db";
 import { hasBearerSecret } from "@/lib/requestGuard";
+import { checkDatabase, healthReport } from "@/services/health.service";
 
 export const dynamic = "force-dynamic";
 
-const checkDatabase = () => sql("SELECT 1 AS ok")
-    .then(() => ({ status: "healthy" }))
-    .catch((error) => {
-        console.error("[health] database check failed:", error?.message);
-        return { status: "down" };
-    });
+const NO_STORE = { "Cache-Control": "no-store" };
 
 /**
  * Liveness / readiness probe for Docker and uptime checks.
  * 200 when PostgreSQL answers (Redis outages only degrade: the app falls back to memory;
  * storage outages only degrade: coding challenges fail, the rest of the site works).
- * Anyone gets `{ status }` from one cheap query; the full report (cache, storage, queue, dead
- * letters) needs `Authorization: Bearer $HEALTH_TOKEN` (or the cron secret).
+ *   ?probe=live      200 while the function runs, no query: frequent uptime checks must not wake
+ *                    a sleeping Neon compute (docs/admin-panel-plan.md 6.3);
+ *   (anyone)         `{ status }` from one cheap query;
+ *   Bearer HEALTH_TOKEN (or the cron secret): the full report (cache, storage, queue, dead letters).
  */
 export async function GET(req) {
-    const startedAt = Date.now();
+    if (new URL(req.url).searchParams.get("probe") === "live") {
+        return NextResponse.json({ status: "ok" }, { headers: NO_STORE });
+    }
 
     if (!hasBearerSecret(req, [process.env.HEALTH_TOKEN, process.env.CRON_SECRET, process.env.AUTH_CRON_SECRET])) {
         const database = await checkDatabase();
         const up = database.status === "healthy";
-        return NextResponse.json({ status: up ? "ok" : "down" }, { status: up ? 200 : 503, headers: { "Cache-Control": "no-store" } });
+        return NextResponse.json({ status: up ? "ok" : "down" }, { status: up ? 200 : 503, headers: NO_STORE });
     }
 
-    const [database, cache, storage, jobs] = await Promise.all([
-        checkDatabase(),
-        redis.ping().then((alive) => ({ ...redis.health(), reachable: alive })),
-        checkStorage()
-            .then(() => ({ status: "healthy" }))
-            .catch((error) => {
-                console.error("[health] storage check failed:", error?.name, error?.message);
-                return { status: "down" };
-            }),
-        // Background work (docs/queue-execution-plan.md): dead letters of the last hour degrade.
-        Promise.all([deadLetterDb.countOpen({ hours: 1 }), codeRunDb.load()])
-            .then(([deadLetters, runs]) => ({
-                status: deadLetters > 0 ? "degraded" : "healthy",
-                inngest: inngestEnabled(),
-                deadLettersLastHour: deadLetters,
-                codeRunsActive: runs.active,
-                oldestQueuedSec: runs.oldest_wait_sec,
-            }))
-            .catch((error) => {
-                console.error("[health] jobs check failed:", error?.message);
-                return { status: "unknown" };
-            }),
-    ]);
-
-    const healthy = database.status === "healthy";
-
-    return NextResponse.json(
-        {
-            status: healthy ? (cache.reachable && storage.status === "healthy" && jobs.status === "healthy" ? "ok" : "degraded") : "down",
-            environment: appEnv(),
-            database,
-            storage: { provider: storageInfo().provider, status: storage.status },
-            cache: {
-                backend: cache.backend,
-                status: cache.status,
-                reachable: cache.reachable,
-                degradedSince: cache.degradedSince,
-            },
-            jobs,
-            tookMs: Date.now() - startedAt,
-        },
-        { status: healthy ? 200 : 503, headers: { "Cache-Control": "no-store" } }
-    );
+    const report = await healthReport();
+    return NextResponse.json(report, { status: report.status === "down" ? 503 : 200, headers: NO_STORE });
 }
