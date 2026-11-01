@@ -1,5 +1,6 @@
 'use client';
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -84,7 +85,7 @@ export default function CourseAdmin() {
                     {courses.map((course) => (
                         <TableRow key={course.id}>
                             <TableCell className="max-w-72">
-                                <p className="truncate font-medium">{course.title}</p>
+                                <Link href={`/admin/courses/${encodeURIComponent(course.id)}`} className="block truncate font-medium hover:underline">{course.title}</Link>
                                 <p className="truncate font-mono text-xs text-muted-foreground">{course.id}</p>
                             </TableCell>
                             <TableCell><Badge variant={STATUS_VARIANT[course.publishStatus] || "muted"}>{course.publishStatus}</Badge></TableCell>

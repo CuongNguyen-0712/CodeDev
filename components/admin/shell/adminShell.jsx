@@ -15,12 +15,12 @@ import { ADMIN_FOOTER_NAV, ADMIN_NAV, activeNavKey } from "@/lib/adminPermission
 import { cn } from "@/lib/utils";
 
 import {
-    LuActivity, LuArrowLeft, LuBookOpen, LuClipboardList, LuKeyRound, LuLayoutDashboard, LuMoon, LuPlay,
+    LuActivity, LuArrowLeft, LuBookOpen, LuTags, LuClipboardList, LuKeyRound, LuLayoutDashboard, LuMoon, LuPlay,
     LuReceipt, LuServer, LuSettings, LuSun, LuTarget, LuUsers,
 } from "react-icons/lu";
 
 const ICONS = {
-    overview: LuLayoutDashboard, users: LuUsers, courses: LuBookOpen, challenges: LuTarget, runs: LuPlay,
+    overview: LuLayoutDashboard, users: LuUsers, courses: LuBookOpen, catalog: LuTags, challenges: LuTarget, runs: LuPlay,
     access: LuKeyRound, orders: LuReceipt, audit: LuClipboardList, system: LuServer, settings: LuSettings,
 };
 

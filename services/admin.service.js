@@ -38,7 +38,7 @@ function mapCourse(row) {
     };
 }
 
-async function dropCatalogCaches(courseId) {
+export async function dropCatalogCaches(courseId) {
     try {
         // Public course lists are keyed per query and expire within TTL.COURSE_LIST_PUBLIC.
         await redis.del(
