@@ -4,12 +4,14 @@ import { publishAuthOutbox } from "@/services/authOutbox.service";
 import { challengeService } from "@/services/challenge.service";
 
 /**
- * Every 10 minutes, in one step (each step is a billed execution):
+ * Every hour, in one step (each step is a billed execution):
  *   - code runs stuck long past their deadline end as cancelled / timeout;
  *   - queued runs and outbox rows whose Inngest event never went out are sent again.
+ * On the hour like ranking-refresh, so the database wakes once: every query keeps a Neon Free
+ * compute awake for 5 minutes, and a 5-10 minute cron would use the monthly CU-hours in days.
  */
 export const sweeper = inngest.createFunction(
-    { id: "sweeper", triggers: [{ cron: "*/10 * * * *" }], concurrency: 1, retries: 1 },
+    { id: "sweeper", triggers: [{ cron: "0 * * * *" }], concurrency: 1, retries: 1 },
     async ({ step }) => step.run("sweep", async () => {
         const codeRuns = await challengeService.sweepCodeRuns();
         let outbox = 0;

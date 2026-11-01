@@ -39,8 +39,11 @@ export const expAudit = inngest.createFunction(
     })
 );
 
-/** Leaderboard snapshot (profile.ranking_snapshot), so no page view pays for the full recount. */
+/**
+ * Leaderboard snapshot (profile.ranking_snapshot). Hourly, on the hour with the sweeper, so an
+ * idle Neon compute can sleep; between runs the first reader refreshes it (ensureRankingSnapshot).
+ */
 export const rankingRefresh = inngest.createFunction(
-    { id: "ranking-refresh", triggers: [{ cron: "*/5 * * * *" }], concurrency: 1, retries: 1 },
+    { id: "ranking-refresh", triggers: [{ cron: "0 * * * *" }], concurrency: 1, retries: 1 },
     async ({ step }) => step.run("refresh", () => refreshRankingSnapshot())
 );

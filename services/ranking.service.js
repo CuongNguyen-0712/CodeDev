@@ -27,8 +27,8 @@ const toEntry = (row) => ({
 });
 
 /**
- * Recomputes the snapshot now (the ranking-refresh cron, every 5 min). The marker outlives the next
- * cron run, so readers only refresh when the cron is not running (no Inngest, or it is down).
+ * Recomputes the snapshot now (the ranking-refresh cron, hourly). The marker lasts a few minutes;
+ * after that the first reader refreshes it, so an idle site does not wake the database for it.
  */
 export async function refreshRankingSnapshot() {
     const refreshed = await rankingDb.refreshSnapshot();

@@ -204,7 +204,7 @@ used. Storage tests run against the local MinIO when it is reachable and skip ot
 
 **Vercel** hosts the production site. Background work runs on **Inngest** (functions in `jobs/`,
 served at `/api/inngest`; set `INNGEST_EVENT_KEY` and `INNGEST_SIGNING_KEY`): queued code runs,
-outbox delivery (email, storage, sessions), a sweeper every 10 minutes, account maintenance
+outbox delivery (email, storage, sessions), an hourly sweeper, account maintenance
 (daily 03:00 UTC) and the EXP audit (daily 03:30 UTC). The routes under `/api/internal/` still run
 those two daily jobs by hand. Coding submissions are graded on Vercel Sandbox
 (`CODE_RUNNER_PROVIDER=vercel`). Failed background work: `npm run dlq`. See

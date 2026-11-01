@@ -104,7 +104,7 @@ action: tx code_runs(queued) ─commit─► inngest.send(code/run.requested, id
 action: tx dữ liệu + auth_outbox ─commit─► inngest.send(outbox/created, id=outbox-<id>)
   fn outbox-deliver  throttle SMTP ─► handler hiện có (SMTP / S3 / Cloudinary / session)
 
-cron (Inngest): sweeper */10, account-maintenance 03:00, exp-audit 03:30
+cron (Inngest): sweeper và ranking-refresh `0 * * * *` (mỗi giờ, cùng phút để Neon Free chỉ thức một lần), account-maintenance 03:00, exp-audit 03:30
 fn dead-letter-sink ◄── inngest/function.failed, inngest/function.cancelled
 ```
 
@@ -268,7 +268,7 @@ inngest.createFunction({
 
 | Function | Lịch | Việc |
 |---|---|---|
-| `sweeper` | `*/10 * * * *` | Một step đếm việc, không có việc thì dừng (giữ hạn mức execution). Các việc khi có: (1) `code_runs` `queued`/`running` quá `deadline_at` + 2 phút: `cancelled`/`timeout` + hoàn lượt + notify. (2) Row `published_at IS NULL` hoặc cũ hơn 5 phút mà vẫn `queued`: gửi lại event. (3) `auth_outbox` chưa xong quá 15 phút: gửi lại, tối đa 100 row |
+| `sweeper` | `0 * * * *` (trước đây `*/10`; đổi 2026-11-01 vì mỗi lần truy vấn giữ compute Neon Free thức 5 phút) | Một step đếm việc, không có việc thì dừng (giữ hạn mức execution). Các việc khi có: (1) `code_runs` `queued`/`running` quá `deadline_at` + 2 phút: `cancelled`/`timeout` + hoàn lượt + notify. (2) Row `published_at IS NULL` hoặc cũ hơn 5 phút mà vẫn `queued`: gửi lại event. (3) `auth_outbox` chưa xong quá 15 phút: gửi lại, tối đa 100 row |
 | `account-maintenance` | `0 3 * * *` | Mỗi batch 50 user là một step, không bị `maxDuration` chặn |
 | `exp-audit` | `30 3 * * *` | Gọi service hiện có |
 
@@ -476,7 +476,7 @@ Còn lại: R4, R7, R9, R11–R15.
 
 - **Hiện tượng:**
   - Run sample có `deadline_at = now()+45s`, nhưng `timeouts.start` của `code-run` là 3 phút.
-  - Khi hàng đợi chậm, function bắt đầu sau deadline: `codeRunDb.start()` trả `null`, và `executeCodeRun` (`services/challenge.service.js:949-951`) chỉ đọc lại trạng thái rồi thoát. Row vẫn `queued` cho tới khi `sweeper` chạy, chậm nhất là deadline + 2 phút + 10 phút.
+  - Khi hàng đợi chậm, function bắt đầu sau deadline: `codeRunDb.start()` trả `null`, và `executeCodeRun` (`services/challenge.service.js:949-951`) chỉ đọc lại trạng thái rồi thoát. Row vẫn `queued` cho tới khi `sweeper` chạy, chậm nhất là deadline + 2 phút + 60 phút (người học đang poll thì run được đóng ngay khi đọc).
 - **Hậu quả:**
   - Unique index `uq_code_runs_user_active` khiến user đó không chạy hay nộp được gì trong ~12 phút.
   - Client ngừng poll sau 6 phút, báo "taking longer than usual".
