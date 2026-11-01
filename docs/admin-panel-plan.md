@@ -1,6 +1,6 @@
 # CodeDev — Kế hoạch Admin Panel
 
-Cập nhật: 2026-11-01. CodeDev dùng cho **học tập và thử nghiệm**, không thu tiền. Tham chiếu `file:dòng` đúng tại thời điểm viết. Bản này chỉnh 6 module đề xuất ban đầu cho khớp với dữ liệu và kiến trúc đang có; phần **Khác với đề xuất gốc** ở cuối mỗi module nói rõ cái gì bị bỏ, đổi hoặc hoãn và vì sao.
+Cập nhật: 2026-11-01 (đã triển khai P0–P5 trong code, xem mục 0). CodeDev dùng cho **học tập và thử nghiệm**, không thu tiền. Tham chiếu `file:dòng` đúng tại thời điểm viết. Bản này chỉnh 6 module đề xuất ban đầu cho khớp với dữ liệu và kiến trúc đang có; phần **Khác với đề xuất gốc** ở cuối mỗi module nói rõ cái gì bị bỏ, đổi hoặc hoãn và vì sao.
 
 **Đã chốt:**
 
@@ -10,6 +10,39 @@ Cập nhật: 2026-11-01. CodeDev dùng cho **học tập và thử nghiệm**, 
 - **Admin chạy ở local, staging và production**, cùng codebase, chung deployment Vercel với trang học; production có thêm lớp gia cố và cờ tắt khẩn cấp `ADMIN_ENABLED=0` (mục 2).
 - Admin làm **hành động** và tóm tắt trạng thái hiện tại; **Grafana** (Docker ở local, Grafana Cloud Free ở production, chung một bộ dashboard) làm chuỗi thời gian và cảnh báo (mục 6). Admin chỉ link sang Grafana.
 - Không thêm hạ tầng log mới (Sentry, Axiom…) trong kế hoạch này.
+
+## 0. Trạng thái triển khai (2026-11-01)
+
+Code trên nhánh `develop`, chưa push. A1 đã đóng trên production (migration `20261101_006` đã chạy, role `user` không còn quyền ghi course / blog).
+
+| Pha | Commit | Đã làm |
+|---|---|---|
+| A1 | `bdbd7c7c` | Gỡ quyền ghi course / blog khỏi role mặc định, mọi API admin đòi `admin.read`, test tĩnh cho từng route |
+| P0 | `e0ef24ea` | `super_admin` + `roles.rank` + trigger, 17 permission mới, `npm run admin:role`, `ADMIN_ENABLED`, header riêng cho `/admin`, shell sidebar kiểu Vercel, 5 tab cũ thành route |
+| P0b | `7f3b8073` | `APP_ENV=staging` (`isDeployedEnv()`), `npm run db:anonymize` |
+| P1 | `ab83397b` | Overview, Users (danh sách, chi tiết, khoá / suspend / mở, role, thu hồi phiên, timeline), `status_until`, `/api/health?probe=live` |
+| P2 | `72299ae1` | Runs (hàng đợi theo sandbox, danh sách, chi tiết, huỷ, đóng run quá hạn, xem source có audit), trạng thái challenge |
+| P3 | `faddf15f` | System (sức khoẻ, dead letter retry / resolve, outbox, DB), schema `metrics`, Grafana Docker (`npm run monitoring:up`), `npm run grafana:push` |
+| P5 | `cece58c1` | Settings dạng thẻ (ma trận quyền chỉ đọc), Audit kiểu trang Logs |
+| P4 | `72fe1de9` | Cấu trúc khoá học (ẩn / hiện, đổi thứ tự, checklist publish), Catalog |
+
+**Lệch so với thiết kế (có chủ ý, làm sau nếu cần):**
+
+- Điện thoại dùng sheet của sidebar shadcn thay cho thanh nổi ở đáy; sidebar ẩn được (⌘B / Ctrl B) nhưng chưa kéo giãn được.
+- `/studio` không có trên production: `app/studio` và cấu hình Sanity bị `.gitignore`, Studio chỉ chạy local. Guard `content.studio` đã thêm vào bản local.
+- Breadcrumb hiện id của user / run / course, chưa hiện tên.
+
+**Chưa làm:** ⌘K command menu (P5), xác nhận lại danh tính cho việc nhạy cảm và `ADMIN_IP_ALLOWLIST` (P6), ghi audit `admin.denied`, OpenTelemetry G3 (P6), màn Payments (module 07, tuỳ chọn), số đếm trên mục sidebar.
+
+**Việc cần làm trên production, theo thứ tự:**
+
+1. Hạ compute `production` về 0.25–1 CU trên Neon console (R2).
+2. `npm run db:migrate:prod -- --yes`: chạy `20261101_007` (role, quyền), `_008` (`status_until`), `_009` (`metrics`). Cả ba chỉ thêm, chạy trước khi deploy được.
+3. Push `develop`, merge vào `main`, deploy.
+4. `npm run admin:role -- grant <email> super_admin --reason "<lý do>" --env .env.production` (R5).
+5. Sync app Inngest (R3).
+6. Tạo role `grafana_ro` trên Neon (lệnh trong migration `_009`), cấu hình Grafana Cloud và `npm run grafana:push -- --env .env.production`.
+7. Staging: trỏ Preview vào branch `staging`, reset từ production, `npm run db:anonymize -- --env .env.staging --yes`; xoá các branch cũ bằng tay (R4).
 
 ## 1. Hiện trạng
 
@@ -762,11 +795,11 @@ Trạng thái tính tới 2026-11-01 (sau khi deploy `7496176c`). "Mở" là ch�
 
 | # | Rủi ro | Mức | Trạng thái | Hướng xử lý | Kiểm khi xong |
 |---|---|---|---|---|---|
-| R1 | **A1: học viên sửa được metadata course** qua `PATCH /api/admin/courses/[id]`, vì role `user` có `course.update` | Nghiêm trọng | Một phần: đã sửa trong code và local (migration `20261101_006`, route đòi `admin.read`, test `__tests__/admin/adminAccess.test.js`); production chưa | `npm run db:migrate:prod -- --yes` (migration chỉ xoá quyền, không đổi schema, chạy trước hay sau deploy đều được), rồi deploy để route đòi thêm `admin.read` | Câu truy vấn ở 3.6 trả 0 dòng trên production; user thường gọi API nhận 403 |
+| R1 | **A1: học viên sửa được metadata course** qua `PATCH /api/admin/courses/[id]` | Nghiêm trọng | **Đã đóng (2026-11-01)**: migration `20261101_006` đã chạy trên production; code `bdbd7c7c` thêm `admin.read` cho mọi API admin khi deploy | Không còn | Câu truy vấn ở 3.6 trả 0 dòng trên production (đã kiểm) |
 | R2 | **Hết 100 CU-hours của Neon Free** làm DB production tạm dừng tới 01/12, cả trang học ngừng chạy | Nghiêm trọng | Một phần: nhịp cron đã giảm và đã deploy; compute vẫn cố định 2 CU | (1) Hạ compute `production` về 0.25–1 CU và mặc định project về 0.25–1 (2.2). (2) Preview dùng `staging`, tắt tạo branch tự động (branch preview cũng ăn hạn mức). (3) Monitoring theo chu kỳ ở 6.4. (4) Xem Usage của Neon hằng tuần; nếu sau 7 ngày đã dùng hơn 30 CU-hours thì tìm nguồn đánh thức (log `pg_stat_activity` qua `db:baseline`, chu kỳ cron, lưu lượng) | Compute hiện min 0.25; Usage tuần đầu dưới khoảng 25 CU-hours |
 | R3 | **Inngest chưa sync**: event gửi đi nhưng không function nào chạy (code run qua hàng đợi, outbox, cron) | Cao | Mở (chưa xác nhận) | Khi `INNGEST_EVENT_KEY` đã đặt mà app chưa sync, run code nằm `queued` tới hạn rồi bị huỷ (người học không chạy được code) và email trong outbox (xác thực, liên kết tài khoản) không được gửi. Xử lý tạm, không cần sync: đặt `CODE_EXEC_MODE=sync` và `OUTBOX_DELIVERY=inline` trên Vercel (công tắc có sẵn trong `lib/inngest.js`) rồi redeploy. Xử lý hẳn: sync sau R2 bước 1 (2.2), rồi bỏ hai biến tạm | Apps trong Inngest có 7 function; một lần Run code trên production ra kết quả; `sweeper` có lần chạy lúc đầu giờ |
 | R4 | **Dữ liệu cá nhân thật trong branch preview và branch thử nghiệm** (`preview/develop`, `perf-rehearsal-20261101`, `claim-purge-test-20261024`, `seed-test-a1-a2-20261024`) | Cao | Mở | (1) Trỏ Preview vào `staging`, tắt tạo branch tự động. (2) Xoá 4 branch trên bằng tay (không hoàn tác được). (3) Reset `staging` từ `production` rồi chạy `db:anonymize` ngay (2.3) | Neon chỉ còn `production` và `staging`; `staging` không có email thật |
-| R5 | **Chưa có tài khoản admin nào**; quản trị chỉ làm được bằng SQL tay | Trung bình | Mở | Sau migration P0: `npm run admin:role -- grant <email> super_admin --env .env.production`; cấp thêm một người dự phòng | Có 1–2 `super_admin` đang `active` |
+| R5 | **Chưa có tài khoản admin nào**; quản trị chỉ làm được bằng SQL tay | Trung bình | Mở: CLI có sẵn (`npm run admin:role`), cần chạy migration `_007` trên production trước | Sau migration P0: `npm run admin:role -- grant <email> super_admin --env .env.production`; cấp thêm một người dự phòng | Có 1–2 `super_admin` đang `active` |
 | R6 | **Admin mở trên internet** cùng domain với trang học | Trung bình | Mở | Gia cố ở 2.1: A1 vá trước, header riêng, xác nhận lại danh tính cho việc nhạy cảm, cờ `ADMIN_ENABLED`, tuỳ chọn allowlist IP; test quyền (3.6) chạy trong `npm test` | Test tĩnh và ma trận quyền pass; header có trên `/admin` |
 | R7 | **Lộ dữ liệu cá nhân trong admin** (email, IP, source code) | Trung bình | Thiết kế | Che PII khi thiếu `user.pii`; chỉ trả trường cần; ghi audit khi xem source; không đưa email vào URL | Test che PII; audit có dòng `submission.view` |
 | R8 | **Khoá nhầm admin hoặc mất quyền quản trị** | Trung bình | Thiết kế | Quy tắc bậc và "còn một super admin" kiểm trong transaction (3.5); CLI `admin:role` là đường cứu | Test service cho các trường hợp ở 3.5 |
