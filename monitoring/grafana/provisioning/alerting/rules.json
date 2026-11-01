@@ -1,0 +1,267 @@
+{
+  "_comment": "Grafana alerts (docs/admin-panel-plan.md 6.6). Rules reading the database run once an hour so a Neon Free compute can sleep; the live probe (no query) runs every minute through Prometheus. JSON so the same file serves file provisioning and npm run grafana:push.",
+  "apiVersion": 1,
+  "contactPoints": [
+    {
+      "orgId": 1,
+      "name": "codedev-email",
+      "receivers": [
+        {
+          "uid": "codedev-email",
+          "type": "email",
+          "settings": {
+            "addresses": "${GRAFANA_ALERT_EMAIL}",
+            "singleEmail": true
+          }
+        }
+      ]
+    }
+  ],
+  "policies": [
+    {
+      "orgId": 1,
+      "receiver": "codedev-email",
+      "group_by": [
+        "alertname"
+      ],
+      "group_wait": "1m",
+      "group_interval": "15m",
+      "repeat_interval": "6h"
+    }
+  ],
+  "groups": [
+    {
+      "orgId": 1,
+      "name": "codedev-uptime",
+      "folder": "CodeDev",
+      "interval": "1m",
+      "rules": [
+        {
+          "uid": "codedev-site-down",
+          "title": "Site down",
+          "condition": "C",
+          "for": "2m",
+          "labels": {
+            "severity": "urgent"
+          },
+          "annotations": {
+            "summary": "The live probe of /api/health failed twice in a row."
+          },
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "codedev-prom",
+              "model": {
+                "refId": "A",
+                "expr": "min(probe_success{job=\"app-live\"})",
+                "instant": true
+              }
+            },
+            {
+              "refId": "C",
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "lt",
+                      "params": [
+                        1
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "orgId": 1,
+      "name": "codedev-jobs",
+      "folder": "CodeDev",
+      "interval": "60m",
+      "rules": [
+        {
+          "uid": "codedev-queue-stuck",
+          "title": "Code-run queue stuck",
+          "condition": "C",
+          "for": "0m",
+          "labels": {
+            "severity": "urgent"
+          },
+          "annotations": {
+            "summary": "The oldest queued run has waited more than 60 seconds. Open /admin/runs."
+          },
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 3600,
+                "to": 0
+              },
+              "datasourceUid": "codedev-pg",
+              "model": {
+                "refId": "A",
+                "format": "table",
+                "rawQuery": true,
+                "rawSql": "SELECT oldest_wait_sec AS value FROM metrics.code_runs_active"
+              }
+            },
+            {
+              "refId": "B",
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "B",
+                "type": "reduce",
+                "expression": "A",
+                "reducer": "last"
+              }
+            },
+            {
+              "refId": "C",
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "threshold",
+                "expression": "B",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        60
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "uid": "codedev-dead-letters",
+          "title": "Dead letter open",
+          "condition": "C",
+          "for": "0m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "Background work failed for good. Open /admin/system."
+          },
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 3600,
+                "to": 0
+              },
+              "datasourceUid": "codedev-pg",
+              "model": {
+                "refId": "A",
+                "format": "table",
+                "rawQuery": true,
+                "rawSql": "SELECT COALESCE(SUM(open), 0) AS value FROM metrics.dead_letters_daily"
+              }
+            },
+            {
+              "refId": "B",
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "B",
+                "type": "reduce",
+                "expression": "A",
+                "reducer": "last"
+              }
+            },
+            {
+              "refId": "C",
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "threshold",
+                "expression": "B",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "uid": "codedev-outbox-dead",
+          "title": "Outbox has dead rows",
+          "condition": "C",
+          "for": "0m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "Auth emails stopped retrying (identity.auth_outbox.dead_at). Open /admin/system."
+          },
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 3600,
+                "to": 0
+              },
+              "datasourceUid": "codedev-pg",
+              "model": {
+                "refId": "A",
+                "format": "table",
+                "rawQuery": true,
+                "rawSql": "SELECT dead AS value FROM metrics.outbox"
+              }
+            },
+            {
+              "refId": "B",
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "B",
+                "type": "reduce",
+                "expression": "A",
+                "reducer": "last"
+              }
+            },
+            {
+              "refId": "C",
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "threshold",
+                "expression": "B",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

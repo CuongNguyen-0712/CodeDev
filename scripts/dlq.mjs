@@ -72,7 +72,7 @@ try {
                  WHERE id = $1 AND processed_at IS NULL;`,
                 [letter.ref]
             );
-        } else if (String(letter.kind).startsWith("code-run")) {
+        } else if (String(letter.kind).includes("code-run")) {
             throw new Error("A code run is not retried: the learner submits again (no attempt was used). Resolve it instead.");
         } else if (letter.payload?.name) {
             // A new id: the original one is deduplicated by Inngest for 24 hours.

@@ -1,0 +1,64 @@
+{
+  "uid": "codedev-database",
+  "title": "CodeDev / Database",
+  "tags": [
+    "codedev"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "refresh": "",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "DS",
+        "label": "Database",
+        "type": "datasource",
+        "query": "grafana-postgresql-datasource",
+        "current": {},
+        "hide": 0
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "panels": [
+    {
+      "id": 18,
+      "type": "table",
+      "title": "Connections by state",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${DS}"
+          },
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT state, connections FROM metrics.db_activity ORDER BY connections DESC"
+        }
+      ],
+      "options": {
+        "showHeader": true
+      }
+    }
+  ]
+}

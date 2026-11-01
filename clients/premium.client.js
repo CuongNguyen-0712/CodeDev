@@ -68,6 +68,9 @@ export const adminClient = {
     expireRuns: async ({ reason }) => (await apiClient.post('/admin/runs/expire', { reason })).data,
     getChallenges: async (courseId) => (await apiClient.get('/admin/challenges', { params: { course: courseId } })).data,
     updateChallenge: async ({ challengeId, ...input }) => (await apiClient.patch(`/admin/challenges/${encodeURIComponent(challengeId)}`, input)).data,
+    getSystem: async () => (await apiClient.get('/admin/system')).data,
+    resolveDeadLetter: async ({ id, reason }) => (await apiClient.post(`/admin/system/dead-letters/${encodeURIComponent(id)}/resolve`, { reason })).data,
+    retryDeadLetter: async ({ id, reason }) => (await apiClient.post(`/admin/system/dead-letters/${encodeURIComponent(id)}/retry`, { reason })).data,
 };
 
 /** Machine-readable error code of a failed API call (`INSUFFICIENT_POINTS`, `ALREADY_OWNED`, ...). */

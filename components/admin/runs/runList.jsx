@@ -31,7 +31,7 @@ const LANGUAGES = ["javascript", "typescript", "python", "java", "c", "cpp", "go
 const SLOW_WAIT_SEC = 60;
 
 /** Queue per sandbox (the screen's signature element, docs/admin-panel-plan.md 5.5). */
-function QueueStrip({ queue }) {
+export function QueueStrip({ queue }) {
     if (!queue?.length) {
         return <p className="mb-6 rounded-lg border border-border bg-card px-5 py-4 text-sm text-muted-foreground">No run is waiting or running. The queue is clear.</p>;
     }

@@ -158,6 +158,60 @@ services:
     mem_limit: 192m
     networks: [sandbox, gateway]
 
+  # ------------------------------------------------------------------ monitoring (docs/admin-panel-plan.md 6.2)
+  #   npm run monitoring:up   -> Grafana at http://127.0.0.1:3001 (admin / GRAFANA_ADMIN_PASSWORD)
+  # Grafana reads the database as the read-only grafana_ro (migration 20261101_009) and probes the
+  # app through the blackbox exporter. Dashboards, data sources and alerts come from monitoring/.
+  grafana:
+    profiles: [monitoring]
+    image: grafana/grafana:11.3.0
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in the env file}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_SMTP_ENABLED: "true"
+      GF_SMTP_HOST: ${GRAFANA_SMTP_HOST:-mailpit:1025}
+      GF_SMTP_FROM_ADDRESS: ${GRAFANA_SMTP_FROM:-grafana@codedev.local}
+      GRAFANA_PG_HOST: ${GRAFANA_PG_HOST:-host.docker.internal:5432}
+      GRAFANA_PG_DATABASE: ${GRAFANA_PG_DATABASE:-codedev}
+      GRAFANA_PG_USER: ${GRAFANA_PG_USER:-grafana_ro}
+      GRAFANA_PG_PASSWORD: ${GRAFANA_PG_PASSWORD:-}
+      GRAFANA_PG_SSLMODE: ${GRAFANA_PG_SSLMODE:-disable}
+      GRAFANA_ALERT_EMAIL: ${GRAFANA_ALERT_EMAIL:-admin@codedev.local}
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    ports:
+      - "127.0.0.1:3001:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on: [prometheus]
+    networks: [backend, monitoring]
+
+  prometheus:
+    profiles: [monitoring]
+    image: prom/prometheus:v2.55.1
+    restart: unless-stopped
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=15d"]
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    depends_on: [blackbox-exporter]
+    networks: [monitoring]
+
+  blackbox-exporter:
+    profiles: [monitoring]
+    image: prom/blackbox-exporter:v0.25.0
+    restart: unless-stopped
+    command: ["--config.file=/etc/blackbox/blackbox.yml"]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    volumes:
+      - ./monitoring/blackbox/blackbox.yml:/etc/blackbox/blackbox.yml:ro
+    networks: [monitoring]
+
   # ------------------------------------------------------------------ application (production build)
   app:
     profiles: [app]
@@ -222,6 +276,7 @@ networks:
   sandbox:
     internal: true
   gateway: {}
+  monitoring: {}
 
 volumes:
   # Same volumes as the former docker-compose.yml / docker-compose.dev.yml: data is kept.
@@ -231,3 +286,7 @@ volumes:
     name: codedev-dev_minio-data
   postgres-data:
     name: codedev_postgres-data
+  grafana-data:
+    name: codedev_grafana-data
+  prometheus-data:
+    name: codedev_prometheus-data

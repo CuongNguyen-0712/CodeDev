@@ -1,0 +1,16 @@
+# preferred_ip_protocol ip4: host.docker.internal also resolves to an IPv6 address Docker cannot route.
+modules:
+  http_2xx:
+    prober: http
+    timeout: 10s
+    http:
+      preferred_ip_protocol: ip4
+      valid_status_codes: [200]
+  # 200 and "status":"ok" in the body (503 / "down" fail the probe).
+  health_ok:
+    prober: http
+    timeout: 10s
+    http:
+      preferred_ip_protocol: ip4
+      valid_status_codes: [200]
+      fail_if_body_not_matches_regexp: ['"status":"ok"']

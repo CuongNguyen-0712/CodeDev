@@ -1,0 +1,23 @@
+# Grafana data sources (docs/admin-panel-plan.md 6.2). Values come from the compose env file
+# (.env.local locally); the role is the read-only grafana_ro of migration 20261101_009.
+apiVersion: 1
+
+datasources:
+  - name: CodeDev PostgreSQL
+    uid: codedev-pg
+    type: grafana-postgresql-datasource
+    url: ${GRAFANA_PG_HOST}
+    user: ${GRAFANA_PG_USER}
+    isDefault: true
+    jsonData:
+      database: ${GRAFANA_PG_DATABASE}
+      sslmode: ${GRAFANA_PG_SSLMODE}
+      postgresVersion: 1600
+      maxOpenConns: 3
+    secureJsonData:
+      password: ${GRAFANA_PG_PASSWORD}
+
+  - name: Prometheus
+    uid: codedev-prom
+    type: prometheus
+    url: http://prometheus:9090

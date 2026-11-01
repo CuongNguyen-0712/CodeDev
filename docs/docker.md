@@ -76,3 +76,24 @@ npm run docker:app       # docker compose --env-file .env.production --profile a
   in-flight requests time to finish. Startup never runs migrations.
 - The production deployment of the site is Vercel; this container is for self-hosting or a
   production-like local run. There is no CI pipeline in the repository.
+
+## Monitoring (profile `monitoring`)
+
+Grafana, Prometheus and the blackbox exporter for the dashboards and alerts of
+[admin-panel-plan.md](admin-panel-plan.md) section 6:
+
+```bash
+npm run monitoring:up      # Grafana at http://127.0.0.1:3001 (admin / GRAFANA_ADMIN_PASSWORD)
+npm run monitoring:down
+```
+
+- Data sources, the five `CodeDev /` dashboards and the alert rules are provisioned from
+  `monitoring/grafana/` (dashboards are read-only in the UI: change the JSON and restart).
+- Grafana reads PostgreSQL as `grafana_ro`, a login role created by hand in each database with
+  access to the `metrics` views only (migration `20261101_009` lists the statements).
+  `GRAFANA_PG_HOST`, `GRAFANA_PG_DATABASE`, `GRAFANA_PG_PASSWORD`, `GRAFANA_PG_SSLMODE` come from
+  the env file; locally Grafana reaches the host database through `host.docker.internal`.
+- The blackbox exporter probes `/api/health?probe=live` every minute (no query) and `/api/health`
+  every five minutes. Alerts go by email to `GRAFANA_ALERT_EMAIL` (locally into Mailpit).
+- Production on Vercel uses Grafana Cloud instead: `npm run grafana:push -- --env .env.production`
+  with `GRAFANA_URL` and `GRAFANA_TOKEN` pushes the same dashboards and rules.
