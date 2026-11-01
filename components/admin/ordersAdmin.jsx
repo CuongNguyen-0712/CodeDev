@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { useApp } from "@/contexts/appContext";
+import { useAdmin } from "@/components/admin/adminContext";
 import { adminQueries } from "@/queries/premium.query";
 import { useAdminRefund } from "@/mutations/premium.mutation";
 
@@ -22,7 +23,8 @@ function Loading() {
     return <div className="space-y-2">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-10 w-full" />)}</div>;
 }
 
-export default function OrdersAdmin({ can }) {
+export default function OrdersAdmin() {
+    const { can } = useAdmin();
     const { showAlert } = useApp();
     const { data, isPending, isError, refetch } = useQuery(adminQueries.orders());
     const refund = useAdminRefund();

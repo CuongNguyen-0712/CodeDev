@@ -8,6 +8,7 @@ import { routeConfig } from "@/auth/route.config";
 import { ACCESS } from "@/auth/access";
 
 import { isFatalSessionError } from "@/constants/auth";
+import { adminEnabled, isAdminPath } from "@/lib/adminMode";
 import { decodeAuthJwt } from "@/lib/authJwt";
 import { isVerifyLocked, VERIFY_REQUIRED_PATH } from "@/lib/verifyLock";
 
@@ -36,6 +37,10 @@ export default async function proxy(req) {
     // Same codec as next-auth: algorithm allowlist + iss/aud checks (lib/authJwt).
     const rawToken = await getToken({ req, decode: decodeAuthJwt })
     const pathname = req.nextUrl.pathname
+
+    if (!adminEnabled() && isAdminPath(pathname)) {
+        return new NextResponse(null, { status: 404 })
+    }
 
     // A token flagged revoked / expired / invalid is as good as no token.
     const deadSession = Boolean(rawToken && isFatalSessionError(rawToken.error))

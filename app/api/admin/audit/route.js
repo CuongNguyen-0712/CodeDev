@@ -5,7 +5,7 @@ import { adminService } from "@/services/admin.service";
 // Latest admin actions (append-only audit log).
 export const GET = apiRoute(
     async ({ userId }) => {
-        await requirePermission(userId, "admin.read");
+        await requirePermission(userId, ["admin.read", "audit.read"]);
         return adminService.listAudit();
     },
     { context: "api/admin/audit" }

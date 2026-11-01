@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { useApp } from "@/contexts/appContext";
+import { useAdmin } from "@/components/admin/adminContext";
 import { adminQueries } from "@/queries/premium.query";
 import { newIdempotencyKey, useAdminAdjustExperience, useAdminAdjustPoints, useAdminGrant, useAdminRevoke } from "@/mutations/premium.mutation";
 
@@ -18,7 +19,8 @@ import { Textarea } from "@/components/shadcn/textarea";
 
 const formatDate = (value) => (value ? new Date(value).toLocaleDateString() : "-");
 
-export default function AccessAdmin({ can }) {
+export default function AccessAdmin() {
+    const { can } = useAdmin();
     const [query, setQuery] = useState("");
     const [selected, setSelected] = useState(null);
     const users = useQuery(adminQueries.users(query));

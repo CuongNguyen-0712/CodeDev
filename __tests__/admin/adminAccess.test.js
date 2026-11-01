@@ -49,3 +49,23 @@ describe.skipIf(!hasDb)("learner role permissions (PostgreSQL)", () => {
         expect(rows).toEqual([]);
     });
 });
+
+describe("admin kill switch and navigation", () => {
+    it("ADMIN_ENABLED=0 / false / off turns the admin area off; anything else keeps it on", async () => {
+        const { adminEnabled, isAdminPath } = await import("@/lib/adminMode");
+        for (const value of ["0", "false", "off", " OFF "]) expect(adminEnabled({ ADMIN_ENABLED: value })).toBe(false);
+        for (const value of [undefined, "", "1", "true"]) expect(adminEnabled({ ADMIN_ENABLED: value })).toBe(true);
+        expect(isAdminPath("/admin")).toBe(true);
+        expect(isAdminPath("/admin/users/abc")).toBe(true);
+        expect(isAdminPath("/studio/desk")).toBe(true);
+        expect(isAdminPath("/administrator")).toBe(false);
+    });
+
+    it("marks the longest matching nav item active", async () => {
+        const { activeNavKey } = await import("@/lib/adminPermissions");
+        expect(activeNavKey("/admin")).toBe("overview");
+        expect(activeNavKey("/admin/users/01ABC")).toBe("users");
+        expect(activeNavKey("/admin/settings/roles")).toBe("settings");
+        expect(activeNavKey("/home")).toBe(null);
+    });
+});

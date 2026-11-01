@@ -33,6 +33,20 @@ const nextConfig = {
         minimumCacheTTL: 60,
         qualities: [100, 75],
     },
+    // Admin area and studio: never indexed, cached, framed or sent as a referrer.
+    async headers() {
+        const headers = [
+            { key: 'X-Robots-Tag', value: 'noindex, nofollow' },
+            { key: 'Cache-Control', value: 'private, no-store' },
+            { key: 'Content-Security-Policy', value: "frame-ancestors 'none'" },
+            { key: 'Referrer-Policy', value: 'no-referrer' },
+        ];
+        return [
+            { source: '/admin', headers },
+            { source: '/admin/:path*', headers },
+            { source: '/studio/:path*', headers },
+        ];
+    },
 };
 
 module.exports = nextConfig;

@@ -35,4 +35,10 @@ export default [
         resource: RESOURCE.ADMIN,
         access: ACCESS.PRIVATE
     },
+    {
+        path: "/admin/*path",
+        action: ACTION.READ,
+        resource: RESOURCE.ADMIN,
+        access: ACCESS.PRIVATE
+    },
 ]

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { useApp } from "@/contexts/appContext";
+import { useAdmin } from "@/components/admin/adminContext";
 import { adminQueries } from "@/queries/premium.query";
 import {
     useAdminPublish, useAdminRemoveOffer, useAdminSetOffer, useAdminUpdateCourse,
@@ -50,7 +51,8 @@ function PriceSummary({ offers = [] }) {
     );
 }
 
-export default function CourseAdmin({ can }) {
+export default function CourseAdmin() {
+    const { can } = useAdmin();
     const { data, isPending, isError, refetch } = useQuery(adminQueries.courses());
     const [editingId, setEditingId] = useState(null);
 
