@@ -37,7 +37,7 @@ Code trên nhánh `develop`, chưa push. A1 đã đóng trên production (migrat
 **Việc cần làm trên production, theo thứ tự:**
 
 1. Hạ compute `production` về 0.25–1 CU trên Neon console (R2).
-2. `npm run db:migrate:prod -- --yes`: chạy `20261101_007` (role, quyền), `_008` (`status_until`), `_009` (`metrics`). Cả ba chỉ thêm, chạy trước khi deploy được.
+2. ~~Migration `20261101_007`–`_009` trên production~~ (đã chạy 2026-11-01: 6 role có cấp bậc, 48 permission, trigger super admin, `status_until`, 8 view `metrics`).
 3. Push `develop`, merge vào `main`, deploy.
 4. `npm run admin:role -- grant <email> super_admin --reason "<lý do>" --env .env.production` (R5).
 5. Sync app Inngest (R3).
