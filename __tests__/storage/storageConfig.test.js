@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { resolveStorageConfig, s3ClientOptions, describeStorage } from "@/lib/storageConfig.mjs";
-import { appEnv, isLocalUrl } from "@/lib/appEnv.mjs";
+import { appEnv, isDeployedEnv, isLocalUrl } from "@/lib/appEnv.mjs";
 import { checkEnvironment } from "@/lib/envCheck.mjs";
 
 const MINIO = "http://127.0.0.1:9000";
@@ -15,7 +15,17 @@ describe("environment", () => {
         expect(appEnv({ NODE_ENV: "production" })).toBe("production");
         expect(appEnv({ NODE_ENV: "production", APP_ENV: "development" })).toBe("development");
         expect(appEnv({ NODE_ENV: "test" })).toBe("test");
-        expect(appEnv({ APP_ENV: "staging", NODE_ENV: "production" })).toBe("production");
+        expect(appEnv({ APP_ENV: "staging", NODE_ENV: "production" })).toBe("staging");
+        expect(appEnv({ APP_ENV: "qa", NODE_ENV: "production" })).toBe("production");
+    });
+
+    it("treats staging like production for the safety rules", () => {
+        expect(isDeployedEnv({ APP_ENV: "staging" })).toBe(true);
+        expect(isDeployedEnv({ NODE_ENV: "production" })).toBe(true);
+        expect(isDeployedEnv({ NODE_ENV: "development" })).toBe(false);
+        const staging = resolveStorageConfig({ APP_ENV: "staging", ...minioEnv, ...neonEnv });
+        expect(staging.provider).toBe("s3");
+        expect(resolveStorageConfig({ APP_ENV: "staging", STORAGE_PROVIDER: "minio", ...minioEnv }).isolation.length).toBeGreaterThan(0);
     });
 
     it("recognises local endpoints", () => {

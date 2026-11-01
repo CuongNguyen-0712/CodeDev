@@ -1,5 +1,7 @@
 # Environments
 
+**Staging**: Vercel Preview deployments with `APP_ENV=staging`, a production build on the Neon branch `staging` (a copy of production anonymised by `npm run db:anonymize -- --env .env.staging --yes`). Staging follows the production safety rules (`isDeployedEnv()`: remote storage, real mail settings, no browser-reported grading) but allows the mock payment provider; see docs/admin-panel-plan.md 2.3.
+
 Two deployment environments, each wired to its own services. `APP_ENV` (default: from `NODE_ENV`)
 decides which; `lib/appEnv.mjs` is the single definition used by the app, the tests and `scripts/`.
 

@@ -10,7 +10,7 @@ import { events } from "@/lib/realtime";
 import { ApiError } from "@/lib/error/apiError";
 import { parseJsonSafe } from "@/lib/challenges/compare";
 import { executeTests, sandboxKey, serverExecutionEnabled, totalSlots } from "@/lib/challenges/codeRunner";
-import { isProductionEnv } from "@/lib/appEnv.mjs";
+import { isDeployedEnv } from "@/lib/appEnv.mjs";
 import { detectEntryName } from "@/lib/challenges/entry";
 import { pickQuestions } from "@/lib/challenges/questionBank";
 import {
@@ -573,7 +573,7 @@ export const challengeService = {
         const serverRun = serverExecutionEnabled();
         // Only javascript runs in the browser; other languages cannot be graded without the runner.
         // Production never trusts browser-reported outputs: they can be forged for points and EXP.
-        if (!serverRun && (language !== "javascript" || isProductionEnv())) throw codeRunnerRequired();
+        if (!serverRun && (language !== "javascript" || isDeployedEnv())) throw codeRunnerRequired();
         const executed = serverRun ? await runOnServer({ definition, code, testCases }) : results;
 
         const publicGraded = gradeTests(publicCases, executed, language);

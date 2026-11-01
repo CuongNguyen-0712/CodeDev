@@ -14,7 +14,7 @@ export async function register() {
     for (const message of errors) console.error(`[env] ${message}`);
 
     // Only a broken environment split stops production; missing settings fail where they are used.
-    if (environment === "production" && fatal.length > 0) {
+    if ((environment === "production" || environment === "staging") && fatal.length > 0) {
         throw new Error(`Production is wired to development services: ${fatal.join("; ")}`);
     }
 }
