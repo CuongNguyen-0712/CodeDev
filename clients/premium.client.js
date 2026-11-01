@@ -59,6 +59,15 @@ export const adminClient = {
         (await apiClient.delete(`/admin/users/${encodeURIComponent(userId)}/roles`, { data: { role, reason } })).data,
     revokeUserSessions: async ({ userId, reason }) =>
         (await apiClient.delete(`/admin/users/${encodeURIComponent(userId)}/sessions`, { data: { reason } })).data,
+    listRuns: async ({ tab, language, type, user, cursor }) => (await apiClient.get('/admin/runs/list', {
+        params: { tab, language: language || undefined, type: type || undefined, user: user || undefined, cursor: cursor || undefined },
+    })).data,
+    getRun: async (runId) => (await apiClient.get(`/admin/runs/${encodeURIComponent(runId)}`)).data,
+    getRunSource: async (runId) => (await apiClient.get(`/admin/runs/${encodeURIComponent(runId)}/source`)).data,
+    cancelRun: async ({ runId, reason }) => (await apiClient.post(`/admin/runs/${encodeURIComponent(runId)}/cancel`, { reason })).data,
+    expireRuns: async ({ reason }) => (await apiClient.post('/admin/runs/expire', { reason })).data,
+    getChallenges: async (courseId) => (await apiClient.get('/admin/challenges', { params: { course: courseId } })).data,
+    updateChallenge: async ({ challengeId, ...input }) => (await apiClient.patch(`/admin/challenges/${encodeURIComponent(challengeId)}`, input)).data,
 };
 
 /** Machine-readable error code of a failed API call (`INSUFFICIENT_POINTS`, `ALREADY_OWNED`, ...). */

@@ -11,4 +11,7 @@ export const adminKeys = {
     userList: (filters) => [...adminKeys.all, 'userList', filters],
     user: (userId) => [...adminKeys.all, 'user', userId],
     userActivity: (userId, kinds) => [...adminKeys.all, 'userActivity', userId, kinds],
+    runList: (filters) => [...adminKeys.all, 'runList', filters],
+    run: (runId) => [...adminKeys.all, 'run', runId],
+    challenges: (courseId) => [...adminKeys.all, 'challenges', courseId],
 }

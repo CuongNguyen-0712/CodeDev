@@ -101,3 +101,6 @@ export const useAdminRefund = () => useAdminWrite((input) => adminClient.refundO
 export const useAdminSetUserStatus = () => useAdminWrite((input) => adminClient.setUserStatus(input));
 export const useAdminChangeUserRole = () => useAdminWrite(({ add, ...input }) => (add ? adminClient.addUserRole(input) : adminClient.removeUserRole(input)));
 export const useAdminRevokeUserSessions = () => useAdminWrite((input) => adminClient.revokeUserSessions(input));
+export const useAdminCancelRun = () => useAdminWrite((input) => adminClient.cancelRun(input));
+export const useAdminExpireRuns = () => useAdminWrite((input) => adminClient.expireRuns(input));
+export const useAdminUpdateChallenge = () => useAdminWrite((input) => adminClient.updateChallenge(input));

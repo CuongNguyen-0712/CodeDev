@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useInfiniteQuery } from "@tanstack/react-query";
 
 import { adminClient } from "@/clients/premium.client";
@@ -10,12 +9,13 @@ import { adminKeys } from "@/keys/admin.keys";
 import { QUERY_TIMES, retryTransient } from "@/lib/queryTimes";
 import PageHeader from "@/components/admin/shell/pageHeader";
 import StatusDot from "@/components/admin/ui/statusDot";
+import TabBar from "@/components/admin/ui/tabBar";
+import { useUrlFilters } from "@/components/admin/ui/useUrlFilters";
 import { formatDate, formatNumber, formatRelative } from "@/components/admin/ui/format";
 import { Button } from "@/components/shadcn/button";
 import { Input } from "@/components/shadcn/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/shadcn/select";
 import { Skeleton } from "@/components/shadcn/skeleton";
-import { cn } from "@/lib/utils";
 
 import { LuSearch } from "react-icons/lu";
 
@@ -28,26 +28,6 @@ const TABS = [
 ];
 const ROLES = ["super_admin", "admin", "course_manager", "instructor", "user"];
 const roleLabel = (code) => code.replace("_", " ");
-
-function useListParams() {
-    const searchParams = useSearchParams();
-    const router = useRouter();
-    const pathname = usePathname();
-    const tab = TABS.some((item) => item.key === searchParams.get("tab")) ? searchParams.get("tab") : "all";
-    const role = ROLES.includes(searchParams.get("role")) ? searchParams.get("role") : "";
-    const q = (searchParams.get("q") || "").slice(0, 100);
-
-    // The filters live in the URL so a list can be shared and Back works; never an email in it.
-    const update = (patch) => {
-        const next = new URLSearchParams(searchParams);
-        for (const [key, value] of Object.entries(patch)) {
-            if (value && !(key === "tab" && value === "all")) next.set(key, value);
-            else next.delete(key);
-        }
-        router.replace(`${pathname}${next.toString() ? `?${next}` : ""}`, { scroll: false });
-    };
-    return { tab, role, q, update };
-}
 
 function UserRow({ user }) {
     const staff = user.roles.filter((code) => code !== "user" && code !== "student");
@@ -78,7 +58,7 @@ function UserRow({ user }) {
 }
 
 export default function UserList() {
-    const { tab, role, q, update } = useListParams();
+    const [{ tab, role, q }, update] = useUrlFilters({ tab: TABS.map((item) => item.key), role: ROLES, q: 100 }, { tab: "all" });
     const [search, setSearch] = useState(q);
 
     useEffect(() => {
@@ -109,24 +89,7 @@ export default function UserList() {
                 description={counts ? `${formatNumber(counts.all)} accounts · ${formatNumber(counts.suspended + counts.blocked)} locked · ${formatNumber(counts.unverified)} unverified` : undefined}
             />
 
-            <div role="tablist" aria-label="Account state" className="mb-4 flex gap-1 overflow-x-auto border-b border-border">
-                {TABS.map((item) => (
-                    <button
-                        key={item.key}
-                        type="button"
-                        role="tab"
-                        aria-selected={tab === item.key}
-                        onClick={() => update({ tab: item.key })}
-                        className={cn(
-                            "-mb-px whitespace-nowrap border-b-2 px-3 py-2 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-                            tab === item.key ? "border-foreground font-medium text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
-                        )}
-                    >
-                        {item.label}
-                        {counts && <span className="ml-1.5 tabular-nums text-muted-foreground">{formatNumber(counts[item.key])}</span>}
-                    </button>
-                ))}
-            </div>
+            <TabBar tabs={TABS} value={tab} onChange={(key) => update({ tab: key })} counts={counts} label="Account state" />
 
             <div className="mb-4 flex flex-wrap items-center gap-2">
                 <div className="relative w-full sm:w-72">

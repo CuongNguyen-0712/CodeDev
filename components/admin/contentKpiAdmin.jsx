@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
+import ChallengeManager from "@/components/admin/challenges/challengeManager";
+
 import { adminQueries } from "@/queries/premium.query";
 
 import { ErrorReload } from "@/components/ui/error";
@@ -240,6 +242,10 @@ export default function ContentKpiAdmin() {
                     </SelectContent>
                 </Select>
             </div>
+
+            <Section title="Status and publishing" description="Every challenge of the course, published or not. Test cases stay in the content seeds.">
+                <ChallengeManager courseId={courseId} />
+            </Section>
 
             {kpis.isPending && courseId && <Loading />}
             {kpis.isError && <ErrorReload refetch={kpis.refetch} />}
