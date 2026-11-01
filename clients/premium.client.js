@@ -43,7 +43,9 @@ export const adminClient = {
     revokeEntitlement: async (input) => (await apiClient.delete('/admin/entitlements', { data: input })).data,
     getOrders: async () => (await apiClient.get('/admin/orders')).data,
     refundOrder: async ({ orderId, reason }) => (await apiClient.post(`/admin/orders/${encodeURIComponent(orderId)}/refund`, { reason })).data,
-    getAudit: async () => (await apiClient.get('/admin/audit')).data,
+    getAudit: async ({ before, ...filters }) => (await apiClient.get('/admin/audit', {
+        params: Object.fromEntries(Object.entries({ ...filters, before }).filter(([, value]) => value)),
+    })).data,
     getContentKpis: async (courseId) => (await apiClient.get('/admin/content-kpis', { params: { course: courseId } })).data,
     getExpAudit: async () => (await apiClient.get('/admin/exp-audit')).data,
     getDashboard: async () => (await apiClient.get('/admin/dashboard')).data,
@@ -70,6 +72,7 @@ export const adminClient = {
     updateChallenge: async ({ challengeId, ...input }) => (await apiClient.patch(`/admin/challenges/${encodeURIComponent(challengeId)}`, input)).data,
     getSystem: async () => (await apiClient.get('/admin/system')).data,
     resolveDeadLetter: async ({ id, reason }) => (await apiClient.post(`/admin/system/dead-letters/${encodeURIComponent(id)}/resolve`, { reason })).data,
+    getSettings: async () => (await apiClient.get('/admin/settings')).data,
     retryDeadLetter: async ({ id, reason }) => (await apiClient.post(`/admin/system/dead-letters/${encodeURIComponent(id)}/retry`, { reason })).data,
 };
 

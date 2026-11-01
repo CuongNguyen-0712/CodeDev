@@ -272,15 +272,6 @@ export const adminDb = {
         );
     },
 
-    listAudit: async ({ limit = 50 }) => {
-        return sql(
-            `SELECT a.id, a.action, a.target_type, a.target_id, a.reason, a.created_at, u.username AS actor
-             FROM identity.audit_log a LEFT JOIN identity.users u ON u.id = a.actor_id
-             ORDER BY a.id DESC
-             LIMIT $1`,
-            [limit]
-        );
-    },
 };
 
 // Fixed table / column names (never user input) for the course <-> taxonomy sets.

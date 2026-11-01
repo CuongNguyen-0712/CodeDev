@@ -1,16 +1,12 @@
-import { AuditLog } from "@/components/admin/ordersAdmin";
+import { Suspense } from "react";
+
+import AuditPage from "@/components/admin/audit/auditPage";
 import NoAccess from "@/components/admin/shell/noAccess";
-import PageHeader from "@/components/admin/shell/pageHeader";
 import { adminCan } from "@/lib/adminPage";
 
 export const metadata = { title: "Audit" };
 
-export default async function AuditPage() {
+export default async function AdminAuditPage() {
     if (!(await adminCan("audit.read"))) return <NoAccess title="Audit" />;
-    return (
-        <>
-            <PageHeader title="Audit" description="Every privileged change, newest first. The log is append-only." />
-            <AuditLog />
-        </>
-    );
+    return <Suspense><AuditPage /></Suspense>;
 }

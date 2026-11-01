@@ -92,7 +92,6 @@ export const commerceQueries = {
 export const adminQueries = {
     courses: () => ({ queryKey: adminKeys.courses(), queryFn: () => adminClient.getCourses(), ...QUERY_TIMES.live, retry: retryTransient }),
     orders: () => ({ queryKey: adminKeys.orders(), queryFn: () => adminClient.getOrders(), ...QUERY_TIMES.live, retry: retryTransient }),
-    audit: () => ({ queryKey: adminKeys.audit(), queryFn: () => adminClient.getAudit(), ...QUERY_TIMES.live, retry: retryTransient }),
     users: (query) => ({
         queryKey: adminKeys.users(query),
         queryFn: () => adminClient.findUsers(query),

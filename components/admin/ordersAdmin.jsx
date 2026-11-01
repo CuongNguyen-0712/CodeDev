@@ -98,38 +98,3 @@ export default function OrdersAdmin() {
         </>
     );
 }
-
-export function AuditLog() {
-    const { data, isPending, isError, refetch } = useQuery(adminQueries.audit());
-
-    if (isPending) return <Loading />;
-    if (isError) return <ErrorReload refetch={refetch} />;
-
-    return (
-        <Table>
-            <TableHeader>
-                <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Admin</TableHead>
-                    <TableHead>Action</TableHead>
-                    <TableHead>Target</TableHead>
-                    <TableHead>Reason</TableHead>
-                </TableRow>
-            </TableHeader>
-            <TableBody>
-                {data.length === 0 && (
-                    <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">Nothing logged yet.</TableCell></TableRow>
-                )}
-                {data.map((entry) => (
-                    <TableRow key={entry.id}>
-                        <TableCell className="whitespace-nowrap">{formatDateTime(entry.created_at)}</TableCell>
-                        <TableCell>{entry.actor || "(deleted)"}</TableCell>
-                        <TableCell className="font-mono text-xs">{entry.action}</TableCell>
-                        <TableCell className="font-mono text-xs">{entry.target_type}:{entry.target_id}</TableCell>
-                        <TableCell className="max-w-72 truncate">{entry.reason || "-"}</TableCell>
-                    </TableRow>
-                ))}
-            </TableBody>
-        </Table>
-    );
-}

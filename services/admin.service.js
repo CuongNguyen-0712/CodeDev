@@ -331,8 +331,4 @@ export const adminService = {
         return rows.map((row) => ({ ...row, amount_minor: toNumber(row.amount_minor), points_total: toNumber(row.points_total) }));
     },
 
-    listAudit: async () => {
-        const { rows } = await adminDb.listAudit({ limit: 50 });
-        return rows;
-    },
 };
