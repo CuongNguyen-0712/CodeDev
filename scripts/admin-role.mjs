@@ -6,6 +6,7 @@
  *   npm run admin:role -- list <email>
  *   npm run admin:role -- grant <email> <role> --reason "<why>"
  *   npm run admin:role -- revoke <email> <role> --reason "<why>"
+ *   npm run admin:role -- reset-mfa <email> --reason "<why>"   lost authenticator: enrol again at the next admin visit
  *   --env .env.production               another env file (default .env.local)
  *
  * Every change writes identity.audit_log with actor_id NULL and a reason starting with "cli:".
@@ -31,11 +32,12 @@ dotenv.config({ path: path.resolve(root, envFile || ".env.local"), quiet: true, 
 const [command, email, roleCode] = args;
 
 const usage = () => {
-    console.error("usage: admin:role -- list <email> | grant <email> <role> --reason <why> | revoke <email> <role> --reason <why> [--env <file>]");
+    console.error("usage: admin:role -- list <email> | grant|revoke <email> <role> --reason <why> | reset-mfa <email> --reason <why> [--env <file>]");
     process.exit(1);
 };
-if (!["list", "grant", "revoke"].includes(command) || !email) usage();
-if (command !== "list" && (!roleCode || !reason || reason.trim().length < 5)) usage();
+if (!["list", "grant", "revoke", "reset-mfa"].includes(command) || !email) usage();
+if (["grant", "revoke"].includes(command) && !roleCode) usage();
+if (command !== "list" && (!reason || reason.trim().length < 5)) usage();
 if (!process.env.DATABASE_URL) {
     console.error("DATABASE_URL is not set");
     process.exit(1);
@@ -59,7 +61,18 @@ try {
     const user = await one(`SELECT id::text, public_id, username, status FROM identity.users WHERE lower(email) = lower($1)`, [email]);
     if (!user) throw new Error(`No user with email ${email}`);
 
-    if (command === "list") {
+    if (command === "reset-mfa") {
+        await db.query("BEGIN");
+        await db.query(`DELETE FROM identity.admin_mfa WHERE user_id = $1`, [user.id]);
+        await db.query(`DELETE FROM identity.admin_mfa_recovery WHERE user_id = $1`, [user.id]);
+        await db.query(`UPDATE identity.sessions SET mfa_verified_at = NULL, reauth_at = NULL WHERE user_id = $1`, [user.id]);
+        await db.query(
+            `INSERT INTO identity.audit_log (actor_id, action, target_type, target_id, reason) VALUES (NULL, 'mfa.reset', 'user', $1, $2)`,
+            [user.public_id, `cli: ${reason.trim()}`]
+        );
+        await db.query("COMMIT");
+        console.log(`${user.username}: two-factor removed; they set it up again at the next admin visit.`);
+    } else if (command === "list") {
         console.log(`${user.username} (${user.public_id}, ${user.status}): ${(await rolesOf(user.id)).join(", ") || "no roles"}`);
     } else {
         await db.query("BEGIN");

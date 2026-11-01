@@ -1,4 +1,4 @@
-import { requirePermission } from "@/lib/authz";
+import { requirePermission, requireRecentAuth } from "@/lib/authz";
 import { ApiError } from "@/lib/error/apiError";
 import { RateLimiter, rateLimiters } from "@/lib/rateLimit";
 import { apiRoute } from "@/lib/routeHandler";
@@ -11,6 +11,7 @@ const ORDER_ID = /^ord_[0-9a-f]{32}$/;
 export const POST = apiRoute(
     async ({ req, userId, params }) => {
         const actor = await requirePermission(userId, ["admin.read", "order.refund"]);
+        await requireRecentAuth(actor);
         if (!ORDER_ID.test(params.id || "")) throw new ApiError("Order not found", 404);
         const { reason } = parseOrThrow(adminRefundSchema, await readJson(req));
         return adminService.refundPointsOrder({ actor, orderId: params.id, reason, ip: RateLimiter.getClientIp(req) });

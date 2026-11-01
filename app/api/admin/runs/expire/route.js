@@ -1,4 +1,4 @@
-import { requirePermission } from "@/lib/authz";
+import { requirePermission, requireRecentAuth } from "@/lib/authz";
 import { RateLimiter, rateLimiters } from "@/lib/rateLimit";
 import { apiRoute } from "@/lib/routeHandler";
 import { adminReasonSchema } from "@/lib/validation/admin";
@@ -9,6 +9,7 @@ import { adminRunService } from "@/services/adminRun.service";
 export const POST = apiRoute(
     async ({ req, userId }) => {
         const actor = await requirePermission(userId, ["admin.read", "ops.resolve"]);
+        await requireRecentAuth(actor);
         const input = parseOrThrow(adminReasonSchema, await readJson(req));
         return adminRunService.expireAll({ actor, reason: input.reason, ip: RateLimiter.getClientIp(req) });
     },

@@ -1,4 +1,4 @@
-import { requirePermission } from "@/lib/authz";
+import { requirePermission, requireRecentAuth } from "@/lib/authz";
 import { RateLimiter, rateLimiters } from "@/lib/rateLimit";
 import { apiRoute } from "@/lib/routeHandler";
 import { adminReasonSchema } from "@/lib/validation/admin";
@@ -9,6 +9,7 @@ import { adminUserService } from "@/services/adminUser.service";
 export const DELETE = apiRoute(
     async ({ req, userId, params }) => {
         const actor = await requirePermission(userId, ["admin.read", "session.revoke"]);
+        await requireRecentAuth(actor);
         const input = parseOrThrow(adminReasonSchema, await readJson(req));
         return adminUserService.revokeSessions({
             actor, userId: parseOrThrow(publicId, params.id), reason: input.reason, ip: RateLimiter.getClientIp(req),

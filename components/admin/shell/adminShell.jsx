@@ -10,6 +10,7 @@ import {
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/shadcn/breadcrumb";
 import { LogoMark } from "@/components/ui/logo";
 import { AdminProvider } from "@/components/admin/adminContext";
+import StepUpDialog from "@/components/admin/mfa/stepUpDialog";
 import { useTheme } from "@/contexts/themeContext";
 import { ADMIN_FOOTER_NAV, ADMIN_NAV, activeNavKey } from "@/lib/adminPermissions";
 import { cn } from "@/lib/utils";
@@ -159,6 +160,7 @@ export default function AdminShell({ permissions, environment, user, children })
                     </main>
                 </SidebarInset>
             </SidebarProvider>
+            <StepUpDialog />
         </AdminProvider>
     );
 }

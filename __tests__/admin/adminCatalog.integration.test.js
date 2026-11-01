@@ -65,19 +65,19 @@ describe.skipIf(!hasDb)("catalog and structure (PostgreSQL)", () => {
         if (!course) return;
         const structure = await adminCourseService.structure({ courseId: course.public_id });
         expect(structure.checklist.length).toBe(5);
-        const module = structure.modules.find((m) => m.lessons.length >= 2);
-        const [first, second] = module.lessons;
+        const courseModule = structure.modules.find((m) => m.lessons.length >= 2);
+        const [first, second] = courseModule.lessons;
 
         await adminCourseService.changeItem({ actor, courseId: course.public_id, kind: "lesson", itemId: first.id, move: "down", reason });
-        const moved = (await adminCourseService.structure({ courseId: course.public_id })).modules.find((m) => m.id === module.id);
+        const moved = (await adminCourseService.structure({ courseId: course.public_id })).modules.find((m) => m.id === courseModule.id);
         expect(moved.lessons[0].id).toBe(second.id);
         await adminCourseService.changeItem({ actor, courseId: course.public_id, kind: "lesson", itemId: first.id, move: "up", reason });
         await expect(adminCourseService.changeItem({ actor, courseId: course.public_id, kind: "lesson", itemId: first.id, move: "up", reason })).rejects.toMatchObject({ status: 409 });
 
         await adminCourseService.changeItem({ actor, courseId: course.public_id, kind: "lesson", itemId: first.id, hidden: !first.hidden, reason });
         await adminCourseService.changeItem({ actor, courseId: course.public_id, kind: "lesson", itemId: first.id, hidden: first.hidden, reason });
-        const restored = (await adminCourseService.structure({ courseId: course.public_id })).modules.find((m) => m.id === module.id);
-        expect(restored.lessons.map((l) => l.id)).toEqual(module.lessons.map((l) => l.id));
+        const restored = (await adminCourseService.structure({ courseId: course.public_id })).modules.find((m) => m.id === courseModule.id);
+        expect(restored.lessons.map((l) => l.id)).toEqual(courseModule.lessons.map((l) => l.id));
         expect(restored.lessons[0].hidden).toBe(first.hidden);
 
         await expect(adminCourseService.changeItem({ actor, courseId: course.public_id, kind: "lesson", itemId: "1", hidden: true, reason })).rejects.toMatchObject({ status: 404 });

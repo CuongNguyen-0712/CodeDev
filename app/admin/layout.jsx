@@ -1,11 +1,15 @@
+import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
 import Forbidden from "@/components/ui/forbidden";
 import AdminShell from "@/components/admin/shell/adminShell";
+import MfaGate from "@/components/admin/mfa/mfaGate";
 
-import { adminEnabled } from "@/lib/adminMode";
+import { adminEnabled, adminIpAllowed } from "@/lib/adminMode";
 import { adminEnvironment, adminTitlePrefix, getAdminActor } from "@/lib/adminActor";
+import { RateLimiter } from "@/lib/rateLimit";
 import { getAuthSession } from "@/lib/session";
+import { adminMfaService, mfaRequiredFor } from "@/services/adminMfa.service";
 
 export const dynamic = "force-dynamic";
 
@@ -18,17 +22,25 @@ export async function generateMetadata() {
 }
 
 /**
- * Every /admin screen: on when ADMIN_ENABLED is not 0, signed in, and admin.read read fresh from
- * the database (a removed role takes effect at once). Each page checks its own permission too.
+ * Every /admin screen: on when ADMIN_ENABLED is not 0, from an allowed address (ADMIN_IP_ALLOWLIST),
+ * signed in, admin.read read fresh from the database, and, for admin and super admin, a session
+ * that passed the second factor (enrolment first). Each page checks its own permission too.
  */
 export default async function AdminLayout({ children }) {
     if (!adminEnabled()) notFound();
+    if (!adminIpAllowed(RateLimiter.getClientIp(await headers()))) notFound();
 
     const session = await getAuthSession({ soft: true });
     if (!session?.user?.id) redirect("/auth");
 
     const actor = await getAdminActor();
     if (!actor?.permissions.has("admin.read")) return <Forbidden />;
+
+    if (mfaRequiredFor(actor)) {
+        const factor = await adminMfaService.status({ actor, sessionId: session.user.sessionId ? String(session.user.sessionId) : null });
+        if (!factor.enrolled) return <MfaGate mode="enroll" />;
+        if (!factor.verified) return <MfaGate mode="verify" />;
+    }
 
     return (
         <AdminShell

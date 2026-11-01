@@ -1,4 +1,4 @@
-import { requirePermission } from "@/lib/authz";
+import { requirePermission, requireRecentAuth } from "@/lib/authz";
 import { RateLimiter, rateLimiters } from "@/lib/rateLimit";
 import { apiRoute } from "@/lib/routeHandler";
 import { adminUserRoleSchema } from "@/lib/validation/admin";
@@ -8,6 +8,7 @@ import { adminUserService } from "@/services/adminUser.service";
 const change = (add) => apiRoute(
     async ({ req, userId, params }) => {
         const actor = await requirePermission(userId, ["admin.read", "role.assign"]);
+        await requireRecentAuth(actor);
         const input = parseOrThrow(adminUserRoleSchema, await readJson(req));
         return adminUserService.changeRole({
             actor, userId: parseOrThrow(publicId, params.id), role: input.role, add, reason: input.reason, ip: RateLimiter.getClientIp(req),
