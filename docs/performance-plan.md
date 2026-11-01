@@ -60,6 +60,39 @@ Chưa làm: `EXPLAIN ANALYZE` trên dữ liệu thật, `pg_stat_user_indexes`, 
 | 4 | `75edb8b` | Migration `004`: `code_runs` sang `timestamptz`, drop index thừa. Retention hằng ngày cho sessions/tokens và code runs. Timeout và `max` của pool lấy từ env | Không gộp `post_points → award_exp → award_achievements` vào một function (mục này vốn là tuỳ chọn) |
 | 5 | `d47f015`, `91b27f0` | Tách rõ API (đọc) và server action (ghi), xem [api-conventions.md](api-conventions.md). Mọi route app đi qua `apiRoute`. Keyset cho comments và `/api/users`. Xoá route chết, logout chuyển sang `POST /api/auth/logout`, tách health. Logic link tài khoản chuyển vào service. Tách `lib/challenges/quiz.js` và `grading.js` | Các list `courses`, `orders`, `experience`, `course-progress` vẫn dùng cursor cũ (ghi trong api-conventions §4). Không bỏ flow nộp code chấm trên trình duyệt (dev cần khi không có runner) |
 
+## Rà lại mục chưa làm và rủi ro (2026-11-01)
+
+### Mục chưa làm: kết luận sau khi rà lại
+
+| Mục | Kết quả rà lại | Quyết định |
+|---|---|---|
+| Phase 0: baseline | DB local không nạp `pg_stat_statements` (`shared_preload_libraries` trống). Neon có sẵn extension, nhưng chưa có script đo | **Làm (F1):** viết `db/tools/baseline.mjs`, chỉ đọc |
+| Version key riêng cho "My learning" | Mở lesson chỉ xoá cache user tối đa 1 lần/phút mỗi lesson (đã throttle) | **Bỏ**, trừ khi baseline cho thấy `/api/user/overview` miss cache nhiều |
+| Gộp 3 hàm thưởng | `awardChallengeRewards` chỉ có 3 query trong 1 transaction, và chỉ chạy ở lần pass đầu của mỗi challenge | **Bỏ**: tiết kiệm 2 round trip cho một sự kiện hiếm |
+| 4 list dùng cursor cũ | `courses` (`lastId`), `course-progress`, `orders` (`before` = public id), `point transactions` đều đã là keyset, không có OFFSET | **Để sau**: chỉ khác tên tham số, không ảnh hưởng hiệu suất. Đổi sang `{ items, nextCursor }` khi sửa tới màn hình đó |
+| Flow nộp code chấm trên trình duyệt | Production đã bị chặn (`isProductionEnv()` → 503, `services/challenge.service.js`) | **Giữ** cho dev |
+
+### Rủi ro và phương án
+
+| # | Rủi ro | Phương án | Loại |
+|---|---|---|---|
+| R1 | **Migration khoá bảng trên production.** `CREATE INDEX` khoá ghi bảng. `ALTER COLUMN ... TYPE timestamptz` của `code_runs` lấy ACCESS EXCLUSIVE, và viết lại toàn bộ bảng nếu timezone của session migration không phải UTC (DB local đang là `America/Los_Angeles`). `CREATE MATERIALIZED VIEW` chạy aggregate toàn bộ ledger một lần | (a) Tạo Neon branch từ production, chạy `DATABASE_URL=<branch> npm run db:migrate -- --yes` để đo thời gian thật và có điểm khôi phục. (b) `migrate.mjs` đặt `lock_timeout` (mặc định 5s cho DB không phải local): migration gặp lock thì fail ngay thay vì chặn traffic. (c) Kiểm tra `SHOW timezone` trên production: là UTC thì ALTER không viết lại bảng. Nếu không phải UTC: chạy `004` lúc ít traffic. (d) Nếu baseline cho thấy bảng > ~1M row: chạy trước các `CREATE INDEX CONCURRENTLY IF NOT EXISTS` tương ứng (ngoài transaction); khi đó `IF NOT EXISTS` trong migration thành no-op | Code (b) + vận hành (a, c, d) |
+| R2 | **`DB_POOL_MAX` mặc định 10 trên Vercel**: mỗi instance mở tới 10 kết nối | Mặc định 3 khi có `VERCEL`, 10 cho server chạy lâu. Biến env vẫn ghi đè được | Code |
+| R3 | **Thiếu env mới.** Thiếu `HEALTH_TOKEN`: không xem được báo cáo health đầy đủ (vẫn an toàn). Thiếu `SANITY_WEBHOOK_SECRET`: webhook trả 404, cache bài học sống 1h như trước. Neon HTTP không có `statement_timeout` | `lib/envCheck.mjs` cảnh báo ở production khi thiếu `HEALTH_TOKEN` (và `CRON_SECRET`), hoặc thiếu `SANITY_WEBHOOK_SECRET`. Ghi bước cấu hình webhook Sanity (URL, filter `_type == "lesson"`, projection `{_id, _type}`, secret) vào `docs/environments.md`. Đặt `ALTER ROLE <app> SET statement_timeout = '30s'` sau khi baseline xác nhận không query hợp lệ nào vượt 30s | Code + vận hành |
+| R4 | **Ranking snapshot làm mới khi có người đọc**: cứ 5 phút, request đầu tiên phải chịu aggregate toàn bộ ledger (p95 tăng vọt). Khi Redis rơi về cache bộ nhớ, mỗi instance tự làm mới riêng | Thêm Inngest cron `ranking-refresh` mỗi 5 phút (`jobs/crons.js`), nên người đọc hầu như không còn kích hoạt làm mới. Cơ chế làm mới khi đọc giữ làm dự phòng khi không có Inngest; advisory lock vẫn bảo đảm chỉ 1 lần chạy | Code |
+| R5 | **Dev server cổng 3000 giữ module cũ**: `/api/users` 500, trang Contacts chưa kiểm tra được trên UI | Restart `npm run dev` (vẫn lỗi thì xoá `.next/dev`). Sau đó kiểm tra Contacts: tìm kiếm, cuộn tải thêm, badge rank | Vận hành + kiểm tra |
+| R6 | **Tab cũ trong lúc deploy** còn gọi server action đã xoá (`getQuizStateAction`, …) hoặc `PATCH /api/user/logout` | Chấp nhận: đây là hành vi chuẩn của Next khi deploy, reload là hết. Không giữ alias, tránh mã chết | Không làm |
+| R7 | **Monitor đọc body cũ của `/api/health`** (`database`, `jobs`) | Docker healthcheck chỉ xem status code, không bị ảnh hưởng. Monitor ngoài nào cần chi tiết thì thêm header `Authorization: Bearer $HEALTH_TOKEN` | Vận hành |
+
+### Thứ tự triển khai
+
+1. Code: R2, R3 (envCheck + docs), R4, R1(b), F1. Một commit, kèm test.
+2. Production, trước deploy: tạo `CREATE EXTENSION IF NOT EXISTS pg_stat_statements`, chạy `node db/tools/baseline.mjs --env .env.production` (baseline "trước").
+3. Tạo Neon branch từ production, chạy migration trên branch, ghi lại thời gian từng file (R1a). Kiểm tra `SHOW timezone` (R1c).
+4. Đặt env: `HEALTH_TOKEN`, `SANITY_WEBHOOK_SECRET`, `DB_POOL_MAX` (nếu muốn khác mặc định). Tạo webhook trong Sanity.
+5. Lúc ít traffic: `npm run db:migrate:prod`, rồi deploy app.
+6. Sau 24h: chạy lại baseline, so `mean_exec_time` / `calls` của top query. Đặt `statement_timeout` cho role (R3).
+
 ## 3. Kế hoạch theo phase
 
 Thứ tự ưu tiên: đo → quick win không đổi hành vi → hot path → retention → chuẩn hoá API. Mỗi phase là một PR riêng, chạy `npm test` và `npm run db:compare` trước khi merge.
