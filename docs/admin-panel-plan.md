@@ -25,6 +25,7 @@ Code trên nhánh `develop`, chưa push. A1 đã đóng trên production (migrat
 | P3 | `faddf15f` | System (sức khoẻ, dead letter retry / resolve, outbox, DB), schema `metrics`, Grafana Docker (`npm run monitoring:up`), `npm run grafana:push` |
 | P5 | `cece58c1` | Settings dạng thẻ (ma trận quyền chỉ đọc), Audit kiểu trang Logs |
 | P4 | `72fe1de9` | Cấu trúc khoá học (ẩn / hiện, đổi thứ tự, checklist publish), Catalog |
+| P6a | `95188421` | 2FA (TOTP + 8 mã khôi phục) cho `admin` / `super_admin`, xác nhận lại trong 15 phút cho việc nhạy cảm, audit `admin.denied`, `ADMIN_IP_ALLOWLIST`, `admin:role -- reset-mfa`; migration `20261101_010` |
 
 **Lệch so với thiết kế (có chủ ý, làm sau nếu cần):**
 
@@ -32,17 +33,19 @@ Code trên nhánh `develop`, chưa push. A1 đã đóng trên production (migrat
 - `/studio` không có trên production: `app/studio` và cấu hình Sanity bị `.gitignore`, Studio chỉ chạy local. Guard `content.studio` đã thêm vào bản local.
 - Breadcrumb hiện id của user / run / course, chưa hiện tên.
 
-**Chưa làm:** ⌘K command menu (P5), xác nhận lại danh tính cho việc nhạy cảm và `ADMIN_IP_ALLOWLIST` (P6), ghi audit `admin.denied`, OpenTelemetry G3 (P6), màn Payments (module 07, tuỳ chọn), số đếm trên mục sidebar.
+**Chưa làm:** ⌘K command menu (P5), OpenTelemetry G3 (P6), màn Payments (module 07, tuỳ chọn), số đếm trên mục sidebar, thanh nổi ở đáy trên điện thoại, kéo giãn sidebar.
 
 **Việc cần làm trên production, theo thứ tự:**
 
 1. Hạ compute `production` về 0.25–1 CU trên Neon console (R2).
 2. ~~Migration `20261101_007`–`_009` trên production~~ (đã chạy 2026-11-01: 6 role có cấp bậc, 48 permission, trigger super admin, `status_until`, 8 view `metrics`).
-3. Push `develop`, merge vào `main`, deploy.
-4. `npm run admin:role -- grant <email> super_admin --reason "<lý do>" --env .env.production` (R5).
-5. Sync app Inngest (R3).
-6. Tạo role `grafana_ro` trên Neon (lệnh trong migration `_009`), cấu hình Grafana Cloud và `npm run grafana:push -- --env .env.production`.
-7. Staging: trỏ Preview vào branch `staging`, reset từ production, `npm run db:anonymize -- --env .env.staging --yes`; xoá các branch cũ bằng tay (R4).
+3. Migration `20261101_010` trên production (`npm run db:migrate:prod -- --yes`) **trước** khi deploy: chỉ thêm bảng và cột nên bản đang chạy không bị ảnh hưởng; code mới mà thiếu bảng này thì mọi API admin lỗi 500.
+4. Biến môi trường (Production và Preview): `ADMIN_MFA_REQUIRED` không cần đặt (mặc định bật; đặt `0` ở môi trường deploy làm server dừng). Tuỳ chọn `ADMIN_MFA_KEY` (chuỗi ngẫu nhiên riêng), đặt **trước** lần đăng ký 2FA đầu tiên: đổi khoá sau đó làm secret đã lưu không giải mã được, phải `reset-mfa` từng người. Tuỳ chọn `ADMIN_IP_ALLOWLIST`.
+5. Push `develop`, merge vào `main`, deploy.
+6. `npm run admin:role -- grant <email> super_admin --reason "<lý do>" --env .env.production` (R5), thêm một super admin dự phòng.
+7. Sync app Inngest (R3).
+8. Tạo role `grafana_ro` trên Neon (lệnh trong migration `_009`), cấu hình Grafana Cloud và `npm run grafana:push -- --env .env.production`.
+9. Staging: trỏ Preview vào branch `staging`, reset từ production, `npm run db:anonymize -- --env .env.staging --yes`; xoá các branch cũ bằng tay (R4).
 
 ## 1. Hiện trạng
 
@@ -94,9 +97,11 @@ Admin là một phần của app, chạy ở cả ba môi trường với cùng 
 - Vá A1 và chạy test tĩnh + ma trận quyền (3.6) **trước** khi deploy bất kỳ màn admin mới nào.
 - Mọi API admin đòi `admin.read` cộng quyền của việc, `csrf: true`, `rateLimiters.admin` (đã có cho các route hiện tại).
 - Header riêng cho `/admin*` và `/studio*`: `X-Robots-Tag: noindex`, `Cache-Control: no-store`, `frame-ancestors 'none'` trong CSP, `Referrer-Policy: no-referrer`.
-- **Xác nhận lại danh tính cho việc nhạy cảm** (gán role, khoá user, hoàn đơn, retry hàng loạt): nếu lần đăng nhập gần nhất của phiên cũ hơn 15 phút thì yêu cầu nhập lại mật khẩu (hoặc đăng nhập lại qua OAuth) trước khi gửi. Lưu thời điểm xác nhận trên session ở server, không trong cookie.
-- Tuỳ chọn `ADMIN_IP_ALLOWLIST` (danh sách CIDR): khi đặt, admin chỉ phục vụ IP trong danh sách. Mặc định không đặt.
-- Đăng nhập admin thất bại hoặc bị 403 được ghi `identity.audit_log` (`action = 'admin.denied'`), để thấy dò quyền.
+- **Đăng nhập dùng chung trang `/auth`**, không có trang đăng nhập hay tài khoản admin riêng trong env: quyền admin là role trong DB, đọc lại mỗi request (thu hồi có hiệu lực ngay, có audit).
+- **2FA bắt buộc cho `admin` và `super_admin`** (rank ≥ 80; `course_manager` trở xuống không bắt buộc): TOTP RFC 6238 (`lib/totp.js`, chỉ dùng `node:crypto`). Lần đầu vào `/admin` phải đăng ký (khoá + link `otpauth://`, nhập mã để bật, 8 mã khôi phục hiện một lần), sau đó mỗi phiên nhập mã một lần (`sessions.mfa_verified_at`). Secret lưu mã hoá AES-256-GCM (khoá HKDF từ `ADMIN_MFA_KEY`, không có thì từ `NEXTAUTH_SECRET`), mã khôi phục lưu HMAC, mỗi mã TOTP chỉ dùng một lần (`last_step`). Trước bước này mọi API admin trả 403 `MFA_REQUIRED`, trừ `/api/admin/mfa/*` (10 lần / 5 phút). `ADMIN_MFA_REQUIRED=0` chỉ dùng được ở local; ở staging / production là lỗi `fatal` lúc khởi động. Mất thiết bị: `npm run admin:role -- reset-mfa <email> --reason "..."` (audit `mfa.reset`).
+- **Xác nhận lại cho việc nhạy cảm** (suspend / khoá user, gán / gỡ role, thu hồi phiên, hoàn đơn, cộng trừ điểm / XP, đóng run quá hạn): cần một mã 2FA trong 15 phút gần nhất (`sessions.reauth_at`, lưu ở server). Quá hạn thì API trả 403 `REAUTH_REQUIRED`, interceptor axios mở hộp nhập mã rồi gửi lại request. Người không bắt buộc 2FA bỏ qua bước này.
+- Tuỳ chọn `ADMIN_IP_ALLOWLIST` (IPv4 CIDR hoặc địa chỉ đúng, IPv6 địa chỉ đúng, phân cách bằng dấu phẩy): khi đặt, IP ngoài danh sách nhận 404 ở layout và mọi API admin; IP không xác định bị chặn. Mặc định không đặt.
+- Bị 403 vì thiếu quyền được ghi `identity.audit_log` (`action = 'admin.denied'`, `target_id` là permission), mỗi user + permission tối đa một dòng / 10 phút (Redis): thấy được dò quyền mà không làm đầy audit.
 
 
 ### 2.2 Hosting: chung project Vercel với trang học
@@ -277,7 +282,7 @@ Mỗi lớp tự đứng được; lớp dưới không tin lớp trên.
 
 | Lớp | Kiểm gì | Ở đâu |
 |---|---|---|
-| 0. Môi trường | `ADMIN_ENABLED=0` thì `/admin*`, `/api/admin/*`, `/studio*` trả 404; production thêm header riêng, xác nhận lại danh tính cho việc nhạy cảm, tuỳ chọn `ADMIN_IP_ALLOWLIST` | `lib/adminMode.js`, `proxy.js`, layout, `apiRoute` (2.1) |
+| 0. Môi trường | `ADMIN_ENABLED=0` thì `/admin*`, `/api/admin/*`, `/studio*` trả 404; header riêng, tuỳ chọn `ADMIN_IP_ALLOWLIST`; với `admin` / `super_admin`: phiên đã qua 2FA, việc nhạy cảm cần mã trong 15 phút | `lib/adminMode.js`, `proxy.js`, layout, `apiRoute` (2.1) |
 | 1. Proxy | Có session (route `"/admin/:path*"`, `"/studio/:path*"` là `PRIVATE`) | `auth/route/premium.route.js`, `proxy.js` |
 | 2. Layout / page | `loadActor` từ DB: `admin.read` cho layout, permission riêng cho từng page; thiếu thì `Forbidden` trong `HomeLayout` | `app/admin/layout.jsx`, mỗi `page.jsx` |
 | 3. API | `requirePermission(userId, ["admin.read", <quyền của việc>])` ở dòng đầu mỗi handler; `csrf: true` và `rateLimiters.admin` cho mọi request ghi | `app/api/admin/**/route.js` |
@@ -783,7 +788,7 @@ Gửi qua email và Discord / Slack webhook. Mỗi cảnh báo kèm link dashboa
 | P3 | System (health, hàng đợi, outbox, dead letter có resolve / retry, DB); schema `metrics` + role `grafana_ro` ở cả hai môi trường; profile `monitoring` (grafana, prometheus, blackbox-exporter) cho local; Grafana Cloud Free cho production với G1, G2 (thêm `/api/health?probe=live`, chu kỳ theo 6.4), dashboard 6.5, cảnh báo 6.6, `grafana:push`; link "Open in Grafana" | `metrics` |
 | P4 | Course detail (module / lesson / challenge, checklist publish), Catalog, Enrollments | không |
 | P5 | Settings dạng thẻ, Audit kiểu Logs, ⌘K command menu | không |
-| P6 | G3: `@vercel/otel`, OTLP tới Grafana Cloud; dashboard Requests; cảnh báo 5xx; xác nhận lại danh tính cho việc nhạy cảm và `ADMIN_IP_ALLOWLIST` (2.1); SLO | không |
+| P6 | G3: `@vercel/otel`, OTLP tới Grafana Cloud; dashboard Requests; cảnh báo 5xx; ~~xác nhận lại danh tính cho việc nhạy cảm và `ADMIN_IP_ALLOWLIST`~~ (xong ở P6a cùng 2FA); SLO | không |
 | Tuỳ chọn (học) | Admin Payments và webhook lỗi với `mock`; provider `sepay` chế độ thử ở local / staging (mục 07) | không |
 | Hoãn | Instructor sở hữu course, hàng chờ duyệt, sửa ma trận quyền, feature flag, latency từng API | |
 
@@ -800,7 +805,7 @@ Trạng thái tính tới 2026-11-01 (sau khi deploy `7496176c`). "Mở" là ch�
 | R3 | **Inngest chưa sync**: event gửi đi nhưng không function nào chạy (code run qua hàng đợi, outbox, cron) | Cao | Mở (chưa xác nhận) | Khi `INNGEST_EVENT_KEY` đã đặt mà app chưa sync, run code nằm `queued` tới hạn rồi bị huỷ (người học không chạy được code) và email trong outbox (xác thực, liên kết tài khoản) không được gửi. Xử lý tạm, không cần sync: đặt `CODE_EXEC_MODE=sync` và `OUTBOX_DELIVERY=inline` trên Vercel (công tắc có sẵn trong `lib/inngest.js`) rồi redeploy. Xử lý hẳn: sync sau R2 bước 1 (2.2), rồi bỏ hai biến tạm | Apps trong Inngest có 7 function; một lần Run code trên production ra kết quả; `sweeper` có lần chạy lúc đầu giờ |
 | R4 | **Dữ liệu cá nhân thật trong branch preview và branch thử nghiệm** (`preview/develop`, `perf-rehearsal-20261101`, `claim-purge-test-20261024`, `seed-test-a1-a2-20261024`) | Cao | Mở | (1) Trỏ Preview vào `staging`, tắt tạo branch tự động. (2) Xoá 4 branch trên bằng tay (không hoàn tác được). (3) Reset `staging` từ `production` rồi chạy `db:anonymize` ngay (2.3) | Neon chỉ còn `production` và `staging`; `staging` không có email thật |
 | R5 | **Chưa có tài khoản admin nào**; quản trị chỉ làm được bằng SQL tay | Trung bình | Mở: CLI có sẵn (`npm run admin:role`), cần chạy migration `_007` trên production trước | Sau migration P0: `npm run admin:role -- grant <email> super_admin --env .env.production`; cấp thêm một người dự phòng | Có 1–2 `super_admin` đang `active` |
-| R6 | **Admin mở trên internet** cùng domain với trang học | Trung bình | Mở | Gia cố ở 2.1: A1 vá trước, header riêng, xác nhận lại danh tính cho việc nhạy cảm, cờ `ADMIN_ENABLED`, tuỳ chọn allowlist IP; test quyền (3.6) chạy trong `npm test` | Test tĩnh và ma trận quyền pass; header có trên `/admin` |
+| R6 | **Admin mở trên internet** cùng domain với trang học | Trung bình | Một phần (code xong, chờ migration `_010` + deploy) | Gia cố ở 2.1: A1 đã vá, header riêng, 2FA bắt buộc cho `admin` / `super_admin`, xác nhận lại trong 15 phút cho việc nhạy cảm, audit `admin.denied`, cờ `ADMIN_ENABLED`, tuỳ chọn `ADMIN_IP_ALLOWLIST`; test quyền (3.6) và test 2FA chạy trong `npm test` | Test tĩnh, ma trận quyền và `adminMfa.test.js` pass; header có trên `/admin`; trên production `/admin` đòi đăng ký 2FA |
 | R7 | **Lộ dữ liệu cá nhân trong admin** (email, IP, source code) | Trung bình | Thiết kế | Che PII khi thiếu `user.pii`; chỉ trả trường cần; ghi audit khi xem source; không đưa email vào URL | Test che PII; audit có dòng `submission.view` |
 | R8 | **Khoá nhầm admin hoặc mất quyền quản trị** | Trung bình | Thiết kế | Quy tắc bậc và "còn một super admin" kiểm trong transaction (3.5); CLI `admin:role` là đường cứu | Test service cho các trường hợp ở 3.5 |
 | R9 | **Super admin có mọi quyền** | Thấp | Thiết kế | 1–2 người; mọi hành động ghi audit; dùng tài khoản thường cho việc hằng ngày | Rà audit hằng tháng |
