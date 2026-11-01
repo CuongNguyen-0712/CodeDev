@@ -8,7 +8,7 @@ import { adminService } from "@/services/admin.service";
 // Same permission and input shape as the points adjustment.
 export const POST = apiRoute(
     async ({ req, userId }) => {
-        const actor = await requirePermission(userId, "points.adjust");
+        const actor = await requirePermission(userId, ["admin.read", "points.adjust"]);
         const input = parseOrThrow(adminPointsAdjustSchema, await readJson(req));
         return adminService.adjustExperience({ actor, input, ip: RateLimiter.getClientIp(req) });
     },

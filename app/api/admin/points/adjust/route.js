@@ -7,7 +7,7 @@ import { adminService } from "@/services/admin.service";
 // Credits / debits a user's points (ledger entry 'adjusted' + audit log, once per idempotency key).
 export const POST = apiRoute(
     async ({ req, userId }) => {
-        const actor = await requirePermission(userId, "points.adjust");
+        const actor = await requirePermission(userId, ["admin.read", "points.adjust"]);
         const input = parseOrThrow(adminPointsAdjustSchema, await readJson(req));
         return adminService.adjustPoints({ actor, input, ip: RateLimiter.getClientIp(req) });
     },

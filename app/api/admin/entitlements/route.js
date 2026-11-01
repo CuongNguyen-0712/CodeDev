@@ -7,7 +7,7 @@ import { adminService } from "@/services/admin.service";
 // GET ?userId=: a user's entitlements.
 export const GET = apiRoute(
     async ({ req, userId }) => {
-        await requirePermission(userId, "entitlement.grant");
+        await requirePermission(userId, ["admin.read", "entitlement.grant"]);
         const target = parseOrThrow(publicId, new URL(req.url).searchParams.get("userId") || "");
         return adminService.getUserEntitlements({ userId: target });
     },
@@ -17,7 +17,7 @@ export const GET = apiRoute(
 // POST: grant access to a course (source admin_grant, optional expiry).
 export const POST = apiRoute(
     async ({ req, userId }) => {
-        const actor = await requirePermission(userId, "entitlement.grant");
+        const actor = await requirePermission(userId, ["admin.read", "entitlement.grant"]);
         const input = parseOrThrow(adminGrantSchema, await readJson(req));
         return adminService.grantEntitlement({ actor, input, ip: RateLimiter.getClientIp(req) });
     },
@@ -27,7 +27,7 @@ export const POST = apiRoute(
 // DELETE: revoke an active entitlement.
 export const DELETE = apiRoute(
     async ({ req, userId }) => {
-        const actor = await requirePermission(userId, "entitlement.grant");
+        const actor = await requirePermission(userId, ["admin.read", "entitlement.grant"]);
         const input = parseOrThrow(adminRevokeSchema, await readJson(req));
         return adminService.revokeEntitlement({ actor, input, ip: RateLimiter.getClientIp(req) });
     },
