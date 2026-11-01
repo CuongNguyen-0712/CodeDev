@@ -32,3 +32,15 @@ describe("Inngest settings in the start-up check", () => {
         expect(checkEnvironment({ APP_ENV: "development", INNGEST_DEV: "1" }).fatal.some((m) => m.includes("INNGEST"))).toBe(false);
     });
 });
+
+describe("performance settings in the start-up check", () => {
+    it("warns in production when the health token or the Sanity webhook secret is missing", () => {
+        const names = (env) => checkEnvironment(env).warnings.join(" | ");
+        expect(names(production)).toContain("HEALTH_TOKEN");
+        expect(names(production)).toContain("SANITY_WEBHOOK_SECRET");
+        const set = names({ ...production, HEALTH_TOKEN: "t", SANITY_WEBHOOK_SECRET: "s" });
+        expect(set).not.toContain("HEALTH_TOKEN");
+        expect(set).not.toContain("SANITY_WEBHOOK_SECRET");
+        expect(names({ ...production, CRON_SECRET: "c" })).not.toContain("HEALTH_TOKEN");
+    });
+});

@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 /**
  * Leaderboards, privacy switches and public profiles against a real PostgreSQL
@@ -126,5 +126,14 @@ describe.skipIf(!hasDb)("ranking and public profiles (PostgreSQL)", () => {
     it("rejects privacy updates that are not booleans", async () => {
         await expect(profileService.updatePrivacy(a.publicId, { showProfile: "yes" })).rejects.toMatchObject({ status: 400 });
         await expect(profileService.updatePrivacy(a.publicId, {})).rejects.toMatchObject({ status: 400 });
+    });
+    it("the cron refresh marks the snapshot fresh, so readers do not recount", async () => {
+        const { ensureRankingSnapshot, refreshRankingSnapshot } = await import("@/services/ranking.service");
+        expect(await refreshRankingSnapshot()).toEqual({ refreshed: true });
+
+        const spy = vi.spyOn(rankingDb, "refreshSnapshot");
+        await ensureRankingSnapshot();
+        expect(spy).not.toHaveBeenCalled();
+        spy.mockRestore();
     });
 });

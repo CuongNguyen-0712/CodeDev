@@ -49,7 +49,7 @@ Chưa làm: `EXPLAIN ANALYZE` trên dữ liệu thật, `pg_stat_user_indexes`, 
 
 ## Trạng thái thực hiện (2026-11-01)
 
-Đã chạy migration trên DB local. Production chưa chạy, theo thứ tự `20261101_001` → `004`. Mỗi `CREATE INDEX` khoá ghi bảng của nó trong lúc build, nên chạy lúc ít traffic.
+Đã chạy migration trên DB local. Production chưa chạy, theo thứ tự `20261030_001` (background jobs, cũng chưa có trên production) → `20261101_001` → `005`. Mỗi `CREATE INDEX` khoá ghi bảng của nó trong lúc build, nên chạy lúc ít traffic.
 
 | Phase | Commit | Đã làm | Chưa làm / lý do |
 |---|---|---|---|
@@ -86,7 +86,12 @@ Chưa làm: `EXPLAIN ANALYZE` trên dữ liệu thật, `pg_stat_user_indexes`, 
 
 ### Thứ tự triển khai
 
-1. Code: R2, R3 (envCheck + docs), R4, R1(b), F1. Một commit, kèm test.
+1. Code: R2, R3 (envCheck + docs), R4, R1(b), F1. **Đã làm:**
+   - `migrate.mjs` in ra time zone của session; DB không phải local thì đặt `lock_timeout` 5s (`--lock-timeout` để đổi).
+   - Pool mặc định 3 trên Vercel.
+   - `envCheck` cảnh báo khi thiếu `HEALTH_TOKEN` hoặc `SANITY_WEBHOOK_SECRET`; bước cấu hình ghi trong `docs/environments.md`.
+   - Inngest cron `ranking-refresh` chạy mỗi 5 phút.
+   - Thêm `npm run db:baseline`. Lần chạy đầu cho thấy `idx_refresh_tokens_expires` không được dùng, nên migration `005` drop index này.
 2. Production, trước deploy: tạo `CREATE EXTENSION IF NOT EXISTS pg_stat_statements`, chạy `node db/tools/baseline.mjs --env .env.production` (baseline "trước").
 3. Tạo Neon branch từ production, chạy migration trên branch, ghi lại thời gian từng file (R1a). Kiểm tra `SHOW timezone` (R1c).
 4. Đặt env: `HEALTH_TOKEN`, `SANITY_WEBHOOK_SECRET`, `DB_POOL_MAX` (nếu muốn khác mặc định). Tạo webhook trong Sanity.

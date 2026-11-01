@@ -10,10 +10,13 @@
  *   node db/tools/migrate.mjs --baseline 20261016_001 # mark migrations up to this version as
  *                                                     # already applied (databases migrated by hand)
  *   DATABASE_URL=... node db/tools/migrate.mjs --yes  # explicit target (e.g. a Neon test branch)
+ *   node db/tools/migrate.mjs --lock-timeout 10000    # ms a statement may wait for a lock
  *
  * Each migration runs in one transaction together with its bookkeeping row: the file's own
  * outer BEGIN; / COMMIT; are replaced by the runner's. Non-local targets require --yes.
  * A session advisory lock prevents two runners from migrating the same database at once.
+ * On a non-local database every migration runs with lock_timeout (default 5 s): a statement that
+ * would queue behind live traffic (and block it in turn) fails and rolls back instead.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -33,6 +36,7 @@ const dryRun = args.includes("--dry-run");
 const confirmed = args.includes("--yes");
 const baseline = option("--baseline");
 const envFile = option("--env");
+const lockTimeoutArg = option("--lock-timeout");
 
 const explicitUrl = process.env.DATABASE_URL && !envFile ? process.env.DATABASE_URL : null;
 if (!explicitUrl) {
@@ -51,6 +55,12 @@ const LOCK_KEY = 4207317; // arbitrary, constant: pg_advisory_lock key for this 
 const target = new URL(url);
 const isLocal = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(target.hostname);
 console.log(`target: ${target.hostname}${target.pathname}${isLocal ? " (local)" : ""}`);
+
+const lockTimeoutMs = lockTimeoutArg != null ? Number(lockTimeoutArg) : isLocal ? 0 : 5000;
+if (!Number.isInteger(lockTimeoutMs) || lockTimeoutMs < 0) {
+    console.error("--lock-timeout must be a whole number of milliseconds (0 = wait forever)");
+    process.exit(1);
+}
 
 const files = fs.readdirSync(MIGRATIONS_DIR)
     .filter((f) => /^\d{8}_\d{3}_[a-z0-9_]+\.sql$/.test(f))
@@ -90,6 +100,11 @@ try {
             applied_at timestamptz NOT NULL DEFAULT now(),
             applied_by text
         )`);
+
+    // timestamp -> timestamptz changes (20261101_004) reinterpret stored values in this zone, and
+    // only skip the table rewrite when it is UTC.
+    const { rows: [tz] } = await client.query("SHOW timezone");
+    console.log(`session time zone: ${tz.TimeZone}${lockTimeoutMs ? `, lock_timeout ${lockTimeoutMs} ms` : ""}`);
 
     const applied = new Map((await client.query("SELECT version, checksum FROM public.schema_migrations")).rows.map((r) => [r.version, r.checksum]));
 
@@ -131,6 +146,7 @@ try {
             const started = Date.now();
             try {
                 await client.query("BEGIN");
+                if (lockTimeoutMs) await client.query(`SET LOCAL lock_timeout = ${lockTimeoutMs}`);
                 await client.query(body(m.sql));
                 await client.query(
                     "INSERT INTO public.schema_migrations (version, name, checksum, applied_by) VALUES ($1, $2, $3, $4)",
@@ -141,6 +157,7 @@ try {
             } catch (error) {
                 await client.query("ROLLBACK").catch(() => { });
                 console.error(`failed ${m.file}: ${error.message}`);
+                if (error.code === "55P03") console.error("a lock was not granted in time: retry when traffic is low, or raise --lock-timeout");
                 process.exitCode = 1;
                 break;
             }

@@ -2,6 +2,7 @@ import { inngest } from "@/lib/inngest";
 import { runAccountMaintenance } from "@/services/accountMaintenance.service";
 import { auditSummary, runExpAudit } from "@/services/expAudit.service";
 import { runRetention } from "@/services/retention.service";
+import { refreshRankingSnapshot } from "@/services/ranking.service";
 
 const MAX_BATCHES = 20; // 50 accounts each: 1,000 a night is far above today's volume
 
@@ -36,4 +37,10 @@ export const expAudit = inngest.createFunction(
         else console.info(`[exp-audit] ${summary}`);
         return { summary };
     })
+);
+
+/** Leaderboard snapshot (profile.ranking_snapshot), so no page view pays for the full recount. */
+export const rankingRefresh = inngest.createFunction(
+    { id: "ranking-refresh", triggers: [{ cron: "*/5 * * * *" }], concurrency: 1, retries: 1 },
+    async ({ step }) => step.run("refresh", () => refreshRankingSnapshot())
 );

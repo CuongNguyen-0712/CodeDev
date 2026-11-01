@@ -27,8 +27,18 @@ const toEntry = (row) => ({
 });
 
 /**
- * Recomputes profile.ranking_snapshot when the last refresh is older than TTL.RANKING_SNAPSHOT.
- * The first reader after that pays for it; refreshes from other instances skip (advisory lock).
+ * Recomputes the snapshot now (the ranking-refresh cron, every 5 min). The marker outlives the next
+ * cron run, so readers only refresh when the cron is not running (no Inngest, or it is down).
+ */
+export async function refreshRankingSnapshot() {
+    const refreshed = await rankingDb.refreshSnapshot();
+    await redis.set(cacheKeys.rankingSnapshot(), new Date().toISOString(), { ex: TTL.RANKING_SNAPSHOT + 120 });
+    return { refreshed };
+}
+
+/**
+ * Fallback for readers: recomputes profile.ranking_snapshot when no refresh happened within
+ * TTL.RANKING_SNAPSHOT. That reader pays for it; other instances skip (advisory lock).
  */
 export async function ensureRankingSnapshot() {
     await redis.remember(cacheKeys.rankingSnapshot(), TTL.RANKING_SNAPSHOT, async () => {

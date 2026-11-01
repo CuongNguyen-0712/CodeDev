@@ -123,6 +123,19 @@ Set in the Vercel project (Production scope), with values distinct from developm
 `REFRESH_TOKEN_RECOVERY_KEY`, `AUTH_JWT_ISSUER`, `AUTH_JWT_AUDIENCE`, `MAIL_FROM` (the Gmail
 address), `MAIL_PASSWORD` (its App Password; see [auth.md](auth.md)), `INNGEST_EVENT_KEY` and
 `INNGEST_SIGNING_KEY` (background jobs and the daily crons, [queue-execution-plan.md](queue-execution-plan.md)),
-`CRON_SECRET` (only to run `/api/internal/*` by hand). Never set `MINIO_*` there.
+`CRON_SECRET` (only to run `/api/internal/*` by hand), `HEALTH_TOKEN` (Bearer token for the full
+`GET /api/health` report; without it the endpoint answers only `{ status }`) and
+`SANITY_WEBHOOK_SECRET` (see below). `DB_POOL_MAX` is optional: the pool defaults to 3 connections
+per instance on Vercel and 10 elsewhere; point `DATABASE_URL` at the Neon `-pooler` host.
+Never set `MINIO_*` there.
+
+Sanity lesson webhook (sanity.io/manage > API > Webhooks), so a published lesson edit reaches
+learners at once instead of when the 1 h lesson cache expires:
+URL `https://<domain>/api/webhooks/sanity`, trigger on create / update / delete, filter
+`_type == "lesson"`, projection `{_id, _type}`, HTTP method POST, secret = `SANITY_WEBHOOK_SECRET`.
+
+Database role, once the baseline (`node db/tools/baseline.mjs --env .env.production`) shows no
+legitimate query near the limit: `ALTER ROLE <app role> SET statement_timeout = '30s';` (single
+queries over Neon HTTP do not use the pool's timeout).
 `.env.local` leaves `MAIL_PASSWORD` empty, so development mail goes to Mailpit, never to real
 inboxes; `npm run mail:test -- --env <file>` checks either side.

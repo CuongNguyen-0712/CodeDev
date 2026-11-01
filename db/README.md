@@ -15,6 +15,7 @@ query modules in this folder (`*.db.js`, `roadmap.js`) via `lib/db.js`.
 | `tools/migrate.mjs` | Applies pending migrations and records them in `public.schema_migrations` |
 | `tools/compare-schema.mjs` | Read-only drift check between two databases (local vs production) |
 | `tools/export-schema.mjs` | Regenerates the generated folders/files from a live database |
+| `tools/baseline.mjs` | Read-only performance baseline: largest tables, unused indexes, top statements (`npm run db:baseline -- --env .env.production`) |
 | `seeds/` | Course content seeds (generated from `content/courses/`, see [content/README.md](../content/README.md)) |
 | `backups/` | Local `pg_dump` files (git-ignored) |
 
