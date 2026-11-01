@@ -1,4 +1,5 @@
 import { formatNumber } from "@/components/admin/ui/format";
+import { cn } from "@/lib/utils";
 
 /** Round, even axis steps with the top tick above the maximum (0/5/10/15, 0/25/50/75...). */
 export function niceTicks(max, count = 4) {
@@ -16,8 +17,7 @@ export function niceTicks(max, count = 4) {
  * One series of columns (docs/admin-panel-plan.md 5.6): square corners, the series in the one data
  * hue, 3-5 faint gridlines, round ticks, no legend, and the numbers in a table for screen readers.
  */
-export default function BarChart({ data, label, height = 180, formatLabel = (value) => value }) {
-    const width = 640;
+export default function BarChart({ data, label, width = 640, height = 180, className, formatLabel = (value) => value }) {
     const pad = { top: 8, right: 8, bottom: 22, left: 36 };
     const max = Math.max(0, ...data.map((point) => point.value));
     const ticks = niceTicks(max);
@@ -31,7 +31,7 @@ export default function BarChart({ data, label, height = 180, formatLabel = (val
     const total = data.reduce((sum, point) => sum + point.value, 0);
 
     return (
-        <figure className="w-full">
+        <figure className={cn("w-full", className)}>
             <svg viewBox={`0 0 ${width} ${height}`} className="h-auto w-full" role="img" aria-label={`${label}: ${formatNumber(total)} in total`}>
                 {ticks.map((tick) => (
                     <g key={tick}>

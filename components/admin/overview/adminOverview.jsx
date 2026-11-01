@@ -30,11 +30,11 @@ function finding(counts, health) {
 function Panel({ title, action, className, children }) {
     return (
         <section className={cn("rounded-lg border border-border bg-card", className)} aria-label={title}>
-            <header className="flex items-center justify-between gap-3 border-b border-border px-5 py-3">
+            <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5">
                 <h2 className="text-sm font-semibold">{title}</h2>
                 {action}
             </header>
-            <div className="p-5">{children}</div>
+            <div className="p-4">{children}</div>
         </section>
     );
 }
@@ -52,8 +52,8 @@ function DeploymentCard({ deployment, health }) {
     const copySha = () => deployment.sha && navigator.clipboard?.writeText(deployment.sha).catch(() => {});
 
     return (
-        <section className="grid overflow-hidden rounded-lg border border-border bg-card md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]" aria-label="Deployment and health">
-            <div className="space-y-2 border-b border-border p-5 md:border-r md:border-b-0">
+        <section className="grid overflow-hidden rounded-lg border border-border bg-card lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]" aria-label="Deployment and health">
+            <div className="space-y-1 border-b border-border px-4 py-3 lg:border-r lg:border-b-0">
                 <p className="text-sm text-muted-foreground capitalize">{deployment.environment}</p>
                 {deployment.message ? (
                     <>
@@ -73,7 +73,7 @@ function DeploymentCard({ deployment, health }) {
             </div>
             <dl className="grid grid-cols-2 divide-border sm:grid-cols-4 sm:divide-x">
                 {services.map((service) => (
-                    <div key={service.key} className="space-y-1 border-b border-border p-4 sm:border-b-0">
+                    <div key={service.key} className="space-y-0.5 border-b border-border px-4 py-3 nth-[n+3]:border-b-0 sm:border-b-0">
                         <dt className="text-xs text-muted-foreground">{service.label}</dt>
                         <dd><StatusDot status={service.status || "unknown"} /></dd>
                         <dd className="truncate text-xs text-muted-foreground">{service.detail}</dd>
@@ -95,7 +95,7 @@ function Kpis({ counts }) {
     return (
         <dl className="grid grid-cols-2 overflow-hidden rounded-lg border border-border bg-card lg:grid-cols-4" aria-label="Key figures">
             {items.map((item, index) => (
-                <div key={item.label} className={cn("space-y-1 p-5", index % 2 === 1 && "border-l border-border", index > 1 && "border-t border-border lg:border-t-0", index === 2 && "lg:border-l")}>
+                <div key={item.label} className={cn("space-y-0.5 px-4 py-3.5",index % 2 === 1 && "border-l border-border", index > 1 && "border-t border-border lg:border-t-0", index === 2 && "lg:border-l")}>
                     <dt className="text-sm text-muted-foreground">{item.label}</dt>
                     <dd className="text-2xl font-semibold tabular-nums">{formatNumber(item.value)}</dd>
                     <dd className={cn("text-xs", item.bad ? "text-destructive" : "text-muted-foreground")}>{item.change || "—"}</dd>
@@ -118,7 +118,7 @@ function NeedsAttention({ counts, can }) {
     return (
         <ul className="divide-y divide-border">
             {rows.map((row) => (
-                <li key={row.key} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
+                <li key={row.key} className="flex items-center justify-between gap-3 py-2 first:pt-0 last:pb-0">
                     <span className="text-sm">{row.label}</span>
                     <span className="flex items-center gap-3">
                         <span className="text-sm font-semibold tabular-nums">{formatNumber(row.count)}</span>
@@ -175,6 +175,7 @@ export default function AdminOverview() {
 
     const { counts, series, audit, health, deployment } = data;
     const staff = counts.staff || {};
+    const chartData = series.map((point) => ({ label: point.day, value: point.count }));
 
     return (
         <>
@@ -188,7 +189,9 @@ export default function AdminOverview() {
 
                 <div className="grid gap-4 lg:grid-cols-3">
                     <Panel title="Submissions, last 14 days" className="lg:col-span-2" action={<span className="text-xs text-muted-foreground">Code and quiz</span>}>
-                        <BarChart data={series.map((point) => ({ label: point.day, value: point.count }))} label="Submissions per day, last 14 days" formatLabel={dayLabel} />
+                        {/* The SVG scales with its viewBox, so phones get a narrower one to keep the ticks readable. */}
+                        <BarChart data={chartData} label="Submissions per day, last 14 days" width={320} height={150} className="sm:hidden" formatLabel={dayLabel} />
+                        <BarChart data={chartData} label="Submissions per day, last 14 days" height={140} className="max-sm:hidden" formatLabel={dayLabel} />
                     </Panel>
                     <Panel title="Needs attention">
                         <NeedsAttention counts={counts} can={can} />
@@ -218,7 +221,7 @@ export default function AdminOverview() {
                         ) : (
                             <ul className="divide-y divide-border">
                                 {audit.map((entry) => (
-                                    <li key={entry.id} className="flex items-baseline justify-between gap-3 py-2 first:pt-0 last:pb-0 text-sm">
+                                    <li key={entry.id} className="flex items-baseline justify-between gap-3 py-1.5 first:pt-0 last:pb-0 text-sm">
                                         <span className="min-w-0 truncate"><span className="font-mono text-xs">{entry.action}</span> <span className="text-muted-foreground">by {entry.actor || "system"}</span></span>
                                         <span className="shrink-0 text-xs text-muted-foreground">{formatRelative(entry.created_at)}</span>
                                     </li>

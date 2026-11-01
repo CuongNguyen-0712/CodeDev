@@ -43,6 +43,6 @@ export const adminDashboardDb = {
     recentAudit: async () => (await sql(`
         SELECT a.id::text AS id, a.action, a.target_type, a.target_id, a.created_at, u.username AS actor
         FROM identity.audit_log a LEFT JOIN identity.users u ON u.id = a.actor_id
-        ORDER BY a.id DESC LIMIT 6
+        ORDER BY a.id DESC LIMIT 5
     `)).rows,
 };

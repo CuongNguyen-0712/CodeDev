@@ -129,6 +129,6 @@ describe.skipIf(!hasDb)("admin overview figures (PostgreSQL)", () => {
         expect(typeof figures.submissions_today).toBe("number");
         const series = await adminDashboardDb.submissionsByDay();
         expect(series).toHaveLength(14);
-        expect((await adminDashboardDb.recentAudit()).length).toBeLessThanOrEqual(6);
+        expect((await adminDashboardDb.recentAudit()).length).toBeLessThanOrEqual(5);
     });
 });
