@@ -11,6 +11,7 @@
  *                                                     # already applied (databases migrated by hand)
  *   DATABASE_URL=... node db/tools/migrate.mjs --yes  # explicit target (e.g. a Neon test branch)
  *   node db/tools/migrate.mjs --lock-timeout 10000    # ms a statement may wait for a lock
+ *   node db/tools/migrate.mjs --to 20261101_002       # stop after this version (staged rollouts)
  *
  * Each migration runs in one transaction together with its bookkeeping row: the file's own
  * outer BEGIN; / COMMIT; are replaced by the runner's. Non-local targets require --yes.
@@ -37,6 +38,7 @@ const confirmed = args.includes("--yes");
 const baseline = option("--baseline");
 const envFile = option("--env");
 const lockTimeoutArg = option("--lock-timeout");
+const upTo = option("--to");
 
 const explicitUrl = process.env.DATABASE_URL && !envFile ? process.env.DATABASE_URL : null;
 if (!explicitUrl) {
@@ -129,7 +131,8 @@ try {
         if (marked.length === 0) console.log("baseline: nothing to mark");
     }
 
-    const pending = files.filter((m) => !applied.has(m.version) && !(dryRun && baseline && m.version <= baseline));
+    const pending = files.filter((m) => !applied.has(m.version) && !(dryRun && baseline && m.version <= baseline)
+        && (!upTo || m.version <= upTo));
     if (pending.length === 0) {
         console.log("up to date");
     } else {
