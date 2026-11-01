@@ -87,19 +87,27 @@ Giới hạn của gói miễn phí ảnh hưởng tới admin và monitoring (t
 - **Không để admin đánh thức Neon:** màn System và Overview không tự làm mới khi tab ẩn, làm mới 60 s khi tab hiện, có nút làm mới tay; dashboard dùng cache Redis 60 s.
 - **Active CPU:** G3 (OpenTelemetry) lấy mẫu 10%, theo dõi mục Usage của Vercel sau khi bật.
 
-**Hiện trạng Neon (đọc qua Neon API ngày 2026-11-01), chưa xử lý:**
+**Hiện trạng production (kiểm qua Neon API và HTTP ngày 2026-11-01, sau khi deploy `main` = `7496176c`):**
 
-- Compute mặc định đang **cố định 1 CU** (min = max = 1), nên 100 CU-hours chỉ còn khoảng **100 giờ thức mỗi tháng** cho cả project. Nên hạ về 0.25 CU tối thiểu, 1 CU tối đa.
-- **Đã sửa (2026-11-01, chưa deploy):** `sweeper` và `ranking-refresh` trước chạy 10 và 5 phút một lần, giữ compute thức gần như liên tục. Giờ cả hai chạy `0 * * * *` (mỗi giờ, cùng phút, nên DB chỉ thức một lần mỗi giờ); giữa hai lần chạy, bảng xếp hạng do người đọc đầu tiên làm mới, và run quá hạn được đóng khi người học poll. Ước tính khoảng 60 CU-hours / tháng cho cron ở 1 CU, khoảng 15 ở 0.25 CU, chưa tính người học.
+| Mục | Trạng thái |
+|---|---|
+| Code | `main` đã gồm việc đổi nhịp cron (`9c6e5602`) và đã deploy |
+| Migration | Production ở `20261101_005` (003–005 đã chạy cùng lần deploy) |
+| `/api/health` | `{"status":"ok"}` |
+| `/api/inngest` | 401 kèm `X-Inngest-Sdk-Handled: true`: route và SDK chạy; chưa xác nhận được app đã sync (cần xem Apps trong Inngest) |
+| Compute read-write của branch `production` | **Cố định 2 CU** (min = max = 2). Mỗi giờ thức tốn 2 CU-hours, nên hạn mức 100 CU-hours chỉ đủ **khoảng 50 giờ thức mỗi tháng** |
+| Mặc định của project | 1 CU cố định, áp cho compute mới (branch preview, staging) |
+| Đã dùng trong tháng 11 | Branch `production`: khoảng 3,4 giờ thức, khoảng 6,8 CU-hours trong 13 giờ đầu tháng (có deploy và migration). Giữ nhịp này thì hết hạn mức trong khoảng 1 tuần |
+| A1 | **Đã sửa trong code (chờ production):** migration `20261101_006_learner_role_permissions.sql` gỡ `course.create/update/delete`, `blog.create/update/delete` khỏi `user` (và `student`, `instructor`); mọi route `app/api/admin/**` đòi `["admin.read", <quyền của việc>]`; test `__tests__/admin/adminAccess.test.js` (test tĩnh cho từng route + kiểm role mặc định trên DB). Đã chạy migration trên local. Production: `npm run db:migrate:prod -- --yes` rồi deploy. |
+| Tài khoản admin | 0 |
 
-**Hiện trạng Inngest (2026-11-01):** tích hợp Inngest ↔ Vercel đã bật cho project `codedev`, path `/api/inngest`, domain production `https://code-dev-navy.vercel.app`, chưa đặt Deployment protection key. `GET /api/inngest` trên production trả 401 kèm header `X-Inngest-Sdk-Handled: true`: route và SDK hoạt động, 401 là phản hồi bình thường cho request không có chữ ký của Inngest. Overview của Inngest có hoạt động (event app gửi bằng `INNGEST_EVENT_KEY`) nhưng app **chưa sync**, nên chưa có function nào được đăng ký: event chưa kích hoạt function và cron chưa chạy.
+- **Đã xong:** `sweeper` và `ranking-refresh` chạy `0 * * * *` (mỗi giờ, cùng phút) thay vì 10 và 5 phút. Ước tính cron còn tốn khoảng 120 CU-hours / tháng ở 2 CU, 60 ở 1 CU, 15 ở 0.25 CU (mỗi lần thức tối thiểu 5 phút), chưa tính người học. **Ở 2 CU, riêng cron đã vượt hạn mức**, nên hạ compute là việc bắt buộc, không phải tối ưu.
 
-**Thứ tự bắt buộc trước khi sync:** ngay khi app sync xong, `sweeper` và `ranking-refresh` bắt đầu chạy. Với nhịp cũ ở 1 CU, compute thức liên tục sẽ hết 100 CU-hours trong khoảng 4 ngày, rồi DB production tạm dừng tới 01/12. Vì vậy:
+**Thứ tự còn lại trước khi sync app Inngest:**
 
-1. ~~Đổi nhịp hai cron~~ (đã làm trong code, xem trên). Còn lại: hạ compute Neon về 0.25–1 CU (Neon console → branch `production` → compute → autoscaling).
-2. Deploy production với thay đổi đó.
-3. Sync app: trong Inngest, Apps → Sync new app với URL `https://code-dev-navy.vercel.app/api/inngest`, hoặc redeploy trên Vercel để tích hợp tự sync. Kiểm Vercel có `INNGEST_SIGNING_KEY` và `INNGEST_EVENT_KEY` cho môi trường Production (tích hợp tự thêm; deployment tạo trước khi thêm biến thì không có, cần redeploy).
-4. Sau sync: thấy đủ 7 function (cộng các handler `onFailure`) (`code-run`, `outbox-deliver`, `sweeper`, `account-maintenance`, `exp-audit`, `ranking-refresh`, `dead-letter-sink`) trong Apps; theo dõi Usage của Neon và số execution của Inngest trong tuần đầu.
+1. Hạ compute read-write của `production` về **0.25 CU tối thiểu, 1 CU tối đa**: Neon console → Branches → `production` → Computes → Edit → Autoscaling. Đổi luôn mặc định của project về 0.25–1 (Settings → Compute defaults) để branch mới không lấy 1 CU cố định. Khởi động lại compute không mất dữ liệu; chỉ những kết nối đang mở bị cắt.
+2. Sync app: trong Inngest, Apps → Sync new app với URL `https://code-dev-navy.vercel.app/api/inngest`, hoặc redeploy trên Vercel để tích hợp tự sync. Vercel phải có `INNGEST_SIGNING_KEY` và `INNGEST_EVENT_KEY` cho môi trường Production.
+3. Sau sync: thấy đủ 7 function (`code-run`, `outbox-deliver`, `sweeper`, `account-maintenance`, `exp-audit`, `ranking-refresh`, `dead-letter-sink`, cộng các handler `onFailure`); xem Usage của Neon sau 24 giờ và sau 7 ngày (8. Rủi ro, R2).
 
 Deployment protection key để trống là đúng với thiết kế staging (2.3): preview không chạy job nền, nên Inngest không cần vượt Vercel Authentication để gọi preview.
 
@@ -735,8 +743,8 @@ Gửi qua email và Discord / Slack webhook. Mỗi cảnh báo kèm link dashboa
 
 | Pha | Nội dung | Migration |
 |---|---|---|
-| P0 | **Vá A1 trước tiên** (đã xác nhận trên production) (gỡ quyền course / blog khỏi `user`, API admin đòi thêm `admin.read`), role `super_admin` + cột `rank` + trigger, permission mới (3.3), CLI `admin:role`, guard `/studio` (A3), cờ `ADMIN_ENABLED` và header cho `/admin*` (2.1), cập nhật `docs/environments.md`, `lib/adminPermissions.js`, test tĩnh + ma trận (3.6); shell sidebar + route con, chuyển 5 tab sang route, entry `"/admin/:path*"` | quyền, `roles.rank`, trigger |
-| P0b | **Trước khi sync app Inngest:** ~~đổi nhịp cron~~ (xong trong code), hạ compute Neon về 0.25–1 CU, deploy, rồi mới sync (2.2). Sau đó: Preview trỏ vào `staging`, tắt branch tự động; script `db:anonymize`; reset + ẩn danh `staging`; `APP_ENV=staging`; dọn branch cũ (2.3) | không |
+| P0 | ~~Vá A1~~ (xong trong code: migration `20261101_006`, API admin đòi `admin.read`, test tĩnh; còn chạy migration production), role `super_admin` + cột `rank` + trigger, permission mới (3.3), CLI `admin:role`, guard `/studio` (A3), cờ `ADMIN_ENABLED` và header cho `/admin*` (2.1), cập nhật `docs/environments.md`, `lib/adminPermissions.js`, test tĩnh + ma trận (3.6); shell sidebar + route con, chuyển 5 tab sang route, entry `"/admin/:path*"` | quyền, `roles.rank`, trigger |
+| P0b | **Trước khi sync app Inngest:** ~~đổi nhịp cron~~ (xong, đã deploy), hạ compute `production` từ 2 CU về 0.25–1 CU, rồi sync (2.2; R2, R3). Sau đó: Preview trỏ vào `staging`, tắt branch tự động; script `db:anonymize`; reset + ẩn danh `staging`; `APP_ENV=staging`; dọn branch cũ (2.3) | không |
 | P1 | Dashboard + Users (danh sách, chi tiết, role, block / suspend / activate, thu hồi phiên, timeline) | `users.status_reason`, `status_until` |
 | P2 | Runs (danh sách, chi tiết, huỷ) + Challenges (gộp Content KPIs) + attempts | không |
 | P3 | System (health, hàng đợi, outbox, dead letter có resolve / retry, DB); schema `metrics` + role `grafana_ro` ở cả hai môi trường; profile `monitoring` (grafana, prometheus, blackbox-exporter) cho local; Grafana Cloud Free cho production với G1, G2 (thêm `/api/health?probe=live`, chu kỳ theo 6.4), dashboard 6.5, cảnh báo 6.6, `grafana:push`; link "Open in Grafana" | `metrics` |
@@ -748,20 +756,28 @@ Gửi qua email và Discord / Slack webhook. Mỗi cảnh báo kèm link dashboa
 
 Mỗi pha: test service cho quy tắc nghiệp vụ (bậc role, tự gỡ, super admin cuối cùng, suspend hết hạn, huỷ run không ghi đè kết quả), ma trận route × role (3.6) cập nhật cho route mới, và các bước kiểm UI ở 5.7.
 
-## 8. Rủi ro
+## 8. Rủi ro và hướng xử lý
 
-- **A1 đang mở trên production** (đã xác nhận 2026-11-01): học viên sửa được metadata course qua API. Vá ở P0 trước mọi việc khác.
-- **Lộ dữ liệu cá nhân:** email, IP, source code người học. Che PII khi thiếu `user.pii`, chỉ trả trường cần thiết, ghi audit khi xem source, không đưa email vào URL (lọc bằng body / query đã mã hoá phía server, không log query string).
-- **Khoá nhầm admin hoặc mất quyền quản trị:** quy tắc bậc và "còn một super admin" ở 3.5 kiểm trong transaction; CLI `admin:role` là đường cứu khi mất hết.
-- **Super admin có mọi quyền:** giữ 1–2 người, mọi hành động vẫn ghi audit, không dùng tài khoản super admin cho việc hằng ngày.
-- **Admin mở trên internet ở production:** gia cố ở 2.1 (A1 vá trước, header, xác nhận lại danh tính, cờ tắt khẩn cấp, tuỳ chọn allowlist IP) và test quyền ở 3.6 chạy trong CI.
-- **Thao tác nhầm trên production** khi mở cả hai môi trường cùng lúc: chip "Production", dải cảnh báo và tiền tố tiêu đề tab (2.1) là bắt buộc.
-- **Hết hạn mức Neon Free làm sập cả trang học:** compute đang cố định 1 CU. Nhịp cron đã giảm về mỗi giờ (2.2) nhưng phải deploy trước khi sync app Inngest; hạ compute về 0.25–1 CU để còn chỗ cho lưu lượng người học. Monitoring theo chu kỳ ở 6.4 để không làm nặng thêm.
-- **Dữ liệu cá nhân trong bản preview:** tích hợp Neon đang sao chép đầy đủ production cho mỗi preview (`preview/develop` hôm nay); staging dùng chung và ẩn danh, dọn branch cũ (2.3).
-- **Tài khoản Grafana lệch với RBAC:** rà mỗi tháng, gỡ cùng lúc với gỡ role (6.7).
-- **Grafana đọc DB production:** chỉ qua view gộp trong `metrics`, role `grafana_ro` chỉ đọc, `statement_timeout` 5 s, tối đa 3 kết nối; không view nào chứa email, username, IP hay source code.
-- **Query nặng trên bảng lớn:** dashboard dùng cache 60 giây; danh sách dùng keyset; truy vấn `pg_stat_*` chỉ chạy khi mở trang System.
-- **Access token còn sống sau khi block:** chấp nhận tới hết TTL; nếu cần tức thì, kiểm thêm trạng thái trong `getAuthSession` qua cache Redis (đã có cơ chế `status: "inactive"` cho session ở `services/auth.service.js:50`).
+Trạng thái tính tới 2026-11-01 (sau khi deploy `7496176c`). "Mở" là chưa làm gì; "Một phần" là đã làm một số bước.
+
+| # | Rủi ro | Mức | Trạng thái | Hướng xử lý | Kiểm khi xong |
+|---|---|---|---|---|---|
+| R1 | **A1: học viên sửa được metadata course** qua `PATCH /api/admin/courses/[id]`, vì role `user` có `course.update` | Nghiêm trọng | Một phần: đã sửa trong code và local (migration `20261101_006`, route đòi `admin.read`, test `__tests__/admin/adminAccess.test.js`); production chưa | `npm run db:migrate:prod -- --yes` (migration chỉ xoá quyền, không đổi schema, chạy trước hay sau deploy đều được), rồi deploy để route đòi thêm `admin.read` | Câu truy vấn ở 3.6 trả 0 dòng trên production; user thường gọi API nhận 403 |
+| R2 | **Hết 100 CU-hours của Neon Free** làm DB production tạm dừng tới 01/12, cả trang học ngừng chạy | Nghiêm trọng | Một phần: nhịp cron đã giảm và đã deploy; compute vẫn cố định 2 CU | (1) Hạ compute `production` về 0.25–1 CU và mặc định project về 0.25–1 (2.2). (2) Preview dùng `staging`, tắt tạo branch tự động (branch preview cũng ăn hạn mức). (3) Monitoring theo chu kỳ ở 6.4. (4) Xem Usage của Neon hằng tuần; nếu sau 7 ngày đã dùng hơn 30 CU-hours thì tìm nguồn đánh thức (log `pg_stat_activity` qua `db:baseline`, chu kỳ cron, lưu lượng) | Compute hiện min 0.25; Usage tuần đầu dưới khoảng 25 CU-hours |
+| R3 | **Inngest chưa sync**: event gửi đi nhưng không function nào chạy (code run qua hàng đợi, outbox, cron) | Cao | Mở (chưa xác nhận) | Khi `INNGEST_EVENT_KEY` đã đặt mà app chưa sync, run code nằm `queued` tới hạn rồi bị huỷ (người học không chạy được code) và email trong outbox (xác thực, liên kết tài khoản) không được gửi. Xử lý tạm, không cần sync: đặt `CODE_EXEC_MODE=sync` và `OUTBOX_DELIVERY=inline` trên Vercel (công tắc có sẵn trong `lib/inngest.js`) rồi redeploy. Xử lý hẳn: sync sau R2 bước 1 (2.2), rồi bỏ hai biến tạm | Apps trong Inngest có 7 function; một lần Run code trên production ra kết quả; `sweeper` có lần chạy lúc đầu giờ |
+| R4 | **Dữ liệu cá nhân thật trong branch preview và branch thử nghiệm** (`preview/develop`, `perf-rehearsal-20261101`, `claim-purge-test-20261024`, `seed-test-a1-a2-20261024`) | Cao | Mở | (1) Trỏ Preview vào `staging`, tắt tạo branch tự động. (2) Xoá 4 branch trên bằng tay (không hoàn tác được). (3) Reset `staging` từ `production` rồi chạy `db:anonymize` ngay (2.3) | Neon chỉ còn `production` và `staging`; `staging` không có email thật |
+| R5 | **Chưa có tài khoản admin nào**; quản trị chỉ làm được bằng SQL tay | Trung bình | Mở | Sau migration P0: `npm run admin:role -- grant <email> super_admin --env .env.production`; cấp thêm một người dự phòng | Có 1–2 `super_admin` đang `active` |
+| R6 | **Admin mở trên internet** cùng domain với trang học | Trung bình | Mở | Gia cố ở 2.1: A1 vá trước, header riêng, xác nhận lại danh tính cho việc nhạy cảm, cờ `ADMIN_ENABLED`, tuỳ chọn allowlist IP; test quyền (3.6) chạy trong `npm test` | Test tĩnh và ma trận quyền pass; header có trên `/admin` |
+| R7 | **Lộ dữ liệu cá nhân trong admin** (email, IP, source code) | Trung bình | Thiết kế | Che PII khi thiếu `user.pii`; chỉ trả trường cần; ghi audit khi xem source; không đưa email vào URL | Test che PII; audit có dòng `submission.view` |
+| R8 | **Khoá nhầm admin hoặc mất quyền quản trị** | Trung bình | Thiết kế | Quy tắc bậc và "còn một super admin" kiểm trong transaction (3.5); CLI `admin:role` là đường cứu | Test service cho các trường hợp ở 3.5 |
+| R9 | **Super admin có mọi quyền** | Thấp | Thiết kế | 1–2 người; mọi hành động ghi audit; dùng tài khoản thường cho việc hằng ngày | Rà audit hằng tháng |
+| R10 | **Thao tác nhầm môi trường** khi mở cả staging và production | Thấp | Thiết kế | Chip môi trường, dải màu, tiền tố tiêu đề tab (2.1) là bắt buộc | Ảnh chụp mỗi môi trường khi kiểm UI (5.7) |
+| R11 | **Grafana đọc DB production** | Thấp | Thiết kế | Chỉ qua view gộp trong `metrics`; role `grafana_ro` chỉ đọc, `statement_timeout` 5 s, tối đa 3 kết nối; không view nào có PII | `grafana_ro` không `SELECT` được bảng nghiệp vụ |
+| R12 | **Tài khoản Grafana lệch với RBAC** | Thấp | Thiết kế | Gỡ khỏi Grafana cùng lúc gỡ role; rà hằng tháng (6.7) | |
+| R13 | **Query nặng trên bảng lớn** | Thấp | Một phần: index trigram cho tìm user đã có (`20261101_003`) | Dashboard cache 60 s; danh sách keyset; truy vấn `pg_stat_*` chỉ khi mở trang System | |
+| R14 | **Access token còn sống sau khi khoá user** | Thấp | Chấp nhận | Sống tới hết TTL; refresh đã bị chặn. Nếu cần tức thì: kiểm trạng thái trong `getAuthSession` qua cache Redis (`services/auth.service.js:50`) | |
+
+**Thứ tự đề xuất:** R2 bước 1 (vài phút trên Neon console) → R1 (P0, một migration và vài dòng code) → R3 (sync Inngest) → R5 (super admin đầu tiên) → R4 (staging, dọn branch) → các mục còn lại theo từng pha.
 
 ## 9. Câu hỏi mở
 
