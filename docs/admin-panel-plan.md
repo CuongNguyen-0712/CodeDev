@@ -48,8 +48,7 @@ Code trên nhánh `develop`, chưa push. A1 đã đóng trên production (migrat
 9. Staging và branch Neon (R4). Hiện trạng 2026-11-02 (giới hạn Free: 10 branch / project):
    - `production`: branch chính, Vercel khoá không cho xoá.
    - `preview/develop`: tích hợp Vercel tự tạo ngày 2026-11-01 cho Preview của nhánh `develop`, compute cố định 1 CU. Đây là **bản sao production chưa ẩn danh** (email thật). Dùng nó làm staging: `npm run db:anonymize -- --env .env.staging --yes` (`.env.staging` trỏ vào branch này, đặt `APP_ENV=staging`, `STAGING_PASSWORD`), hạ compute về 0.25 CU. Mỗi nhánh git có Preview sẽ sinh thêm một branch `preview/<nhánh>`: xoá khi nhánh git xong.
-   - `staging`: bản sao production ngày 2026-10-08, đã archive, không deployment nào dùng: xoá.
-   - `claim-purge-test-20261024`, `seed-test-a1-a2-20261024`, `perf-rehearsal-20261101`: branch thử tạo bằng tay, chứa bản sao dữ liệu thật: xoá.
+   - ~~`staging`, `claim-purge-test-20261024`, `seed-test-a1-a2-20261024`, `perf-rehearsal-20261101`~~: đã xoá 2026-11-02 (bản sao cũ và branch thử, chứa dữ liệu thật). Còn lại hai branch: `production` và `preview/develop`.
 
 ## 1. Hiện trạng
 
