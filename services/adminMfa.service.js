@@ -3,6 +3,7 @@ import QRCode from "qrcode";
 
 import { adminDb } from "@/db/admin.db";
 import { adminMfaDb } from "@/db/adminMfa.db";
+import { isDeployedEnv } from "@/lib/appEnv.mjs";
 import { withTransaction } from "@/lib/dbTransaction";
 import { ApiError } from "@/lib/error/apiError";
 import { FailureGuard } from "@/lib/rateLimit";
@@ -13,7 +14,8 @@ import { generateTotpSecret, matchTotp, totpUri } from "@/lib/totp";
  *   - Roles of rank 80 and above (admin, super_admin) must enrol before using the admin area,
  *     and each session passes the second factor once (identity.sessions.mfa_verified_at).
  *   - Sensitive actions also need a confirmation in the last 15 minutes (sessions.reauth_at).
- *   - The TOTP secret is encrypted with a key derived from NEXTAUTH_SECRET (or ADMIN_MFA_KEY);
+ *   - The TOTP secret is encrypted with a key derived from ADMIN_MFA_KEY (required in production and
+ *     staging; local development falls back to NEXTAUTH_SECRET);
  *     recovery codes are stored as keyed hashes and work once.
  * ADMIN_MFA_REQUIRED=0 turns the requirement off outside production and staging only (envCheck).
  */
@@ -26,7 +28,8 @@ export const mfaRequired = (env = process.env) => !["0", "false", "off"].include
 export const mfaRequiredFor = (actor) => mfaRequired() && Number(actor?.rank) >= MFA_REQUIRED_RANK;
 
 function keyFor(purpose) {
-    const secret = process.env.ADMIN_MFA_KEY || process.env.NEXTAUTH_SECRET;
+    // Deployed environments need a key of their own, so rotating NEXTAUTH_SECRET never locks the admins out.
+    const secret = process.env.ADMIN_MFA_KEY || (isDeployedEnv() ? null : process.env.NEXTAUTH_SECRET);
     if (!secret) throw new ApiError("Two-factor authentication is not configured", 503);
     return Buffer.from(crypto.hkdfSync("sha256", secret, "codedev-admin-mfa", purpose, 32));
 }

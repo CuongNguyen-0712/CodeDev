@@ -28,7 +28,7 @@ export async function generateMetadata() {
  */
 export default async function AdminLayout({ children }) {
     if (!adminEnabled()) notFound();
-    if (!adminIpAllowed(RateLimiter.getClientIp(await headers()))) notFound();
+    if (!adminIpAllowed(RateLimiter.getClientIp(await headers(), { trustedOnly: true }))) notFound();
 
     const session = await getAuthSession({ soft: true });
     if (!session?.user?.id) redirect("/auth");

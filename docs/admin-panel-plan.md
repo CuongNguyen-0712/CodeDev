@@ -40,7 +40,7 @@ Code trên nhánh `develop`, chưa push. A1 đã đóng trên production (migrat
 1. Hạ compute `production` về 0.25–1 CU trên Neon console (R2).
 2. ~~Migration `20261101_007`–`_009` trên production~~ (đã chạy 2026-11-01: 6 role có cấp bậc, 48 permission, trigger super admin, `status_until`, 8 view `metrics`).
 3. Migration `20261101_010` trên production (`npm run db:migrate:prod -- --yes`) **trước** khi deploy: chỉ thêm bảng và cột nên bản đang chạy không bị ảnh hưởng; code mới mà thiếu bảng này thì mọi API admin lỗi 500.
-4. Biến môi trường (Production và Preview): `ADMIN_MFA_REQUIRED` không cần đặt (mặc định bật; đặt `0` ở môi trường deploy làm server dừng). Tuỳ chọn `ADMIN_MFA_KEY` (chuỗi ngẫu nhiên riêng), đặt **trước** lần đăng ký 2FA đầu tiên: đổi khoá sau đó làm secret đã lưu không giải mã được, phải `reset-mfa` từng người. Tuỳ chọn `ADMIN_IP_ALLOWLIST`.
+4. Biến môi trường (Production và Preview): `ADMIN_MFA_REQUIRED` không cần đặt (mặc định bật; đặt `0` ở môi trường deploy làm server dừng). **Bắt buộc** `ADMIN_MFA_KEY` (≥ 32 ký tự ngẫu nhiên, Production và Preview mỗi nơi một giá trị; thiếu thì 2FA trả 503), đặt **trước** lần đăng ký 2FA đầu tiên: đổi khoá sau đó làm secret đã lưu không giải mã được, phải `reset-mfa` từng người. Tuỳ chọn `ADMIN_IP_ALLOWLIST`.
 5. Push `develop`, merge vào `main`, deploy.
 6. `npm run admin:role -- grant <email> super_admin --reason "<lý do>" --env .env.production` (R5), thêm một super admin dự phòng.
 7. Sync app Inngest (R3).
@@ -846,7 +846,7 @@ Phạm vi: `app/admin/**`, 38 route `app/api/admin/**`, `lib/authz.js`, `lib/adm
 
 | Mã | Mức | Vấn đề | Chỗ | Cách sửa |
 |---|---|---|---|---|
-| S1 | Trung bình | `ADMIN_IP_ALLOWLIST` bị qua mặt bằng header giả khi tự host (Docker profile `app` mở cổng 3000 trực tiếp): `getClientIp` tin `x-real-ip` / `cf-connecting-ip` do client gửi. Cùng lỗi làm reset rate limit theo IP. Trên Vercel nhiều khả năng an toàn (chưa xác nhận) | `lib/rateLimit.js:38` | Trên Vercel (`VERCEL=1`) chỉ tin `x-vercel-forwarded-for`; header khác chỉ khi đặt `TRUSTED_PROXY` rõ ràng |
+| S1 | Trung bình | `ADMIN_IP_ALLOWLIST` bị qua mặt bằng header giả khi tự host (Docker profile `app` mở cổng 3000 trực tiếp): `getClientIp` tin `x-real-ip` / `cf-connecting-ip` do client gửi. Cùng lỗi làm reset rate limit theo IP. Trên Vercel nhiều khả năng an toàn (chưa xác nhận) | `lib/rateLimit.js:38` | **Đã sửa (P7.2):** trên Vercel chỉ đọc `x-vercel-forwarded-for`; nơi khác chỉ đọc header ghi trong `CLIENT_IP_HEADER`. Không có header tin cậy thì allowlist nhận "unknown" và chặn (`envCheck` báo lỗi nếu đặt allowlist mà thiếu); rate limit khi chạy local vẫn đọc header thường |
 | S2 | Trung bình | Đoán mã TOTP chậm không bị khoá: 10 lần / 5 phút → khoảng 0,9 % / ngày, ~23 % / 30 ngày với phiên hoặc mật khẩu bị lộ; Redis lỗi thì limiter rơi về bộ nhớ từng instance | `lib/rateLimit.js:226`, `services/adminMfa.service.js` | **Đã sửa (P7.1):** 5 lần sai trong 1 giờ thì khoá 1 giờ (`FailureGuard`, tối đa ~120 lần thử / ngày), trả 429 `MFA_LOCKED`; mỗi lần sai ghi audit `mfa.failed`. Khoá nằm trong Redis, `reset-mfa` không gỡ được. Chưa làm: Overview báo khi có `mfa.failed` |
 | S3 | Trung bình | Admin tự cộng điểm / tự cấp quyền học cho chính mình: `adjustPoints` và `grantEntitlement` không chặn target là chính actor, không áp luật cấp bậc | `services/admin.service.js:139`, `:264` | **Đã sửa (P7.1):** điểm, EXP và cấp quyền học từ chối 403 khi target là chính actor hoặc có rank ≥ actor |
 | S4 | Trung bình | `course_manager` có quyền ảnh hưởng tiền (`course.price`, `course.publish`) và đọc code người học (`submission.read`) mà không cần 2FA | `services/adminMfa.service.js` (ngưỡng 80) | Bắt 2FA với mọi ai có `course.price`, `course.publish`, `submission.read`, `user.pii` hoặc hạ ngưỡng xuống 50 |
@@ -858,9 +858,9 @@ Phạm vi: `app/admin/**`, 38 route `app/api/admin/**`, `lib/authz.js`, `lib/adm
 | S10 | Thấp | Audit chỉ append-only với UPDATE / DELETE: trigger không chặn `TRUNCATE`, role của app tự tắt được trigger | `identity.audit_log` | Bảng thuộc role khác; role app chỉ `INSERT`, `SELECT`; chặn `TRUNCATE` |
 | S11 | Thấp | Lần đăng ký 2FA đầu tiên thuộc về ai đang giữ phiên: phiên bị lộ giữa lúc cấp role và lúc chủ thật đăng ký sẽ gắn authenticator của kẻ tấn công | `services/adminMfa.service.js` (setup) | Đòi nhập lại mật khẩu (hoặc link qua email) trước khi `setup` |
 | S12 | Thấp | `/studio` không qua IP allowlist và 2FA (Sanity vẫn đòi đăng nhập riêng; chỉ có ở local) | `app/studio/[[...tool]]/page.jsx` | Dùng lại kiểm tra của layout admin |
-| S13 | Thấp | Bản sao staging giữ `admin_mfa` / `admin_mfa_recovery` từ production; giải mã được nếu staging dùng chung `NEXTAUTH_SECRET` / `ADMIN_MFA_KEY` | `scripts/db-anonymize.mjs` | Anonymizer xoá hai bảng này |
+| S13 | Thấp | Bản sao staging giữ `admin_mfa` / `admin_mfa_recovery` từ production; giải mã được nếu staging dùng chung `NEXTAUTH_SECRET` / `ADMIN_MFA_KEY` | `scripts/db-anonymize.mjs` | **Đã sửa (P7.2):** anonymizer xoá hai bảng này; admin staging đăng ký lại bằng khoá của staging |
 | S14 | Thông tin | Lọc audit theo action có `_` (ví dụ `dead_letter`) không ra kết quả: escape LIKE sai (`` `\${ch}` `` thành chữ `${ch}`) | `db/adminAudit.db.js:3,13` | `` `\\${ch}` `` và `ESCAPE '\\'`; thêm test |
-| S15 | Thông tin | Không đặt `ADMIN_MFA_KEY` thì đổi `NEXTAUTH_SECRET` làm mọi secret 2FA không giải mã được (verify lỗi 500) | `services/adminMfa.service.js` | Bắt buộc `ADMIN_MFA_KEY` ở môi trường deploy (lỗi `fatal` trong `envCheck`) |
+| S15 | Thông tin | Không đặt `ADMIN_MFA_KEY` thì đổi `NEXTAUTH_SECRET` làm mọi secret 2FA không giải mã được (verify lỗi 500) | `services/adminMfa.service.js` | **Đã sửa (P7.2):** staging / production bắt buộc `ADMIN_MFA_KEY` (≥ 32 ký tự), thiếu thì 2FA trả 503; `envCheck` ghi lỗi chứ không `fatal`, để thiếu khoá chỉ làm hỏng trang admin, không làm sập trang học. Local vẫn dùng `NEXTAUTH_SECRET` |
 | S16 | Thông tin | `/admin` chưa có CSP `script-src` | `proxy.js` | Thêm CSP chặt cho `/admin*` sau khi kiểm script Next cần gì |
 
 ### 10.3 Kế hoạch cập nhật (P7)
@@ -870,7 +870,7 @@ Mỗi bước một commit, có test. Thứ tự theo rủi ro rồi tới UX.
 | Bước | Việc | Mã | Ghi chú |
 |---|---|---|---|
 | ~~P7.1~~ | Khoá 2FA sau 5 lần sai, audit `mfa.failed`; chặn tự cộng điểm / tự cấp quyền; thêm xác nhận lại cho entitlement, offer, dead letter | S2, S3, S6 | Xong (2026-11-02). Chỉ code, không migration; test trong `adminMfa.test.js` |
-| P7.2 | `getClientIp` chỉ tin header của nền tảng; anonymizer xoá bảng 2FA; `ADMIN_MFA_KEY` bắt buộc khi deploy | S1, S13, S15 | Đặt `ADMIN_MFA_KEY` trên Vercel **trước** khi deploy bước này và trước khi ai đăng ký 2FA |
+| ~~P7.2~~ | `getClientIp` chỉ tin header của nền tảng; anonymizer xoá bảng 2FA; `ADMIN_MFA_KEY` bắt buộc khi deploy | S1, S13, S15 | Xong (2026-11-02). Đặt `ADMIN_MFA_KEY` trên Vercel (Production và Preview, hai giá trị khác nhau) **trước** khi deploy và trước khi ai đăng ký 2FA |
 | P7.3 | 2FA cho mọi người có quyền tiền / PII / đọc code; đòi mật khẩu trước khi đăng ký 2FA | S4, S11 | Thay đổi hành vi với course manager: báo trước |
 | P7.4 | Che email theo `user.pii`, audit theo `audit.read` trên Overview, bỏ `stdin` khỏi chi tiết run, sửa escape lọc audit | S7, S8, S9, S14 | |
 | P7.5 | Menu tài khoản + đăng xuất trong shell; `/admin` → `/auth?next=` và quay lại đúng trang | AD-01, AD-06 | `next` chỉ nhận đường dẫn nội bộ, có test open redirect |

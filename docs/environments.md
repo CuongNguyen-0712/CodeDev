@@ -126,8 +126,11 @@ Set in the Vercel project (Production scope), with values distinct from developm
 address), `MAIL_PASSWORD` (its App Password; see [auth.md](auth.md)), `INNGEST_EVENT_KEY` and
 `INNGEST_SIGNING_KEY` (background jobs and the daily crons, [queue-execution-plan.md](queue-execution-plan.md)),
 `CRON_SECRET` (only to run `/api/internal/*` by hand), `HEALTH_TOKEN` (Bearer token for the full
-`GET /api/health` report; without it the endpoint answers only `{ status }`) and
-`SANITY_WEBHOOK_SECRET` (see below). `DB_POOL_MAX` is optional: the pool defaults to 3 connections
+`GET /api/health` report; without it the endpoint answers only `{ status }`),
+`SANITY_WEBHOOK_SECRET` (see below) and `ADMIN_MFA_KEY` (32+ random characters, its own value for
+production and for staging; set it before the first admin enrols in two-factor authentication).
+Outside Vercel, `CLIENT_IP_HEADER` names the one header the proxy sets to the client address.
+`DB_POOL_MAX` is optional: the pool defaults to 3 connections
 per instance on Vercel and 10 elsewhere; point `DATABASE_URL` at the Neon `-pooler` host.
 Never set `MINIO_*` there.
 

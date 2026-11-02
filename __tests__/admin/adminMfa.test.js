@@ -46,6 +46,33 @@ describe("ADMIN_IP_ALLOWLIST", () => {
     });
 });
 
+describe("client IP for the allowlist", () => {
+    const spoofed = new Headers({ "x-real-ip": "203.0.113.9", "x-forwarded-for": "203.0.113.9", "cf-connecting-ip": "203.0.113.9", "x-vercel-forwarded-for": "198.51.100.7" });
+
+    it("reads only the platform header on Vercel and the configured header elsewhere", async () => {
+        const { RateLimiter } = await import("@/lib/rateLimit");
+        expect(RateLimiter.getClientIp(spoofed, { env: { VERCEL: "1" } })).toBe("198.51.100.7");
+        expect(RateLimiter.getClientIp(new Headers({ "x-real-ip": "203.0.113.9" }), { env: { VERCEL: "1" }, trustedOnly: true })).toBe("unknown");
+        expect(RateLimiter.getClientIp(spoofed, { env: { CLIENT_IP_HEADER: "CF-Connecting-IP" }, trustedOnly: true })).toBe("203.0.113.9");
+    });
+
+    it("gives the allowlist nothing to trust without a platform or configured header", async () => {
+        const { RateLimiter } = await import("@/lib/rateLimit");
+        expect(RateLimiter.getClientIp(spoofed, { env: {}, trustedOnly: true })).toBe("unknown");
+        expect(adminIpAllowed(RateLimiter.getClientIp(spoofed, { env: {}, trustedOnly: true }), { ADMIN_IP_ALLOWLIST: "203.0.113.9" })).toBe(false);
+        // Rate limiting still gets an address in local development.
+        expect(RateLimiter.getClientIp(spoofed, { env: {} })).toBe("203.0.113.9");
+    });
+
+    it("reports a missing ADMIN_MFA_KEY and an allowlist without a trusted header when deployed", async () => {
+        const { checkEnvironment } = await import("@/lib/envCheck.mjs");
+        const { errors, fatal } = checkEnvironment({ APP_ENV: "production", ADMIN_IP_ALLOWLIST: "203.0.113.9" });
+        expect(errors.some((message) => message.startsWith("ADMIN_MFA_KEY"))).toBe(true);
+        expect(errors.some((message) => message.startsWith("ADMIN_IP_ALLOWLIST"))).toBe(true);
+        expect(fatal.some((message) => message.includes("ADMIN_MFA_KEY"))).toBe(false);
+    });
+});
+
 const hasDb = Boolean(process.env.DATABASE_URL);
 const TAG = `mf${Date.now().toString(36)}${crypto.randomBytes(2).toString("hex")}`;
 

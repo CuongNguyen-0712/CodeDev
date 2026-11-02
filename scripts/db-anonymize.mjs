@@ -88,6 +88,9 @@ try {
         SELECT u.id, $1, 'credentials' FROM identity.users u
         WHERE NOT EXISTS (SELECT 1 FROM identity.accounts a WHERE a.user_id = u.id AND a.provider = 'credentials')`, [hash]);
 
+    // Production TOTP secrets and recovery codes: staging admins enrol again with staging's own key.
+    await run("admin two-factor recovery codes", `DELETE FROM identity.admin_mfa_recovery`);
+    await run("admin two-factor", `DELETE FROM identity.admin_mfa`);
     await run("refresh tokens", `DELETE FROM identity.refresh_tokens`);
     await run("sessions", `DELETE FROM identity.sessions`);
     await run("email tokens", `DELETE FROM identity.email_tokens`);
