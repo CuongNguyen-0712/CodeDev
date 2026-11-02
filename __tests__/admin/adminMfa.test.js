@@ -73,6 +73,22 @@ describe("client IP for the allowlist", () => {
     });
 });
 
+describe("admin script policy", () => {
+    it("allows nonce scripts and the theme script by hash, with a new nonce each time", async () => {
+        const { adminCsp, isAdminPage } = await import("@/lib/adminCsp");
+        const { THEME_SCRIPT } = await import("@/lib/themeScript");
+        const hash = crypto.createHash("sha256").update(THEME_SCRIPT).digest("base64");
+        const prod = await adminCsp({ dev: false });
+        expect(prod.value).toContain(`'nonce-${prod.nonce}'`);
+        expect(prod.value).toContain(`'sha256-${hash}'`);
+        expect(prod.value).toContain("'strict-dynamic'");
+        expect(prod.value).not.toContain("unsafe-eval");
+        expect((await adminCsp({ dev: false })).nonce).not.toBe(prod.nonce);
+        expect((await adminCsp({ dev: true })).value).toContain("'unsafe-eval'");
+        expect([isAdminPage("/admin"), isAdminPage("/admin/users"), isAdminPage("/administrator"), isAdminPage("/api/admin/users")]).toEqual([true, true, false, false]);
+    });
+});
+
 const hasDb = Boolean(process.env.DATABASE_URL);
 const TAG = `mf${Date.now().toString(36)}${crypto.randomBytes(2).toString("hex")}`;
 

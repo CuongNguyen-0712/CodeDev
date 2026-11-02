@@ -9,6 +9,7 @@ import { ACCESS } from "@/auth/access";
 
 import { isFatalSessionError } from "@/constants/auth";
 import { adminEnabled, isAdminPath } from "@/lib/adminMode";
+import { ADMIN_CSP_HEADER, adminCsp, isAdminPage } from "@/lib/adminCsp";
 import { decodeAuthJwt } from "@/lib/authJwt";
 import { isVerifyLocked, VERIFY_REQUIRED_PATH } from "@/lib/verifyLock";
 
@@ -48,7 +49,17 @@ export default async function proxy(req) {
 
     const route = findRoute(pathname)
 
-    const pass = () => deadSession ? clearSessionCookie(req, NextResponse.next()) : NextResponse.next()
+    // Admin pages: the script policy goes on the request too, where Next.js reads its nonce (lib/adminCsp.js).
+    const csp = isAdminPage(pathname) ? await adminCsp() : null
+    const next = () => {
+        if (!csp) return NextResponse.next()
+        const headers = new Headers(req.headers)
+        headers.set(ADMIN_CSP_HEADER, csp.value)
+        const res = NextResponse.next({ request: { headers } })
+        res.headers.set(ADMIN_CSP_HEADER, csp.value)
+        return res
+    }
+    const pass = () => deadSession ? clearSessionCookie(req, next()) : next()
 
     if (!route || route.access === ACCESS.PUBLIC) {
         return pass()
