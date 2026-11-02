@@ -20,7 +20,7 @@ import {
     LuSlidersHorizontal,
 } from "react-icons/lu";
 
-const CARD_WIDTH = "w-64 sm:w-72";
+const CARD_WIDTH = "w-60 sm:w-64 lg:w-72";
 
 function CardSkeleton() {
     return (

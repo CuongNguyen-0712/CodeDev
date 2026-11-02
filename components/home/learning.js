@@ -88,7 +88,7 @@ function RowsSkeleton({ rows = 3, withBar = false }) {
 
 function PanelEmpty({ icon: Icon, title, description, action = null }) {
     return (
-        <div className="flex flex-col items-center gap-3 px-4 py-8 text-center">
+        <div className="flex flex-col items-center gap-3 px-4 py-6 text-center sm:py-8">
             <span className="flex size-9 items-center justify-center rounded-md bg-muted text-muted-foreground">
                 <Icon className="size-4" aria-hidden="true" />
             </span>
@@ -130,7 +130,7 @@ export default function HomeLearning() {
         <aside
             id="overview_sidebar"
             aria-label="Your learning"
-            className="flex min-w-0 flex-col gap-4 lg:col-start-2 lg:row-start-1"
+            className="flex min-w-0 flex-col gap-4 @2xl:max-lg:grid @2xl:max-lg:grid-cols-2 @2xl:max-lg:items-start lg:col-start-2 lg:row-start-1"
         >
             {/* 1. Course progress */}
             <section aria-labelledby="home-progress-heading" className="overflow-hidden rounded-lg border bg-card">

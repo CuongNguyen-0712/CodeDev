@@ -94,7 +94,7 @@ export default function HomeOverview() {
         return (
             <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                 <div className="space-y-2">
-                    <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+                    <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl lg:text-4xl">
                         Welcome to CodeDev
                     </h1>
                     <p className="max-w-[60ch] text-sm text-muted-foreground">
@@ -120,18 +120,18 @@ export default function HomeOverview() {
     }
 
     return (
-        <header className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+        <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between lg:gap-5">
             <div className="flex min-w-0 items-start gap-4">
-                <Avatar className="size-14 border sm:size-16">
+                <Avatar className="size-12 border sm:size-14 lg:size-16">
                     <AvatarImage src={data?.image || undefined} alt="" className="object-cover" />
                     <AvatarFallback className="bg-primary-soft text-base font-semibold text-primary-soft-foreground">
                         {getInitials(displayName)}
                     </AvatarFallback>
                 </Avatar>
 
-                <div className="min-w-0 space-y-1.5 sm:space-y-2">
+                <div className="min-w-0 space-y-1 lg:space-y-2">
                     <p className="text-sm font-medium text-muted-foreground">Welcome back</p>
-                    <h1 className="text-3xl font-semibold tracking-tight break-words text-foreground sm:text-4xl">
+                    <h1 className="text-2xl font-semibold tracking-tight break-words text-foreground sm:text-3xl lg:text-4xl">
                         {displayName}
                     </h1>
                     <p className="line-clamp-2 max-w-[60ch] text-sm text-muted-foreground">
@@ -147,7 +147,7 @@ export default function HomeOverview() {
             </div>
 
             {/* Level, EXP, and Points Gamified Card */}
-            <div className="w-full shrink-0 rounded-lg border border-border bg-card p-4 lg:w-[26rem]">
+            <div className="w-full shrink-0 rounded-lg border border-border bg-card p-3.5 sm:p-4 lg:w-[26rem]">
                 {/* Card Top: Level Badge + Rank Title + Ledger link */}
                 <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
@@ -201,8 +201,8 @@ export default function HomeOverview() {
                 </div>
 
                 {/* Metric Chips Grid (2 distinct tokenized cards for EXP & Points) */}
-                <div className="mt-4 grid grid-cols-2 gap-3 pt-3 border-t border-border">
-                    <div className="rounded-md border border-border bg-muted p-3">
+                <div className="mt-3 grid grid-cols-2 gap-2.5 border-t border-border pt-3 sm:mt-4 sm:gap-3">
+                    <div className="rounded-md border border-border bg-muted p-2.5 sm:p-3">
                         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                             <LuSparkles className="size-3.5 text-primary-ink" aria-hidden="true" />
                             <span>Experience</span>
@@ -215,7 +215,7 @@ export default function HomeOverview() {
                         </div>
                     </div>
 
-                    <div className="rounded-md border border-border bg-muted p-3">
+                    <div className="rounded-md border border-border bg-muted p-2.5 sm:p-3">
                         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                             <LuCoins className="size-3.5 text-warning" aria-hidden="true" />
                             <span>Points</span>

@@ -91,7 +91,8 @@ export default function Dashboard() {
   };
 
   // Phones: 44px rows and 16px text, a comfortable thumb target in the sheet.
-  const hit = isMobile ? "h-11 text-base [&>svg]:size-5" : undefined;
+  // Phone rows stay 40px tall (44px apart with the menu gap) at a slightly smaller type and icon.
+  const hit = isMobile ? "h-10 text-[0.9375rem] [&>svg]:size-[1.125rem]" : undefined;
 
   // On phones the sidebar is a sheet; close it once a destination is picked.
   const closeOnMobile = () => {
@@ -127,7 +128,7 @@ export default function Dashboard() {
           </SidebarGroup>
         ) : (
           menus.map((section) => (
-            <SidebarGroup key={section.title}>
+            <SidebarGroup key={section.title} className="py-1 first:pt-2">
               <SidebarGroupLabel>{section.title}</SidebarGroupLabel>
               <SidebarMenu>
                 {section.items.map((item) => {
