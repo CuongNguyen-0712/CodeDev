@@ -31,7 +31,7 @@ export default async function AdminLayout({ children }) {
     if (!adminIpAllowed(RateLimiter.getClientIp(await headers(), { trustedOnly: true }))) notFound();
 
     const session = await getAuthSession({ soft: true });
-    if (!session?.user?.id) redirect("/auth");
+    if (!session?.user?.id) redirect("/auth?next=/admin");
 
     const actor = await getAdminActor();
     if (!actor?.permissions.has("admin.read")) return <Forbidden />;

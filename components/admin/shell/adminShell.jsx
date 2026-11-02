@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 
 import {
     Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarHeader, SidebarInset,
@@ -14,10 +15,16 @@ import StepUpDialog from "@/components/admin/mfa/stepUpDialog";
 import { useTheme } from "@/contexts/themeContext";
 import { ADMIN_FOOTER_NAV, ADMIN_NAV, activeNavKey } from "@/lib/adminPermissions";
 import { cn } from "@/lib/utils";
+import { leaveSignedOut, LANDING_PATH } from "@/lib/authNavigation";
+import { useLogOut } from "@/mutations/auth.mutation";
+import { useApp } from "@/contexts/appContext";
+import {
+    DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/shadcn/dropdown-menu";
 
 import {
-    LuActivity, LuArrowLeft, LuBookOpen, LuTags, LuClipboardList, LuKeyRound, LuLayoutDashboard, LuMoon, LuPlay,
-    LuReceipt, LuServer, LuSettings, LuSun, LuTarget, LuUsers,
+    LuActivity, LuArrowLeft, LuBookOpen, LuChevronsUpDown, LuTags, LuClipboardList, LuKeyRound, LuLayoutDashboard, LuLoaderCircle,
+    LuLogOut, LuMoon, LuPlay, LuReceipt, LuServer, LuSettings, LuSun, LuTarget, LuUser, LuUsers,
 } from "react-icons/lu";
 
 const ICONS = {
@@ -82,6 +89,63 @@ function Crumbs({ pathname }) {
     );
 }
 
+/** The signed-in admin: profile and settings of the learners' site, and sign-out (as the site navbar). */
+function AccountMenu({ username, email }) {
+    const queryClient = useQueryClient();
+    const { showAlert: alert } = useApp();
+    const logout = useLogOut();
+    const signingOut = logout.isPending;
+    const LogoutIcon = signingOut ? LuLoaderCircle : LuLogOut;
+
+    const signOut = (event) => {
+        event.preventDefault();
+        if (signingOut) return;
+        logout.mutate(null, {
+            onSuccess: ({ revoked }) => leaveSignedOut(queryClient, {
+                target: LANDING_PATH,
+                notice: revoked ? null : {
+                    status: 503,
+                    message: "Signed out on this device, but the server could not be reached. Use Settings > Active sessions on another device to end this session remotely.",
+                },
+            }),
+            onError: (error) => alert(error.status || 500, error.message || "Could not sign out, please try again."),
+        });
+    };
+
+    return (
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <button
+                    type="button"
+                    className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-sidebar-accent data-[state=open]:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                    aria-label={`Account menu for ${username || "this account"}`}
+                >
+                    <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold uppercase" aria-hidden="true">
+                        {(username || "?").slice(0, 1)}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-sm">{username}</span>
+                    <LuChevronsUpDown className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="top" align="start" className="w-56 p-1.5">
+                <DropdownMenuLabel className="truncate px-2.5 py-1.5 text-xs font-normal text-muted-foreground">Signed in as {email || username}</DropdownMenuLabel>
+                <DropdownMenuSeparator className="my-1" />
+                <DropdownMenuItem asChild className="rounded-lg px-2.5 py-2 text-sm cursor-pointer">
+                    <Link href="/profile"><LuUser className="size-4 text-muted-foreground" aria-hidden="true" /><span>Profile</span></Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild className="rounded-lg px-2.5 py-2 text-sm cursor-pointer">
+                    <Link href="/settings"><LuSettings className="size-4 text-muted-foreground" aria-hidden="true" /><span>Settings</span></Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator className="my-1" />
+                <DropdownMenuItem variant="destructive" onSelect={signOut} disabled={signingOut} className="rounded-lg px-2.5 py-2 text-sm cursor-pointer">
+                    <LogoutIcon className={cn("size-4", signingOut && "animate-spin")} aria-hidden="true" />
+                    <span>{signingOut ? "Signing out..." : "Log out"}</span>
+                </DropdownMenuItem>
+            </DropdownMenuContent>
+        </DropdownMenu>
+    );
+}
+
 /**
  * Admin chrome (docs/admin-panel-plan.md 5.2): a sidebar on the page ground (⌘B / Ctrl B hides it),
  * a 48px top bar with the breadcrumb and the environment, and the content up to 1200px wide.
@@ -130,11 +194,8 @@ export default function AdminShell({ permissions, environment, user, children })
                                 </SidebarMenuButton>
                             </SidebarMenuItem>
                         </SidebarMenu>
-                        <div className="mt-1 flex items-center gap-2 rounded-md px-2 py-1.5">
-                            <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold uppercase" aria-hidden="true">
-                                {(user?.username || "?").slice(0, 1)}
-                            </span>
-                            <span className="min-w-0 flex-1 truncate text-sm">{user?.username}</span>
+                        <div className="mt-1 flex items-center gap-1">
+                            <AccountMenu username={user?.username} email={user?.email} />
                             <button
                                 type="button"
                                 onClick={toggleTheme}

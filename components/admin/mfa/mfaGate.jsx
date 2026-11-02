@@ -2,8 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { adminClient } from "@/clients/premium.client";
+import { leaveSignedOut } from "@/lib/authNavigation";
+import { useLogOut } from "@/mutations/auth.mutation";
 import { LogoMark } from "@/components/ui/logo";
 import { Button } from "@/components/shadcn/button";
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/shadcn/field";
@@ -77,6 +80,16 @@ function Enroll() {
     const [codes, setCodes] = useState(null);
     const [error, setError] = useState("");
     const [busy, setBusy] = useState(false);
+    const [freshSignIn, setFreshSignIn] = useState(false);
+    const queryClient = useQueryClient();
+    const logout = useLogOut();
+
+    // Enrolment needs a sign-in from the last 10 minutes: sign out, then come back to /admin after signing in.
+    const signInAgain = () => {
+        if (logout.isPending) return;
+        const back = () => leaveSignedOut(queryClient, { target: "/auth?next=/admin" });
+        logout.mutate(null, { onSuccess: back, onError: back });
+    };
 
     const start = async () => {
         setBusy(true);
@@ -85,6 +98,7 @@ function Enroll() {
             setSetup(await adminClient.setupMfa());
         } catch (failure) {
             setError(failure?.message || "Could not start the setup.");
+            setFreshSignIn(failure?.code === "FRESH_SIGN_IN_REQUIRED");
         }
         setBusy(false);
     };
@@ -112,7 +126,9 @@ function Enroll() {
             {!setup ? (
                 <>
                     {error && <p className="text-sm text-destructive">{error}</p>}
-                    <Button onClick={start} disabled={busy}>{busy ? "Starting…" : "Start setup"}</Button>
+                    {freshSignIn
+                        ? <Button onClick={signInAgain} disabled={logout.isPending}>{logout.isPending ? "Signing out…" : "Sign in again"}</Button>
+                        : <Button onClick={start} disabled={busy}>{busy ? "Starting…" : "Start setup"}</Button>}
                 </>
             ) : (
                 <div className="space-y-5">

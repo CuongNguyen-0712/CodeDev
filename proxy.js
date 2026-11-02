@@ -63,6 +63,8 @@ export default async function proxy(req) {
             const target = deadSession
                 ? new URL(`/auth/error?error=${encodeURIComponent(rawToken.error)}`, req.url)
                 : new URL('/auth', req.url)
+            // Admin pages come back to where they were after sign-in (login reads it through safeNextPath).
+            if (!deadSession && pathname.startsWith('/admin')) target.searchParams.set('next', pathname + req.nextUrl.search)
 
             const res = NextResponse.redirect(target)
             return deadSession ? clearSessionCookie(req, res) : res

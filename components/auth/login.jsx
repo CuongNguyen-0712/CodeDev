@@ -1,7 +1,9 @@
 import { useState } from "react"
+import { useSearchParams } from "next/navigation"
 
 import { useQueryClient } from '@tanstack/react-query'
-import { enterSignedIn, HOME_PATH } from '@/lib/authNavigation'
+import { enterSignedIn } from '@/lib/authNavigation'
+import { safeNextPath } from "@/lib/verifyLock"
 import { validate } from "@/lib/validate"
 import { useApp } from "@/contexts/appContext"
 import { SignInSchema } from "@/lib/definition"
@@ -43,8 +45,10 @@ export default function Login({ active, changeForm, initialUsername = '' }) {
     const [isPending, setIsPending] = useState(null)
     const [serverError, setServerError] = useState(null)
 
-    // After sign-in: full page load to /home (guest caches and prefetched redirects dropped).
+    // After sign-in: full page load to ?next= when it is an internal path (e.g. /admin/users), else /home
+    // (guest caches and prefetched redirects dropped).
     const queryClient = useQueryClient()
+    const target = safeNextPath(useSearchParams().get("next"))
     const { showAlert: alert } = useApp()
     const loginMutation = useLogin()
 
@@ -71,7 +75,7 @@ export default function Login({ active, changeForm, initialUsername = '' }) {
                 }
 
                 alert(200, "Login successful! Redirecting...")
-                enterSignedIn(queryClient, HOME_PATH)
+                enterSignedIn(queryClient, target)
             },
 
             onError: (error) => {
@@ -133,7 +137,7 @@ export default function Login({ active, changeForm, initialUsername = '' }) {
         setServerError(null)
 
         try {
-            const response = await authClient.loginWithProvider(value)
+            const response = await authClient.loginWithProvider(value, target)
 
             // The browser is already on its way to the provider.
             if (response?.redirecting) return
@@ -144,7 +148,7 @@ export default function Login({ active, changeForm, initialUsername = '' }) {
             }
 
             alert(200, "Login successful! Redirecting...")
-            enterSignedIn(queryClient, HOME_PATH)
+            enterSignedIn(queryClient, target)
         } catch (error) {
             setServerError(error?.message || `Sign in with ${value} failed. Please try again.`)
         } finally {
