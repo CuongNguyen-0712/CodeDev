@@ -47,7 +47,7 @@ export default function BarChart({ data, label, width = 640, height = 180, class
                     return (
                         <g key={point.label}>
                             {point.value > 0 && (
-                                <rect x={x} y={barTop} width={barW} height={pad.top + plotH - barTop} className="fill-primary-ink">
+                                <rect x={x} y={barTop} width={barW} height={pad.top + plotH - barTop} className="fill-primary-ink" data-bar style={{ "--i": index }}>
                                     <title>{`${formatLabel(point.label)}: ${formatNumber(point.value)}`}</title>
                                 </rect>
                             )}

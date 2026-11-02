@@ -9,9 +9,11 @@ import { SETTINGS_SECTIONS } from "@/lib/adminPermissions";
 import { QUERY_TIMES, retryTransient } from "@/lib/queryTimes";
 import PageHeader from "@/components/admin/shell/pageHeader";
 import { formatNumber } from "@/components/admin/ui/format";
-import { Skeleton } from "@/components/shadcn/skeleton";
+import { TableSkeleton } from "@/components/admin/ui/adminSkeleton";
+import { Badge } from "@/components/shadcn/badge";
 import { cn } from "@/lib/utils";
 
+import { LuCheck } from "react-icons/lu";
 
 const ENV_HINT = "Changes are made through environment variables and a redeploy.";
 
@@ -33,9 +35,9 @@ function Card({ title, description, footer = ENV_HINT, children }) {
 
 function Rows({ rows }) {
     return (
-        <dl className="divide-y divide-border rounded-md border border-border">
+        <dl className="-mx-5 divide-y divide-border border-y border-border">
             {rows.map(([label, value]) => (
-                <div key={label} className="flex items-baseline justify-between gap-4 px-4 py-2.5 text-sm">
+                <div key={label} className="flex items-baseline justify-between gap-4 px-5 py-2.5 text-sm">
                     <dt className="text-muted-foreground">{label}</dt>
                     <dd className="text-right tabular-nums">{value}</dd>
                 </div>
@@ -51,27 +53,54 @@ function Matrix({ roles }) {
         return groups;
     }, {});
     return (
-        <div className="overflow-x-auto rounded-md border border-border">
+        <>
+        {/* A phone has no room for one column per role: each permission lists the roles holding it. */}
+        <div className="-mx-5 divide-y divide-border border-t border-border @2xl:hidden">
+            {Object.entries(byResource).map(([resource, permissions]) => (
+                <section key={resource} aria-label={resource}>
+                    <h3 className="bg-muted/50 px-5 py-1.5 text-xs font-medium capitalize">{resource}</h3>
+                    <ul className="divide-y divide-border">
+                        {permissions.map((permission) => {
+                            const holders = roles.roles.filter((role) => granted.has(`${role.code}:${permission.code}`));
+                            return (
+                                <li key={permission.code} className="space-y-1.5 px-5 py-2.5">
+                                    <p className="font-mono text-xs">{permission.code}</p>
+                                    {permission.description && <p className="text-xs text-muted-foreground">{permission.description}</p>}
+                                    <p className="flex flex-wrap gap-1">
+                                        {holders.length
+                                            ? holders.map((role) => <Badge key={role.code} variant="primary">{role.name}</Badge>)
+                                            : <span className="text-xs text-muted-foreground">No role holds it</span>}
+                                    </p>
+                                </li>
+                            );
+                        })}
+                    </ul>
+                </section>
+            ))}
+        </div>
+        <div tabIndex={0} aria-label="Permissions by role" role="region" className="-mx-5 overflow-x-auto border-t border-border focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset @max-2xl:hidden">
             <table className="w-full text-sm">
                 <caption className="sr-only">Permissions held by each role</caption>
                 <thead>
                     <tr className="text-xs text-muted-foreground">
-                        <th scope="col" className="sticky left-0 bg-card px-4 py-2 text-left font-normal">Permission</th>
+                        <th scope="col" className="sticky left-0 bg-card px-5 py-2 text-left font-normal">Permission</th>
                         {roles.roles.map((role) => <th key={role.code} scope="col" className="px-3 py-2 text-center font-normal whitespace-nowrap">{role.name}</th>)}
                     </tr>
                 </thead>
                 <tbody>
                     {Object.entries(byResource).map(([resource, permissions]) => [
-                        <tr key={`h-${resource}`} className="border-t border-border"><th colSpan={roles.roles.length + 1} scope="colgroup" className="bg-muted/50 px-4 py-1.5 text-left text-xs font-medium capitalize">{resource}</th></tr>,
+                        <tr key={`h-${resource}`} className="border-t border-border"><th colSpan={roles.roles.length + 1} scope="colgroup" className="bg-muted/50 px-5 py-1.5 text-left text-xs font-medium capitalize">{resource}</th></tr>,
                         ...permissions.map((permission) => (
                             <tr key={permission.code} className="border-t border-border">
-                                <th scope="row" className="sticky left-0 bg-card px-4 py-2 text-left font-normal">
+                                <th scope="row" className="sticky left-0 bg-card px-5 py-2 text-left font-normal">
                                     <span className="font-mono text-xs">{permission.code}</span>
                                     {permission.description && <span className="block text-xs text-muted-foreground">{permission.description}</span>}
                                 </th>
                                 {roles.roles.map((role) => {
                                     const has = granted.has(`${role.code}:${permission.code}`);
-                                    return <td key={role.code} className="px-3 py-2 text-center">{has ? <span aria-label="Granted">✓</span> : <span className="text-muted-foreground" aria-label="Not granted">—</span>}</td>;
+                                    return <td key={role.code} className="px-3 py-2 text-center">{has
+                                        ? <LuCheck role="img" aria-label="Granted" className="mx-auto size-4 text-primary-ink" />
+                                        : <span className="text-muted-foreground" aria-label="Not granted">—</span>}</td>;
                                 })}
                             </tr>
                         )),
@@ -79,6 +108,7 @@ function Matrix({ roles }) {
                 </tbody>
             </table>
         </div>
+        </>
     );
 }
 
@@ -143,9 +173,9 @@ export default function SettingsPage({ section }) {
     return (
         <>
             <PageHeader title="Settings" description="Read-only configuration of this deployment." />
-            <div className="grid gap-6 md:grid-cols-[12rem_minmax(0,1fr)]">
+            <div className="grid grid-cols-[minmax(0,1fr)] gap-4 md:grid-cols-[12rem_minmax(0,1fr)] md:gap-6">
                 <nav aria-label="Settings sections">
-                    <ul className="flex list-none gap-1 overflow-x-auto md:flex-col">
+                    <ul className="flex list-none gap-1 overflow-x-auto [scrollbar-width:none] md:flex-col [&::-webkit-scrollbar]:hidden">
                         {SETTINGS_SECTIONS.map((item) => (
                             <li key={item.key}>
                                 <Link
@@ -163,7 +193,7 @@ export default function SettingsPage({ section }) {
                     </ul>
                 </nav>
                 <div className="min-w-0">
-                    {query.isPending ? <Skeleton className="h-48 w-full rounded-lg" /> : query.isError ? (
+                    {query.isPending ? <TableSkeleton rows={4} columns={2} label="Loading settings" /> : query.isError ? (
                         <p className="rounded-lg border border-border p-4 text-sm">Couldn&apos;t load the settings. <button type="button" className="font-medium text-primary-ink hover:underline" onClick={() => query.refetch()}>Retry</button></p>
                     ) : <Section section={current.key} data={query.data} />}
                 </div>

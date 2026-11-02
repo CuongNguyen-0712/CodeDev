@@ -13,14 +13,17 @@ import { ConfirmDialog } from "@/components/admin/confirmDialog";
 import { ErrorReload } from "@/components/ui/error";
 import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
-import { Skeleton } from "@/components/shadcn/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/shadcn/table";
+import RowAction from "@/components/admin/ui/rowAction";
+import { TableSkeleton } from "@/components/admin/ui/adminSkeleton";
+
+import { LuUndo2 } from "react-icons/lu";
 
 const STATUS_VARIANT = { completed: "success", pending: "info", failed: "destructive", cancelled: "muted", expired: "muted", refunded: "warning" };
 const formatDateTime = (value) => (value ? new Date(value).toLocaleString() : "-");
 
 function Loading() {
-    return <div className="space-y-2">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-10 w-full" />)}</div>;
+    return <TableSkeleton rows={6} columns={6} label="Loading orders" />;
 }
 
 export default function OrdersAdmin() {
@@ -48,10 +51,10 @@ export default function OrdersAdmin() {
         <Table>
             <TableHeader>
                 <TableRow>
-                    <TableHead>Date</TableHead>
+                    <TableHead className="@max-2xl:hidden">Date</TableHead>
                     <TableHead>User</TableHead>
-                    <TableHead>Course</TableHead>
-                    <TableHead>Method</TableHead>
+                    <TableHead className="@max-2xl:hidden">Course</TableHead>
+                    <TableHead className="@max-2xl:hidden">Method</TableHead>
                     <TableHead className="text-right">Amount</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead><span className="sr-only">Actions</span></TableHead>
@@ -63,10 +66,10 @@ export default function OrdersAdmin() {
                 )}
                 {data.map((order) => (
                     <TableRow key={order.id}>
-                        <TableCell className="whitespace-nowrap">{formatDateTime(order.created_at)}</TableCell>
+                        <TableCell className="whitespace-nowrap @max-2xl:hidden">{formatDateTime(order.created_at)}</TableCell>
                         <TableCell>{order.username}</TableCell>
-                        <TableCell className="max-w-56 truncate">{order.course_title}</TableCell>
-                        <TableCell>{order.payment_method === "points" ? "Points" : "Online payment"}</TableCell>
+                        <TableCell className="max-w-56 truncate @max-2xl:hidden">{order.course_title}</TableCell>
+                        <TableCell className="@max-2xl:hidden">{order.payment_method === "points" ? "Points" : "Online payment"}</TableCell>
                         <TableCell className="text-right font-mono tabular-nums">
                             {order.payment_method === "points" ? `${order.points_total} pts` : formatMoney(order.amount_minor, order.currency)}
                         </TableCell>
@@ -78,7 +81,7 @@ export default function OrdersAdmin() {
                         </TableCell>
                         <TableCell className="text-right">
                             {can("order.refund") && order.payment_method === "points" && order.status === "completed" && (
-                                <Button size="sm" variant="outline" disabled={refund.isPending} onClick={() => setRefunding(order)}>Refund</Button>
+                                <RowAction icon={LuUndo2} label="Refund" tone="danger" disabled={refund.isPending} onClick={() => setRefunding(order)} />
                             )}
                         </TableCell>
                     </TableRow>

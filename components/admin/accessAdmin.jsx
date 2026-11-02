@@ -13,9 +13,13 @@ import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
 import { Input } from "@/components/shadcn/input";
 import { Label } from "@/components/shadcn/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/shadcn/select";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/shadcn/table";
 import { Textarea } from "@/components/shadcn/textarea";
+import RowAction from "@/components/admin/ui/rowAction";
+
+import { LuBan } from "react-icons/lu";
 
 const formatDate = (value) => (value ? new Date(value).toLocaleDateString() : "-");
 
@@ -136,7 +140,7 @@ function AdjustBalance({ kind, user, onAdjusted }) {
                 </div>
                 <div className="space-y-1.5">
                     <Label htmlFor={`${id}-reason`}>Reason (kept in the audit log)</Label>
-                    <Textarea id={`${id}-reason`} value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} />
+                    <Textarea id={`${id}-reason`} value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} className="h-24 resize-none field-sizing-fixed" />
                 </div>
                 <Button type="submit" disabled={!valid || adjust.isPending || blocked}>
                     {adjust.isPending ? "Applying..." : "Apply adjustment"}
@@ -186,9 +190,9 @@ function Entitlements({ user }) {
                     <TableHeader>
                         <TableRow>
                             <TableHead>Course</TableHead>
-                            <TableHead>Source</TableHead>
+                            <TableHead className="@max-2xl:hidden">Source</TableHead>
                             <TableHead>Status</TableHead>
-                            <TableHead>Expires</TableHead>
+                            <TableHead className="@max-2xl:hidden">Expires</TableHead>
                             <TableHead><span className="sr-only">Actions</span></TableHead>
                         </TableRow>
                     </TableHeader>
@@ -199,12 +203,12 @@ function Entitlements({ user }) {
                         {entitlements.data.map((e) => (
                             <TableRow key={e.id}>
                                 <TableCell>{e.title}</TableCell>
-                                <TableCell>{e.source}</TableCell>
+                                <TableCell className="@max-2xl:hidden">{e.source}</TableCell>
                                 <TableCell><Badge variant={e.status === "active" ? "success" : "muted"}>{e.status}</Badge></TableCell>
-                                <TableCell>{formatDate(e.expires_at)}</TableCell>
+                                <TableCell className="@max-2xl:hidden">{formatDate(e.expires_at)}</TableCell>
                                 <TableCell className="text-right">
                                     {e.status === "active" && (
-                                        <Button size="sm" variant="outline" disabled={revoke.isPending} onClick={() => setRevoking(e)}>Revoke</Button>
+                                        <RowAction icon={LuBan} label="Revoke" tone="danger" disabled={revoke.isPending} onClick={() => setRevoking(e)} />
                                     )}
                                 </TableCell>
                             </TableRow>
@@ -216,17 +220,14 @@ function Entitlements({ user }) {
             <form onSubmit={submitGrant} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
                     <Label htmlFor="grant-course">Grant access to</Label>
-                    <select
-                        id="grant-course"
-                        className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
-                        value={courseId}
-                        onChange={(e) => setCourseId(e.target.value)}
-                    >
-                        <option value="">Choose a course</option>
-                        {(courses.data?.courses || []).filter((c) => c.publishStatus !== "archived").map((c) => (
-                            <option key={c.id} value={c.id}>{c.title}</option>
-                        ))}
-                    </select>
+                    <Select value={courseId || undefined} onValueChange={setCourseId}>
+                        <SelectTrigger id="grant-course" className="w-full"><SelectValue placeholder="Choose a course" /></SelectTrigger>
+                        <SelectContent>
+                            {(courses.data?.courses || []).filter((c) => c.publishStatus !== "archived").map((c) => (
+                                <SelectItem key={c.id} value={c.id}>{c.title}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                 </div>
                 <div className="space-y-1.5">
                     <Label htmlFor="grant-expiry">Expires on (optional)</Label>
@@ -234,7 +235,7 @@ function Entitlements({ user }) {
                 </div>
                 <div className="space-y-1.5 sm:col-span-2">
                     <Label htmlFor="grant-reason">Reason</Label>
-                    <Textarea id="grant-reason" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} />
+                    <Textarea id="grant-reason" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} className="h-24 resize-none field-sizing-fixed" />
                 </div>
                 <div className="sm:col-span-2">
                     <Button type="submit" disabled={!courseId || reason.trim().length < 5 || grant.isPending}>

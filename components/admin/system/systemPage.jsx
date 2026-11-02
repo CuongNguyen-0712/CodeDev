@@ -11,13 +11,16 @@ import { useAdmin } from "@/components/admin/adminContext";
 import { ConfirmDialog } from "@/components/admin/confirmDialog";
 import { QueueStrip } from "@/components/admin/runs/runList";
 import PageHeader from "@/components/admin/shell/pageHeader";
+import Finding from "@/components/admin/ui/finding";
 import StatusDot from "@/components/admin/ui/statusDot";
 import { formatNumber, formatRelative } from "@/components/admin/ui/format";
+import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
 import { Skeleton } from "@/components/shadcn/skeleton";
+import RowAction from "@/components/admin/ui/rowAction";
 import { cn } from "@/lib/utils";
 
-import { LuExternalLink, LuRefreshCw } from "react-icons/lu";
+import { LuCheck, LuExternalLink, LuRefreshCw, LuRotateCw } from "react-icons/lu";
 
 const bytes = (value) => {
     if (!value) return "0 B";
@@ -26,11 +29,11 @@ const bytes = (value) => {
     return `${(value / 1024 ** index).toFixed(index ? 1 : 0)} ${units[index]}`;
 };
 
-function Panel({ title, action, children }) {
+function Panel({ title, badge, action, children }) {
     return (
         <section className="rounded-lg border border-border bg-card" aria-label={title}>
             <header className="flex items-center justify-between gap-3 border-b border-border px-5 py-3">
-                <h2 className="text-sm font-semibold">{title}</h2>
+                <div className="flex min-w-0 items-center gap-2"><h2 className="text-sm font-semibold">{title}</h2>{badge}</div>
                 {action}
             </header>
             <div className="p-5">{children}</div>
@@ -105,7 +108,9 @@ export default function SystemPage() {
     const { health, queue, outbox, deadLetters, database, grafanaUrl } = data;
     const degraded = [["Database", health.database?.status], ["Cache", health.cache?.reachable ? "healthy" : "degraded"], ["Storage", health.storage?.status], ["Jobs", health.jobs?.status]]
         .filter(([, status]) => status && status !== "healthy").map(([name]) => name);
-    const finding = degraded.length ? `${degraded.join(", ")} ${degraded.length === 1 ? "is" : "are"} not healthy.` : deadLetters.length ? `${formatNumber(deadLetters.length)} dead letter${deadLetters.length === 1 ? "" : "s"} open.` : "Every service answers and no job failed for good.";
+    const finding = degraded.length ? <Finding tone="critical">{`${degraded.join(", ")} ${degraded.length === 1 ? "is" : "are"} not healthy.`}</Finding>
+        : deadLetters.length ? <Finding tone="attention">{`${formatNumber(deadLetters.length)} dead letter${deadLetters.length === 1 ? "" : "s"} open.`}</Finding>
+        : <Finding tone="good">Every service answers and no job failed for good.</Finding>;
 
     return (
         <>
@@ -115,7 +120,7 @@ export default function SystemPage() {
             <QueueStrip queue={queue} />
 
             <div className="space-y-4">
-                <Panel title={`Dead letters${deadLetters.length ? ` · ${formatNumber(deadLetters.length)} open` : ""}`} action={<GrafanaLink url={grafanaUrl} path="/d/codedev-jobs" />}>
+                <Panel title="Dead letters" badge={deadLetters.length > 0 && <Badge variant="destructive">{formatNumber(deadLetters.length)} open</Badge>} action={<GrafanaLink url={grafanaUrl} path="/d/codedev-jobs" />}>
                     {deadLetters.length === 0 ? (
                         <p className="text-sm text-muted-foreground">No open dead letter. Background work that fails for good lands here.</p>
                     ) : (
@@ -124,8 +129,8 @@ export default function SystemPage() {
                                 <thead>
                                     <tr className="text-left text-xs text-muted-foreground">
                                         <th scope="col" className="px-5 py-2 font-normal">Kind</th>
-                                        <th scope="col" className="px-5 py-2 font-normal">Error</th>
-                                        <th scope="col" className="px-5 py-2 text-right font-normal">Attempts</th>
+                                        <th scope="col" className="px-5 py-2 font-normal @max-2xl:hidden">Error</th>
+                                        <th scope="col" className="px-5 py-2 text-right font-normal @max-2xl:hidden">Attempts</th>
                                         <th scope="col" className="px-5 py-2 text-right font-normal">Age</th>
                                         {can("ops.resolve") && <th scope="col" className="px-5 py-2"><span className="sr-only">Actions</span></th>}
                                     </tr>
@@ -133,14 +138,14 @@ export default function SystemPage() {
                                 <tbody className="divide-y divide-border">
                                     {deadLetters.map((letter) => (
                                         <tr key={letter.id}>
-                                            <td className="px-5 py-2.5 whitespace-nowrap"><span className="font-mono text-xs">{letter.kind}</span><span className="block text-xs text-muted-foreground">{letter.source}</span></td>
-                                            <td className="max-w-0 truncate px-5 py-2.5 text-muted-foreground" title={letter.error || ""}>{letter.error || "—"}</td>
-                                            <td className="px-5 py-2.5 text-right tabular-nums">{letter.attempts ?? "—"}</td>
+                                            <td className="px-5 py-2.5 break-all sm:break-normal sm:whitespace-nowrap"><span className="font-mono text-xs">{letter.kind}</span><span className="block text-xs text-muted-foreground">{letter.source}</span></td>
+                                            <td className="max-w-0 truncate px-5 py-2.5 text-muted-foreground @max-2xl:hidden" title={letter.error || ""}>{letter.error || "—"}</td>
+                                            <td className="px-5 py-2.5 text-right tabular-nums @max-2xl:hidden">{letter.attempts ?? "—"}</td>
                                             <td className="px-5 py-2.5 text-right whitespace-nowrap text-muted-foreground">{formatRelative(letter.created_at)}</td>
                                             {can("ops.resolve") && (
                                                 <td className="px-5 py-2.5 text-right whitespace-nowrap">
-                                                    {!String(letter.kind).includes("code-run") && <Button variant="ghost" size="sm" onClick={() => setActing({ kind: "retry", letter })}>Retry</Button>}
-                                                    <Button variant="ghost" size="sm" onClick={() => setActing({ kind: "resolve", letter })}>Resolve</Button>
+                                                    {!String(letter.kind).includes("code-run") && <RowAction icon={LuRotateCw} label="Retry" tone="primary" onClick={() => setActing({ kind: "retry", letter })} />}
+                                                    <RowAction icon={LuCheck} label="Resolve" onClick={() => setActing({ kind: "resolve", letter })} />
                                                 </td>
                                             )}
                                         </tr>

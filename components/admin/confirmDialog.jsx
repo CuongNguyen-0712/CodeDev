@@ -69,6 +69,7 @@ export function ConfirmDialog({
                             aria-invalid={Boolean(error) || undefined}
                             aria-describedby={`${id}-reason-hint`}
                             maxLength={500}
+                            className="h-24 resize-none field-sizing-fixed"
                             autoFocus
                         />
                         {error ? <FieldError id={`${id}-reason-hint`}>{error}</FieldError> : (

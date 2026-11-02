@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
+import Finding from "@/components/admin/ui/finding";
 import ChallengeManager from "@/components/admin/challenges/challengeManager";
+import { TableSkeleton } from "@/components/admin/ui/adminSkeleton";
 
 import { adminQueries } from "@/queries/premium.query";
 
@@ -12,7 +14,6 @@ import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
 import { Label } from "@/components/shadcn/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/shadcn/select";
-import { Skeleton } from "@/components/shadcn/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/shadcn/table";
 
 const TYPE_LABELS = { quiz: "Quiz", mini_coding: "Solve", fix_bug: "Fix bug" };
@@ -20,7 +21,7 @@ const percent = (value) => (value === null || value === undefined ? "-" : `${Mat
 const number = (value) => (value === null || value === undefined ? "-" : String(value));
 
 function Loading() {
-    return <div className="space-y-2">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-10 w-full" />)}</div>;
+    return <TableSkeleton rows={4} columns={5} label="Loading course figures" />;
 }
 
 function Section({ title, description, children }) {
@@ -45,9 +46,9 @@ function TierSummary({ tiers }) {
             <TableHeader>
                 <TableRow>
                     <TableHead>Tier</TableHead>
-                    <TableHead className="text-right">Courses</TableHead>
+                    <TableHead className="text-right @max-2xl:hidden">Courses</TableHead>
                     <TableHead className="text-right">Enrolled</TableHead>
-                    <TableHead className="text-right">Completed</TableHead>
+                    <TableHead className="text-right @max-2xl:hidden">Completed</TableHead>
                     <TableHead className="text-right">Completion</TableHead>
                 </TableRow>
             </TableHeader>
@@ -55,9 +56,9 @@ function TierSummary({ tiers }) {
                 {tiers.map((t) => (
                     <TableRow key={t.tier}>
                         <TableCell>{t.tier}. {t.label}</TableCell>
-                        <TableCell className="text-right tabular-nums">{t.courses}</TableCell>
+                        <TableCell className="text-right tabular-nums @max-2xl:hidden">{t.courses}</TableCell>
                         <TableCell className="text-right tabular-nums">{t.enrolled}</TableCell>
-                        <TableCell className="text-right tabular-nums">{t.completed}</TableCell>
+                        <TableCell className="text-right tabular-nums @max-2xl:hidden">{t.completed}</TableCell>
                         <TableCell className="text-right tabular-nums">{percent(t.completionRate)}</TableCell>
                     </TableRow>
                 ))}
@@ -72,31 +73,31 @@ function ChallengeTable({ challenges }) {
             <TableHeader>
                 <TableRow>
                     <TableHead>Challenge</TableHead>
-                    <TableHead>Type</TableHead>
+                    <TableHead className="@max-2xl:hidden">Type</TableHead>
                     <TableHead className="text-right">Tried</TableHead>
                     <TableHead className="text-right">Pass rate</TableHead>
-                    <TableHead className="text-right">Avg attempts to pass</TableHead>
-                    <TableHead className="text-right">Opened a hint</TableHead>
-                    <TableHead className="text-right">Opened hint 3</TableHead>
+                    <TableHead className="text-right @max-2xl:hidden">Avg attempts to pass</TableHead>
+                    <TableHead className="text-right @max-2xl:hidden">Opened a hint</TableHead>
+                    <TableHead className="text-right @max-2xl:hidden">Opened hint 3</TableHead>
                 </TableRow>
             </TableHeader>
             <TableBody>
                 {challenges.length === 0 && <EmptyRow colSpan={7}>This course has no published challenges.</EmptyRow>}
                 {challenges.map((c) => (
                     <TableRow key={c.id}>
-                        <TableCell className="max-w-80">
+                        <TableCell className="max-w-44 @2xl:max-w-80">
                             <div className="truncate font-medium" title={c.title}>{c.title}</div>
                             <div className="truncate text-xs text-muted-foreground" title={c.lessonTitle || ""}>{c.lessonTitle || "No lesson"}</div>
                         </TableCell>
-                        <TableCell className="whitespace-nowrap">
+                        <TableCell className="whitespace-nowrap @max-2xl:hidden">
                             <Badge variant="muted">{TYPE_LABELS[c.type] || c.type}</Badge>
                             {c.difficulty && <span className="ml-2 text-xs text-muted-foreground">{c.difficulty}</span>}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">{c.tried}</TableCell>
                         <TableCell className="text-right tabular-nums">{percent(c.passRate)}</TableCell>
-                        <TableCell className="text-right tabular-nums">{number(c.avgAttemptsToPass)}</TableCell>
-                        <TableCell className="text-right tabular-nums">{c.hintUsers}</TableCell>
-                        <TableCell className="text-right tabular-nums">{c.hintLevel3Users}</TableCell>
+                        <TableCell className="text-right tabular-nums @max-2xl:hidden">{number(c.avgAttemptsToPass)}</TableCell>
+                        <TableCell className="text-right tabular-nums @max-2xl:hidden">{c.hintUsers}</TableCell>
+                        <TableCell className="text-right tabular-nums @max-2xl:hidden">{c.hintLevel3Users}</TableCell>
                     </TableRow>
                 ))}
             </TableBody>
@@ -216,6 +217,20 @@ function ExpAudit() {
     );
 }
 
+/** The course's finding: the tried challenge with the lowest pass rate. */
+function HardestChallenge({ challenges }) {
+    const hardest = challenges.filter((c) => c.tried > 0 && c.passRate != null).sort((a, b) => a.passRate - b.passRate)[0];
+    if (!hardest) return <p className="text-sm text-muted-foreground">No learner has tried a challenge of this course yet.</p>;
+    return (
+        <p className="rounded-lg border border-border bg-card px-4 py-3 text-sm">
+            <Finding tone={hardest.passRate < 0.5 ? "attention" : "good"}>
+                Hardest challenge: <span className="font-medium">{hardest.title}</span>, {percent(hardest.passRate)} of {hardest.tried} learners passed
+                {hardest.avgAttemptsToPass != null && <>, after {number(hardest.avgAttemptsToPass)} attempts on average</>}.
+            </Finding>
+        </p>
+    );
+}
+
 /** Content KPIs of one course (V1.3 §11.3, §11.6) and the EXP audit report. Read-only. */
 export default function ContentKpiAdmin() {
     const courses = useQuery(adminQueries.courses());
@@ -242,6 +257,8 @@ export default function ContentKpiAdmin() {
                     </SelectContent>
                 </Select>
             </div>
+
+            {data && <HardestChallenge challenges={data.challenges} />}
 
             <Section title="Status and publishing" description="Every challenge of the course, published or not. Test cases stay in the content seeds.">
                 <ChallengeManager courseId={courseId} />

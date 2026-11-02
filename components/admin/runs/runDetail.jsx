@@ -15,6 +15,7 @@ import PageHeader from "@/components/admin/shell/pageHeader";
 import StatusDot from "@/components/admin/ui/statusDot";
 import TabBar from "@/components/admin/ui/tabBar";
 import { formatDateTime, formatDuration, formatNumber } from "@/components/admin/ui/format";
+import { TableSkeleton } from "@/components/admin/ui/adminSkeleton";
 import { Button } from "@/components/shadcn/button";
 import { Skeleton } from "@/components/shadcn/skeleton";
 
@@ -81,7 +82,7 @@ function Source({ runId, hasSource }) {
             </div>
         );
     }
-    if (query.isPending) return <Skeleton className="h-48 w-full rounded-lg" />;
+    if (query.isPending) return <TableSkeleton rows={3} columns={3} label="Loading tests" />;
     if (query.isError) return <p className="rounded-lg border border-border p-4 text-sm">Couldn&apos;t load the source. <button type="button" className="font-medium text-primary-ink hover:underline" onClick={() => query.refetch()}>Retry</button></p>;
 
     const failed = query.data.tests.filter((test) => test.status !== "passed");

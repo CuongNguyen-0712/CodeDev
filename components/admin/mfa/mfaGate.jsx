@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -14,13 +15,22 @@ import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/sh
 const inputClass = "h-10 w-full rounded-md border border-input bg-background px-3 font-mono text-base tracking-widest focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none";
 const group = (secret) => secret.match(/.{1,4}/g).join(" ");
 
-function Shell({ title, children }) {
+function Shell({ title, description, children }) {
     return (
-        <main className="flex min-h-dvh items-center justify-center bg-background px-4 py-10">
+        // w-full: the body is a flex row, so without it the column shrinks to its content and sits on the left.
+        <main className="flex min-h-dvh w-full items-center justify-center bg-background px-4 py-10">
             <div className="w-full max-w-md space-y-6">
-                <div className="flex items-center gap-2 text-sm font-semibold"><LogoMark size={22} />CodeDev Admin</div>
-                <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+                <div className="space-y-5">
+                    <div className="flex items-center gap-2 text-sm font-semibold"><LogoMark size={22} />CodeDev Admin</div>
+                    <div className="space-y-2">
+                        <h1 className="text-2xl font-semibold tracking-tight text-balance">{title}</h1>
+                        {description && <p className="text-sm text-muted-foreground text-pretty">{description}</p>}
+                    </div>
+                </div>
                 {children}
+                <p className="border-t border-border pt-4 text-sm">
+                    <Link href="/home" className="text-muted-foreground hover:text-foreground hover:underline">Back to CodeDev</Link>
+                </p>
             </div>
         </main>
     );
@@ -105,8 +115,7 @@ function Enroll() {
 
     if (codes) {
         return (
-            <Shell title="Save your recovery codes">
-                <p className="text-sm text-muted-foreground">If you lose your phone, each of these opens the admin area once. They are shown only now: keep them in a password manager.</p>
+            <Shell title="Save your recovery codes" description="If you lose your phone, each of these opens the admin area once. They are shown only now: keep them in a password manager.">
                 <ol className="grid grid-cols-2 gap-2 rounded-lg border border-border bg-card p-4 font-mono text-sm">
                     {codes.map((code) => <li key={code}>{code}</li>)}
                 </ol>
@@ -119,10 +128,10 @@ function Enroll() {
     }
 
     return (
-        <Shell title="Set up two-factor authentication">
-            <p className="text-sm text-muted-foreground">
-                Admin accounts confirm each sign-in with a code from an authenticator app (Google Authenticator, Microsoft Authenticator, 1Password, Bitwarden…).
-            </p>
+        <Shell
+            title="Set up two-factor authentication"
+            description="Admin accounts confirm each sign-in with a code from an authenticator app (Google Authenticator, Microsoft Authenticator, 1Password, Bitwarden…)."
+        >
             {!setup ? (
                 <>
                     {error && <p className="text-sm text-destructive">{error}</p>}
@@ -162,8 +171,7 @@ function Enroll() {
 function Verify() {
     const router = useRouter();
     return (
-        <Shell title="Confirm it's you">
-            <p className="text-sm text-muted-foreground">Enter the code from your authenticator app to open the admin area.</p>
+        <Shell title="Confirm it's you" description="Enter the code from your authenticator app to open the admin area.">
             <CodeForm
                 label="Code from the app"
                 hint="6 digits from your authenticator app."

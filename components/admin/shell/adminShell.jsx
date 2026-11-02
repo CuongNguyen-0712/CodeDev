@@ -13,18 +13,15 @@ import { LogoMark } from "@/components/ui/logo";
 import { AdminProvider } from "@/components/admin/adminContext";
 import StepUpDialog from "@/components/admin/mfa/stepUpDialog";
 import { useTheme } from "@/contexts/themeContext";
-import { ADMIN_FOOTER_NAV, ADMIN_NAV, activeNavKey } from "@/lib/adminPermissions";
+import { ADMIN_FOOTER_NAV, ADMIN_NAV, SETTINGS_SECTIONS, activeNavKey } from "@/lib/adminPermissions";
 import { cn } from "@/lib/utils";
 import { leaveSignedOut, LANDING_PATH } from "@/lib/authNavigation";
 import { useLogOut } from "@/mutations/auth.mutation";
 import { useApp } from "@/contexts/appContext";
-import {
-    DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
-} from "@/components/shadcn/dropdown-menu";
 
 import {
-    LuActivity, LuArrowLeft, LuBookOpen, LuChevronsUpDown, LuTags, LuClipboardList, LuKeyRound, LuLayoutDashboard, LuLoaderCircle,
-    LuLogOut, LuMoon, LuPlay, LuReceipt, LuServer, LuSettings, LuSun, LuTarget, LuUser, LuUsers,
+    LuActivity, LuArrowLeft, LuBookOpen, LuTags, LuClipboardList, LuKeyRound, LuLayoutDashboard, LuLoaderCircle,
+    LuLogOut, LuMoon, LuPlay, LuReceipt, LuServer, LuSettings, LuSun, LuTarget, LuUsers,
 } from "react-icons/lu";
 
 const ICONS = {
@@ -33,9 +30,9 @@ const ICONS = {
 };
 
 const ENVIRONMENTS = {
-    production: { label: "Production", chip: "bg-warning-soft text-warning", stripe: "bg-warning" },
-    staging: { label: "Staging", chip: "bg-info-soft text-info", stripe: "bg-info" },
-    development: { label: "Development", chip: "bg-muted text-muted-foreground", stripe: null },
+    production: { label: "Production", chip: "border-warning/30 bg-warning-soft text-warning", dot: "bg-warning", stripe: "bg-warning" },
+    staging: { label: "Staging", chip: "border-info/30 bg-info-soft text-info", dot: "bg-info", stripe: "bg-info" },
+    development: { label: "Development", chip: "border-success/30 bg-success-soft text-success", dot: "bg-success", stripe: null },
 };
 
 function NavItems({ items, activeKey }) {
@@ -66,18 +63,20 @@ function Crumbs({ pathname }) {
     return (
         <Breadcrumb className="min-w-0">
             <BreadcrumbList className="flex-nowrap">
-                <BreadcrumbItem>
+                <BreadcrumbItem className="shrink-0">
                     {segments.length === 0
                         ? <BreadcrumbPage>Overview</BreadcrumbPage>
                         : <BreadcrumbLink asChild><Link href="/admin">Admin</Link></BreadcrumbLink>}
                 </BreadcrumbItem>
                 {segments.map((segment, index) => {
                     const href = `/admin/${segments.slice(0, index + 1).join("/")}`;
-                    const label = index === 0 ? section?.label || segment : decodeURIComponent(segment);
+                    const label = index === 0 ? section?.label || segment
+                        : segments[0] === "settings" ? SETTINGS_SECTIONS.find((item) => item.key === segment)?.label || segment
+                        : decodeURIComponent(segment);
                     const last = index === segments.length - 1;
                     return [
-                        <BreadcrumbSeparator key={`s-${href}`} />,
-                        <BreadcrumbItem key={href} className="min-w-0">
+                        <BreadcrumbSeparator key={`s-${href}`} className="shrink-0" />,
+                        <BreadcrumbItem key={href} className={last ? "min-w-0" : "shrink-0"}>
                             {last
                                 ? <BreadcrumbPage className="truncate">{label}</BreadcrumbPage>
                                 : <BreadcrumbLink asChild><Link href={href}>{label}</Link></BreadcrumbLink>}
@@ -89,8 +88,8 @@ function Crumbs({ pathname }) {
     );
 }
 
-/** The signed-in admin: profile and settings of the learners' site, and sign-out (as the site navbar). */
-function AccountMenu({ username, email }) {
+/** The signed-in admin and a direct sign-out button (no menu: the row has only one action). */
+function Account({ username }) {
     const queryClient = useQueryClient();
     const { showAlert: alert } = useApp();
     const logout = useLogOut();
@@ -113,42 +112,30 @@ function AccountMenu({ username, email }) {
     };
 
     return (
-        <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-                <button
-                    type="button"
-                    className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-sidebar-accent data-[state=open]:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                    aria-label={`Account menu for ${username || "this account"}`}
-                >
-                    <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold uppercase" aria-hidden="true">
-                        {(username || "?").slice(0, 1)}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate text-sm">{username}</span>
-                    <LuChevronsUpDown className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent side="top" align="start" className="w-56 p-1.5">
-                <DropdownMenuLabel className="truncate px-2.5 py-1.5 text-xs font-normal text-muted-foreground">Signed in as {email || username}</DropdownMenuLabel>
-                <DropdownMenuSeparator className="my-1" />
-                <DropdownMenuItem asChild className="rounded-lg px-2.5 py-2 text-sm cursor-pointer">
-                    <Link href="/profile"><LuUser className="size-4 text-muted-foreground" aria-hidden="true" /><span>Profile</span></Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild className="rounded-lg px-2.5 py-2 text-sm cursor-pointer">
-                    <Link href="/settings"><LuSettings className="size-4 text-muted-foreground" aria-hidden="true" /><span>Settings</span></Link>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator className="my-1" />
-                <DropdownMenuItem variant="destructive" onSelect={signOut} disabled={signingOut} className="rounded-lg px-2.5 py-2 text-sm cursor-pointer">
-                    <LogoutIcon className={cn("size-4", signingOut && "animate-spin")} aria-hidden="true" />
-                    <span>{signingOut ? "Signing out..." : "Log out"}</span>
-                </DropdownMenuItem>
-            </DropdownMenuContent>
-        </DropdownMenu>
+        <>
+            <span className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5">
+                <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold uppercase" aria-hidden="true">
+                    {(username || "?").slice(0, 1)}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-sm">{username}</span>
+            </span>
+            <button
+                type="button"
+                onClick={signOut}
+                disabled={signingOut}
+                title={signingOut ? "Signing out..." : "Log out"}
+                aria-label={signingOut ? "Signing out" : "Log out"}
+                className="flex size-8 shrink-0 items-center justify-center rounded-md text-destructive hover:bg-destructive-soft focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-60"
+            >
+                <LogoutIcon className={cn("size-4", signingOut && "animate-spin")} aria-hidden="true" />
+            </button>
+        </>
     );
 }
 
 /**
  * Admin chrome (docs/admin-panel-plan.md 5.2): a sidebar on the page ground (⌘B / Ctrl B hides it),
- * a 48px top bar with the breadcrumb and the environment, and the content up to 1200px wide.
+ * a 48px top bar with the breadcrumb and the environment, and the content centred, up to 1280px wide.
  */
 export default function AdminShell({ permissions, environment, user, children }) {
     const pathname = usePathname();
@@ -195,7 +182,7 @@ export default function AdminShell({ permissions, environment, user, children })
                             </SidebarMenuItem>
                         </SidebarMenu>
                         <div className="mt-1 flex items-center gap-1">
-                            <AccountMenu username={user?.username} email={user?.email} />
+                            <Account username={user?.username} />
                             <button
                                 type="button"
                                 onClick={toggleTheme}
@@ -212,12 +199,13 @@ export default function AdminShell({ permissions, environment, user, children })
                     <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-4">
                         <SidebarTrigger aria-label="Toggle navigation" className="-ml-1" />
                         <Crumbs pathname={pathname} />
-                        <span className={cn("ml-auto shrink-0 rounded px-2 py-0.5 text-xs font-medium", env.chip)}>
+                        <span className={cn("ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold", env.chip)}>
+                            <span aria-hidden="true" className={cn("size-1.5 rounded-full", env.dot)} />
                             {env.label}
                         </span>
                     </header>
                     <main id="admin-main" tabIndex={-1} className="min-h-0 flex-1 overflow-y-auto outline-none">
-                        <div className="mx-0 w-full max-w-[1200px] px-4 py-6 md:px-6">{children}</div>
+                        <div key={pathname} data-admin-view className="@container mx-auto w-full max-w-[1280px] px-4 py-6 md:px-6">{children}</div>
                     </main>
                 </SidebarInset>
             </SidebarProvider>

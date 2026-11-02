@@ -20,8 +20,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/shadcn/input";
 import { Label } from "@/components/shadcn/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/shadcn/select";
-import { Skeleton } from "@/components/shadcn/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/shadcn/table";
+import RowAction from "@/components/admin/ui/rowAction";
+import { TableSkeleton } from "@/components/admin/ui/adminSkeleton";
 
 import { LuPencil } from "react-icons/lu";
 
@@ -61,7 +62,7 @@ export default function CourseAdmin() {
     const editing = courses.find((course) => course.id === editingId) || null;
 
     if (isPending) {
-        return <div className="space-y-2">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-12 w-full" />)}</div>;
+        return <TableSkeleton rows={8} columns={6} label="Loading courses" />;
     }
     if (isError) return <ErrorReload refetch={refetch} />;
 
@@ -72,9 +73,9 @@ export default function CourseAdmin() {
                     <TableRow>
                         <TableHead>Course</TableHead>
                         <TableHead>Status</TableHead>
-                        <TableHead>Access</TableHead>
-                        <TableHead>Prices</TableHead>
-                        <TableHead className="text-right">Learners</TableHead>
+                        <TableHead className="@max-2xl:hidden">Access</TableHead>
+                        <TableHead className="@max-2xl:hidden">Prices</TableHead>
+                        <TableHead className="text-right @max-2xl:hidden">Learners</TableHead>
                         <TableHead><span className="sr-only">Actions</span></TableHead>
                     </TableRow>
                 </TableHeader>
@@ -84,18 +85,16 @@ export default function CourseAdmin() {
                     )}
                     {courses.map((course) => (
                         <TableRow key={course.id}>
-                            <TableCell className="max-w-72">
+                            <TableCell className="max-w-40 @2xl:max-w-72">
                                 <Link href={`/admin/courses/${encodeURIComponent(course.id)}`} className="block truncate font-medium hover:underline">{course.title}</Link>
                                 <p className="truncate font-mono text-xs text-muted-foreground">{course.id}</p>
                             </TableCell>
                             <TableCell><Badge variant={STATUS_VARIANT[course.publishStatus] || "muted"}>{course.publishStatus}</Badge></TableCell>
-                            <TableCell><Badge variant={course.accessModel === "premium" ? "primary" : "info"}>{course.accessModel}</Badge></TableCell>
-                            <TableCell><PriceSummary offers={course.offers} /></TableCell>
-                            <TableCell className="text-right font-mono tabular-nums">{course.students}</TableCell>
+                            <TableCell className="@max-2xl:hidden"><Badge variant={course.accessModel === "premium" ? "primary" : "info"}>{course.accessModel}</Badge></TableCell>
+                            <TableCell className="@max-2xl:hidden"><PriceSummary offers={course.offers} /></TableCell>
+                            <TableCell className="text-right font-mono tabular-nums @max-2xl:hidden">{course.students}</TableCell>
                             <TableCell className="text-right">
-                                <Button size="sm" variant="outline" onClick={() => setEditingId(course.id)}>
-                                    <LuPencil aria-hidden="true" /> Manage
-                                </Button>
+                                <RowAction icon={LuPencil} label="Manage" tone="primary" onClick={() => setEditingId(course.id)} />
                             </TableCell>
                         </TableRow>
                     ))}
@@ -326,17 +325,19 @@ function CourseEditor({ course, courses, taxonomy, can }) {
                     <legend className="text-sm font-medium">Skills taught (0 = not taught, 5 = core)</legend>
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                         {taxonomy.skills.map((skill) => (
-                            <label key={skill.code} className="flex items-center justify-between gap-2 text-sm">
-                                <span>{skill.name}</span>
-                                <select
-                                    aria-label={`${skill.name} weight`}
-                                    className="h-8 rounded-md border border-input bg-background px-2 text-sm"
-                                    value={form.skillWeights[skill.code] || "0"}
-                                    onChange={(e) => set({ skillWeights: { ...form.skillWeights, [skill.code]: e.target.value } })}
+                            <div key={skill.code} className="flex items-center justify-between gap-2 text-sm">
+                                <span id={`skill-${skill.code}`}>{skill.name}</span>
+                                <Select
+                                    value={String(form.skillWeights[skill.code] || "0")}
+                                    onValueChange={(value) => set({ skillWeights: { ...form.skillWeights, [skill.code]: value } })}
+                                    disabled={!canEdit || busy}
                                 >
-                                    {[0, 1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}</option>)}
-                                </select>
-                            </label>
+                                    <SelectTrigger size="sm" className="w-16" aria-labelledby={`skill-${skill.code}`}><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                        {[0, 1, 2, 3, 4, 5].map((n) => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
                         ))}
                     </div>
                 </fieldset>

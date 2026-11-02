@@ -10,7 +10,9 @@ function Table({
   return (
     <div
       data-slot="table-container"
-      className="relative w-full overflow-x-auto"
+      // Focusable so keyboard users can scroll a table wider than the screen (WCAG 2.1.1).
+      tabIndex={0}
+      className="relative w-full overflow-x-auto rounded-[inherit] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
     >
       <table
         data-slot="table"

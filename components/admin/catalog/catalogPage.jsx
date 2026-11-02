@@ -10,12 +10,17 @@ import { QUERY_TIMES, retryTransient } from "@/lib/queryTimes";
 import { useAdmin } from "@/components/admin/adminContext";
 import { ConfirmDialog } from "@/components/admin/confirmDialog";
 import PageHeader from "@/components/admin/shell/pageHeader";
+import Finding, { plural } from "@/components/admin/ui/finding";
 import TabBar from "@/components/admin/ui/tabBar";
 import { useUrlFilters } from "@/components/admin/ui/useUrlFilters";
 import { formatNumber } from "@/components/admin/ui/format";
+import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
 import { Field, FieldLabel } from "@/components/shadcn/field";
 import { Skeleton } from "@/components/shadcn/skeleton";
+import RowAction from "@/components/admin/ui/rowAction";
+
+import { LuEye, LuEyeOff, LuPencil, LuTrash2 } from "react-icons/lu";
 
 const KINDS = [
     { key: "category", label: "Categories", singular: "category" },
@@ -54,17 +59,20 @@ export default function CatalogPage() {
         onError: (error) => showAlert(error?.status || 500, error?.message || "The change was not saved"),
     });
     const coded = query.data?.coded;
+    const unused = query.data ? query.data.items.filter((item) => item.courses === 0).length : null;
 
     return (
         <>
             <PageHeader
                 title="Catalog"
-                description="Reference lists used by courses, filters and onboarding."
+                description={unused == null ? "Reference lists used by courses, filters and onboarding."
+                    : unused ? <Finding tone="attention">{`${plural(unused, meta.singular, meta.label.toLowerCase())} not used by any course and can be deleted.`}</Finding>
+                    : <Finding tone="good">{`Every one of the ${plural(query.data.items.length, meta.singular, meta.label.toLowerCase())} is used by a course.`}</Finding>}
                 actions={editable && <Button onClick={() => open({ action: "create" })}>Add {meta.singular}</Button>}
             />
             <TabBar tabs={KINDS} value={kind} onChange={(key) => update({ kind: key })} label="Catalog lists" />
 
-            <section className="overflow-hidden rounded-lg border border-border bg-card" aria-label={meta.label} aria-busy={query.isPending}>
+            <section tabIndex={0} className="overflow-x-auto rounded-lg border border-border bg-card focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none" aria-label={meta.label} aria-busy={query.isPending}>
                 {query.isPending ? (
                     <div className="space-y-2 p-4">{Array.from({ length: 6 }, (_, index) => <Skeleton key={index} className="h-7 w-full" />)}</div>
                 ) : query.isError ? (
@@ -76,8 +84,8 @@ export default function CatalogPage() {
                         <thead>
                             <tr className="text-left text-xs text-muted-foreground">
                                 <th scope="col" className="px-4 py-2 font-normal">Name</th>
-                                {coded && <th scope="col" className="px-4 py-2 font-normal">Code</th>}
-                                {coded && <th scope="col" className="px-4 py-2 font-normal">State</th>}
+                                {coded && <th scope="col" className="px-4 py-2 font-normal @max-2xl:hidden">Code</th>}
+                                {coded && <th scope="col" className="px-4 py-2 font-normal @max-2xl:hidden">State</th>}
                                 <th scope="col" className="px-4 py-2 text-right font-normal">Courses</th>
                                 {editable && <th scope="col" className="px-4 py-2"><span className="sr-only">Actions</span></th>}
                             </tr>
@@ -85,15 +93,15 @@ export default function CatalogPage() {
                         <tbody className="divide-y divide-border">
                             {query.data.items.map((item) => (
                                 <tr key={item.id}>
-                                    <td className="max-w-0 truncate px-4 py-2">{item.name}</td>
-                                    {coded && <td className="px-4 py-2 font-mono text-xs">{item.code}</td>}
-                                    {coded && <td className="px-4 py-2 text-muted-foreground">{item.is_active ? "Active" : "Inactive"}</td>}
-                                    <td className="px-4 py-2 text-right tabular-nums">{formatNumber(item.courses)}</td>
+                                    <td className="max-w-0 truncate px-3 py-2 sm:px-4">{item.name}</td>
+                                    {coded && <td className="px-4 py-2 font-mono text-xs @max-2xl:hidden">{item.code}</td>}
+                                    {coded && <td className="px-4 py-2 text-muted-foreground @max-2xl:hidden">{item.is_active ? "Active" : "Inactive"}</td>}
+                                    <td className="px-4 py-2 text-right tabular-nums">{item.courses === 0 ? <Badge variant="warning">Unused</Badge> : formatNumber(item.courses)}</td>
                                     {editable && (
                                         <td className="px-4 py-2 text-right whitespace-nowrap">
-                                            <Button variant="ghost" size="sm" onClick={() => open({ action: "rename", item })}>Rename</Button>
-                                            {coded && <Button variant="ghost" size="sm" onClick={() => open({ action: item.is_active ? "deactivate" : "activate", item })}>{item.is_active ? "Deactivate" : "Activate"}</Button>}
-                                            {item.courses === 0 && <Button variant="ghost" size="sm" onClick={() => open({ action: "delete", item })}>Delete</Button>}
+                                            <RowAction icon={LuPencil} label="Rename" onClick={() => open({ action: "rename", item })} />
+                                            {coded && <RowAction icon={item.is_active ? LuEyeOff : LuEye} label={item.is_active ? "Deactivate" : "Activate"} tone={item.is_active ? "warning" : "primary"} onClick={() => open({ action: item.is_active ? "deactivate" : "activate", item })} />}
+                                            {item.courses === 0 && <RowAction icon={LuTrash2} label="Delete" tone="danger" onClick={() => open({ action: "delete", item })} />}
                                         </td>
                                     )}
                                 </tr>

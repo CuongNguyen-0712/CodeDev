@@ -12,10 +12,14 @@ import { useAdmin } from "@/components/admin/adminContext";
 import { ConfirmDialog } from "@/components/admin/confirmDialog";
 import StatusDot from "@/components/admin/ui/statusDot";
 import { formatNumber } from "@/components/admin/ui/format";
+import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
 import { Field, FieldLabel } from "@/components/shadcn/field";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/shadcn/select";
-import { Skeleton } from "@/components/shadcn/skeleton";
+import RowAction from "@/components/admin/ui/rowAction";
+import { TableSkeleton } from "@/components/admin/ui/adminSkeleton";
+
+import { LuPencil } from "react-icons/lu";
 
 const STATUSES = [
     { value: "open", label: "Open" },
@@ -45,13 +49,13 @@ export default function ChallengeManager({ courseId }) {
     };
 
     if (!courseId) return null;
-    if (query.isPending) return <Skeleton className="h-40 w-full rounded-lg" />;
+    if (query.isPending) return <TableSkeleton rows={6} columns={5} label="Loading challenges" />;
     if (query.isError) return <p className="text-sm">Couldn&apos;t load the challenges. <button type="button" className="font-medium text-primary-ink hover:underline" onClick={() => query.refetch()}>Retry</button></p>;
 
     const rows = query.data;
     return (
         <>
-            <div className="overflow-hidden rounded-lg border border-border bg-card">
+            <div tabIndex={rows.length ? 0 : undefined} className="overflow-x-auto rounded-lg border border-border bg-card focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
                 {rows.length === 0 ? (
                     <p className="p-4 text-sm text-muted-foreground">This course has no challenges.</p>
                 ) : (
@@ -59,8 +63,8 @@ export default function ChallengeManager({ courseId }) {
                         <thead>
                             <tr className="text-left text-xs text-muted-foreground">
                                 <th scope="col" className="px-4 py-2 font-normal">Challenge</th>
-                                <th scope="col" className="px-4 py-2 font-normal">Status</th>
-                                <th scope="col" className="px-4 py-2 font-normal">Published</th>
+                                <th scope="col" className="px-4 py-2 font-normal @max-2xl:hidden">Status</th>
+                                <th scope="col" className="px-4 py-2 font-normal @max-2xl:hidden">Published</th>
                                 <th scope="col" className="px-4 py-2 text-right font-normal">Points</th>
                                 {can("challenge.update") && <th scope="col" className="w-0 px-4 py-2"><span className="sr-only">Actions</span></th>}
                             </tr>
@@ -70,13 +74,13 @@ export default function ChallengeManager({ courseId }) {
                                 <tr key={challenge.id}>
                                     <td className="max-w-0 px-4 py-2.5">
                                         <span className="block truncate">{challenge.title}</span>
-                                        <span className="block truncate text-xs text-muted-foreground">{challenge.type} · {challenge.difficulty}{challenge.lesson_title ? ` · ${challenge.lesson_title}` : ""}</span>
+                                        <span className="block truncate text-xs text-muted-foreground"><span className="@2xl:hidden">{STATUSES.find((s) => s.value === challenge.status)?.label} · {challenge.is_published ? "published" : "hidden"} · </span>{challenge.type} · {challenge.difficulty}{challenge.lesson_title ? ` · ${challenge.lesson_title}` : ""}</span>
                                     </td>
-                                    <td className="px-4 py-2.5"><StatusDot status={STATUS_DOT[challenge.status]} label={STATUSES.find((s) => s.value === challenge.status)?.label} /></td>
-                                    <td className="px-4 py-2.5 text-muted-foreground">{challenge.is_published ? "Yes" : "No"}</td>
+                                    <td className="px-4 py-2.5 @max-2xl:hidden"><StatusDot status={STATUS_DOT[challenge.status]} label={STATUSES.find((s) => s.value === challenge.status)?.label} /></td>
+                                    <td className="px-4 py-2.5 @max-2xl:hidden">{challenge.is_published ? <Badge variant="success">Published</Badge> : <Badge variant="muted">Hidden</Badge>}</td>
                                     <td className="px-4 py-2.5 text-right tabular-nums">{formatNumber(challenge.points)}</td>
                                     {can("challenge.update") && (
-                                        <td className="px-4 py-2.5 text-right"><Button variant="ghost" size="sm" onClick={() => open(challenge)}>Edit</Button></td>
+                                        <td className="px-4 py-2.5 text-right"><RowAction icon={LuPencil} label="Edit" tone="primary" onClick={() => open(challenge)} /></td>
                                     )}
                                 </tr>
                             ))}

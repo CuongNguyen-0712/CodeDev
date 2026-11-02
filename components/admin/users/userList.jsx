@@ -8,10 +8,12 @@ import { adminClient } from "@/clients/premium.client";
 import { adminKeys } from "@/keys/admin.keys";
 import { QUERY_TIMES, retryTransient } from "@/lib/queryTimes";
 import PageHeader from "@/components/admin/shell/pageHeader";
+import Finding, { plural } from "@/components/admin/ui/finding";
 import StatusDot from "@/components/admin/ui/statusDot";
 import TabBar from "@/components/admin/ui/tabBar";
 import { useUrlFilters } from "@/components/admin/ui/useUrlFilters";
 import { formatDate, formatNumber, formatRelative } from "@/components/admin/ui/format";
+import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
 import { Input } from "@/components/shadcn/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/shadcn/select";
@@ -41,7 +43,7 @@ function UserRow({ user }) {
                     <span className="flex min-w-0 items-center gap-2">
                         <span className="truncate font-medium">{user.username}</span>
                         {staff.map((code) => (
-                            <span key={code} className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs capitalize text-muted-foreground">{roleLabel(code)}</span>
+                            <Badge key={code} variant={code.endsWith("admin") ? "primary" : "muted"} className="capitalize">{roleLabel(code)}</Badge>
                         ))}
                     </span>
                     <span className="block truncate text-sm text-muted-foreground">{user.email}</span>
@@ -55,6 +57,14 @@ function UserRow({ user }) {
             </Link>
         </li>
     );
+}
+
+/** The users screen's finding: locked accounts first, then accounts that never verified their email. */
+function userFinding(counts) {
+    const locked = (counts.suspended || 0) + (counts.blocked || 0);
+    if (locked) return <Finding tone="attention">{`${plural(locked, "account")} suspended or blocked · ${plural(counts.all, "account")} in all.`}</Finding>;
+    if (counts.unverified) return `${formatNumber(counts.unverified)} of ${plural(counts.all, "account")} have not verified their email yet.`;
+    return <Finding tone="good">{`All ${plural(counts.all, "account")} are verified and none is locked.`}</Finding>;
 }
 
 export default function UserList() {
@@ -86,7 +96,7 @@ export default function UserList() {
         <>
             <PageHeader
                 title="Users"
-                description={counts ? `${formatNumber(counts.all)} accounts · ${formatNumber(counts.suspended + counts.blocked)} locked · ${formatNumber(counts.unverified)} unverified` : undefined}
+                description={counts ? userFinding(counts) : undefined}
             />
 
             <TabBar tabs={TABS} value={tab} onChange={(key) => update({ tab: key })} counts={counts} label="Account state" />

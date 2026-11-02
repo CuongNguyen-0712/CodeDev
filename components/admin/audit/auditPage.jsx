@@ -14,6 +14,7 @@ import { Button } from "@/components/shadcn/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/shadcn/sheet";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { cn } from "@/lib/utils";
+import { plural } from "@/components/admin/ui/finding";
 
 const RANGES = [{ key: "1h", label: "1 hour" }, { key: "24h", label: "24 hours" }, { key: "7d", label: "7 days" }, { key: "30d", label: "30 days" }, { key: "all", label: "All" }];
 const TARGET_LINKS = { user: (id) => `/admin/users/${encodeURIComponent(id)}`, code_run: (id) => `/admin/runs/${encodeURIComponent(id)}` };
@@ -25,11 +26,19 @@ const stamp = (value) => {
 };
 const show = (value) => (value === undefined ? "—" : typeof value === "object" ? JSON.stringify(value) : String(value));
 
+/** The audit screen's finding: volume over the facet window and where most of it went. */
+function auditFinding(facets) {
+    const total = facets.actions.reduce((sum, item) => sum + item.count, 0);
+    const target = facets.targets?.[0];
+    const actor = facets.actors?.[0];
+    return `${plural(total, "change")} in the last 90 days${target ? `, most often to ${target.value} (${formatNumber(target.count)})` : ""}${actor ? `, most by ${actor.value}` : ""}.`;
+}
+
 function FilterGroup({ title, items, value, onChange }) {
     if (!items?.length) return null;
     return (
         <div className="space-y-1">
-            <h3 className="px-2 text-xs text-muted-foreground">{title}</h3>
+            <h2 className="px-2 text-xs text-muted-foreground">{title}</h2>
             <ul className="list-none">
                 {items.map((item) => (
                     <li key={item.value}>
@@ -90,18 +99,25 @@ export default function AuditPage() {
     const entries = pages.flatMap((page) => page.items);
     const facets = pages[0]?.facets;
     const filtered = Boolean(filters.actor || filters.action || filters.target || filters.targetId);
+    const facetGroups = (
+        <>
+            <FilterGroup title="Action" items={facets?.actions} value={filters.action} onChange={(value) => update({ action: value })} />
+            <FilterGroup title="Target" items={facets?.targets} value={filters.target} onChange={(value) => update({ target: value })} />
+            <FilterGroup title="Actor" items={facets?.actors} value={filters.actor} onChange={(value) => update({ actor: value })} />
+        </>
+    );
 
     return (
         <>
             <PageHeader
                 title="Audit"
-                description="Every privileged change, newest first. The log is append-only."
+                description={facets?.actions?.length ? auditFinding(facets) : "Every privileged change, newest first. The log is append-only."}
                 actions={filtered && <Button variant="outline" size="sm" onClick={() => update({ actor: "", action: "", target: "", targetId: "" })}>Clear filters</Button>}
             />
-            <div className="grid gap-6 lg:grid-cols-[14rem_minmax(0,1fr)]">
+            <div className="grid gap-4 lg:grid-cols-[14rem_minmax(0,1fr)] lg:gap-6">
                 <aside className="space-y-5" aria-label="Filters">
                     <div className="space-y-1">
-                        <h3 className="px-2 text-xs text-muted-foreground">Time</h3>
+                        <h2 className="px-2 text-xs text-muted-foreground">Time</h2>
                         <div className="flex flex-wrap gap-1 px-1">
                             {RANGES.map((range) => (
                                 <button
@@ -109,16 +125,21 @@ export default function AuditPage() {
                                     type="button"
                                     aria-pressed={filters.range === range.key}
                                     onClick={() => update({ range: range.key })}
-                                    className={cn("rounded-md px-2 py-1 text-xs focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none", filters.range === range.key ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground")}
+                                    className={cn("rounded-md px-2 py-1.5 text-xs focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none", filters.range === range.key ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground")}
                                 >
                                     {range.label}
                                 </button>
                             ))}
                         </div>
                     </div>
-                    <FilterGroup title="Action" items={facets?.actions} value={filters.action} onChange={(value) => update({ action: value })} />
-                    <FilterGroup title="Target" items={facets?.targets} value={filters.target} onChange={(value) => update({ target: value })} />
-                    <FilterGroup title="Actor" items={facets?.actors} value={filters.actor} onChange={(value) => update({ actor: value })} />
+                    {/* Below lg the facet lists fold away so the log itself is on the first screen. */}
+                    <details className="group rounded-md lg:hidden">
+                        <summary className="cursor-pointer rounded-md px-2 py-1.5 text-sm font-medium focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
+                            Filter by action, target or actor
+                        </summary>
+                        <div className="mt-3 space-y-5">{facetGroups}</div>
+                    </details>
+                    <div className="hidden space-y-5 lg:block">{facetGroups}</div>
                     {filters.targetId && <p className="px-2 text-xs text-muted-foreground">Only <span className="font-mono">{filters.targetId}</span></p>}
                 </aside>
 

@@ -14,11 +14,13 @@ import PageHeader from "@/components/admin/shell/pageHeader";
 import StatusDot from "@/components/admin/ui/statusDot";
 import TabBar from "@/components/admin/ui/tabBar";
 import { formatNumber } from "@/components/admin/ui/format";
+import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
 import { Skeleton } from "@/components/shadcn/skeleton";
+import RowAction from "@/components/admin/ui/rowAction";
 import { cn } from "@/lib/utils";
 
-import { LuArrowDown, LuArrowUp, LuCheck, LuExternalLink, LuTriangleAlert } from "react-icons/lu";
+import { LuArrowDown, LuArrowUp, LuCheck, LuExternalLink, LuEye, LuEyeOff, LuTriangleAlert } from "react-icons/lu";
 
 const TABS = [
     { key: "structure", label: "Structure" },
@@ -38,9 +40,12 @@ function Checklist({ items }) {
     const open = items.filter((item) => !item.ok).length;
     return (
         <section className="rounded-lg border border-border bg-card" aria-label="Publish checklist">
-            <header className="border-b border-border px-5 py-3">
-                <h2 className="text-sm font-semibold">Publish checklist</h2>
-                <p className="text-xs text-muted-foreground">{open ? `${open} warning${open === 1 ? "" : "s"}; publishing is still allowed.` : "Ready to publish."}</p>
+            <header className="flex items-start justify-between gap-3 border-b border-border px-5 py-3">
+                <div>
+                    <h2 className="text-sm font-semibold">Publish checklist</h2>
+                    <p className="text-xs text-muted-foreground">{open ? "Warnings never block publishing." : "Every check passes."}</p>
+                </div>
+                {open ? <Badge variant="warning">{open} to fix</Badge> : <Badge variant="success">Ready</Badge>}
             </header>
             <ul className="space-y-2 p-5">
                 {items.map((item) => (
@@ -106,15 +111,13 @@ export default function CourseDetail({ courseId }) {
                                             <span className="flex shrink-0 items-center">
                                                 <MoveButtons label={module.title} disabledUp={moduleIndex === 0} disabledDown={moduleIndex === course.modules.length - 1}
                                                     onMove={(move) => request({ kind: "module", itemId: module.id, move }, `Move module “${module.title}” ${move}`)} />
-                                                <Button variant="ghost" size="sm" onClick={() => request({ kind: "module", itemId: module.id, hidden: !module.hidden }, `${module.hidden ? "Show" : "Hide"} module “${module.title}”`)}>
-                                                    {module.hidden ? "Show" : "Hide"}
-                                                </Button>
+                                                <RowAction icon={module.hidden ? LuEye : LuEyeOff} label={module.hidden ? "Show" : "Hide"} onClick={() => request({ kind: "module", itemId: module.id, hidden: !module.hidden }, `${module.hidden ? "Show" : "Hide"} module “${module.title}”`)} />
                                             </span>
                                         )}
                                     </header>
                                     <ol className="divide-y divide-border">
                                         {module.lessons.map((lesson, lessonIndex) => (
-                                            <li key={lesson.id} className="flex items-center justify-between gap-3 px-4 py-2">
+                                            <li key={lesson.id} className="flex flex-col gap-1 px-4 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                                                 <span className="min-w-0">
                                                     <span className={cn("block truncate text-sm", lesson.hidden && "text-muted-foreground line-through")}>{lessonIndex + 1}. {lesson.title}</span>
                                                     <span className="block text-xs text-muted-foreground">
@@ -123,7 +126,7 @@ export default function CourseDetail({ courseId }) {
                                                         {!lesson.contentSource && <span className="text-warning"> · no content</span>}
                                                     </span>
                                                 </span>
-                                                <span className="flex shrink-0 items-center">
+                                                <span className="-ml-2 flex shrink-0 items-center sm:ml-0">
                                                     {lesson.contentSource && can("content.studio") && (
                                                         <a href={`/studio/structure/lesson;${encodeURIComponent(lesson.contentSource)}`} className="mr-1 inline-flex items-center gap-1 text-xs text-primary-ink hover:underline">
                                                             Studio<LuExternalLink aria-hidden="true" className="size-3" />
@@ -133,9 +136,7 @@ export default function CourseDetail({ courseId }) {
                                                         <>
                                                             <MoveButtons label={lesson.title} disabledUp={lessonIndex === 0} disabledDown={lessonIndex === module.lessons.length - 1}
                                                                 onMove={(move) => request({ kind: "lesson", itemId: lesson.id, move }, `Move lesson “${lesson.title}” ${move}`)} />
-                                                            <Button variant="ghost" size="sm" onClick={() => request({ kind: "lesson", itemId: lesson.id, hidden: !lesson.hidden }, `${lesson.hidden ? "Show" : "Hide"} lesson “${lesson.title}”`)}>
-                                                                {lesson.hidden ? "Show" : "Hide"}
-                                                            </Button>
+                                                            <RowAction icon={lesson.hidden ? LuEye : LuEyeOff} label={lesson.hidden ? "Show" : "Hide"} onClick={() => request({ kind: "lesson", itemId: lesson.id, hidden: !lesson.hidden }, `${lesson.hidden ? "Show" : "Hide"} lesson “${lesson.title}”`)} />
                                                         </>
                                                     )}
                                                 </span>

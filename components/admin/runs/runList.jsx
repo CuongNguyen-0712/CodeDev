@@ -12,6 +12,7 @@ import { QUERY_TIMES, retryTransient } from "@/lib/queryTimes";
 import { useAdmin } from "@/components/admin/adminContext";
 import { ConfirmDialog } from "@/components/admin/confirmDialog";
 import PageHeader from "@/components/admin/shell/pageHeader";
+import Finding, { plural } from "@/components/admin/ui/finding";
 import StatusDot from "@/components/admin/ui/statusDot";
 import TabBar from "@/components/admin/ui/tabBar";
 import { useUrlFilters } from "@/components/admin/ui/useUrlFilters";
@@ -19,7 +20,10 @@ import { formatDuration, formatNumber, formatRelative } from "@/components/admin
 import { Button } from "@/components/shadcn/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/shadcn/select";
 import { Skeleton } from "@/components/shadcn/skeleton";
+import RowAction from "@/components/admin/ui/rowAction";
 import { cn } from "@/lib/utils";
+
+import { LuX } from "react-icons/lu";
 
 const TABS = [
     { key: "active", label: "Active" },
@@ -80,10 +84,19 @@ function RunRow({ run, canCancel, onCancel }) {
             </span>
             <span className="flex items-center justify-end gap-3">
                 <span className="text-sm text-muted-foreground">{formatRelative(run.queued_at)}</span>
-                {active && canCancel && <Button variant="ghost" size="sm" onClick={() => onCancel(run)}>Cancel</Button>}
+                {active && canCancel && <RowAction icon={LuX} label="Cancel" tone="danger" onClick={() => onCancel(run)} />}
             </span>
         </li>
     );
+}
+
+/** The runs screen's finding: runs stuck past the deadline first, then the week's failure share. */
+function runFinding(expired, counts) {
+    if (expired) return <Finding tone="attention">{`${plural(expired, "run")} past the deadline; the hourly sweeper closes them, or close them now.`}</Finding>;
+    if (!counts?.all) return "No code run in the last 7 days.";
+    const bad = (counts.failed || 0) + (counts.timeout || 0);
+    if (!bad) return <Finding tone="good">{`${plural(counts.all, "run")} in the last 7 days, none failed.`}</Finding>;
+    return <Finding tone={bad / counts.all > 0.1 ? "attention" : undefined}>{`${formatNumber(bad)} of ${plural(counts.all, "run")} in the last 7 days failed or timed out.`}</Finding>;
 }
 
 export default function RunList() {
@@ -118,7 +131,7 @@ export default function RunList() {
         <>
             <PageHeader
                 title="Runs"
-                description={first ? (expired ? `${formatNumber(expired)} run${expired === 1 ? "" : "s"} past the deadline; the hourly sweeper closes them, or close them now.` : "Code runs and submissions graded in the sandbox.") : undefined}
+                description={first ? runFinding(expired, first.counts) : undefined}
                 actions={expired > 0 && can("ops.resolve") && <Button variant="outline" size="sm" onClick={() => setExpiring(true)}>Close expired runs</Button>}
             />
 

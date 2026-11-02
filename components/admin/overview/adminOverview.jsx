@@ -7,8 +7,11 @@ import { adminQueries } from "@/queries/premium.query";
 import { useAdmin } from "@/components/admin/adminContext";
 import PageHeader from "@/components/admin/shell/pageHeader";
 import BarChart from "@/components/admin/ui/barChart";
+import Finding from "@/components/admin/ui/finding";
 import StatusDot from "@/components/admin/ui/statusDot";
 import { formatChange, formatDuration, formatNumber, formatRelative } from "@/components/admin/ui/format";
+import { StripSkeleton, TableSkeleton } from "@/components/admin/ui/adminSkeleton";
+import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { cn } from "@/lib/utils";
@@ -19,19 +22,19 @@ const PUBLISH_ORDER = ["published", "draft", "unpublished", "archived"];
 
 /** The finding line under the title: the one fact that most needs attention. */
 function finding(counts, health) {
-    if (health?.status === "down") return "The database is not answering.";
+    if (health?.status === "down") return <Finding tone="critical">The database is not answering.</Finding>;
     const parts = [];
     if (counts.dead_letters_open) parts.push(`${formatNumber(counts.dead_letters_open)} dead letter${counts.dead_letters_open === 1 ? "" : "s"} open`);
     if (counts.runs_expired) parts.push(`${formatNumber(counts.runs_expired)} code run${counts.runs_expired === 1 ? "" : "s"} stuck past the deadline`);
     if (health?.jobs?.oldestQueuedSec > 60) parts.push(`oldest queued run waited ${formatDuration(health.jobs.oldestQueuedSec)}`);
-    return parts.length ? `${parts.join(" · ")}.` : "Nothing needs attention right now.";
+    return parts.length ? <Finding tone="attention">{`${parts.join(" · ")}.`}</Finding> : <Finding tone="good">Nothing needs attention right now.</Finding>;
 }
 
-function Panel({ title, action, className, children }) {
+function Panel({ title, badge, action, className, children }) {
     return (
         <section className={cn("rounded-lg border border-border bg-card", className)} aria-label={title}>
             <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5">
-                <h2 className="text-sm font-semibold">{title}</h2>
+                <div className="flex min-w-0 items-center gap-2"><h2 className="text-sm font-semibold">{title}</h2>{badge}</div>
                 {action}
             </header>
             <div className="p-4">{children}</div>
@@ -105,6 +108,12 @@ function Kpis({ counts }) {
     );
 }
 
+/** How many kinds of work wait in Needs attention: a warning chip, or a calm one when nothing waits. */
+function AttentionBadge({ counts }) {
+    const waiting = [counts.dead_letters_open, counts.runs_expired, counts.purge_soon, counts.courses?.draft].filter((count) => count > 0).length;
+    return waiting ? <Badge variant="warning">{waiting} to review</Badge> : <Badge variant="success">Clear</Badge>;
+}
+
 function NeedsAttention({ counts, can }) {
     const rows = [
         { key: "dead", count: counts.dead_letters_open, label: "Dead letters open", href: "/admin/system", permission: "ops.read" },
@@ -135,11 +144,11 @@ const dayLabel = (iso) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US
 function OverviewSkeleton() {
     return (
         <div className="space-y-4" aria-busy="true" aria-label="Loading overview">
-            <Skeleton className="h-28 w-full rounded-lg" />
-            <Skeleton className="h-28 w-full rounded-lg" />
+            <StripSkeleton />
+            <StripSkeleton />
             <div className="grid gap-4 lg:grid-cols-3">
-                <Skeleton className="h-64 rounded-lg lg:col-span-2" />
-                <Skeleton className="h-64 rounded-lg" />
+                <Skeleton className="h-60 rounded-lg border border-border lg:col-span-2" />
+                <TableSkeleton rows={3} columns={2} label="Loading what needs attention" />
             </div>
         </div>
     );
@@ -193,7 +202,7 @@ export default function AdminOverview() {
                         <BarChart data={chartData} label="Submissions per day, last 14 days" width={320} height={150} className="sm:hidden" formatLabel={dayLabel} />
                         <BarChart data={chartData} label="Submissions per day, last 14 days" height={140} className="max-sm:hidden" formatLabel={dayLabel} />
                     </Panel>
-                    <Panel title="Needs attention">
+                    <Panel title="Needs attention" badge={<AttentionBadge counts={counts} />}>
                         <NeedsAttention counts={counts} can={can} />
                     </Panel>
                 </div>

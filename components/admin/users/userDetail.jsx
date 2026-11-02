@@ -262,7 +262,7 @@ export default function UserDetail({ userId }) {
                 <Fact label="Status note">{user.status_reason || "—"}</Fact>
             </dl>
 
-            <div role="tablist" aria-label="User sections" className="mb-4 flex gap-1 overflow-x-auto border-b border-border">
+            <div role="tablist" aria-label="User sections" className="mb-4 flex gap-1 overflow-x-auto overflow-y-hidden shadow-[inset_0_-1px_0_var(--border)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {TABS.map((key) => (
                     <button
                         key={key}
@@ -273,7 +273,7 @@ export default function UserDetail({ userId }) {
                         aria-controls={`user-panel-${key}`}
                         onClick={() => setTab(key)}
                         className={cn(
-                            "-mb-px whitespace-nowrap border-b-2 px-3 py-2 text-sm capitalize focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+                            "shrink-0 whitespace-nowrap border-b-2 px-3 py-2 text-sm capitalize focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
                             tab === key ? "border-foreground font-medium" : "border-transparent text-muted-foreground hover:text-foreground"
                         )}
                     >
