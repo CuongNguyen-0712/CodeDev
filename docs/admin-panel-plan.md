@@ -33,7 +33,7 @@ Code trên nhánh `develop`, chưa push. A1 đã đóng trên production (migrat
 - `/studio` không có trên production: `app/studio` và cấu hình Sanity bị `.gitignore`, Studio chỉ chạy local. Guard `content.studio` đã thêm vào bản local.
 - Breadcrumb hiện id của user / run / course, chưa hiện tên.
 
-**Chưa làm:** ⌘K command menu (P5), OpenTelemetry G3 (P6), màn Payments (module 07, tuỳ chọn), số đếm trên mục sidebar, thanh nổi ở đáy trên điện thoại, kéo giãn sidebar.
+**Tiếp theo:** P7 (mục 10.3: sửa theo security audit 2026-11-02, menu tài khoản, quay lại trang admin sau đăng nhập). **Chưa làm:** ⌘K command menu (P5), OpenTelemetry G3 (P6), màn Payments (module 07, tuỳ chọn), số đếm trên mục sidebar, thanh nổi ở đáy trên điện thoại, kéo giãn sidebar.
 
 **Việc cần làm trên production, theo thứ tự:**
 
@@ -822,3 +822,59 @@ Trạng thái tính tới 2026-11-01 (sau khi deploy `7496176c`). "Mở" là ch�
 1. Có cần instructor là người dùng thật (đăng nhập, soạn và gửi duyệt course của mình) không? Nếu có, P4 thêm `catalog.course_instructor` và trạng thái `in_review`.
 2. Course manager có được xem source code người học (`submission.read`) không, hay chỉ admin?
 3. Ai là super admin đầu tiên trên production, và có cần người thứ hai làm dự phòng không?
+
+## 10. Rà soát AD-01…AD-06 và security audit (2026-11-02)
+
+### 10.1 Đánh giá bảng AD so với code hiện tại
+
+Bảng AD giả định một thiết kế khác (`/admin/accounts/new`, `/admin/activity`, `/admin/login`, dữ liệu mock). Những route đó không có trong repo; kết luận dưới đây theo code trên `develop`.
+
+| Mã | Đề xuất | Hiện trạng | Kết luận | Ưu tiên mới |
+|---|---|---|---|---|
+| AD-01 | Profile + Logout trong shell | Chân sidebar chỉ có tên và nút đổi theme; không có đăng xuất, không có link tới tài khoản | **Đúng, làm.** Hàng tên user thành menu: "Account settings" (`/settings`), "Profile" (`/profile`), "Log out" (dùng `useLogOut` có sẵn, về `/auth`) | Cao |
+| AD-02 | Modal mật khẩu tạm khi tạo tài khoản | Không có tạo tài khoản trong admin: người dùng tự đăng ký, quyền cấp bằng role (3.5) | **Không làm.** Mật khẩu tạm hiện trên màn admin là bí mật đi ngoài kênh, admin biết mật khẩu của người khác, trái với 2FA. Nếu sau này cần mời: link mời một lần qua email, hết hạn, người nhận tự đặt mật khẩu | Bỏ |
+| AD-03 | Nối API CRUD thay mock | `/admin/users` đã dùng API thật: danh sách, chi tiết, gán / gỡ role, suspend / khoá / mở, thu hồi phiên, timeline; không còn mock trong `components/admin` | **Đã xong.** Xoá tài khoản cứng không làm (audit cần giữ người thực hiện; xoá tài khoản chưa xác minh do job `account-maintenance`) | Không |
+| AD-04 | Stat cards theo vai trò / trạng thái | Overview có Users, Unverified, Admins, Course managers; `/admin/users` có tab All / Active / Unverified / Suspended / Blocked kèm số và một dòng nhận xét | **Đã có.** Không thêm thẻ trùng với tab (kiểu Vercel: số nằm trên tab) | Không |
+| AD-05 | Trang nhật ký hoạt động | `/admin/audit` kiểu trang Logs: lọc thời gian / action / target / actor, phân trang keyset, sheet chi tiết before / after. `return null` trong `auditPage.jsx` là nhóm lọc rỗng, đúng ý | **Đã xong**, còn lỗi I1 (lọc action có `_` không ra gì) | Trung bình (sửa I1) |
+| AD-06 | Trang `/admin/login`, hint tài khoản demo | Dùng chung `/auth` (2.1). Sau khi đăng nhập luôn về `/home`, kể cả khi đi từ `/admin` | **Không làm trang riêng, không hint demo** (lộ tài khoản; staging / production tuyệt đối không). **Làm phần quay lại:** `/admin` chuyển tới `/auth?next=/admin…`, đăng nhập xong về đúng trang; `next` chỉ nhận đường dẫn nội bộ (bắt đầu bằng `/`, không `//`, không `\`) để không thành open redirect | Trung bình |
+
+### 10.2 Security audit trang admin
+
+Phạm vi: `app/admin/**`, 38 route `app/api/admin/**`, `lib/authz.js`, `lib/adminMode.js`, `lib/rateLimit.js`, 2FA, service / DB admin, CLI, Grafana. Đọc code, không chạy trên DB. Không có lỗi nghiêm trọng (Critical).
+
+**Đã ổn:** mọi route gọi `requirePermission` (quyền đọc từ DB mỗi request, user phải `active`); chỉ 4 route MFA dùng `mfa: false` và vẫn cần `admin.read`; mọi lệnh ghi có `csrf` và rate limit; luật cấp bậc (không tự sửa mình, không động người ngang / cao hơn, giữ super admin cuối, gỡ role thì huỷ phiên); TOTP so sánh hằng thời gian, chặn dùng lại mã, secret AES-256-GCM, mã khôi phục HMAC dùng một lần; SQL tham số hoá, keyset kiểm bằng regex; không có `dangerouslySetInnerHTML` hay open redirect; lỗi 5xx trả thông báo chung, API admin `no-store`; payload dead letter không rời server; IP / user agent bị che khi thiếu `user.pii`; Grafana chỉ nghe `127.0.0.1`, không cho truy cập ẩn danh.
+
+| Mã | Mức | Vấn đề | Chỗ | Cách sửa |
+|---|---|---|---|---|
+| S1 | Trung bình | `ADMIN_IP_ALLOWLIST` bị qua mặt bằng header giả khi tự host (Docker profile `app` mở cổng 3000 trực tiếp): `getClientIp` tin `x-real-ip` / `cf-connecting-ip` do client gửi. Cùng lỗi làm reset rate limit theo IP. Trên Vercel nhiều khả năng an toàn (chưa xác nhận) | `lib/rateLimit.js:38` | Trên Vercel (`VERCEL=1`) chỉ tin `x-vercel-forwarded-for`; header khác chỉ khi đặt `TRUSTED_PROXY` rõ ràng |
+| S2 | Trung bình | Đoán mã TOTP chậm không bị khoá: 10 lần / 5 phút → khoảng 0,9 % / ngày, ~23 % / 30 ngày với phiên hoặc mật khẩu bị lộ; Redis lỗi thì limiter rơi về bộ nhớ từng instance | `lib/rateLimit.js:226`, `services/adminMfa.service.js` | Khoá sau 5 lần sai liên tiếp tới khi `reset-mfa` hoặc hết 1 giờ (dùng `FailureGuard` có sẵn); audit mỗi lần sai `mfa.failed`; Overview báo khi có |
+| S3 | Trung bình | Admin tự cộng điểm / tự cấp quyền học cho chính mình: `adjustPoints` và `grantEntitlement` không chặn target là chính actor, không áp luật cấp bậc | `services/admin.service.js:139`, `:264` | Từ chối khi target là actor hoặc target có rank ≥ actor |
+| S4 | Trung bình | `course_manager` có quyền ảnh hưởng tiền (`course.price`, `course.publish`) và đọc code người học (`submission.read`) mà không cần 2FA | `services/adminMfa.service.js` (ngưỡng 80) | Bắt 2FA với mọi ai có `course.price`, `course.publish`, `submission.read`, `user.pii` hoặc hạ ngưỡng xuống 50 |
+| S5 | Trung bình (chưa xác nhận) | `grafana_ro` tạo bằng Neon Console sẽ thành thành viên `neon_superuser`, đọc ghi được toàn bộ DB; `default_transaction_read_only` client tự tắt được | Hướng dẫn trong `20261101_009` | Tạo role bằng SQL `CREATE ROLE`, không bằng Console; kiểm `pg_has_role('grafana_ro','neon_superuser','member') = false` |
+| S6 | Thấp | Chưa đòi xác nhận lại 15 phút cho cấp / thu quyền học, offer giá, retry / resolve dead letter | `entitlements/route.js`, `courses/[id]/offers/route.js`, `system/dead-letters/*` | Thêm `requireRecentAuth` |
+| S7 | Thấp | Overview trả audit gần đây cho người chỉ có `admin.read` (bỏ qua `audit.read`) | `services/adminDashboard.service.js:31` | Chỉ trả `audit` khi có `audit.read` |
+| S8 | Thấp | `/api/admin/users` trả email không che dù thiếu `user.pii`; danh sách user tìm theo email kể cả khi email bị che (dò được từng ký tự). Hiện chưa role nào có `user.read` mà thiếu `user.pii` | `app/api/admin/users/route.js`, `db/adminUser.db.js:32` | Che email theo `user.pii`; chỉ tìm theo email khi có `user.pii` |
+| S9 | Thấp | Chi tiết run trả `stdin` của người học mà không ghi audit (xem source thì có) | `db/adminRun.db.js:73` | Bỏ `stdin` khỏi chi tiết hoặc gộp vào lệnh xem source có audit |
+| S10 | Thấp | Audit chỉ append-only với UPDATE / DELETE: trigger không chặn `TRUNCATE`, role của app tự tắt được trigger | `identity.audit_log` | Bảng thuộc role khác; role app chỉ `INSERT`, `SELECT`; chặn `TRUNCATE` |
+| S11 | Thấp | Lần đăng ký 2FA đầu tiên thuộc về ai đang giữ phiên: phiên bị lộ giữa lúc cấp role và lúc chủ thật đăng ký sẽ gắn authenticator của kẻ tấn công | `services/adminMfa.service.js` (setup) | Đòi nhập lại mật khẩu (hoặc link qua email) trước khi `setup` |
+| S12 | Thấp | `/studio` không qua IP allowlist và 2FA (Sanity vẫn đòi đăng nhập riêng; chỉ có ở local) | `app/studio/[[...tool]]/page.jsx` | Dùng lại kiểm tra của layout admin |
+| S13 | Thấp | Bản sao staging giữ `admin_mfa` / `admin_mfa_recovery` từ production; giải mã được nếu staging dùng chung `NEXTAUTH_SECRET` / `ADMIN_MFA_KEY` | `scripts/db-anonymize.mjs` | Anonymizer xoá hai bảng này |
+| S14 | Thông tin | Lọc audit theo action có `_` (ví dụ `dead_letter`) không ra kết quả: escape LIKE sai (`` `\${ch}` `` thành chữ `${ch}`) | `db/adminAudit.db.js:3,13` | `` `\\${ch}` `` và `ESCAPE '\\'`; thêm test |
+| S15 | Thông tin | Không đặt `ADMIN_MFA_KEY` thì đổi `NEXTAUTH_SECRET` làm mọi secret 2FA không giải mã được (verify lỗi 500) | `services/adminMfa.service.js` | Bắt buộc `ADMIN_MFA_KEY` ở môi trường deploy (lỗi `fatal` trong `envCheck`) |
+| S16 | Thông tin | `/admin` chưa có CSP `script-src` | `proxy.js` | Thêm CSP chặt cho `/admin*` sau khi kiểm script Next cần gì |
+
+### 10.3 Kế hoạch cập nhật (P7)
+
+Mỗi bước một commit, có test. Thứ tự theo rủi ro rồi tới UX.
+
+| Bước | Việc | Mã | Ghi chú |
+|---|---|---|---|
+| P7.1 | Khoá 2FA sau 5 lần sai, audit `mfa.failed`; chặn tự cộng điểm / tự cấp quyền; thêm xác nhận lại cho entitlement, offer, dead letter | S2, S3, S6 | Chỉ code, không migration |
+| P7.2 | `getClientIp` chỉ tin header của nền tảng; anonymizer xoá bảng 2FA; `ADMIN_MFA_KEY` bắt buộc khi deploy | S1, S13, S15 | Đặt `ADMIN_MFA_KEY` trên Vercel **trước** khi deploy bước này và trước khi ai đăng ký 2FA |
+| P7.3 | 2FA cho mọi người có quyền tiền / PII / đọc code; đòi mật khẩu trước khi đăng ký 2FA | S4, S11 | Thay đổi hành vi với course manager: báo trước |
+| P7.4 | Che email theo `user.pii`, audit theo `audit.read` trên Overview, bỏ `stdin` khỏi chi tiết run, sửa escape lọc audit | S7, S8, S9, S14 | |
+| P7.5 | Menu tài khoản + đăng xuất trong shell; `/admin` → `/auth?next=` và quay lại đúng trang | AD-01, AD-06 | `next` chỉ nhận đường dẫn nội bộ, có test open redirect |
+| P7.6 | Quyền sở hữu bảng audit (migration), CSP `/admin`, guard `/studio` | S10, S16, S12 | Migration chạy trước deploy như các lần trước |
+| Vận hành | Tạo `grafana_ro` bằng SQL và kiểm không thuộc `neon_superuser` | S5 | Làm cùng bước 8 ở mục 0 |
+
+Không làm: AD-02 (mật khẩu tạm), trang `/admin/login`, hint tài khoản demo, xoá cứng tài khoản, thêm stat card trùng tab.
