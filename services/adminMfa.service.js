@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import QRCode from "qrcode";
 
 import { adminDb } from "@/db/admin.db";
 import { adminMfaDb } from "@/db/adminMfa.db";
@@ -77,7 +78,10 @@ export const adminMfaService = {
         const secret = generateTotpSecret();
         const saved = await adminMfaDb.savePending({ userDbId: actor.id, secretEnc: encryptSecret(secret) });
         if (!saved) throw new ApiError("Two-factor authentication is already set up", 409, { code: "MFA_ENROLLED" });
-        return { secret, uri: totpUri({ secret, account }) };
+        const uri = totpUri({ secret, account });
+        // Drawn here so the secret never goes to a QR service or a client library.
+        const svg = await QRCode.toString(uri, { type: "svg", margin: 1, errorCorrectionLevel: "M" });
+        return { secret, uri, qr: `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}` };
     },
 
     /** First code from the app: enrols, returns the recovery codes once, and verifies this session. */

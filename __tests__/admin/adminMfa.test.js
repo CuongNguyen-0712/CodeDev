@@ -88,6 +88,7 @@ describe.skipIf(!hasDb)("admin two-factor (PostgreSQL)", () => {
     it("enrols with a code, returns recovery codes once, and verifies the session", async () => {
         const setup = await adminMfaService.setup({ actor, account: publicId });
         expect(setup.uri).toMatch(/^otpauth:\/\/totp\//);
+        expect(setup.qr).toMatch(/^data:image\/svg\+xml;base64,/);
         await expect(adminMfaService.confirm({ actor, sessionId, code: "000000" === (await currentCode()) ? "111111" : "000000" })).rejects.toMatchObject({ errorCode: "MFA_INVALID" });
         const { recoveryCodes } = await adminMfaService.confirm({ actor, sessionId, code: await currentCode() });
         expect(recoveryCodes).toHaveLength(8);

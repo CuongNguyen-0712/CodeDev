@@ -117,9 +117,15 @@ function Enroll() {
             ) : (
                 <div className="space-y-5">
                     <ol className="list-decimal space-y-3 pl-5 text-sm">
-                        <li>In the app, add an account and choose to enter a setup key.</li>
                         <li>
-                            Enter this key (time based):
+                            In the app, add an account and scan this QR code:
+                            <span className="mt-2 block w-fit rounded-lg border border-border bg-white p-2">
+                                {/* eslint-disable-next-line @next/next/no-img-element -- a data URL drawn on the server */}
+                                <img src={setup.qr} alt="QR code for the authenticator app" width={176} height={176} className="size-44" />
+                            </span>
+                        </li>
+                        <li>
+                            Cannot scan? Choose to enter a setup key and type this key (time based):
                             <span className="mt-1 block rounded-md bg-muted px-3 py-2 font-mono text-base tracking-wider break-all">{group(setup.secret)}</span>
                             <a href={setup.uri} className="mt-1 inline-block text-primary-ink hover:underline">Open in an authenticator app on this device</a>
                         </li>
