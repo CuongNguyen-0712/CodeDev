@@ -37,15 +37,19 @@ Code trên nhánh `develop`, chưa push. A1 đã đóng trên production (migrat
 
 **Việc cần làm trên production, theo thứ tự:**
 
-1. Hạ compute `production` về 0.25–1 CU trên Neon console (R2).
+1. Hạ compute `production` về 0.25–1 CU trên Neon console (R2). Kiểm 2026-11-02: endpoint read-write `ep-frosty-frost` vẫn cố định **2 CU** (min = max = 2); endpoint read-only `ep-autumn-pond` (0.25–2 CU) không env nào dùng, nghỉ từ 2026-10-14, xoá được.
 2. ~~Migration `20261101_007`–`_009` trên production~~ (đã chạy 2026-11-01: 6 role có cấp bậc, 48 permission, trigger super admin, `status_until`, 8 view `metrics`).
 3. Migration `20261101_010` và `20261102_011` trên production (`npm run db:migrate:prod -- --yes`, chạy cả hai) **trước** khi deploy: chỉ thêm bảng, cột và trigger nên bản đang chạy không bị ảnh hưởng; code mới mà thiếu `_010` thì mọi API admin lỗi 500.
 4. Biến môi trường (Production và Preview): `ADMIN_MFA_REQUIRED` không cần đặt (mặc định bật; đặt `0` ở môi trường deploy làm server dừng). **Bắt buộc** `ADMIN_MFA_KEY` (≥ 32 ký tự ngẫu nhiên, Production và Preview mỗi nơi một giá trị; thiếu thì 2FA trả 503), đặt **trước** lần đăng ký 2FA đầu tiên: đổi khoá sau đó làm secret đã lưu không giải mã được, phải `reset-mfa` từng người. Tuỳ chọn `ADMIN_IP_ALLOWLIST`.
 5. Push `develop`, merge vào `main`, deploy.
-6. `npm run admin:role -- grant <email> super_admin --reason "<lý do>" --env .env.production` (R5), thêm một super admin dự phòng.
+6. ~~Super admin đầu tiên~~ (2026-11-02: đã cấp `super_admin` cho một tài khoản đã xác minh, có audit `role.grant`). Còn lại: thêm một super admin dự phòng bằng `npm run admin:role -- grant <email> super_admin --reason "<lý do>" --env .env.production` (R5). Trước khi deploy bản có 2FA, tài khoản này vào `/admin` mà không cần mã.
 7. Sync app Inngest (R3).
 8. Tạo role `grafana_ro` trên Neon (lệnh trong migration `_009`), cấu hình Grafana Cloud và `npm run grafana:push -- --env .env.production`.
-9. Staging: trỏ Preview vào branch `staging`, reset từ production, `npm run db:anonymize -- --env .env.staging --yes`; xoá các branch cũ bằng tay (R4).
+9. Staging và branch Neon (R4). Hiện trạng 2026-11-02 (giới hạn Free: 10 branch / project):
+   - `production`: branch chính, Vercel khoá không cho xoá.
+   - `preview/develop`: tích hợp Vercel tự tạo ngày 2026-11-01 cho Preview của nhánh `develop`, compute cố định 1 CU. Đây là **bản sao production chưa ẩn danh** (email thật). Dùng nó làm staging: `npm run db:anonymize -- --env .env.staging --yes` (`.env.staging` trỏ vào branch này, đặt `APP_ENV=staging`, `STAGING_PASSWORD`), hạ compute về 0.25 CU. Mỗi nhánh git có Preview sẽ sinh thêm một branch `preview/<nhánh>`: xoá khi nhánh git xong.
+   - `staging`: bản sao production ngày 2026-10-08, đã archive, không deployment nào dùng: xoá.
+   - `claim-purge-test-20261024`, `seed-test-a1-a2-20261024`, `perf-rehearsal-20261101`: branch thử tạo bằng tay, chứa bản sao dữ liệu thật: xoá.
 
 ## 1. Hiện trạng
 
