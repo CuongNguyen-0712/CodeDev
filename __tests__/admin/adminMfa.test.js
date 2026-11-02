@@ -118,4 +118,34 @@ describe.skipIf(!hasDb)("admin two-factor (PostgreSQL)", () => {
         const rows = (await sql(`SELECT action, target_id FROM identity.audit_log WHERE actor_id = $1 AND action = 'admin.denied'`, [userDbId])).rows;
         expect(rows).toEqual([{ action: "admin.denied", target_id: "role.manage" }]);
     });
+
+    it("refuses points, EXP and course access for the actor's own account and for higher roles", async () => {
+        const { adminService } = await import("@/services/admin.service");
+        await sql(`INSERT INTO profile.info (user_id, name, surname) VALUES ($1, 'Mfa', 'Test') ON CONFLICT DO NOTHING`, [userDbId]);
+        const input ={ userId: publicId, amount: 10, reason: "self credit check", idempotencyKey: `${TAG}-self` };
+        await expect(adminService.adjustPoints({ actor, input })).rejects.toMatchObject({ status: 403 });
+        await expect(adminService.adjustExperience({ actor, input })).rejects.toMatchObject({ status: 403 });
+        await expect(adminService.grantEntitlement({ actor, input: { userId: publicId, courseId: "none", reason: "self grant check" } })).rejects.toMatchObject({ status: 403 });
+
+        const higher = await sql(
+            `SELECT u.public_id FROM identity.users u JOIN identity.user_roles ur ON ur.user_id = u.id
+             JOIN identity.roles r ON r.id = ur.role_id AND r.code = 'super_admin' JOIN profile.info i ON i.user_id = u.id LIMIT 1`
+        );
+        if (higher.rows[0]) {
+            await expect(adminService.adjustPoints({ actor, input: { ...input, userId: higher.rows[0].public_id } })).rejects.toMatchObject({ status: 403 });
+        }
+    });
+
+    it("locks the second factor after 5 wrong codes and audits each one", async () => {
+        const { mfaFailureGuard } = await import("@/services/adminMfa.service");
+        await mfaFailureGuard.reset(publicId);
+        const wrong = (await currentCode()) === "000000" ? "111111" : "000000";
+        for (let attempt = 0; attempt < 5; attempt += 1) {
+            await expect(adminMfaService.verify({ actor, sessionId, code: wrong })).rejects.toMatchObject({ errorCode: "MFA_INVALID" });
+        }
+        await expect(adminMfaService.verify({ actor, sessionId, code: await currentCode() })).rejects.toMatchObject({ status: 429, errorCode: "MFA_LOCKED" });
+        const failed = (await sql(`SELECT count(*)::int AS n FROM identity.audit_log WHERE actor_id = $1 AND action = 'mfa.failed'`, [userDbId])).rows[0].n;
+        expect(failed).toBeGreaterThanOrEqual(5);
+        await mfaFailureGuard.reset(publicId);
+    });
 });

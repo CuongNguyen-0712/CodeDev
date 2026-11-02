@@ -1,4 +1,4 @@
-import { requirePermission } from "@/lib/authz";
+import { requirePermission, requireRecentAuth } from "@/lib/authz";
 import { apiRoute } from "@/lib/routeHandler";
 import { rateLimiters } from "@/lib/rateLimit";
 import { adminOfferDeleteSchema, adminOfferSchema, parseOrThrow, publicId, readJson } from "@/lib/validation/premium";
@@ -8,6 +8,7 @@ import { adminService } from "@/services/admin.service";
 export const POST = apiRoute(
     async ({ req, userId, params }) => {
         const actor = await requirePermission(userId, ["admin.read", "course.price"]);
+        await requireRecentAuth(actor);
         const courseId = parseOrThrow(publicId, params.id);
         const input = parseOrThrow(adminOfferSchema, await readJson(req));
         return adminService.setOffer({ actor, courseId, input });
@@ -19,6 +20,7 @@ export const POST = apiRoute(
 export const DELETE = apiRoute(
     async ({ req, userId, params }) => {
         const actor = await requirePermission(userId, ["admin.read", "course.price"]);
+        await requireRecentAuth(actor);
         const courseId = parseOrThrow(publicId, params.id);
         const { priceType, reason } = parseOrThrow(adminOfferDeleteSchema, await readJson(req));
         return adminService.removeOffer({ actor, courseId, priceType, reason });

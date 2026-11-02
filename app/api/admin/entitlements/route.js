@@ -1,4 +1,4 @@
-import { requirePermission } from "@/lib/authz";
+import { requirePermission, requireRecentAuth } from "@/lib/authz";
 import { RateLimiter, rateLimiters } from "@/lib/rateLimit";
 import { apiRoute } from "@/lib/routeHandler";
 import { adminGrantSchema, adminRevokeSchema, parseOrThrow, publicId, readJson } from "@/lib/validation/premium";
@@ -18,6 +18,7 @@ export const GET = apiRoute(
 export const POST = apiRoute(
     async ({ req, userId }) => {
         const actor = await requirePermission(userId, ["admin.read", "entitlement.grant"]);
+        await requireRecentAuth(actor);
         const input = parseOrThrow(adminGrantSchema, await readJson(req));
         return adminService.grantEntitlement({ actor, input, ip: RateLimiter.getClientIp(req) });
     },
@@ -28,6 +29,7 @@ export const POST = apiRoute(
 export const DELETE = apiRoute(
     async ({ req, userId }) => {
         const actor = await requirePermission(userId, ["admin.read", "entitlement.grant"]);
+        await requireRecentAuth(actor);
         const input = parseOrThrow(adminRevokeSchema, await readJson(req));
         return adminService.revokeEntitlement({ actor, input, ip: RateLimiter.getClientIp(req) });
     },

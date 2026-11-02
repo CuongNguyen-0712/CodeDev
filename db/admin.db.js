@@ -153,7 +153,8 @@ export const adminDb = {
 
     findUserForUpdate: async (client, userPublicId) => {
         const { rows } = await client.query(
-            `SELECT u.id, u.public_id, COALESCE(i.points, 0)::bigint AS points, i.exp, i.exp_level
+            `SELECT u.id, u.public_id, COALESCE(i.points, 0)::bigint AS points, i.exp, i.exp_level,
+                    (SELECT COALESCE(MAX(r.rank), 0) FROM identity.user_roles ur JOIN identity.roles r ON r.id = ur.role_id WHERE ur.user_id = u.id)::int AS rank
              FROM identity.users u JOIN profile.info i ON i.user_id = u.id
              WHERE u.public_id = $1
              FOR UPDATE OF i`,

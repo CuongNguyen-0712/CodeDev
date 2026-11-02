@@ -72,6 +72,12 @@ async function withCourse(actor, courseId, work) {
     return result;
 }
 
+/** Points, EXP and course access never go to the actor or to someone of the same or a higher role. */
+function assertOtherLowerRank(actor, user) {
+    if (user.public_id === actor.publicId) throw new ApiError("You cannot change your own points, EXP or course access.", 403, { code: "FORBIDDEN" });
+    if (Number(user.rank) >= Number(actor.rank)) throw new ApiError("This account has the same or a higher role than yours.", 403, { code: "FORBIDDEN" });
+}
+
 export const adminService = {
     listCourses: async () => {
         const [courses, taxonomy] = await Promise.all([adminDb.listCourses(), adminDb.getTaxonomy()]);
@@ -140,6 +146,7 @@ export const adminService = {
         const result = await withTransaction(async (client) => {
             const user = await adminDb.findUserForUpdate(client, input.userId);
             if (!user) throw new ApiError("User not found", 404);
+            assertOtherLowerRank(actor, user);
 
             const entry = await adminDb.postPoints(client, {
                 userDbId: user.id,
@@ -179,6 +186,7 @@ export const adminService = {
         const result = await withTransaction(async (client) => {
             const user = await adminDb.findUserForUpdate(client, input.userId);
             if (!user) throw new ApiError("User not found", 404);
+            assertOtherLowerRank(actor, user);
 
             const entry = await adminDb.postExp(client, {
                 userDbId: user.id,
@@ -265,6 +273,7 @@ export const adminService = {
         const result = await withTransaction(async (client) => {
             const user = await adminDb.findUserForUpdate(client, input.userId);
             if (!user) throw new ApiError("User not found", 404);
+            assertOtherLowerRank(actor, user);
             const course = await adminDb.lockCourse(client, input.courseId);
             if (!course || course.publish_status === "archived") throw new ApiError("Course not found", 404);
 
