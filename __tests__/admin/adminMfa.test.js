@@ -107,19 +107,33 @@ describe.skipIf(!hasDb)("admin two-factor (PostgreSQL)", () => {
         return hotp(decryptSecret(row.secret_enc), Math.floor(Date.now() / 30000) + offset);
     };
 
+    it("asks course managers for the second factor too, by permission rather than rank", async () => {
+        const { mfaRequiredFor } = await import("@/services/adminMfa.service");
+        expect(mfaRequiredFor({ rank: 50, permissions: new Set(["admin.read", "course.price"]) })).toBe(true);
+        expect(mfaRequiredFor({ rank: 30, permissions: new Set(["admin.read", "challenge.update"]) })).toBe(false);
+        expect(mfaRequiredFor({ rank: 80, permissions: new Set(["admin.read"]) })).toBe(true);
+    });
+
+    it("refuses to start enrolment from a sign-in older than 10 minutes", async () => {
+        await sql(`UPDATE identity.sessions SET created_at = now() - interval '11 minutes' WHERE id = $1`, [sessionId]);
+        await expect(adminMfaService.setup({ actor, sessionId, account: publicId })).rejects.toMatchObject({ status: 403, errorCode: "FRESH_SIGN_IN_REQUIRED" });
+        await expect(adminMfaService.setup({ actor, sessionId: null, account: publicId })).rejects.toMatchObject({ errorCode: "FRESH_SIGN_IN_REQUIRED" });
+        await sql(`UPDATE identity.sessions SET created_at = now() WHERE id = $1`, [sessionId]);
+    });
+
     it("refuses admin APIs until the session passed the second factor", async () => {
         await expect(requirePermission(publicId, "admin.read")).rejects.toMatchObject({ status: 403, errorCode: "MFA_REQUIRED" });
         expect((await requirePermission(publicId, "admin.read", { mfa: false })).publicId).toBe(publicId);
     });
 
     it("enrols with a code, returns recovery codes once, and verifies the session", async () => {
-        const setup = await adminMfaService.setup({ actor, account: publicId });
+        const setup = await adminMfaService.setup({ actor, sessionId, account: publicId });
         expect(setup.uri).toMatch(/^otpauth:\/\/totp\//);
         expect(setup.qr).toMatch(/^data:image\/svg\+xml;base64,/);
         await expect(adminMfaService.confirm({ actor, sessionId, code: "000000" === (await currentCode()) ? "111111" : "000000" })).rejects.toMatchObject({ errorCode: "MFA_INVALID" });
         const { recoveryCodes } = await adminMfaService.confirm({ actor, sessionId, code: await currentCode() });
         expect(recoveryCodes).toHaveLength(8);
-        await expect(adminMfaService.setup({ actor, account: publicId })).rejects.toMatchObject({ status: 409 });
+        await expect(adminMfaService.setup({ actor, sessionId, account: publicId })).rejects.toMatchObject({ status: 409 });
         expect((await requirePermission(publicId, "admin.read")).publicId).toBe(publicId);
         await expect(requireRecentAuth(actor)).resolves.toBeUndefined();
 

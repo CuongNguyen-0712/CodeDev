@@ -11,8 +11,11 @@ import { generateTotpSecret, matchTotp, totpUri } from "@/lib/totp";
 
 /**
  * Two-factor authentication for the admin area (docs/admin-panel-plan.md 2.1, 3.4).
- *   - Roles of rank 80 and above (admin, super_admin) must enrol before using the admin area,
- *     and each session passes the second factor once (identity.sessions.mfa_verified_at).
+ *   - Roles of rank 80 and above (admin, super_admin), and anyone holding a permission in
+ *     MFA_PERMISSIONS (course managers), must enrol before using the admin area, and each session
+ *     passes the second factor once (identity.sessions.mfa_verified_at).
+ *   - Enrolment needs a sign-in from the last 10 minutes, so an old stolen session cannot attach
+ *     its own authenticator before the owner does.
  *   - Sensitive actions also need a confirmation in the last 15 minutes (sessions.reauth_at).
  *   - The TOTP secret is encrypted with a key derived from ADMIN_MFA_KEY (required in production and
  *     staging; local development falls back to NEXTAUTH_SECRET);
@@ -25,7 +28,12 @@ export const REAUTH_WINDOW_MS = 15 * 60 * 1000;
 const RECOVERY_CODES = 8;
 
 export const mfaRequired = (env = process.env) => !["0", "false", "off"].includes(String(env.ADMIN_MFA_REQUIRED ?? "").trim().toLowerCase());
-export const mfaRequiredFor = (actor) => mfaRequired() && Number(actor?.rank) >= MFA_REQUIRED_RANK;
+// Below admin rank, a second factor is still needed by anyone who can change prices or publishing, or read PII or learners' code.
+const MFA_PERMISSIONS = ["course.price", "course.publish", "submission.read", "user.pii"];
+export const FRESH_SIGN_IN_MS = 10 * 60 * 1000;
+
+export const mfaRequiredFor = (actor) => mfaRequired()
+    && (Number(actor?.rank) >= MFA_REQUIRED_RANK || MFA_PERMISSIONS.some((permission) => actor?.permissions?.has(permission)));
 
 function keyFor(purpose) {
     // Deployed environments need a key of their own, so rotating NEXTAUTH_SECRET never locks the admins out.
@@ -100,7 +108,15 @@ export const adminMfaService = {
     },
 
     /** A new pending secret for the enrolment screen (409 once enrolled). */
-    setup: async ({ actor, account }) => {
+    setup: async ({ actor, sessionId, account }) => {
+        const state = sessionId ? await adminMfaDb.sessionState({ sessionId, userDbId: actor.id }) : null;
+        if (!state || Date.now() - new Date(state.created_at).getTime() > FRESH_SIGN_IN_MS) {
+            throw new ApiError(
+                "For your security, sign out and sign in again, then set up two-factor authentication within 10 minutes.",
+                403,
+                { code: "FRESH_SIGN_IN_REQUIRED" }
+            );
+        }
         const secret = generateTotpSecret();
         const saved = await adminMfaDb.savePending({ userDbId: actor.id, secretEnc: encryptSecret(secret) });
         if (!saved) throw new ApiError("Two-factor authentication is already set up", 409, { code: "MFA_ENROLLED" });

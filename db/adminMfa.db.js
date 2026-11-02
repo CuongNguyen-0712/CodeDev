@@ -46,7 +46,7 @@ export const adminMfaDb = {
 
     /** The session's second-factor state, only when it belongs to this user. */
     sessionState: async ({ sessionId, userDbId }) => (await sql(
-        `SELECT mfa_verified_at, reauth_at FROM identity.sessions WHERE id = $1 AND user_id = $2`,
+        `SELECT mfa_verified_at, reauth_at, created_at FROM identity.sessions WHERE id = $1 AND user_id = $2`,
         [sessionId, userDbId]
     )).rows[0] || null,
 

@@ -7,7 +7,11 @@ import { adminMfaService } from "@/services/adminMfa.service";
 export const POST = apiRoute(
     async ({ userId, session }) => {
         const actor = await requirePermission(userId, "admin.read", { mfa: false });
-        return adminMfaService.setup({ actor, account: session?.user?.username || session?.user?.email || actor.publicId });
+        return adminMfaService.setup({
+            actor,
+            sessionId: session?.user?.sessionId ? String(session.user.sessionId) : null,
+            account: session?.user?.username || session?.user?.email || actor.publicId,
+        });
     },
     { context: "api/admin/mfa/setup", csrf: true, limiter: rateLimiters.adminMfa }
 );
