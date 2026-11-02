@@ -12,7 +12,7 @@ export const GET = apiRoute(
         }
         const query = (new URL(req.url).searchParams.get("q") || "").trim().slice(0, 100);
         if (query.length < 2) return [];
-        return adminService.findUsers({ query });
+        return adminService.findUsers({ query, pii: actorCan(actor, "user.pii") });
     },
     { context: "api/admin/users" }
 );

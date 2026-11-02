@@ -235,15 +235,15 @@ export const adminDb = {
         );
     },
 
-    /** Admin search: username / email prefix or exact public id. */
-    findUsers: async ({ query }) => {
+    /** Admin search: username prefix, email prefix (only with user.pii) or exact public id. */
+    findUsers: async ({ query, matchEmail = false }) => {
         return sql(
             `SELECT u.public_id AS id, u.username, u.email, COALESCE(i.points, 0)::bigint AS points, COALESCE(i.exp, 0)::bigint AS exp, COALESCE(i.exp_level, 1) AS level
              FROM identity.users u LEFT JOIN profile.info i ON i.user_id = u.id
-             WHERE u.public_id = $1 OR u.username ILIKE $2 ESCAPE '\\' OR u.email ILIKE $2 ESCAPE '\\'
+             WHERE u.public_id = $1 OR u.username ILIKE $2 ESCAPE '\\' OR ($3 AND u.email ILIKE $2 ESCAPE '\\')
              ORDER BY u.username
              LIMIT 20`,
-            [query, `${query.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`]
+            [query, `${query.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`, matchEmail]
         );
     },
 

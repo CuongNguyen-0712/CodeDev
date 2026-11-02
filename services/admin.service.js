@@ -5,6 +5,7 @@ import { redis } from "@/lib/cache";
 import { cacheKeys, invalidateUserCache } from "@/lib/cacheKeys";
 import { publishToUser } from "@/lib/pusher";
 import { events, progressReasons } from "@/lib/realtime";
+import { maskEmail } from "@/services/adminUser.service";
 
 /**
  * Admin / course manager operations. The caller has already passed `requirePermission`
@@ -325,9 +326,9 @@ export const adminService = {
         return { revoked: true };
     },
 
-    findUsers: async ({ query }) => {
-        const { rows } = await adminDb.findUsers({ query });
-        return rows.map((row) => ({ ...row, points: toNumber(row.points) }));
+    findUsers: async ({ query, pii = false }) => {
+        const { rows } = await adminDb.findUsers({ query, matchEmail: pii });
+        return rows.map((row) => ({ ...row, email: pii ? row.email : maskEmail(row.email), points: toNumber(row.points) }));
     },
 
     getUserEntitlements: async ({ userId }) => {

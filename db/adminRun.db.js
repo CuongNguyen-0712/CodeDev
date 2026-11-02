@@ -70,7 +70,7 @@ export const adminRunDb = {
 
     detail: async ({ runId }) => (await sql(
         `SELECT cr.public_id AS id, cr.status, cr.run_type, cr.language, cr.sandbox, cr.queued_at, cr.started_at, cr.finished_at,
-                cr.deadline_at, cr.published_at, cr.error, cr.result, cr.stdin,
+                cr.deadline_at, cr.published_at, cr.error, cr.result,
                 cr.source_snapshot IS NOT NULL AND cr.source_snapshot ? 'code' AS has_source,
                 u.public_id AS user_id, u.username, ch.public_id AS challenge_id, ch.title AS challenge_title,
                 c.public_id AS course_id, c.title AS course_title

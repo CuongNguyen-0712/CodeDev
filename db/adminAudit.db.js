@@ -3,7 +3,7 @@ import { sql } from "@/lib/db";
 const RANGES = { "1h": "1 hour", "24h": "24 hours", "7d": "7 days", "30d": "30 days" };
 export const AUDIT_RANGES = [...Object.keys(RANGES), "all"];
 
-const escapeLike = (text) => text.replace(/[\%_]/g, (ch) => `\${ch}`);
+export const escapeLike = (text) => text.replace(/[\\%_]/g, (ch) => `\\${ch}`);
 
 /** identity.audit_log for the Audit screen (docs/admin-panel-plan.md 5.5), newest first, keyset on id. */
 export const adminAuditDb = {
@@ -13,7 +13,7 @@ export const adminAuditDb = {
         if (RANGES[range]) where.push(`a.created_at > now() - interval '${RANGES[range]}'`);
         if (actor === "system") where.push("a.actor_id IS NULL");
         else if (actor) { params.push(actor); where.push(`u.username = $${params.length}`); }
-        if (action) { params.push(`${escapeLike(action)}%`); where.push(`a.action LIKE $${params.length} ESCAPE '\'`); }
+        if (action) { params.push(`${escapeLike(action)}%`); where.push(`a.action LIKE $${params.length} ESCAPE '\\'`); }
         if (targetType) { params.push(targetType); where.push(`a.target_type = $${params.length}`); }
         if (targetId) { params.push(targetId); where.push(`a.target_id = $${params.length}`); }
         if (beforeId) { params.push(beforeId); where.push(`a.id < $${params.length}::bigint`); }

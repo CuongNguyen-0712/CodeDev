@@ -22,7 +22,8 @@ function deployment(env = process.env) {
  * measured on each load (it is what the screen is opened for when something is wrong).
  */
 export const adminDashboardService = {
-    overview: async () => {
+    /** canReadAudit: the recent audit rows only for audit.read (the figures are shared by every admin). */
+    overview: async ({ canReadAudit = false } = {}) => {
         const [figures, health] = await Promise.all([
             redis.remember(cacheKeys.adminDashboard(), TTL.ADMIN_DASHBOARD, async () => {
                 const [counts, series, audit] = await Promise.all([
@@ -34,6 +35,6 @@ export const adminDashboardService = {
             }),
             healthReport(),
         ]);
-        return { ...figures, health, deployment: deployment() };
+        return { ...figures, audit: canReadAudit ? figures.audit : [], health, deployment: deployment() };
     },
 };

@@ -177,6 +177,23 @@ describe.skipIf(!hasDb)("admin two-factor (PostgreSQL)", () => {
         }
     });
 
+    it("matches and shows emails in the user search only with user.pii", async () => {
+        const { adminService } = await import("@/services/admin.service");
+        const byEmail = `${publicId}@test.inv`;
+        expect(await adminService.findUsers({ query: byEmail, pii: false })).toEqual([]);
+        expect((await adminService.findUsers({ query: byEmail, pii: true }))[0]?.email).toBe(`${publicId}@test.invalid`);
+        expect((await adminService.findUsers({ query: publicId, pii: false }))[0]?.email).toBe(`${publicId.slice(0, 1)}***@test.invalid`);
+    });
+
+    it("filters the audit log by an action prefix that contains an underscore", async () => {
+        const { adminAuditDb, escapeLike } = await import("@/db/adminAudit.db");
+        expect(escapeLike("dead_letter%")).toBe("dead\\_letter\\%");
+        await sql(`INSERT INTO identity.audit_log (actor_id, action, target_type, target_id) VALUES ($1, $2, 'user', $3)`, [userDbId, `zz_${TAG}.check`, publicId]);
+        const { rows } = await adminAuditDb.list({ action: `zz_${TAG}`, range: "1h" });
+        expect(rows.map((row) => row.action)).toEqual([`zz_${TAG}.check`]);
+        expect((await adminAuditDb.list({ action: `zz${TAG}`, range: "1h" })).rows).toEqual([]);
+    });
+
     it("locks the second factor after 5 wrong codes and audits each one", async () => {
         const { mfaFailureGuard } = await import("@/services/adminMfa.service");
         await mfaFailureGuard.reset(publicId);

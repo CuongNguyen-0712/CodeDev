@@ -63,7 +63,7 @@ export const adminUserService = {
     list: async ({ actor, tab, search, role, cursor, limit = 50 }) => {
         const mask = masker(actor);
         const [{ rows }, counts] = await Promise.all([
-            adminUserDb.list({ tab, search, role, cursor: decodeCursor(cursor), limit: limit + 1 }),
+            adminUserDb.list({ tab, search, matchEmail: actorCan(actor, "user.pii"), role, cursor: decodeCursor(cursor), limit: limit + 1 }),
             adminUserDb.tabCounts(),
         ]);
         const page = rows.slice(0, limit);

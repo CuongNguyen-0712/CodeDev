@@ -215,20 +215,22 @@ export default function AdminOverview() {
                             <div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">Course managers</dt><dd className="tabular-nums">{formatNumber(staff.course_manager || 0)}</dd></div>
                         </dl>
                     </Panel>
-                    <Panel title="Recent admin activity" action={can("audit.read") && <Link href="/admin/audit" className="text-sm text-primary-ink hover:underline">View all</Link>}>
-                        {audit.length === 0 ? (
-                            <p className="text-sm text-muted-foreground">No admin changes yet.</p>
-                        ) : (
-                            <ul className="divide-y divide-border">
-                                {audit.map((entry) => (
-                                    <li key={entry.id} className="flex items-baseline justify-between gap-3 py-1.5 first:pt-0 last:pb-0 text-sm">
-                                        <span className="min-w-0 truncate"><span className="font-mono text-xs">{entry.action}</span> <span className="text-muted-foreground">by {entry.actor || "system"}</span></span>
-                                        <span className="shrink-0 text-xs text-muted-foreground">{formatRelative(entry.created_at)}</span>
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
-                    </Panel>
+                    {can("audit.read") && (
+                        <Panel title="Recent admin activity" action={<Link href="/admin/audit" className="text-sm text-primary-ink hover:underline">View all</Link>}>
+                            {audit.length === 0 ? (
+                                <p className="text-sm text-muted-foreground">No admin changes yet.</p>
+                            ) : (
+                                <ul className="divide-y divide-border">
+                                    {audit.map((entry) => (
+                                        <li key={entry.id} className="flex items-baseline justify-between gap-3 py-1.5 first:pt-0 last:pb-0 text-sm">
+                                            <span className="min-w-0 truncate"><span className="font-mono text-xs">{entry.action}</span> <span className="text-muted-foreground">by {entry.actor || "system"}</span></span>
+                                            <span className="shrink-0 text-xs text-muted-foreground">{formatRelative(entry.created_at)}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </Panel>
+                    )}
                 </div>
             </div>
         </>

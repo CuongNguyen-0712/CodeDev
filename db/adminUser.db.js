@@ -24,12 +24,14 @@ const escapeLike = (text) => text.replace(/[\\%_]/g, (ch) => `\\${ch}`);
 
 export const adminUserDb = {
     /** One page, newest first (keyset on created_at, id). */
-    list: async ({ tab = "all", search = "", role = null, cursor = null, limit = 50 }) => {
+    list: async ({ tab = "all", search = "", matchEmail = false, role = null, cursor = null, limit = 50 }) => {
         const params = [];
         const where = [TAB_FILTERS[tab] || TAB_FILTERS.all];
         if (search) {
             params.push(search, `%${escapeLike(search)}%`);
-            where.push(`(u.public_id = $${params.length - 1} OR u.username ILIKE $${params.length} ESCAPE '\\' OR u.email ILIKE $${params.length} ESCAPE '\\')`);
+            // Matching a masked email would reveal it one character at a time: email only with user.pii.
+            const email = matchEmail ? ` OR u.email ILIKE $${params.length} ESCAPE '\\'` : "";
+            where.push(`(u.public_id = $${params.length - 1} OR u.username ILIKE $${params.length} ESCAPE '\\'${email})`);
         }
         if (role) {
             params.push(role);
