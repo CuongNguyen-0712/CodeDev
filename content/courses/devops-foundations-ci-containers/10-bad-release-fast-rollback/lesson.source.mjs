@@ -19,12 +19,12 @@ export default ({ h2, h3, p, bullets, numbered, code, callout, challenge }) => (
         p("After lesson 7, Rice Rocket's checkout moved to canary releases. The canary step for v3.2.0 was configured like this: send 10% of traffic to the new pods, wait five minutes, and promote if the pods stay healthy. \"Healthy\" meant one thing: `GET /health` returns 200."),
         p("v3.2.0 was a cleanup release. Among 1,400 changed lines, it renamed the setting that holds the database connection string from `DB_URL` to `DATABASE_URL`. Nobody changed the Deployment, which still set `DB_URL` from the database secret. This is what happened next:"),
         bullets([
-            "**The pods started fine.** The connection pool was created with `open=False`, so it did not connect at start-up. The empty connection string was only used later, on the first query.",
+            "**The pods started fine.** The app opens a database connection when a request needs one, not at start-up, so the empty connection string was only used later, on the first query.",
             "**`/health` answered 200 on every pod.** The handler returned `{\"status\": \"ok\"}` without looking at anything.",
             "**Every request that needed the database failed.** Placing an order, paying, checking order status: all 500. The menu pages come from a cache, so they still worked - which is why the error rate was about 30% and not 100%.",
             "**The gate promoted the release at 14:05,** because the only thing it checked was the 200. At 14:07 all 20 pods ran v3.2.0 and the alert fired.",
         ]),
-        p("Nothing here is exotic. A renamed variable, a lazy connection pool and a health check that checks nothing: each is harmless alone, together they shipped a broken release with a green light."),
+        p("Nothing here is exotic. A renamed variable, a lazy database connection and a health check that checks nothing: each is harmless alone, together they shipped a broken release with a green light."),
 
         h2("2. First, collect the evidence"),
         p("The first minutes of an incident are for **looking**, not fixing. You want a few facts that you can point at, saved somewhere the rollback will not erase them. For a bad deploy, four sources answer most questions:"),
@@ -58,7 +58,9 @@ time    v3.1.4 (baseline)   v3.2.0 (canary)      5xx rate, 1-minute buckets
         code("python", `
 VERSION = "3.2.0"
 DATABASE_URL = os.environ.get("DATABASE_URL", "")   # v3.1.4 read os.environ["DB_URL"]
-pool = ConnectionPool(DATABASE_URL, open=False)      # connects on the first query
+
+def get_db():
+    return psycopg.connect(DATABASE_URL)            # per request: nothing connects at start-up
 
 @app.get("/health")
 def health():
@@ -126,6 +128,8 @@ import os
 import sys
 import time
 
+import psycopg
+
 REQUIRED = ["DATABASE_URL", "PAYMENT_API_URL"]
 TIMEOUT_MS = 500
 
@@ -139,7 +143,7 @@ def database_problem():
     """None when SELECT 1 answers in time, otherwise a short reason."""
     start = time.monotonic()
     try:
-        with pool.connection(timeout=TIMEOUT_MS / 1000) as conn:
+        with psycopg.connect(os.environ.get("DATABASE_URL", ""), connect_timeout=2) as conn:
             conn.execute("SELECT 1")
     except Exception as error:
         return f"database: {type(error).__name__}"
@@ -212,6 +216,6 @@ kubectl -n staging logs checkout-5d1c9-q8r2t
             "**Verify by failing.** Reproduce the original mistake on staging and watch the new check stop it before any user sees it.",
         ]),
         callout("success", "Self-practice (not graded): write the incident report",
-            "Write a one-page report for this incident in your own words. Use these headings: Summary (two sentences: what users saw, for how long), Timeline (14:00 to 14:16, from the deploy log and the graph), Impact (share of failed requests, which features), Root cause (the renamed variable) and Contributing causes (the health check that could not fail, the lazy pool, the gate that only looked at /health), What went well (fast rollback by digest, saved evidence), and Actions (each with an owner and a date). Keep it blameless: describe what the system allowed, not who made the mistake. Compare your actions with sections 5 to 7."),
+            "Write a one-page report for this incident in your own words. Use these headings: Summary (two sentences: what users saw, for how long), Timeline (14:00 to 14:16, from the deploy log and the graph), Impact (share of failed requests, which features), Root cause (the renamed variable) and Contributing causes (the health check that could not fail, the lazy connection, the gate that only looked at /health), What went well (fast rollback by digest, saved evidence), and Actions (each with an owner and a date). Keep it blameless: describe what the system allowed, not who made the mistake. Compare your actions with sections 5 to 7."),
     ],
 });

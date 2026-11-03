@@ -678,7 +678,7 @@ time    v3.1.4 (baseline)   v3.2.0 (canary)
 14:07   -                   31.2%   (all traffic on v3.2.0)
 14:09   -                   31.0%
 
-Statement: "The dashboard already showed the canary failing about 100 times more often than the baseline before it was promoted."', 'single_choice'::question_type, 'True. At 14:01 and 14:03 the canary''s 5xx rate was 29.6% and 30.9% against 0.3% and 0.4% on the baseline, about 100 and 77 times higher, minutes before the 14:05 promotion. The data needed to stop the release existed; the gate did not look at it. Comparing rates with a baseline over the same minutes is exactly what the canary gate of the previous lesson does.', 3, 5
+Statement: "In each minute listed before the promotion, the canary''s 5xx rate was more than 70 times the baseline rate."', 'single_choice'::question_type, 'True. At 14:01 and 14:03 the canary''s 5xx rate was 29.6% and 30.9% against 0.3% and 0.4% on the baseline, about 99 and 77 times higher, minutes before the 14:05 promotion. The data needed to stop the release existed; the gate did not look at it. Comparing rates with a baseline over the same minutes is exactly what the canary gate of the previous lesson does.', 3, 5
     WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_devf_341') AND order_index = 3)
     RETURNING id
 )
@@ -694,13 +694,14 @@ WITH q AS (
 
 VERSION = "3.2.0"
 DATABASE_URL = os.environ.get("DATABASE_URL", "")    # v3.1.4 read os.environ["DB_URL"]
-pool = ConnectionPool(DATABASE_URL, open=False)       # opens connections on the first query
+def get_db():
+    return psycopg.connect(DATABASE_URL)             # per request: nothing connects at start-up
 
 @app.get("/health")
 def health():
     return {"status": "ok", "version": VERSION}
 
-Statement: "If health() also ran SELECT 1 through the pool and returned 503 when that failed, the v3.2.0 canary pods would never have become ready."', 'single_choice'::question_type, 'True. DATABASE_URL is not set in the pod (the Deployment still sets DB_URL), so os.environ.get returns "" and every connection attempt fails - that is the OperationalError of evidence 2. With open=False the pool only tries on the first query, so start-up succeeded and health() never noticed. A check that actually uses the database fails at once, the readiness probe keeps the canary at 0 ready pods, and the gate never sees a healthy step. Checking the config at start-up (refusing to start without DATABASE_URL) would have caught it even earlier.', 4, 5
+Statement: "If health() also ran SELECT 1 on the database and returned 503 when that failed, the v3.2.0 canary pods would never have become ready."', 'single_choice'::question_type, 'True. DATABASE_URL is not set in the pod (the Deployment still sets DB_URL), so os.environ.get returns "" and every connection attempt fails - that is the OperationalError of evidence 2. The app only connects when a request needs the database, so start-up succeeded and health() never noticed. A check that actually uses the database fails at once, the readiness probe keeps the canary at 0 ready pods, and the gate never sees a healthy step. Checking the config at start-up (refusing to start without DATABASE_URL) would have caught it even earlier.', 4, 5
     WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_devf_341') AND order_index = 4)
     RETURNING id
 )
