@@ -155,7 +155,7 @@ budget exhausted     freeze grader changes until the 28-day SLI is back above 99
         h2("Sources"),
         bullets([
             "Google SRE Workbook, chapter \"Implementing SLOs\" and chapter \"Alerting on SLOs\" - sre.google/workbook/alerting-on-slos/",
-            "OpenTelemetry semantic conventions for HTTP metrics: http.server.request.duration - opentelemetry.io/docs/concepts/signals/",
+            "OpenTelemetry semantic conventions for HTTP metrics: http.server.request.duration - opentelemetry.io/docs/specs/semconv/http/http-metrics/",
         ]),
         callout("tip", "Practice on your own (not graded)",
             "Write the SLO document for another CodeDev journey, \"open a lesson\" (GET /lessons/:id plus the Sanity content it needs): the SLI with its valid and good events, what you exclude and why, the target and window, the budget in requests for last month's traffic, and the error budget policy you would propose. Then recompute one hour of the SLI from the access log and compare it with your recording rule."),

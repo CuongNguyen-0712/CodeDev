@@ -57,7 +57,7 @@ error ratio 0.5%  -> burn rate 1     the budget lasts exactly 28 days
 error ratio 1.0%  -> burn rate 2     the budget is gone in 14 days
 error ratio 30%   -> burn rate 60    the budget is gone in 28 d / 60 = 11.2 hours
 
-budget spent in a window = burn rate x window / SLO period
+budget spent in a window = burn rate x window / SLO period   (at average traffic)
 1 h at burn rate 14.4 = 14.4 x 1 h / 672 h = 2.1% of a 28-day budget`, "burn-rate.txt"),
         p("Burn rate makes an alert threshold mean something. \"Page when the error ratio over 1 hour exceeds 7.2%\" is an arbitrary number; \"page when the last hour spent the budget 14.4 times too fast\", which is the same rule for a 99.5% SLO, says why it matters and stays correct if the SLO changes."),
         h3("The policy from the SRE Workbook"),

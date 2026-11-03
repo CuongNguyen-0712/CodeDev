@@ -62,7 +62,7 @@ error budget left (28 days, 99.5%): Mon 41% ... Sun 10%`, "pager-log-week-43.txt
         p("Before the retro ended, three quick fixes were proposed. Test each one against both failures of the week:"),
         bullets([
             "**Raise the threshold to 5%.** The 3% spikes stop paging. The 0.8% leak is even further below the line, and a real 4% partial failure lasting all afternoon is now invisible too. It trades noise for blindness.",
-            "**Add `for: 5m`.** The alert must be true for five evaluations in a row before it fires, so one-minute spikes stop paging. The leak is still below 1% and still invisible, every real outage pages five minutes later, and an outage that dips under 1% for one minute restarts the five-minute wait.",
+            "**Add `for: 5m`.** The alert must stay true for five minutes (five evaluations at a 1-minute interval) before it fires, so one-minute spikes stop paging. The leak is still below 1% and still invisible, every real outage pages five minutes later, and an outage that dips under 1% for one minute restarts the five-minute wait.",
             "**Use a longer window, `[1h] > 0.01`.** Spikes disappear in the hourly average. The leak (0.8%) still never crosses 1%, and after a real outage the alert keeps firing for up to an hour after the fix, because nothing says \"it stopped\".",
         ]),
         p("Each fix moves one knob of a rule that has only one window and one threshold. The week needs at least two different behaviours: a fast, loud reaction to a large burn and a slow, quiet reaction to a small one. That is the multi-window, multi-burn-rate policy from lesson 11."),

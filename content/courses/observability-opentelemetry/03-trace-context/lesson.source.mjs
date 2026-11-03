@@ -42,7 +42,7 @@ traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
             "**version**: two lowercase hex digits. `00` is the only version defined; `ff` is forbidden.",
             "**trace-id**: 32 lowercase hex characters, identical in every service of the request. All zeros is invalid.",
             "**parent-id**: 16 lowercase hex characters, the id of the span **in the caller** that made this call. All zeros is invalid.",
-            "**trace-flags**: two hex characters. Only the lowest bit is defined: **sampled**, meaning the caller may have recorded its part of the trace. The other bits are reserved and a service sets them to 0 on what it sends.",
+            "**trace-flags**: two hex characters. Only the lowest bit is defined: **sampled**, meaning the caller may have recorded its part of the trace. The other bits are reserved and a service sets them to 0 on what it sends. (Trace Context Level 2, still a draft, adds a second flag, random, at 0x02; check whether your SDK sets it.)",
         ]),
         p("\"Lowercase hex\" is not a style preference. The spec defines the fields with lowercase hex digits only and says a service must ignore a `traceparent` whose parent-id contains anything else. A receiver that ignores the header does exactly what the spec asks: it **restarts the trace**, with a new trace id. That is the first bug of the incident, and a lenient parser in one service would only have hidden it until the next service."),
         h3("What a hop keeps and what it replaces"),

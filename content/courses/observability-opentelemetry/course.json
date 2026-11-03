@@ -54,7 +54,7 @@
     "OpenTelemetry JS": "lesson examples, check current SDK versions",
     "W3C Trace Context": "Recommendation (traceparent v00)"
   },
-  "lastReviewedAt": "2026-10-26",
+  "lastReviewedAt": "2026-11-03",
   "sourceLinks": [
     "https://opentelemetry.io/docs/concepts/signals/",
     "https://www.w3.org/TR/trace-context/",
