@@ -29,9 +29,9 @@
     { "code": "when-not-ai", "text": "Decide when to stop prompting and debug or write the code yourself, and keep an honest AI usage log" }
   ],
   "testedVersions": { "TypeScript": "5.9.3 (tsc --strict in the code runner)", "AI tools": "Claude Code, GitHub Copilot, Cursor (lesson examples, check current versions)" },
-  "lastReviewedAt": "2026-10-26",
+  "lastReviewedAt": "2026-11-03",
   "sourceLinks": [
-    "https://docs.anthropic.com/en/docs/claude-code/overview",
+    "https://code.claude.com/docs/en/overview",
     "https://docs.github.com/en/copilot",
     "https://owasp.org/www-community/attacks/SQL_Injection"
   ],

@@ -230,7 +230,7 @@ Run  npx vitest run tests/bookmarks.test.ts  and show the output.`, "the request
         h2("Sources"),
         bullets([
             "Vitest documentation: test.todo, expect and the CLI (vitest run <file>) - vitest.dev",
-            "Claude Code documentation, common workflows (including test-driven work with an agent): docs.anthropic.com/en/docs/claude-code/overview",
+            "Claude Code documentation, common workflows (including test-driven work with an agent): code.claude.com/docs/en/common-workflows",
             "GitHub Copilot documentation: docs.github.com/en/copilot",
         ]),
         callout("tip", "Practice on your own (not graded)",

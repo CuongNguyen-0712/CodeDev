@@ -90,7 +90,7 @@ const found = Object.entries(counts).filter(([, n]) => n > 0).map(([type, n]) =>
 process.stderr.write(found.length ? \`redacted \${found.join(", ")}\\n\` : "no secrets found\\n");
 process.stdout.write(text);`, "paste-safe.ts"),
         p("The summary goes to standard error so it never mixes with the text you paste, and it tells you what was found: if it says `password: 1` for a log that should not contain passwords, that is a bug worth knowing about on its own."),
-        p("A coding agent needs a different fence, because it reads files by itself. Tell the tool which files it may never open. In Claude Code that is a deny rule in the project settings; Cursor has an ignore file and GitHub Copilot has content exclusion settings for the same purpose:"),
+        p("A coding agent needs a different fence, because it reads files by itself. Tell the tool which files it may never open. In Claude Code that is a deny rule in the project settings; Cursor has an ignore file and GitHub Copilot has content exclusion settings for the same purpose. Check which modes each one covers: at the time of writing, Copilot's content exclusion is not applied in the Edit and Agent modes of Copilot Chat in VS Code, and Claude Code's deny rules cover its file tools and file commands such as `cat`, but not a script the agent runs that opens files itself (its sandbox blocks that at the OS level):"),
         code("json", `
 {
   "permissions": {
@@ -134,7 +134,7 @@ process.stdout.write(text);`, "paste-safe.ts"),
 
         h2("Sources"),
         bullets([
-            "Claude Code documentation: settings and permissions (deny rules for file reads) - docs.anthropic.com/en/docs/claude-code",
+            "Claude Code documentation: settings and permissions (deny rules for file reads) - code.claude.com/docs/en/permissions",
             "GitHub Docs: secret scanning and push protection; GitHub Copilot content exclusion - docs.github.com",
             "OWASP Cheat Sheet Series: Secrets Management Cheat Sheet",
         ]),

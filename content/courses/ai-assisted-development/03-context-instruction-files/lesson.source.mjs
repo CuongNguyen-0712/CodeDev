@@ -206,7 +206,7 @@ process.exitCode = problems.length ? 1 : 0;`, "scripts/check-agents-md.mjs"),
 
         h2("Sources"),
         bullets([
-            "Claude Code documentation: memory and CLAUDE.md files - docs.anthropic.com/en/docs/claude-code/overview",
+            "Claude Code documentation: memory and CLAUDE.md files - code.claude.com/docs/en/memory",
             "GitHub Copilot documentation: repository custom instructions (.github/copilot-instructions.md) - docs.github.com/en/copilot",
             "AGENTS.md: the open format and the list of tools that read it - agents.md (check which of your tools support it)",
         ]),

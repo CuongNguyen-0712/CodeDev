@@ -391,7 +391,7 @@ WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_aad_211'), 'A coding agent changed src/lib/progress.ts. git diff shows this hunk:
 
-@@ -40,7 +40,9 @@
+@@ -40,8 +40,10 @@
  export function progressPercent(completed: string[], lessons: string[]): number {
    const done = completed.length;
    const total = lessons.length;
@@ -402,10 +402,10 @@ WITH q AS (
 +  const percent = Math.floor((done / total) * 100);
 +  return done < total ? Math.min(percent, 99) : 100;
  }
+ 
+ export function nextLesson(completed: string[], lessons: string[]): string | null {
 
-export function nextLesson(completed: string[], lessons: string[]): string | null {
-
-Statement: "In the new version of the file this hunk covers lines 40 to 48, and the change adds two lines more than it removes."', 'single_choice'::question_type, 'True. In @@ -40,7 +40,9 @@ the part after + describes the new file: the hunk starts at line 40 and spans 9 lines, so lines 40 to 48. The part after - describes the old file: 7 lines from line 40. Both counts include the context lines (the ones starting with a space), which are the same on both sides: here 5 context lines, 2 removed (5 + 2 = 7) and 4 added (5 + 4 = 9), so the hunk is 2 lines longer than before. The misconception is that the numbers after the comma count only changed lines; they count every line of the hunk on that side, which is why you can check a hunk is complete by counting.', 1, 5
+Statement: "In the new version of the file this hunk covers lines 40 to 49, and the change adds two lines more than it removes."', 'single_choice'::question_type, 'True. In @@ -40,8 +40,10 @@ the part after + describes the new file: the hunk starts at line 40 and spans 10 lines, so lines 40 to 49. The part after - describes the old file: 8 lines from line 40. Both counts include the context lines (the ones starting with a space), which are the same on both sides: here 6 context lines (the empty line counts too), 2 removed (6 + 2 = 8) and 4 added (6 + 4 = 10), so the hunk is 2 lines longer than before. The misconception is that the numbers after the comma count only changed lines; they count every line of the hunk on that side, which is why you can check a hunk is complete by counting.', 1, 5
     WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_aad_211') AND order_index = 1)
     RETURNING id
 )
@@ -869,7 +869,7 @@ GET /courses/search?q=don''t          200  []   (the seed has "Don''t Repeat You
 GET /courses/search?q=%              200  20 courses   (no title contains "%")
 API log during the probe: no lines
 
-Statement: "A regression test that seeds one draft course and asserts that searching '' OR ''1''=''1 returns no courses and that searching % returns no courses would fail on this PR and pass after a fix that uses a query parameter and escapes the LIKE wildcards."', 'single_choice'::question_type, 'True. On the PR''s code the first search returns up to 20 courses including the draft, so the test fails. After the fix, q is sent as a parameter, so '' OR ''1''=''1 is just text that no title contains, and with % and _ escaped (with an ESCAPE clause in the query) a search for % only matches titles that contain a percent sign. The second assertion also catches the half fix that adds a parameter but forgets LIKE escaping: a parameter keeps q out of the SQL text, yet % inside the value is still a wildcard. The misconception is that "parameterized" alone settles every input problem in a LIKE search.', 6, 5
+Statement: "A regression test that seeds one draft course and one published course with no % in its title, and asserts that searching '' OR ''1''=''1 returns no courses and that searching % returns no courses, would fail on this PR and pass after a fix that uses a query parameter and escapes the LIKE wildcards."', 'single_choice'::question_type, 'True. On the PR''s code the first search returns up to 20 courses including the draft, so the test fails. After the fix, q is sent as a parameter, so '' OR ''1''=''1 is just text that no title contains, and with % and _ escaped (with an ESCAPE clause in the query) a search for % only matches titles that contain a percent sign. The second assertion also catches the half fix that adds a parameter but forgets LIKE escaping: a parameter keeps q out of the SQL text, yet % inside the value is still a wildcard. The misconception is that "parameterized" alone settles every input problem in a LIKE search.', 6, 5
     WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_aad_311') AND order_index = 6)
     RETURNING id
 )

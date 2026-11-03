@@ -167,7 +167,7 @@ Do not use the machine's time zone or Intl. Show me the tests before the code.`,
         bullets([
             "MDN Web Docs: Date.parse(), Date.prototype.toISOString() and the date time string format - developer.mozilla.org",
             "MDN Web Docs: Intl.DateTimeFormat (the timeZone option) and Array.prototype.sort() (default sort order)",
-            "Claude Code overview (giving an agent tests to run while it works) - docs.anthropic.com/en/docs/claude-code/overview",
+            "Claude Code overview (giving an agent tests to run while it works) - code.claude.com/docs/en/overview",
         ]),
         callout("tip", "Practice on your own (not graded)",
             "Find one function in your project that counts or groups by day, week or month. Write down whose time zone it uses and check it in the code. Then write three tests from section 4 that it does not have yet - a duplicate, a boundary one second either side of local midnight, and an empty input - and see which ones fail. If an assistant wrote the function, give it the failing tests and judge whether its fix changes the model or adds a special case."),

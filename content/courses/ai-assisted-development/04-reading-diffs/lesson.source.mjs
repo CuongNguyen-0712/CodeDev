@@ -85,7 +85,7 @@ index 5d0c7a1..be7ea60 100644
             "**`diff --git a/<path> b/<path>`** starts a new file. `a/` is the old side, `b/` the new side. The two paths differ only when the file was renamed.",
             "**Extended header lines** come next, when they apply: `new file mode 100644`, `deleted file mode 100644`, `old mode` / `new mode` (for example a script made executable), `similarity index 91%` with `rename from` / `rename to`, and `index <old hash>..<new hash>`.",
             "**`--- a/<path>` and `+++ b/<path>`** name the old and new file. For a new file the old side is `--- /dev/null`; for a deleted file the new side is `+++ /dev/null`.",
-            "**`@@ -41,8 +40,10 @@`** is a hunk header. `-41,8` means \"8 lines of the old file starting at line 41\"; `+40,10` means \"10 lines of the new file starting at line 40\". Both counts include context lines. A count of 1 is omitted (`@@ -3 +3 @@`), and an empty side is `0,0`. The text after the second `@@` is only a hint about where you are, usually the nearest function or line above the hunk.",
+            "**`@@ -41,8 +40,10 @@`** is a hunk header. `-41,8` means \"8 lines of the old file starting at line 41\"; `+40,10` means \"10 lines of the new file starting at line 40\". Both counts include context lines. A count of 1 is omitted (`@@ -3 +3 @@`), and a side with no lines has the count 0 (`-0,0` for a new file). The text after the second `@@` is only a hint about where you are, usually the nearest function or line above the hunk.",
             "**Hunk lines** start with one character: a space for context (unchanged), `-` for a removed line, `+` for an added line. The rest of the line is the content, so a removed SQL comment `-- backfill` appears as `--- backfill`, and you can only tell it from a file header by where it is: after the `@@`.",
             "**`\\ No newline at end of file`** is a marker about the line just above it: that line was the last one in its file and had no line break. It is not part of the file.",
         ]),
@@ -178,7 +178,7 @@ function migrationsDeleted(files: FileChange[]): string[] {
         bullets([
             "Git documentation: git-diff, including \"Generating patch text with -p\" and the --stat, --name-status, --diff-filter and -w options - git-scm.com/docs/git-diff",
             "GNU diffutils manual: Unified Format - gnu.org/software/diffutils/manual",
-            "Claude Code overview (how a coding agent reads and edits files in your repository) - docs.anthropic.com/en/docs/claude-code/overview",
+            "Claude Code overview (how a coding agent reads and edits files in your repository) - code.claude.com/docs/en/overview",
         ]),
         callout("tip", "Practice on your own (not graded)",
             "Take the last three pull requests an AI assistant helped you write. For each, run git diff --stat and --name-status against its base branch and write down, before reading any hunk, which files you expected. Count the surprises. Then add the deleted-migrations rule (or the equivalent for your project's most dangerous folder) to your CI and open a test pull request that should trip it."),

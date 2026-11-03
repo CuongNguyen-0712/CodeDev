@@ -182,7 +182,7 @@ OUTSIDE components/course/__snapshots__/ProgressBadge.snap
 
         h2("Sources"),
         bullets([
-            "Claude Code documentation, overview and permissions: docs.anthropic.com/en/docs/claude-code/overview",
+            "Claude Code documentation, overview and permissions: code.claude.com/docs/en/overview and code.claude.com/docs/en/permissions",
             "GitHub Copilot documentation (agent mode, coding agent): docs.github.com/en/copilot",
             "Git documentation: git diff (--stat, --name-only) and git restore --source",
         ]),
