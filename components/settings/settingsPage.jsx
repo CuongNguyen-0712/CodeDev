@@ -28,6 +28,7 @@ import { InputGroup, TextAreaGroup } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/shadcn/avatar";
 import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/shadcn/empty";
 import { FieldGroup } from "@/components/shadcn/field";
 import { Skeleton } from "@/components/shadcn/skeleton";
 
@@ -523,18 +524,22 @@ export default function SettingsPage() {
             ) : isError ? (
                 <ErrorReload data={error} refetch={refetch} title="Could not load your settings" />
             ) : status !== 'authenticated' ? (
-                <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed px-6 py-14 text-center">
-                    <span className="flex size-10 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                        <LuUser className="size-5" aria-hidden="true" />
-                    </span>
-                    <div className="space-y-1">
-                        <h2 className="text-sm font-semibold">Sign in to manage your settings</h2>
-                        <p className="text-sm text-muted-foreground">Settings are saved to your CodeDev account.</p>
-                    </div>
-                    <Button asChild size="sm">
-                        <Link href="/auth">Sign in</Link>
-                    </Button>
-                </div>
+                <Empty className="border border-dashed">
+                    <EmptyHeader>
+                        <EmptyMedia variant="icon">
+                            <LuUser aria-hidden="true" />
+                        </EmptyMedia>
+                        <EmptyTitle>
+                            <h2 className="text-sm font-semibold">Sign in to manage your settings</h2>
+                        </EmptyTitle>
+                        <EmptyDescription>Settings are saved to your CodeDev account.</EmptyDescription>
+                    </EmptyHeader>
+                    <EmptyContent>
+                        <Button asChild size="sm">
+                            <Link href="/auth">Sign in</Link>
+                        </Button>
+                    </EmptyContent>
+                </Empty>
             ) : (
                 <div className="flex flex-col gap-6">
                     <SettingsSection

@@ -9,8 +9,8 @@ export const challengeQueries = {
         return {
             queryKey: challengeKeys.workspace(challengeId),
             queryFn: ({ signal }) => challengeClient.getWorkspace(challengeId, { signal }),
-            staleTime: 1000 * 60,
-            gcTime: 1000 * 60 * 10,
+            // The learner's own saved code: the draft hook keeps local edits, so no refetch on focus.
+            ...QUERY_TIMES.personal,
             refetchOnWindowFocus: false,
             retry: retryServerErrors,
         };

@@ -9,6 +9,7 @@ import { InputGroup } from "@/components/ui/input";
 
 import { Button } from "@/components/shadcn/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/shadcn/collapsible";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/shadcn/empty";
 
 import {
     LuBookOpen,
@@ -159,20 +160,24 @@ export default function HelpPage() {
                         })}
                     </ul>
                 ) : (
-                    <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed px-6 py-12 text-center">
-                        <span className="flex size-10 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                            <LuSearchX className="size-5" aria-hidden="true" />
-                        </span>
-                        <div className="space-y-1">
-                            <h3 className="text-sm font-semibold">No matching questions</h3>
-                            <p className="max-w-[48ch] text-sm break-words text-muted-foreground">
+                    <Empty className="border border-dashed">
+                        <EmptyHeader>
+                            <EmptyMedia variant="icon">
+                                <LuSearchX aria-hidden="true" />
+                            </EmptyMedia>
+                            <EmptyTitle>
+                                <h3 className="text-sm font-semibold">No matching questions</h3>
+                            </EmptyTitle>
+                            <EmptyDescription className="max-w-[48ch] break-words">
                                 Nothing matches &quot;{searchQuery}&quot;. Try a shorter keyword or send us your question.
-                            </p>
-                        </div>
-                        <Button variant="outline" size="sm" onClick={() => setSearchQuery("")}>
-                            Clear search
-                        </Button>
-                    </div>
+                            </EmptyDescription>
+                        </EmptyHeader>
+                        <EmptyContent>
+                            <Button variant="outline" size="sm" onClick={() => setSearchQuery("")}>
+                                Clear search
+                            </Button>
+                        </EmptyContent>
+                    </Empty>
                 )}
             </section>
 

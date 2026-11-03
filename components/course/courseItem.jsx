@@ -49,7 +49,7 @@ export const formatDuration = (minutes) => {
     return rest ? `${hours}h ${rest}m` : `${hours}h`;
 };
 
-export const CourseItem = ({ item }) => {
+export const CourseItem = ({ item, priority = false }) => {
     const level = levelMapping[item.level] || levelMapping['beginner'];
     const LevelIcon = LEVEL_ICON[item.level] || LuSignalLow;
     const premium = isPremium(item);
@@ -130,7 +130,8 @@ export const CourseItem = ({ item }) => {
                         srcSet={coverSrcSet(item.image)}
                         sizes="(min-width: 1280px) 360px, (min-width: 640px) 50vw, 100vw"
                         alt=""
-                        loading="lazy"
+                        loading={priority ? "eager" : "lazy"}
+                        fetchPriority={priority ? "high" : "auto"}
                         draggable={false}
                         className="block size-full object-cover transition-transform duration-300 ease-out group-hover/course:scale-[1.03] data-[fit=contain]:object-contain data-[fit=contain]:p-[12%]"
                         onLoad={(e) => fitCover(e.currentTarget)}

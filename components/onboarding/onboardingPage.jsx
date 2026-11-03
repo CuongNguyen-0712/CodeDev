@@ -17,6 +17,7 @@ import { ChoiceCheckboxGroup, ChoiceRadioGroup, levelHint, levelLabel } from "@/
 import { RecommendationCard, RecommendationCardSkeleton } from "@/components/onboarding/recommendationCard";
 
 import { Button } from "@/components/shadcn/button";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/shadcn/empty";
 import { FieldLegend, FieldSet } from "@/components/shadcn/field";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Spinner } from "@/components/shadcn/spinner";
@@ -209,20 +210,24 @@ function RecommendationsStep({ sessionStatus, headingRef, onEdit }) {
             ) : isError ? (
                 <ErrorReload data={error} refetch={refetch} title="Could not load your recommendations" />
             ) : items.length === 0 ? (
-                <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed px-6 py-12 text-center">
-                    <span className="flex size-10 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                        <LuLibrary className="size-5" aria-hidden="true" />
-                    </span>
-                    <div className="space-y-1">
-                        <h3 className="text-sm font-semibold text-foreground">No recommendations yet</h3>
-                        <p className="max-w-[48ch] text-sm text-muted-foreground">
+                <Empty className="border border-dashed">
+                    <EmptyHeader>
+                        <EmptyMedia variant="icon">
+                            <LuLibrary aria-hidden="true" />
+                        </EmptyMedia>
+                        <EmptyTitle>
+                            <h3 className="text-sm font-semibold text-foreground">No recommendations yet</h3>
+                        </EmptyTitle>
+                        <EmptyDescription className="max-w-[48ch]">
                             There are no courses to suggest right now. Browse the catalog to find something to start with.
-                        </p>
-                    </div>
-                    <Button asChild size="sm" variant="outline">
-                        <Link href="/course">Browse courses</Link>
-                    </Button>
-                </div>
+                        </EmptyDescription>
+                    </EmptyHeader>
+                    <EmptyContent>
+                        <Button asChild size="sm" variant="outline">
+                            <Link href="/course">Browse courses</Link>
+                        </Button>
+                    </EmptyContent>
+                </Empty>
             ) : (
                 <ul className="m-0 grid list-none gap-3 p-0 sm:grid-cols-2 lg:grid-cols-3" aria-label="Recommended courses">
                     {items.map((item, index) => (

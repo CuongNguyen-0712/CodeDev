@@ -15,6 +15,7 @@ import { usePusherChannel } from "@/hooks/usePusherChannel";
 import { channels, events } from "@/lib/realtime";
 
 import { Button } from "@/components/shadcn/button";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/shadcn/empty";
 import { Skeleton } from "@/components/shadcn/skeleton";
 
 import CommentItem from "./commentItem";
@@ -256,23 +257,27 @@ export default function CommentPage({ courseId }) {
                     )}
                 </div>
             ) : (
-                <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed px-6 py-10 text-center">
-                    <span className="flex size-10 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                        <LuMessagesSquare className="size-5" aria-hidden="true" />
-                    </span>
-                    <div className="space-y-1">
-                        <h3 className="text-sm font-semibold">No comments yet</h3>
-                        <p className="max-w-[48ch] text-sm text-muted-foreground">
+                <Empty className="border border-dashed">
+                    <EmptyHeader>
+                        <EmptyMedia variant="icon">
+                            <LuMessagesSquare aria-hidden="true" />
+                        </EmptyMedia>
+                        <EmptyTitle>
+                            <h3 className="text-sm font-semibold">No comments yet</h3>
+                        </EmptyTitle>
+                        <EmptyDescription className="max-w-[48ch]">
                             Questions and feedback from learners on this course will show up here.
-                        </p>
-                    </div>
+                        </EmptyDescription>
+                    </EmptyHeader>
                     {/* Guests already get the sign-in prompt above the feed. */}
                     {session && (
-                        <Button variant="outline" size="sm" onClick={() => inputRef.current?.focus()}>
-                            Write the first comment
-                        </Button>
+                        <EmptyContent>
+                            <Button variant="outline" size="sm" onClick={() => inputRef.current?.focus()}>
+                                Write the first comment
+                            </Button>
+                        </EmptyContent>
                     )}
-                </div>
+                </Empty>
             )}
         </section>
     );

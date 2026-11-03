@@ -212,7 +212,8 @@ export default function CoursePage() {
                             ))
                             : courses.map((item, index) => (
                                 <li key={item.id} className="animate-enter min-w-0" style={{ '--enter-index': index % 20 }}>
-                                    <CourseItem item={item} />
+                                    {/* The first row's covers are the page's largest paint: load them first. */}
+                                    <CourseItem item={item} priority={index < 2} />
                                 </li>
                             ))}
                     </ul>

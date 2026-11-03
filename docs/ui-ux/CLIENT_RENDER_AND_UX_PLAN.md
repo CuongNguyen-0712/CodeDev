@@ -170,14 +170,35 @@ Test cả bộ: 392 pass, 12 skip (cần dịch vụ ngoài). Lint 0 lỗi.
 | RC-06 | 15 page dùng shell chuyển vào route group `app/(shell)/`: `/`, about, blog, contact, help, home, ranking, settings, orders (+`[id]`), profile (+`[id]`), và trang danh sách của `course`, `learning`, `roadmap` (trang `[id]` của ba route này vẫn dùng DefaultLayout, nằm ngoài group). `app/(shell)/layout.jsx` mount `HomeLayout` một lần; các page bỏ `<HomeLayout>` và giữ `Suspense` + `PageSkeleton` (cần cho `useSearchParams`). `/orders/[id]` đổi từ spinner toàn màn hình sang `PageSkeleton` | `next build`: route table giống hệt trước (cùng URL, cùng static/dynamic). Đổi trang bằng link: shell giữ nguyên (cùng DOM node), vùng cuộn `#container` về 0 |
 | RC-11 | `app/(shell)/loading.jsx` (`PageSkeleton`) cho lúc page chờ server, ví dụ `/home` kiểm onboarding | |
 | Footer | `Footer` render trên server và truyền vào `HomeLayout` qua prop `footer`, không còn nằm trong bundle client của layout | |
-| Kiểm signed-in | Tài khoản test local mới tạo thẳng trong DB local (để tránh gửi mail xác minh thật qua Gmail SMTP), email đã xác minh. Thông tin đăng nhập ở `.env.local` (`TEST_USER_*`, không commit). `.env.local` cũng có sẵn `LOCAL_TEST_USERNAME` từ đợt audit trước | Đăng nhập → onboarding (bỏ qua) → `/home`. Render OK, không lỗi: `/home`, `/learning`, `/ranking`, `/orders`, `/profile`, `/settings`, `/contact`, `/course`, `/course/[id]`. Thông báo: "Mark all read", reload vẫn 0 chưa đọc. Lesson: quiz tải qua `next/dynamic`, editor của bài có coding challenge tải được, gõ và tô màu đúng; code block trong bài tô màu bằng `PrismLight` |
+| Kiểm signed-in | Tài khoản test local mới tạo thẳng trong DB local, email đã xác minh. Tạo thẳng vì đăng ký qua `/auth` sẽ gửi mail xác minh: dev gửi tới mailpit, còn bản `next start` local cấu hình Gmail SMTP. Thông tin đăng nhập ở `.env.local` (`TEST_USER_*`, không commit). `.env.local` cũng có sẵn `LOCAL_TEST_USERNAME` từ đợt audit trước | Đăng nhập → onboarding (bỏ qua) → `/home`. Render OK, không lỗi: `/home`, `/learning`, `/ranking`, `/orders`, `/profile`, `/settings`, `/contact`, `/course`, `/course/[id]`. Thông báo: "Mark all read", reload vẫn 0 chưa đọc. Lesson: quiz tải qua `next/dynamic`, editor của bài có coding challenge tải được, gõ và tô màu đúng; code block trong bài tô màu bằng `PrismLight` |
 
 Lint 0 lỗi; test 392 pass; build OK.
 
+### Lượt 4 (2026-11-03): Phase 4-6 và đo Web Vitals
+
+| Mục | Thay đổi | Kiểm chứng |
+|---|---|---|
+| RC-04 | Editor tô màu bằng một chuỗi HTML (`highlightToHtml` trong `lib/syntaxHighlighter.js`): cùng token Prism, cùng theme, chữ được escape, style chỉ lấy từ theme. Không còn tạo hàng nghìn React element mỗi phím. Không dùng `useDeferredValue` vì chữ hiển thị sẽ trễ hơn textarea | Đo trên bản dev, mỗi phím: 503 dòng 168 → 58 ms, 53 dòng 152 → 33 ms. Chữ của lớp tô màu khớp textarea; màu Dracula giữ nguyên. Có test (`__tests__/ui/syntaxHighlighter.test.js`) |
+| Hydration modal feedback | `FeedbackGate` chỉ mở dialog sau khi trang hydrate xong (`requestIdleCallback`, Safari dùng `setTimeout`) | `/course?modal=feedback`: dialog mở, console không lỗi |
+| LCP | (1) Bỏ `app/(shell)/loading.jsx`. (2) Bỏ `Suspense` + `PageSkeleton` ở 9 page không dùng `useSearchParams` (`/`, about, blog, home, profile, settings, contact, help, `orders/[id]`). Lý do: React tách nội dung của một boundary lớn ra cuối HTML (`<div hidden id="S:0">`) và chỉ hiện khi script `$RC` chạy, nên chữ đã có trong HTML vẫn hiện trễ. `next build` báo lỗi nếu page nào thật sự cần `Suspense`, và build vẫn qua | Trace mobile (CPU 4×, Slow 4G), `/`: LCP 2381 → 1616 ms |
+| LCP `/course` | Ảnh bìa của 2 card đầu dùng `loading="eager"` + `fetchPriority="high"` | 5772 → 4976 ms. Phần còn lại là danh sách tải phía client rồi mới tải ảnh. Muốn giảm thêm cần prefetch danh sách phía server (hydrate React Query), chưa làm |
+| CLS | `#container > :not(footer)` có `min-h-dvh`: footer luôn bắt đầu ở dưới màn hình, không hiện ở đáy rồi bị nội dung tải phía client đẩy xuống | `/roadmap` CLS 0.291 → 0.001; các route công khai khác ≤ 0.017 |
+| UX-205 | 10 khối empty state tự vẽ đổi sang `Empty` dùng chung: commentPage, helpPage, recommend, learningPage, onboardingPage, rankingPage ×2, roadmapPage, roadmapDetailsPage, settingsPage. Padding và icon theo mặc định của component, giống coursePage và ordersPage | Lint; trên trình duyệt xem phần kiểm tra cuối lượt |
+| UX-502 | `challengeQueries.workspace` dùng preset `QUERY_TIMES.personal` | |
+| Phase 6 | Test component: `@testing-library/react` + `jsdom`; file `*.test.jsx` tự bật `// @vitest-environment jsdom`. Một plugin Vite nhỏ cho phép JSX trong file `.js` của dự án (như Next). `__tests__/ui/coursePage.test.jsx` render trang catalog thật, chỉ giả lập network, router và session | Đã thử bỏ import `useMemo`: test fail với `useMemo is not defined` |
+| Ngân sách JS | `npm run budget [-- url]` (`scripts/bundle-budget.mjs`): cộng JS mà HTML ban đầu tham chiếu, fail khi vượt ngưỡng (khoảng 5% trên số đo) | Bản build hiện tại: mọi route trong ngân sách (`/` 1106/1160 KB) |
+
+Không làm, kèm lý do:
+- **UX-404** (toast 4xx thành màu đỏ): `400` đang dùng cho kết quả không chặn việc, như điểm quiz một phần hay chưa qua hết test. Đổi sang đỏ sẽ báo sai mức độ.
+- **UX-503** (`useMutation` cho settings): form đã tự xử lý pending, lỗi và `onSaved`. Đổi chỉ tăng code, người dùng không thấy khác.
+- **Tách `Provider` theo đăng nhập:** `level.jsx` vẫn được `mutations/` import tĩnh, nên lợi ích gần như bằng 0.
+
+**Ghi chú vận hành:** chạy `next build` trong lúc `next dev` đang chạy làm `.next/dev` lệch. Dev server dừng hoặc biên dịch lại liên tục (trang tự reload mỗi giây). Cách sửa: dừng dev, xoá `.next/dev`, chạy lại.
+
+Đo Web Vitals: dev server ở cổng 3000, nên bản build để đo chạy ở cổng 3100 với `NEXT_PUBLIC_API_URL=http://localhost:3100/api`. Sau khi đo, `.next` đã được build lại với cấu hình bình thường.
+
 ### Còn mở
 
-- **Mức thấp:** mở thẳng `/course?modal=feedback` gây cảnh báo hydration mismatch. Dialog Radix gắn `aria-hidden` lên phần trang chưa hydrate xong. Chỉ xảy ra khi vào trực tiếp bằng URL có `?modal=feedback`; mở modal từ menu thì không bị.
-- **Tách `Provider` theo trạng thái đăng nhập:** ưu tiên thấp, vì `LevelUpDialog` / `RatePromptDialog` không kéo thư viện nặng.
+- **LCP `/course` khoảng 5 s trên mobile chậm:** cần render danh sách phía server (prefetch + `HydrationBoundary`), đổi luồng dữ liệu của trang.
 - **Proxy:** giờ gắn `next` cho mọi trang private (UX-104); `safeNextPath` đã chặn URL ngoài và `/auth`.
-- **Chưa làm:** Phase 4 / RC-04 editor. `useDeferredValue` sẽ làm chữ hiển thị trễ hơn textarea, nên cần thiết kế lại lớp tô màu trước. Chưa đo trace với file 500 dòng.
-- **Chưa đo:** Lighthouse (LCP/TBT/CLS). Bản build chỉ gọi API ở `localhost:3000`.
+- **Audit cũ chưa làm** (cần quyết định thiết kế): UX-201 (ba độ rộng nội dung), UX-202 (`PageHeaderBar` dùng chung), UX-203 / CI-01..06 (primitive dùng chung cho progress bar và collapsible), UX-206 (cỡ h1), UX-303 (nút 24 px trên màn hình cảm ứng).

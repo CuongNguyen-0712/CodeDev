@@ -1,7 +1,3 @@
-import { Suspense } from 'react';
-
-import { PageSkeleton } from '@/components/ui/loading';
-
 import OrderStatusPage from '@/components/commerce/orderStatusPage';
 
 export async function generateMetadata() {
@@ -16,8 +12,6 @@ export default async function Page({ params }) {
     const { id } = await params;
 
     return (
-        <Suspense fallback={<PageSkeleton />}>
-            <OrderStatusPage orderId={id} />
-        </Suspense>
+        <OrderStatusPage orderId={id} />
     );
 }

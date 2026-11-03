@@ -1,5 +1,3 @@
-import { Suspense } from "react";
-import { PageSkeleton } from "@/components/ui/loading";
 import AboutPage from "@/components/about/aboutPage";
 import { courseService } from "@/services/course.service";
 
@@ -17,8 +15,6 @@ export default async function Page() {
     const stats = await courseService.getCatalogStats().catch(() => null);
 
     return (
-        <Suspense fallback={<PageSkeleton />}>
-            <AboutPage stats={stats} />
-        </Suspense>
+        <AboutPage stats={stats} />
     );
 }

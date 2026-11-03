@@ -16,6 +16,7 @@ import { RecommendationCard, RecommendationCardSkeleton } from '@/components/onb
 
 import { Badge } from '@/components/shadcn/badge';
 import { Button } from '@/components/shadcn/button';
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/shadcn/empty';
 import { Skeleton } from '@/components/shadcn/skeleton';
 
 import { LuArrowRight, LuChevronRight, LuMap, LuRoute, LuSearchX, LuSparkles } from 'react-icons/lu';
@@ -250,26 +251,30 @@ export default function RoadmapPage() {
                         <ErrorReload data={error} refetch={refetch} />
                     </div>
                 ) : showEmpty ? (
-                    <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed px-6 py-14 text-center">
-                        <span className="flex size-10 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                            <LuSearchX className="size-5" aria-hidden="true" />
-                        </span>
-                        <div className="space-y-1">
-                            <h3 className="text-sm font-semibold">{emptyTitle}</h3>
-                            <p className="max-w-[48ch] text-sm text-muted-foreground">
+                    <Empty className="border border-dashed">
+                        <EmptyHeader>
+                            <EmptyMedia variant="icon">
+                                <LuSearchX aria-hidden="true" />
+                            </EmptyMedia>
+                            <EmptyTitle>
+                                <h3 className="text-sm font-semibold">{emptyTitle}</h3>
+                            </EmptyTitle>
+                            <EmptyDescription className="max-w-[48ch]">
                                 {hasActiveFilters
                                     ? 'Clear the search or remove the level filter to see every roadmap.'
                                     : 'Roadmaps will appear here once they are published. Browse the course catalog in the meantime.'}
-                            </p>
-                        </div>
-                        {hasActiveFilters ? (
-                            <Button variant="outline" size="sm" onClick={reset}>Reset filters</Button>
-                        ) : (
-                            <Button asChild size="sm">
-                                <Link href="/course">Browse courses</Link>
-                            </Button>
-                        )}
-                    </div>
+                            </EmptyDescription>
+                        </EmptyHeader>
+                        <EmptyContent>
+                            {hasActiveFilters ? (
+                                <Button variant="outline" size="sm" onClick={reset}>Reset filters</Button>
+                            ) : (
+                                <Button asChild size="sm">
+                                    <Link href="/course">Browse courses</Link>
+                                </Button>
+                            )}
+                        </EmptyContent>
+                    </Empty>
                 ) : (
                     <ul className="list-none divide-y overflow-hidden rounded-lg border bg-card">
                         {isLoading

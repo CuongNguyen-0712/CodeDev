@@ -13,6 +13,7 @@ import { LEVELS, defaultFilter } from "@/lib/listFilters";
 import useInfiniteScroll from "@/hooks/useInfiniteScroll";
 
 import { Button } from "@/components/shadcn/button";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/shadcn/empty";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Table, TableBody, TableHead, TableHeader, TableRow, TableCell } from "@/components/shadcn/table";
 
@@ -145,28 +146,32 @@ export default function LearningPage() {
                         <ErrorReload data={error} refetch={refetch} />
                     </div>
                 ) : showEmpty ? (
-                    <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed px-6 py-14 text-center">
-                        <span className="flex size-10 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                            <LuSearchX className="size-5" aria-hidden="true" />
-                        </span>
-                        <div className="space-y-1">
-                            <h3 className="text-sm font-semibold">
-                                {isFiltered ? 'No courses match these filters' : 'You are not enrolled in any course yet'}
-                            </h3>
-                            <p className="max-w-[48ch] text-sm text-muted-foreground">
+                    <Empty className="border border-dashed">
+                        <EmptyHeader>
+                            <EmptyMedia variant="icon">
+                                <LuSearchX aria-hidden="true" />
+                            </EmptyMedia>
+                            <EmptyTitle>
+                                <h3 className="text-sm font-semibold">
+                                    {isFiltered ? 'No courses match these filters' : 'You are not enrolled in any course yet'}
+                                </h3>
+                            </EmptyTitle>
+                            <EmptyDescription className="max-w-[48ch]">
                                 {isFiltered
                                     ? 'Clear the search or widen the status filter to see more of your courses.'
                                     : 'Enroll in a course from the catalog and it will show up here with your progress.'}
-                            </p>
-                        </div>
-                        {isFiltered ? (
-                            <Button variant="outline" size="sm" onClick={resetFilters}>Reset filters</Button>
-                        ) : (
-                            <Button asChild size="sm">
-                                <Link href="/course"><LuLibrary />Browse courses</Link>
-                            </Button>
-                        )}
-                    </div>
+                            </EmptyDescription>
+                        </EmptyHeader>
+                        <EmptyContent>
+                            {isFiltered ? (
+                                <Button variant="outline" size="sm" onClick={resetFilters}>Reset filters</Button>
+                            ) : (
+                                <Button asChild size="sm">
+                                    <Link href="/course"><LuLibrary />Browse courses</Link>
+                                </Button>
+                            )}
+                        </EmptyContent>
+                    </Empty>
                 ) : (
                     <div className="overflow-hidden rounded-lg border bg-card">
                         <Table className="max-lg:block">

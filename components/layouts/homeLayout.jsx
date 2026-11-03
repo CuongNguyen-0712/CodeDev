@@ -53,11 +53,13 @@ function LayoutContent({ children, footer }) {
                 <Navbar />
                 <VerifyEmailBanner />
 
-                {/* The page scroller: hooks/useInfiniteScroll observes it by id. */}
+                {/* The page scroller: hooks/useInfiniteScroll observes it by id. The page is at least a
+                    screen tall, so the footer starts below the fold: otherwise it shows at the bottom
+                    while a page loads its data and is pushed down when the data arrives (a layout shift). */}
                 <section
                     id='container'
                     tabIndex={-1}
-                    className='page-enter outline-none flex min-h-0 w-full flex-1 flex-col items-center overflow-x-hidden overflow-y-auto overscroll-y-contain bg-background [overflow-anchor:none] **:[overflow-anchor:none]'
+                    className='page-enter [&>:not(footer)]:min-h-dvh outline-none flex min-h-0 w-full flex-1 flex-col items-center overflow-x-hidden overflow-y-auto overscroll-y-contain bg-background [overflow-anchor:none] **:[overflow-anchor:none]'
                 >
                     {children}
                     {footer}

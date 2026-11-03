@@ -21,6 +21,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/shadcn/dropdown-menu';
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/shadcn/empty';
 import { Kbd } from '@/components/shadcn/kbd';
 import { Progress } from '@/components/shadcn/progress';
 import { Separator } from '@/components/shadcn/separator';
@@ -464,20 +465,24 @@ export default function RoadmapDetailsPage({ params, initialData = null }) {
                                     </ol>
                                 </section>
                             ) : (
-                                <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed px-6 py-14 text-center">
-                                    <span className="flex size-10 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                                        <LuRoute className="size-5" aria-hidden="true" />
-                                    </span>
-                                    <div className="space-y-1">
-                                        <h2 className="text-sm font-semibold">This roadmap has no steps yet</h2>
-                                        <p className="max-w-[48ch] text-sm text-muted-foreground">
+                                <Empty className="border border-dashed">
+                                    <EmptyHeader>
+                                        <EmptyMedia variant="icon">
+                                            <LuRoute aria-hidden="true" />
+                                        </EmptyMedia>
+                                        <EmptyTitle>
+                                            <h2 className="text-sm font-semibold">This roadmap has no steps yet</h2>
+                                        </EmptyTitle>
+                                        <EmptyDescription className="max-w-[48ch]">
                                             Steps and their courses will appear here once they are added. Browse the other roadmaps in the meantime.
-                                        </p>
-                                    </div>
-                                    <Button asChild size="sm" variant="outline">
-                                        <Link href="/roadmap"><LuMap />All roadmaps</Link>
-                                    </Button>
-                                </div>
+                                        </EmptyDescription>
+                                    </EmptyHeader>
+                                    <EmptyContent>
+                                        <Button asChild size="sm" variant="outline">
+                                            <Link href="/roadmap"><LuMap />All roadmaps</Link>
+                                        </Button>
+                                    </EmptyContent>
+                                </Empty>
                             )}
                         </div>
                     )}

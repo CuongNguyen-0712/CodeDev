@@ -1,7 +1,3 @@
-import { Suspense } from "react";
-
-import { PageSkeleton } from "@/components/ui/loading";
-
 import Blog from "@/components/blog/blog"
 
 export const metadata = {
@@ -11,8 +7,6 @@ export const metadata = {
 
 export default function Page() {
     return (
-        <Suspense fallback={<PageSkeleton />}>
-            <Blog />
-        </Suspense>
+        <Blog />
     );
 }

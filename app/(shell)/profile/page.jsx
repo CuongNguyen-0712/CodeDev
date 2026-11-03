@@ -1,7 +1,3 @@
-import { Suspense } from "react"
-
-import { PageSkeleton } from "@/components/ui/loading"
-
 import ProfilePage from "@/components/profile/profilePage"
 
 export async function generateMetadata() {
@@ -13,8 +9,6 @@ export async function generateMetadata() {
 
 export default function Page() {
     return (
-        <Suspense fallback={<PageSkeleton />}>
-            <ProfilePage />
-        </Suspense>
+        <ProfilePage />
     )
 }

@@ -10,6 +10,7 @@ import { ErrorReload } from "../ui/error";
 import { RecommendationCard, RecommendationCardSkeleton } from "@/components/onboarding/recommendationCard";
 
 import { Button } from "@/components/shadcn/button";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/shadcn/empty";
 
 import {
     LuArrowRight,
@@ -210,23 +211,27 @@ export default function HomeRecommend() {
                     refetch={refetch}
                 />
             ) : showEmpty ? (
-                <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed px-6 py-12 text-center">
-                    <span className="flex size-10 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                        <LuLibrary className="size-5" aria-hidden="true" />
-                    </span>
-                    <div className="space-y-1">
-                        <h3 className="text-sm font-semibold text-foreground">No recommendations right now</h3>
-                        <p className="max-w-[48ch] text-sm text-muted-foreground">
+                <Empty className="border border-dashed">
+                    <EmptyHeader>
+                        <EmptyMedia variant="icon">
+                            <LuLibrary aria-hidden="true" />
+                        </EmptyMedia>
+                        <EmptyTitle>
+                            <h3 className="text-sm font-semibold text-foreground">No recommendations right now</h3>
+                        </EmptyTitle>
+                        <EmptyDescription className="max-w-[48ch]">
                             There is nothing new to suggest at the moment. Browse the catalog to find something to learn next.
-                        </p>
-                    </div>
-                    <Button asChild size="sm">
-                        <Link href="/course">
-                            <LuLibrary />
-                            Browse courses
-                        </Link>
-                    </Button>
-                </div>
+                        </EmptyDescription>
+                    </EmptyHeader>
+                    <EmptyContent>
+                        <Button asChild size="sm">
+                            <Link href="/course">
+                                <LuLibrary />
+                                Browse courses
+                            </Link>
+                        </Button>
+                    </EmptyContent>
+                </Empty>
             ) : (
                 <ul
                     id="home-recommend-track"

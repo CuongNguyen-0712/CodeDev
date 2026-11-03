@@ -1,10 +1,7 @@
-import { Suspense } from "react";
 import { redirect } from "next/navigation";
 
 import { getAuthSession } from "@/lib/session";
 import { onboardingService } from "@/services/onboarding.service";
-
-import { PageSkeleton } from "@/components/ui/loading";
 
 import HomePage from "@/components/home/homePage";
 
@@ -24,8 +21,6 @@ export default async function Page() {
     }
 
     return (
-        <Suspense fallback={<PageSkeleton />}>
-            <HomePage />
-        </Suspense>
+        <HomePage />
     );
 }

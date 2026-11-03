@@ -15,6 +15,7 @@ import { ErrorReload } from "@/components/ui/error";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/shadcn/avatar";
 import { Button } from "@/components/shadcn/button";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/shadcn/empty";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/shadcn/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/shadcn/tabs";
@@ -366,25 +367,33 @@ export default function RankingPage() {
                             <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:grid-rows-[auto_1fr] lg:items-start">
                                 <div className="order-2 flex min-w-0 flex-col gap-4 lg:order-1 lg:row-span-2">
                                     {!data?.isPublic ? (
-                                        <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed px-6 py-12 text-center">
-                                            <span className="flex size-10 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                                                <LuLock className="size-5" aria-hidden="true" />
-                                            </span>
-                                            <div className="space-y-1">
-                                                <h2 className="text-sm font-semibold">The public leaderboard opens soon</h2>
-                                                <p className="max-w-[48ch] text-sm text-muted-foreground">
+                                        <Empty className="border border-dashed">
+                                            <EmptyHeader>
+                                                <EmptyMedia variant="icon">
+                                                    <LuLock aria-hidden="true" />
+                                                </EmptyMedia>
+                                                <EmptyTitle>
+                                                    <h2 className="text-sm font-semibold">The public leaderboard opens soon</h2>
+                                                </EmptyTitle>
+                                                <EmptyDescription className="max-w-[48ch]">
                                                     Until then you can follow your own tier and position here and on your profile.
-                                                </p>
-                                            </div>
-                                        </div>
+                                                </EmptyDescription>
+                                            </EmptyHeader>
+                                        </Empty>
                                     ) : entries.length === 0 ? (
-                                        <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed px-6 py-12 text-center">
-                                            <h2 className="text-sm font-semibold">
-                                                {period === "30d" ? "No one has scored in the last 30 days yet" : "No one is ranked yet"}
-                                            </h2>
-                                            <p className="text-sm text-muted-foreground">Be the first: finish a lesson or pass a challenge.</p>
-                                            <Button asChild size="sm"><Link href="/learning"><LuBookOpen />Go to My learning</Link></Button>
-                                        </div>
+                                        <Empty className="border border-dashed">
+                                            <EmptyHeader>
+                                                <EmptyTitle>
+                                                    <h2 className="text-sm font-semibold">
+                                                        {period === "30d" ? "No one has scored in the last 30 days yet" : "No one is ranked yet"}
+                                                    </h2>
+                                                </EmptyTitle>
+                                                <EmptyDescription>Be the first: finish a lesson or pass a challenge.</EmptyDescription>
+                                            </EmptyHeader>
+                                            <EmptyContent>
+                                                <Button asChild size="sm"><Link href="/learning"><LuBookOpen />Go to My learning</Link></Button>
+                                            </EmptyContent>
+                                        </Empty>
                                     ) : (
                                         <>
                                             <Podium entries={podium} board={board} viewerId={viewerId} />
