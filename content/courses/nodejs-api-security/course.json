@@ -28,7 +28,7 @@
     { "code": "concurrency", "text": "Handle two refresh requests at the same time without double success or false replay alarms" }
   ],
   "testedVersions": { "TypeScript": "5.9.3 (tsc --strict in the code runner)", "Node.js crypto": "24 (HMAC-SHA256, timingSafeEqual in lesson examples)" },
-  "lastReviewedAt": "2026-10-26",
+  "lastReviewedAt": "2026-11-03",
   "sourceLinks": [
     "https://datatracker.ietf.org/doc/html/rfc6265",
     "https://datatracker.ietf.org/doc/html/rfc9700",

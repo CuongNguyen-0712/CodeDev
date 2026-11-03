@@ -28,7 +28,7 @@
     { "code": "safety-testing", "text": "Keep keys on the server, stop answers that leak solutions, and test LLM features with fake models and fixtures" }
   ],
   "testedVersions": { "TypeScript": "5.9.3 (tsc --strict in the code runner)", "LLM APIs": "provider-agnostic examples with a fake LLM; check current SDK versions" },
-  "lastReviewedAt": "2026-10-26",
+  "lastReviewedAt": "2026-11-03",
   "sourceLinks": [
     "https://json-schema.org/understanding-json-schema",
     "https://html.spec.whatwg.org/multipage/server-sent-events.html",

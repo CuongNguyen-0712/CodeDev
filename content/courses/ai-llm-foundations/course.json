@@ -24,7 +24,7 @@
     { "code": "responsible-ai", "text": "Keep sensitive data out of prompts and tell users clearly when they are dealing with AI" }
   ],
   "testedVersions": { "TypeScript": "5.9.3 (tsc --strict in the code runner)", "LLM fixtures": "recorded responses, no live model (prices and limits need checking before publishing)" },
-  "lastReviewedAt": "2026-10-26",
+  "lastReviewedAt": "2026-11-03",
   "sourceLinks": [
     "https://platform.openai.com/docs/guides/text",
     "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/overview",

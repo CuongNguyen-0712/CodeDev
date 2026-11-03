@@ -35,7 +35,7 @@
     { "code": "server-state", "text": "Treat server data as a cache: typed requests, query keys, invalidation after mutations and cancelled stale requests" }
   ],
   "testedVersions": { "TypeScript": "5.9.3 (tsc --strict in the code runner)", "React": "19 (lesson examples)", "TanStack Query": "5 (lesson examples)" },
-  "lastReviewedAt": "2026-10-26",
+  "lastReviewedAt": "2026-11-03",
   "sourceLinks": [
     "https://react.dev/learn/you-might-not-need-an-effect",
     "https://react.dev/reference/react/useEffect",

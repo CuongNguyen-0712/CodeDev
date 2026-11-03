@@ -218,5 +218,19 @@ Sanity dataset `production` dùng chung nên lesson đã publish cho cả prod. 
 | D1 add-on `devops-foundations-ci-containers` | beginner (không theo tier) | +2 lesson: scenario "Bad Release, Fast Rollback", SBOM & secret scan |
 | E4 add-on `python-rag-from-scratch` | intermediate (không theo tier) | +2 lesson: "Spot the AI mistake" cosine, scenario "Right Docs, Wrong Answer?" |
 
-Chưa làm: tác giả thứ hai giải lại challenge (V1.3 §11.1); đối chiếu các fact có ghi "check current docs" với tài
-liệu hiện hành; bài pgvector / `EXPLAIN` PostgreSQL (cần runner có PostgreSQL); P10.
+**Review 03/11/2026 (V1.3 §11.1), 5 đợt từ course cũ nhất:** mỗi course một agent khác tác giả giải lại mọi
+coding challenge chỉ từ phần học viên thấy (lesson, đề, hint, test công khai, starter) rồi chạy với mọi test; soát
+từng câu Đ/S theo evidence; đối chiếu fact với tài liệu hiện hành. Đã review cả 25 course (23 course V1.3 + 2
+add-on D1/E4), redeploy local + production, `lastReviewedAt` = 2026-11-03.
+- Giải lại: mọi challenge pass, trừ 2 bài đề thiếu luật mà test ẩn dùng: `chal_coding_ssc_132` (D5, báo đủ lý do
+  khi một luật khác vẫn chặn) và `chal_coding_qpr_412` (D3, mean = sum / len, `statistics.mean` lệch ở biên .x5).
+  Đã bổ sung luật vào đề và starter, không đổi test hay lời giải.
+- Lesson để lộ lời giải: C1 bài 4, 7, 8 và C4 bài 2.1, đã đổi ví dụ mẫu sang bảng/luồng khác hoặc mô tả bằng lời.
+- Câu Đ/S: không đổi đáp án nào; sửa evidence/câu chữ cho rõ ở khoảng 25 câu, tỷ lệ Sai giữ nguyên.
+- Fact lớn đã cập nhật: MCP 2026-07-28 là giao thức stateless (`server/discover`, không còn `initialize`/session) ở E6;
+  PostgreSQL 18 (C1); Next.js 16.3 Cache Components (B2); ESLint 10 flat config (A3, B1); pnpm 11 `allowBuilds`,
+  SLSA v1.2 (D5); OpenTelemetry GenAI conventions chuyển repo (E5, E6); link docs.anthropic.com sang
+  platform.claude.com / code.claude.com (E1, E2, E7); số liệu nhất quán giữa các lesson của D3, D4.
+- `testedVersions` ghi rõ phiên bản chưa chạy lại: NestJS 12, Vitest 5.1.
+
+Còn lại có chủ đích: bài pgvector / `EXPLAIN` PostgreSQL (cần runner có PostgreSQL, thay đổi hạ tầng sandbox).

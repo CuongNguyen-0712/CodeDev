@@ -24,7 +24,7 @@
     { "code": "retries", "text": "Retry only failures that are safe to retry, with a timeout and a limit" }
   ],
   "testedVersions": { "Node.js": "24", "HTTP semantics": "RFC 9110" },
-  "lastReviewedAt": "2026-10-24",
+  "lastReviewedAt": "2026-11-03",
   "sourceLinks": [
     "https://www.rfc-editor.org/rfc/rfc9110",
     "https://www.rfc-editor.org/rfc/rfc9111",
