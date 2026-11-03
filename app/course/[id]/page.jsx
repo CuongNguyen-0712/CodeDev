@@ -2,6 +2,7 @@ import { cache } from "react"
 import { notFound } from "next/navigation"
 
 import PreviewPage from "@/components/course/params/previewPage"
+import { CourseContent, CourseMobileBar, CoursePageFrame } from "@/components/course/params/courseContent"
 
 import { courseService } from "@/services/course.service"
 import { courseQueries } from "@/queries/course.query"
@@ -58,12 +59,18 @@ export default async function Page({ params }) {
         queryClient.setQueryData(courseQueries.details(id).queryKey, data);
     }
 
+    // Published: the page is rendered here, on the server; only the islands are client code.
+    // Otherwise the client fallback fetches it with the viewer's session.
     return (
         <DefaultLayout>
             <HydrationBoundary state={dehydrate(queryClient)}>
-                <PreviewPage
-                    params={{ id }}
-                />
+                {data ? (
+                    <CoursePageFrame title={data.title} mobileBar={<CourseMobileBar course={data} courseId={id} />}>
+                        <CourseContent course={data} courseId={id} />
+                    </CoursePageFrame>
+                ) : (
+                    <PreviewPage params={{ id }} />
+                )}
             </HydrationBoundary>
         </DefaultLayout>
     )

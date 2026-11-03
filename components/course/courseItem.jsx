@@ -12,6 +12,7 @@ import { commerceQueries } from "@/queries/premium.query";
 import { userQueries } from "@/queries/user.query";
 import { FIT_LABELS, courseFit, levelOverride, recommendedLevel } from "@/lib/levels";
 import { coverSrcSet, fitCover } from "@/lib/coverFit";
+import { LEVEL_ICON, formatDuration } from "./courseMeta";
 
 import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
@@ -25,29 +26,9 @@ import {
     LuCrown,
     LuLoaderCircle,
     LuPlus,
-    LuSignal,
-    LuSignalHigh,
     LuSignalLow,
-    LuSignalMedium,
     LuStar,
 } from "react-icons/lu";
-
-// Level is a neutral outline badge with a signal icon; the text label carries the meaning.
-export const LEVEL_ICON = {
-    beginner: LuSignalLow,
-    intermediate: LuSignalMedium,
-    advanced: LuSignalHigh,
-    expert: LuSignal,
-    master: LuSignal,
-};
-
-export const formatDuration = (minutes) => {
-    const value = Number(minutes || 0);
-    if (value < 60) return `${value}m`;
-    const hours = Math.floor(value / 60);
-    const rest = value % 60;
-    return rest ? `${hours}h ${rest}m` : `${hours}h`;
-};
 
 export const CourseItem = ({ item, priority = false }) => {
     const level = levelMapping[item.level] || levelMapping['beginner'];

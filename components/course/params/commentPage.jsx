@@ -1,3 +1,5 @@
+'use client'
+
 import { useState, useRef } from "react";
 import Link from "next/link";
 import Form from 'next/form';
