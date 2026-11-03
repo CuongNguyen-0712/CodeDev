@@ -19,7 +19,7 @@ export default ({ h2, h3, p, bullets, numbered, code, callout, challenge }) => (
         p("The bill, grouped by component (the platform's cloud account tags every resource with its component):"),
         code("text", `
 CodeDev production, October 2026          USD
-api (3 x 2 vCPU) + load balancer            205
+api (6 x 1 vCPU) + load balancer            205
 postgresql (HA, 500 GB, backups)          1,000
 redis (cache + leaderboard, 2 nodes)        220
 submission queue (requests)                   9
@@ -37,7 +37,7 @@ total                                    47,569`, "billing export, by component 
         p("Every line of a cloud bill is a count of something times a price. Write the count down with its source, the same way lesson 2 wrote down capacity estimates, and the bill becomes predictable:"),
         code("text", `
 line              units (how we got them)                                     price            monthly
-api               6 vCPU: 3 instances x 2 vCPU, sized for p95 300 ms reads     $30/vCPU          $180
+api               6 vCPU: 6 instances x 1 vCPU, sized for p95 300 ms reads     $30/vCPU          $180
                   + 1 load balancer                                                              $25
 postgresql        primary + standby, 4 vCPU / 16 GB each; 500 GB; backups       (managed plan)  $1,000
 redis             primary + replica, 6 GB                                       (managed plan)    $220
@@ -53,15 +53,15 @@ storage + email   ~1 GB of PDFs, ~150k emails                                   
         code("text", `
 load                               arrivals     busy slots (x 4.5 s)
 average day                        1.2 /s          ~5
-busiest hour of a normal day       6 /s            ~27
+busiest hour of a normal day       4 /s            ~18
 exam peak (first minutes)          340 /s          ~1,530`, "grader-load.txt"),
-        p("The exam peak is about 300 times the average. Paying for it all month is what the October fix did. Three alternatives, priced with the same unit price ($30 per slot-month, about $0.041 per slot-hour):"),
+        p("The exam peak is about 280 times the average. Paying for it all month is what the October fix did. Three alternatives, priced with the same unit price ($30 per slot-month, about $0.041 per slot-hour):"),
         numbered([
             "**Peak capacity always on**: 1,530 slots = **$45,900/month**. No backlog ever, and 99.7% of it idle on a normal day.",
             "**Baseline plus scheduled scaling for exam windows**: 40 slots always on ($1,200) and 400 slots during 4 exam windows of 3 hours a month (360 extra slots x 12 h = 4,320 slot-hours, about $180) = **about $1,380/month**. Exam times are known in advance, so the scale-up starts 15 minutes before the exam instead of reacting after the queue has grown.",
             "**The same, with 800 slots in the window**: about $200 more per month.",
         ]),
-        p("What does option 2 cost the learners? 400 slots grade about 89 jobs/s. If the 340/s peak lasts 3 minutes, about 61,000 submissions arrive and 16,000 are graded, so a backlog of about 45,000 builds up. The last submission of the peak waits roughly 45,000 / 89 = 8.5 minutes for its grade. Acceptance still meets the 2 s target, because the bounded queue from lesson 8 takes the burst (it must have room for it). With 800 slots the worst wait drops below 3 minutes."),
+        p("What does option 2 cost the learners? 400 slots grade about 89 jobs/s. If the 340/s peak lasts 3 minutes, about 61,000 submissions arrive and 16,000 are graded, so a backlog of about 45,000 builds up. The last submission of the peak waits roughly 45,000 / 89 = 8.5 minutes for its grade. Acceptance still meets the 2 s target only if the bounded queue from lesson 8 has room for that backlog: lesson 8 sizes the bound as throughput x the promised wait, so a 10-minute promise at 89 jobs/s needs about 53,000 places, not the 5,000 of the mock exam. With 800 slots the worst wait drops below 3 minutes. For the 1-minute peak that lesson 2 planned for, 400 slots meet R2c (results within 5 minutes, lesson 1); a 3-minute peak does not, so the design doc has to say which peak it plans for."),
         p("Now the decision is a product question with prices on it: \"exam grades within 10 minutes\" costs about $1,400 a month, \"within 3 minutes\" about $1,600, \"instantly, always\" $45,900. Before choosing, check the next bottleneck: 800 slots writing results means about 180 result writes per second to PostgreSQL, well within what the primary handles, but write the check down."),
         callout("warning", "Autoscaling is not free capacity",
             "Reactive autoscaling starts new grader pods after the queue has grown, and pods take time to schedule and start. For a peak that arrives in the first minute of an exam, scale on the schedule, keep reactive scaling as the backup for unplanned load, and set a maximum so a bug or an attack cannot scale the bill without limit. Lesson 7's per-user rate limits are a cost control too."),

@@ -193,7 +193,7 @@ consumer: before Lua                 nothing in Redis                 redelivere
         bullets([
             "Martin Fowler, Patterns of Distributed Systems: Idempotent Receiver - martinfowler.com/articles/patterns-of-distributed-systems/",
             "Microservices.io: Transactional outbox pattern - microservices.io/patterns/data/transactional-outbox.html",
-            "Redis documentation: Scripting with Lua (EVAL), atomic execution of scripts - redis.io/docs/latest/develop/interact/programmability/eval-intro/",
+            "Redis documentation: Scripting with Lua (EVAL), atomic execution of scripts - redis.io/docs/latest/develop/programmability/eval-intro/",
         ]),
         callout("tip", "Self-practice (not graded): extend the slice",
             "Add the next event to your slice: when a learner completes the last lesson of a course, the same transaction also inserts a CourseCompleted outbox row (event id \"course-completed:<userId>:<courseId>\") for the certificate service. Write its row in the crash table, decide what the certificate consumer uses to deduplicate, and add a reconciliation check: every learner with all lessons completed has exactly one certificate."),

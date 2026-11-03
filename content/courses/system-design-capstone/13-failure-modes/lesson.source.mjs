@@ -172,10 +172,11 @@ component / failure        detection                     blast radius (journeys)
 -------------------------  ----------------------------  ---------------------------  ----------------------------------------  -----------------------------------------
 PostgreSQL primary lost    write errors, failover event  1,2,3,6 for failover time    managed standby, auto failover, idem-     staging drill 2026-10-12: 74 s write gap,
                                                                                       potent writes retried once after it       0 lost submissions
-PostgreSQL slow            pool wait p95, statement      all DB routes               statement_timeout 1 s, report pool,       load test with a 5 s lock held: API p95
+PostgreSQL slow            pool wait p95, statement      all DB routes               statement_timeout 300 ms, report pool,    load test with a 5 s lock held: API p95
                            timeouts                                                   pool wait timeout 100 ms                  410 ms, errors only on locked rows
 Redis down / slow          cache error rate              none (reads slower)          50 ms timeout, fallback to PG behind a    game day: Redis stopped 10 min, progress
-                                                                                      limit (lessons 9, 12)                     p95 180 ms, 0 errors
+                                                                                      limit (lessons 9, 12)                     p95 180 ms, 0 errors; then packets
+                                                                                                                                dropped 10 min (lesson 12 chaos run)
 Leaderboard data lost      rank count != PG count        4 (stale until rebuilt)      rebuild projection from PG (lesson 11)    rebuild drill: 200k learners in 3 min 10 s
 Queue unavailable          enqueue errors, outbox lag    3 delayed; 2 still accepted  outbox in the submission transaction      broker paused 5 min: 0 lost, relay caught
                                                                                                                                 up in 40 s

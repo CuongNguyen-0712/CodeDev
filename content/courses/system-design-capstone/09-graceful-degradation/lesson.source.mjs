@@ -28,11 +28,11 @@ async completeLesson(userId: string, lessonId: string, points: number) {
 
 // redis.module.ts
 new Redis(process.env.REDIS_URL);   // ioredis defaults: no commandTimeout, maxRetriesPerRequest 20`, "progress.service.ts"),
-        p("When Redis became slow, the first `await` after the commit waited until the client gave up, the exception reached the global filter and the API answered 503. The trace of one request shows exactly where the time went:"),
+        p("When Redis became slow, the first `await` after the commit waited for Redis until the API's 5 s request timeout aborted it, the exception reached the global filter and the API answered 503. The trace of one request shows exactly where the time went:"),
         code("text", `
 POST /progress                                  5,031 ms  503
   pg: INSERT lesson_progress ... COMMIT            14 ms  ok
-  redis: DEL progress:u_51                      5,000 ms  ERR connection timeout
+  redis: DEL progress:u_51                      5,000 ms  aborted (5 s request timeout)
   (leaderboard ZADD not reached)`, "trace, 19:44:12"),
 
         h2("2. Read the evidence: what was lost, and what was not"),
@@ -112,7 +112,7 @@ private async redisCall(name: "cache" | "leaderboard", op: () => Promise<unknown
 
         h2("7. How to verify it"),
         numbered([
-            "**Inject the failure you are designing for.** In staging, put Toxiproxy between the API and Redis and add a 3,000 ms latency toxic (slow), then cut the connection (down). For a quick local check, `redis-cli DEBUG SLEEP 5` blocks a development Redis for 5 seconds.",
+            "**Inject the failure you are designing for.** In staging, put Toxiproxy between the API and Redis and add a 3,000 ms latency toxic (slow), then cut the connection (down). For a quick local check, `redis-cli CLIENT PAUSE 5000` holds every client of a development Redis for 5 seconds (`DEBUG SLEEP 5` does the same, but Redis 7 and later block DEBUG unless `enable-debug-command` is set).",
             "**Assert on the outcome, not on the absence of errors**: POST /progress returns 200 with `degraded: true`, its p95 stays under 300 ms after the breakers open, and the count of new progress rows equals the count of 200 responses.",
             "**Watch the breaker and the queue**: export breaker state per dependency and the retry queue length as metrics (the Observability with OpenTelemetry course covers naming and labels). During the test the queue grows; after the toxic is removed the breaker goes half-open, then closed, and the queue drains to zero.",
             "**Reconcile the projection**: compare the leaderboard with PostgreSQL totals for every learner touched during the test. Zero differences after the drain is the evidence that the retry queue wrote current totals.",

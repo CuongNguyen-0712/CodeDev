@@ -62,7 +62,7 @@ missing rollout / verification (3)
             "**Open questions and decision log.** What is not decided yet, who decides, by when; and after review, what was decided and why.",
         ]),
         callout("info", "Numbers make a doc reviewable",
-            "Comment #9 asked \"how eventually?\". The v0.4 answer: \"The leaderboard reflects a passed submission within 5 s at p99 in normal operation, and is rebuilt from PostgreSQL within 5 minutes after losing Redis; measured: p99 1.8 s in the load test, rebuild of 200,000 learners in 3 min 10 s.\" A sentence like that ends a discussion. \"Eventually consistent\" starts one."),
+            "Comment #9 asked \"how eventually?\". The v0.4 answer: \"The leaderboard reflects a passed submission within 10 s at p95 in normal operation (R7), and is rebuilt from PostgreSQL within 5 minutes after losing Redis; measured: p99 1.8 s in the load test, rebuild of 200,000 learners in 3 min 10 s.\" A sentence like that ends a discussion. \"Eventually consistent\" starts one."),
 
         h2("4. Worked example: the parts of the CodeDev doc that the board asked for"),
         h3("Requirements, with the check written next to each"),
@@ -71,10 +71,11 @@ ID     requirement                                                    check (sec
 NF-1   Reads: p95 <= 300 ms at 20,000 DAU, normal day                 load test L1 + SLO dashboard "reads"
 NF-2   Submit accepted: p95 <= 2 s at 340/s for 3 min (exam peak)     load test L2 (exam profile)
 NF-3   Exam grading: graded <= 10 min after acceptance, exam day      load test L2: worst grading delay
-NF-4   Leaderboard fresh within 5 s p99; rebuilt <= 5 min             load test L1; rebuild drill R1
+NF-4   Leaderboard fresh within 10 s p95 (R7); rebuilt <= 5 min       load test L1; rebuild drill R1
 NF-5   Learning path 99.95 % / month; works with Redis down           SLO dashboard; game day G1 (Redis stopped)
 NF-6   No submission lost or graded twice into the score             idempotency tests; game day G2 (kill -9 grader)
 NF-7   Cost <= $5,000 / month at current scale                       billing export by component tag, monthly`, "design-doc s3: requirements"),
+        p("NF-2 and NF-3 plan for a 3-minute exam peak, longer than the 1-minute peak of lesson 2, and NF-3 accepts 10 minutes for it: the price the cost review chose (lesson 14). R2c's 5 minutes (lesson 1) still holds for the 1-minute peak, and the decision log says so, so a reviewer does not find two numbers for one promise."),
         h3("Data model: the source of truth and its invariants"),
         code("sql", `
 -- PostgreSQL is the source of truth; Redis holds a cache and a rebuildable leaderboard projection.
@@ -120,7 +121,7 @@ top 100 read            O(log n + 100), ~1 ms               index scan, ~2-5 ms 
 load on primary         none                                every read and every score change
 extra component         no (Redis already runs the cache)   no
 loss of data            rebuilt from PG in 3 min 10 s        none
-consistency             fresh within 5 s (NF-4)              same transaction as progress
+consistency             fresh within 10 s (NF-4)             same transaction as progress
 
 Why A: rank reads ("my rank" on every lesson page) would put ~150 queries/s on the primary at peak
 for B; A keeps them off it. Revisit if: Redis is removed for another reason, or the board needs

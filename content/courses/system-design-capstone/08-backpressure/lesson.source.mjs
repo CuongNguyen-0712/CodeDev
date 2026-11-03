@@ -11,30 +11,30 @@ export default ({ h2, h3, p, bullets, numbered, code, callout, challenge }) => (
     scenario: {
         role: "Backend engineer owning the submission path, CodeDev learning platform",
         problem:
-            "Mock exam, Saturday 10:00. Arrivals on POST /submissions reached the planned 340 per second and stayed there for two minutes. The scheduled scaling had brought the grader fleet to 400 slots (lesson 2 estimated about 300; the team added headroom after the rehearsal), and the API answered 202 Accepted in 120-180 ms throughout, so every dashboard on the submit path was green. Meanwhile the grading queue reached 30,120 jobs, results arrived up to 5 minutes 38 seconds after submission, 6,800 learners pressed Run again while waiting, and the queue only emptied at 10:09. Practice runs from learners revising for other courses sat in the same queue, ahead of exam submissions that had been sent later.",
+            "Mock exam, Saturday 10:00. Arrivals on POST /submissions reached the planned 340 per second and stayed there for two minutes. The scheduled scaling had brought the grader fleet to 400 slots (lesson 2 estimated about 300; the team added headroom after the rehearsal), and the API answered 202 Accepted in 120-180 ms throughout, so every dashboard on the submit path was green. Meanwhile the grading queue reached 30,120 jobs, results arrived up to 5 minutes 38 seconds after submission, 6,800 learners pressed Run again while waiting, and the queue only emptied at about 10:08. Practice runs from learners revising for other courses sat in the same queue, ahead of exam submissions that had been sent later.",
     },
 
     content: [
         h2("1. The incident: every request accepted, nothing finished"),
         p("The per-learner rate limit from lesson 7 was in place and it worked: no single learner sent more than one submission every 5 seconds. The problem was the sum. The queue metrics for the first minutes of the exam:"),
         code("text", `
-time      arrivals/s  graded/s  queue depth  oldest job age  POST /submissions p95
-10:00:00         340        89            0            0 s  120 ms
-10:01:00         340        89       15,060          169 s  170 ms
-10:02:00         340        89       30,120          338 s  180 ms
-10:03:00         120        89       31,980          359 s  150 ms
-10:09:00          40        89            0            0 s  110 ms`, "grafana: submission queue, mock exam"),
+time      arrivals/s  graded/s  queue depth  wait for a new job  POST /submissions p95
+10:00:00         340        89            0                0 s  120 ms
+10:01:00         340        89       15,060              169 s  170 ms
+10:02:00         340        89       30,120              338 s  180 ms
+10:03:00          10        89       25,380              285 s  150 ms
+10:08:30           6         6            0                0 s  110 ms`, "grafana: submission queue, mock exam"),
         p("The `p95` column is the requirement the team was watching: p95 2 s for submit acceptance. It was met all morning. But **accepting** a submission only writes a job to the queue; the learner is waiting for the **result**. With arrivals above grading capacity, the queue did what queues do: it turned a rate problem into a waiting problem, and it did so silently. Every 202 was a promise the platform could not keep on time."),
 
         h2("2. Read the evidence: the numbers that predict the wait"),
         p("Two numbers explain the whole table. Grading capacity is slots divided by the average grading time: 400 slots / 4.5 s = **89 jobs per second**. Arrivals were 340 per second. The queue therefore grows by 340 - 89 = 251 jobs every second, 15,060 a minute. And the wait of a job that joins the queue is the depth in front of it divided by the drain rate:"),
         code("text", `
 wait ≈ depth / throughput
-     = 30,120 jobs / 89 jobs/s ≈ 338 s          (the "oldest job age" column agrees)
+     = 30,120 jobs / 89 jobs/s ≈ 338 s          (the "wait for a new job" column)
 
 Little's law, for a steady state:  jobs in system = arrival rate x time in system
 If the arrival rate is above the throughput, there is no steady state: the time grows without bound.`, "back of the envelope"),
-        p("You can check the prediction against the queue itself: the age of the oldest waiting job (the Background Jobs & Messaging course measures it in \"Measuring queue lag & age\") matched depth / throughput within a few seconds. That makes the depth an honest, cheap admission signal: the API can read it on every request and know how long a new job will wait."),
+        p("You can check the prediction against the jobs themselves: the submissions accepted at 10:02:00 were taken by a grader at 10:07:38, 338 s later (the Background Jobs & Messaging course measures waits like this in \"Measuring queue lag & age\"). While the queue is still growing, the age of the oldest waiting job is a smaller number: at 10:01 it was under a minute, while a new job faced 169 s. That makes the depth an honest, cheap admission signal: the API can read it on every request and know how long a new job will wait."),
 
         h2("3. Core idea: push back at the door"),
         p("**Backpressure** means that a component that cannot keep up tells the components upstream to slow down, instead of buffering without limit. For an HTTP API the signal is a refusal with advice: `429 Too Many Requests` (or `503`) and `Retry-After`. Its job is different from the per-learner rate limit: the rate limit is about fairness per client; backpressure protects **total** capacity, even when every client is well-behaved."),

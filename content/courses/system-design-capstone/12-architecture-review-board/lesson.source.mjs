@@ -117,6 +117,7 @@ postgres:
 
         h2("6. The challenge: make the read path survive the cache"),
         p("The challenge contains `CatalogReader.get` as it shipped: it awaits Redis with the client's default timeout, then PostgreSQL on a miss, then awaits the write-back. The file also contains the two helpers the team already had, `withTimeout` and `CircuitBreaker` (correct, but not wired in), and fakes with a fake clock: Redis answers in 2 ms when up, refuses in 1 ms when down and hangs until 30 s when hanging; PostgreSQL answers in 20 ms. The runner sends requests while Redis goes down, comes back empty and hangs, and prints each request's result and latency and how many PostgreSQL loads each key caused."),
+        p("This `CircuitBreaker` is simpler than the one you built in lesson 9: when its 1 s is over it lets every request through again instead of a single half-open trial, and 3 new consecutive failures open it again. For a cache read that costs at most 50 ms, a few extra trial calls are cheap, so the team kept it as it is."),
         p("Run the starter first: you will see every request fail while Redis is down, and 30,000 ms latencies while it hangs, the same picture as evidence A."),
         challenge("chal_coding_sdc_432"),
 

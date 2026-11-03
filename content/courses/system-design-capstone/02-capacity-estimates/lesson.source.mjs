@@ -159,7 +159,7 @@ sum(rate(grader_job_duration_seconds_count[10m])) * (sum(rate(grader_job_duratio
         code("text", `
                               estimated     measured (Oct 2026)    action
 submissions / active / day        5             4.4                keep 5 (margin)
-grader mean job time            4.5 s           5.1 s              update: 300 slots -> 340 for exam windows
+grader mean job time            4.5 s           4.6 s              keep
 exam peak                     340 /s          312 /s               keep
 polls during drain           5,000 /s         4,700 /s             ship backoff before next exam`, "estimate vs metrics"),
 

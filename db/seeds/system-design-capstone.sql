@@ -685,7 +685,7 @@ time      arrivals/s  graded/s  queue depth  POST /submissions p95
 10:00:00         340        89            0  120 ms
 10:01:00         340        89       15,060  170 ms
 10:02:00         340        89       30,120  180 ms
-10:03:00         120        89       31,980  150 ms
+10:03:00          10        89       25,380  150 ms
 
 The requirement is p95 2 s for submit acceptance.
 
@@ -768,11 +768,11 @@ DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM chall
 UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_sdc_331');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
-    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_sdc_331'), 'Trace of one POST /progress during the Redis outage, before the fix (the Redis client had no command timeout set and gave up after 5 s):
+    SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_sdc_331'), 'Trace of one POST /progress during the Redis outage, before the fix (the Redis client had no command timeout set; the API''s 5 s request timeout aborted the wait):
 
 POST /progress                                  5,031 ms  503
   pg: INSERT lesson_progress ... COMMIT            14 ms  ok
-  redis: DEL progress:u_51                      5,000 ms  ERR connection timeout
+  redis: DEL progress:u_51                      5,000 ms  aborted (5 s request timeout)
   (leaderboard ZADD not reached)
 
 The fix: a 50 ms timeout on every Redis call, a circuit breaker per Redis dependency (cache, leaderboard) that opens after 3 consecutive failures, the leaderboard update moved to a retry queue on failure, and a cache failure no longer fails the request.
@@ -907,7 +907,7 @@ async onLessonCompleted(e: LessonCompleted) {
   // the bus acks the message when this function returns
 }
 
-Statement: "Because SADD runs before ZINCRBY, a crash between the two commands can at worst make an event count twice; it can never lose one."', 'single_choice'::question_type, 'False. It is the other way round. If the consumer dies after SADD and before ZINCRBY, the event id is already marked as processed but the points were never added. The bus redelivers the message (it was never acked), SADD now returns 0 and the consumer skips it: the points are lost for good. Swapping the two commands gives the opposite failure (a crash after ZINCRBY and before SADD counts the event twice on redelivery). No order of two separate commands is safe; they have to run as one atomic step, such as a Lua script or MULTI/EXEC that does the SADD and the ZINCRBY together. The misconception is that "check, then write" is idempotent by itself: it is idempotent only when the check and the write commit together.', 2, 5
+Statement: "Because SADD runs before ZINCRBY, a crash between the two commands can at worst make an event count twice; it can never lose one."', 'single_choice'::question_type, 'False. It is the other way round. If the consumer dies after SADD and before ZINCRBY, the event id is already marked as processed but the points were never added. The bus redelivers the message (it was never acked), SADD now returns 0 and the consumer skips it: the points are lost for good. Swapping the two commands gives the opposite failure (a crash after ZINCRBY and before SADD counts the event twice on redelivery). No order of two separate commands is safe; they have to run as one atomic step, such as a Lua script that runs the ZINCRBY only when its SADD returned 1 (a plain MULTI/EXEC cannot do that: it queues both commands whatever SADD returns). The misconception is that "check, then write" is idempotent by itself: it is idempotent only when the check and the write commit together.', 2, 5
     WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_sdc_411') AND order_index = 2)
     RETURNING id
 )
@@ -1432,7 +1432,7 @@ baseline                40 slots always on
 exam windows            600 slots, scaled on schedule 15 min before each exam
 grading time            4.5 s per job on average, jobs graded in arrival order
 exam peak               340 submissions/s for the first 2 minutes, then about 20/s
-submit acceptance       bounded queue with room for 50,000 jobs (lesson 8)
+submit acceptance       bounded queue with room for 50,000 jobs (bound sized for this plan, lesson 8)
 
 New requirement in the design doc: "On exam day, every submission is graded within 5 minutes of being accepted."
 
@@ -1450,7 +1450,7 @@ WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_sdc_521'), 'GET /courses/:id/progress today, with the availability each dependency had over the last 12 months:
 
-API instances (3, across zones)    99.99 %
+API instances (6, across zones)    99.99 %
 Redis cache (single primary)       99.9 %    a cache error makes the request fail with 503
 PostgreSQL (managed HA)            99.95 %
 
