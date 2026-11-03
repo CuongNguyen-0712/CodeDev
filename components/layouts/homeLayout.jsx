@@ -3,7 +3,6 @@ import Navbar from '@/components/ui/navbar';
 import Dashboard from '@/components/ui/dashboard';
 import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
-import Footer from '@/components/ui/footer';
 import VerifyEmailBanner from '@/components/auth/verifyEmailBanner';
 
 import { SidebarInset, SidebarProvider } from '@/components/shadcn/sidebar';
@@ -20,7 +19,7 @@ function FeedbackGate() {
     return params.get('modal') === 'feedback' ? <Feedback /> : null;
 }
 
-function LayoutContent({ children }) {
+function LayoutContent({ children, footer }) {
     const {
         isDashboard,
         setDashboard,
@@ -51,7 +50,7 @@ function LayoutContent({ children }) {
                     className='page-enter outline-none flex min-h-0 w-full flex-1 flex-col items-center overflow-x-hidden overflow-y-auto overscroll-y-contain bg-background [overflow-anchor:none] **:[overflow-anchor:none]'
                 >
                     {children}
-                    <Footer />
+                    {footer}
                 </section>
             </SidebarInset>
 
@@ -63,9 +62,10 @@ function LayoutContent({ children }) {
     );
 }
 
-export default function HomeLayout({ children }) {
+// Mounted once by app/(shell)/layout.jsx; `footer` is rendered on the server and passed in.
+export default function HomeLayout({ children, footer }) {
     return (
-        <LayoutContent>
+        <LayoutContent footer={footer}>
             {children}
         </LayoutContent>
     );

@@ -8,8 +8,6 @@ import { PageSkeleton } from "@/components/ui/loading";
 
 import HomePage from "@/components/home/homePage";
 
-import HomeLayout from '@/components/layouts/homeLayout';
-
 export async function generateMetadata() {
     return {
         title: 'Home | CodeDev',
@@ -26,10 +24,8 @@ export default async function Page() {
     }
 
     return (
-        <HomeLayout>
-            <Suspense fallback={<PageSkeleton />}>
-                <HomePage />
-            </Suspense>
-        </HomeLayout>
+        <Suspense fallback={<PageSkeleton />}>
+            <HomePage />
+        </Suspense>
     );
 }

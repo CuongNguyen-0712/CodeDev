@@ -1,7 +1,5 @@
 import { Suspense } from 'react';
 
-import HomeLayout from '@/components/layouts/homeLayout';
-
 import { PageSkeleton } from '@/components/ui/loading';
 
 import OrdersPage from '@/components/commerce/ordersPage';
@@ -15,10 +13,8 @@ export async function generateMetadata() {
 
 export default async function Page() {
     return (
-        <HomeLayout>
-            <Suspense fallback={<PageSkeleton />}>
-                <OrdersPage />
-            </Suspense>
-        </HomeLayout>
+        <Suspense fallback={<PageSkeleton />}>
+            <OrdersPage />
+        </Suspense>
     );
 }

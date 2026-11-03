@@ -2,8 +2,6 @@ import { Suspense } from "react";
 
 import { PageSkeleton } from "@/components/ui/loading";
 
-import HomeLayout from '@/components/layouts/homeLayout';
-
 import HelpPage from "@/components/help/helpPage";
 
 export const metadata = {
@@ -13,10 +11,8 @@ export const metadata = {
 
 export default function Page() {
     return (
-        <HomeLayout>
-            <Suspense fallback={<PageSkeleton />}>
-                <HelpPage />
-            </Suspense>
-        </HomeLayout>
+        <Suspense fallback={<PageSkeleton />}>
+            <HelpPage />
+        </Suspense>
     );
 }

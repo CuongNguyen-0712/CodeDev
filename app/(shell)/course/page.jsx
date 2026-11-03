@@ -1,6 +1,5 @@
 import { Suspense } from "react";
 
-import HomeLayout from '@/components/layouts/homeLayout';
 import CoursePage from "@/components/course/coursePage";
 
 import { PageSkeleton } from "@/components/ui/loading";
@@ -14,10 +13,8 @@ export async function generateMetadata() {
 
 export default async function Page() {
     return (
-        <HomeLayout>
-            <Suspense fallback={<PageSkeleton />}>
-                <CoursePage />
-            </Suspense>
-        </HomeLayout>
+        <Suspense fallback={<PageSkeleton />}>
+            <CoursePage />
+        </Suspense>
     )
 }

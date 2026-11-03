@@ -118,7 +118,7 @@ Tổng phần render khoảng 7-10 ngày công. Phase 1 và 2 cho lợi ích đo
 1. ~~Ảnh: `next/image` hay URL Cloudinary có biến đổi.~~ Đã chốt: dùng `srcSet` Cloudinary (xem §7).
 2. ~~Sort khoá học: phía server hay chỉ trên danh sách đã tải.~~ Đã làm phía server (§7, lượt 2).
 3. Có duyệt UX-606 (bỏ poll phiên 60 giây) hay giữ nguyên do ràng buộc auth.
-4. Có chấp nhận thay đổi cấu trúc `app/` (route group `(shell)`) ở Phase 3 hay giữ `HomeLayout` trong từng page.
+4. ~~Có đổi cấu trúc `app/` sang route group `(shell)` không.~~ Đã làm (§7, lượt 3).
 
 ## 7. Trạng thái (2026-11-03)
 
@@ -163,10 +163,21 @@ Phần còn lại chủ yếu là framework: `react-dom` 202 KB, router Next 129
 
 Test cả bộ: 392 pass, 12 skip (cần dịch vụ ngoài). Lint 0 lỗi.
 
+### Lượt 3 (2026-11-03): Phase 3
+
+| Mục | Thay đổi | Kiểm chứng |
+|---|---|---|
+| RC-06 | 15 page dùng shell chuyển vào route group `app/(shell)/`: `/`, about, blog, contact, help, home, ranking, settings, orders (+`[id]`), profile (+`[id]`), và trang danh sách của `course`, `learning`, `roadmap` (trang `[id]` của ba route này vẫn dùng DefaultLayout, nằm ngoài group). `app/(shell)/layout.jsx` mount `HomeLayout` một lần; các page bỏ `<HomeLayout>` và giữ `Suspense` + `PageSkeleton` (cần cho `useSearchParams`). `/orders/[id]` đổi từ spinner toàn màn hình sang `PageSkeleton` | `next build`: route table giống hệt trước (cùng URL, cùng static/dynamic). Đổi trang bằng link: shell giữ nguyên (cùng DOM node), vùng cuộn `#container` về 0 |
+| RC-11 | `app/(shell)/loading.jsx` (`PageSkeleton`) cho lúc page chờ server, ví dụ `/home` kiểm onboarding | |
+| Footer | `Footer` render trên server và truyền vào `HomeLayout` qua prop `footer`, không còn nằm trong bundle client của layout | |
+| Kiểm signed-in | Tài khoản test local mới tạo thẳng trong DB local (để tránh gửi mail xác minh thật qua Gmail SMTP), email đã xác minh. Thông tin đăng nhập ở `.env.local` (`TEST_USER_*`, không commit). `.env.local` cũng có sẵn `LOCAL_TEST_USERNAME` từ đợt audit trước | Đăng nhập → onboarding (bỏ qua) → `/home`. Render OK, không lỗi: `/home`, `/learning`, `/ranking`, `/orders`, `/profile`, `/settings`, `/contact`, `/course`, `/course/[id]`. Thông báo: "Mark all read", reload vẫn 0 chưa đọc. Lesson: quiz tải qua `next/dynamic`, editor của bài có coding challenge tải được, gõ và tô màu đúng; code block trong bài tô màu bằng `PrismLight` |
+
+Lint 0 lỗi; test 392 pass; build OK.
+
 ### Còn mở
 
 - **Mức thấp:** mở thẳng `/course?modal=feedback` gây cảnh báo hydration mismatch. Dialog Radix gắn `aria-hidden` lên phần trang chưa hydrate xong. Chỉ xảy ra khi vào trực tiếp bằng URL có `?modal=feedback`; mở modal từ menu thì không bị.
 - **Tách `Provider` theo trạng thái đăng nhập:** ưu tiên thấp, vì `LevelUpDialog` / `RatePromptDialog` không kéo thư viện nặng.
 - **Proxy:** giờ gắn `next` cho mọi trang private (UX-104); `safeNextPath` đã chặn URL ngoài và `/auth`.
-- **Chưa làm:** Phase 3 (layout server, `loading.jsx`; chờ quyết định 4 ở §6). Phase 4 / RC-04 editor: `useDeferredValue` sẽ làm chữ hiển thị trễ hơn textarea, cần thiết kế lại lớp tô màu trước.
-- **Chưa kiểm signed-in:** cần một tài khoản test local để kiểm `/home`, `/learning/[id]`, `/settings`, `/profile` và thông báo.
+- **Chưa làm:** Phase 4 / RC-04 editor. `useDeferredValue` sẽ làm chữ hiển thị trễ hơn textarea, nên cần thiết kế lại lớp tô màu trước. Chưa đo trace với file 500 dòng.
+- **Chưa đo:** Lighthouse (LCP/TBT/CLS). Bản build chỉ gọi API ở `localhost:3000`.

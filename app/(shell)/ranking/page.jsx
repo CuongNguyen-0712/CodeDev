@@ -1,7 +1,6 @@
 import { Suspense } from "react";
 
 import { PageSkeleton } from "@/components/ui/loading";
-import HomeLayout from "@/components/layouts/homeLayout";
 import RankingPage from "@/components/ranking/rankingPage";
 
 export const metadata = {
@@ -12,10 +11,8 @@ export const metadata = {
 // Suspense: the page reads ?board=&period= with useSearchParams.
 export default function Page() {
     return (
-        <HomeLayout>
-            <Suspense fallback={<PageSkeleton />}>
-                <RankingPage />
-            </Suspense>
-        </HomeLayout>
+        <Suspense fallback={<PageSkeleton />}>
+            <RankingPage />
+        </Suspense>
     );
 }

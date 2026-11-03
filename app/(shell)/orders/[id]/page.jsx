@@ -1,8 +1,6 @@
 import { Suspense } from 'react';
 
-import HomeLayout from '@/components/layouts/homeLayout';
-
-import { LoadingRedirect } from '@/components/ui/loading';
+import { PageSkeleton } from '@/components/ui/loading';
 
 import OrderStatusPage from '@/components/commerce/orderStatusPage';
 
@@ -18,10 +16,8 @@ export default async function Page({ params }) {
     const { id } = await params;
 
     return (
-        <Suspense fallback={<LoadingRedirect />}>
-            <HomeLayout>
-                <OrderStatusPage orderId={id} />
-            </HomeLayout>
+        <Suspense fallback={<PageSkeleton />}>
+            <OrderStatusPage orderId={id} />
         </Suspense>
     );
 }

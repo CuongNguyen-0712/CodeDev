@@ -74,7 +74,7 @@ const LOOP = [
     },
 ];
 
-// Figures come from the live catalog (app/page.jsx); a missing figure drops out of the sentence.
+// Figures come from the live catalog (app/(shell)/page.jsx); a missing figure drops out of the sentence.
 const EXTRAS = (stats) => [
     {
         title: "Roadmaps for roles",

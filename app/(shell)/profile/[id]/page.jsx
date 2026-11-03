@@ -1,7 +1,6 @@
 import { cache } from "react";
 import { notFound } from "next/navigation";
 
-import HomeLayout from "@/components/layouts/homeLayout";
 import PublicProfilePage from "@/components/profile/publicProfilePage";
 
 import { profileService } from "@/services/profile.service";
@@ -38,8 +37,6 @@ export default async function Page({ params }) {
     if (!profile) notFound();
 
     return (
-        <HomeLayout>
-            <PublicProfilePage profile={{ ...profile, memberSince: profile.memberSince ? new Date(profile.memberSince).toISOString() : null }} />
-        </HomeLayout>
+        <PublicProfilePage profile={{ ...profile, memberSince: profile.memberSince ? new Date(profile.memberSince).toISOString() : null }} />
     );
 }

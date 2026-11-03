@@ -4,8 +4,6 @@ import { PageSkeleton } from "@/components/ui/loading"
 
 import SettingsPage from "@/components/settings/settingsPage"
 
-import HomeLayout from '@/components/layouts/homeLayout';
-
 export async function generateMetadata() {
     return {
         title: "Settings | CodeDev",
@@ -15,10 +13,8 @@ export async function generateMetadata() {
 
 export default function Page() {
     return (
-        <HomeLayout>
-            <Suspense fallback={<PageSkeleton />}>
-                <SettingsPage />
-            </Suspense>
-        </HomeLayout>
+        <Suspense fallback={<PageSkeleton />}>
+            <SettingsPage />
+        </Suspense>
     )
 }
