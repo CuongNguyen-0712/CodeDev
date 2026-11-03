@@ -5,8 +5,6 @@ import { rateLimiters } from "@/lib/rateLimit";
 
 import { emailVerificationService } from "@/services/emailVerification.service";
 
-export const dynamic = "force-dynamic";
-
 const RESULT = {
     verified: { status: 200, message: "Email verified." },
     already_verified: { status: 200, message: "Your email is already verified." },

@@ -11,7 +11,8 @@ import { RateLimiter } from "@/lib/rateLimit";
 import { getAuthSession } from "@/lib/session";
 import { adminMfaService, mfaRequiredFor } from "@/services/adminMfa.service";
 
-export const dynamic = "force-dynamic";
+// Gated per request (session, permissions, address, second factor), so navigations here wait for the server.
+export const instant = false;
 
 export async function generateMetadata() {
     const prefix = adminTitlePrefix();

@@ -7,8 +7,6 @@ import { maskEmail } from "@/lib/utils";
 
 import { accountLinkService } from "@/services/accountLink.service";
 
-export const dynamic = "force-dynamic";
-
 const NO_STORE = { "Cache-Control": "no-store" };
 
 /**

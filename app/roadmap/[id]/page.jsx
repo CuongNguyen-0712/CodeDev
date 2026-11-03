@@ -1,21 +1,20 @@
-import { cache } from "react";
 import { notFound } from "next/navigation";
 import DefaultLayout from "@/components/layouts/defaultLayout";
 import RoadmapDetailsPage from "@/components/roadmap/[id]/roadmapDetailsPage";
 import { roadmapService } from "@/services/roadmap.service";
+import { getPublicRoadmap } from "@/lib/cachedData";
 
-// ISR: the page renders the guest view (same for everyone); a signed-in learner's course progress
-// loads in the browser (roadmapQueries.details(id, "viewer")). Regenerated after
-// TTL.ROADMAP_DETAILS_PUBLIC, like the Redis copy it is built from.
-export const revalidate = 600;
+// ISR: the page renders the guest view (same for everyone, 'use cache' in lib/cachedData, 10
+// minutes like the Redis copy); a signed-in learner's course progress loads in the browser
+// (roadmapQueries.details(id, "viewer")).
 
-// No roadmap is built ahead: each page is generated on its first visit, then served from the cache.
+// Every roadmap is built ahead (a short list); `params` is awaited outside <Suspense>, so a roadmap
+// added later gets its own ISR entry on its first visit.
 export async function generateStaticParams() {
-    return [];
+    return (await roadmapService.getList()).map((roadmap) => ({ id: roadmap.id }));
 }
 
-// One lookup per render, shared by generateMetadata and the page.
-const loadRoadmap = cache((id) => roadmapService.getDetails({ publicId: id }));
+const loadRoadmap = (id) => getPublicRoadmap(id);
 
 export async function generateMetadata({ params }) {
     try {

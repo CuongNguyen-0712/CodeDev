@@ -4,7 +4,6 @@ import { hasBearerSecret } from "@/lib/requestGuard";
 
 import { auditSummary, runExpAudit } from "@/services/expAudit.service";
 
-export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 /**

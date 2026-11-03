@@ -3,8 +3,6 @@ import { NextResponse } from "next/server";
 import { readLinkCookie, clearLinkCookie } from "@/lib/authCookies";
 import { maskEmail } from "@/lib/utils";
 
-export const dynamic = "force-dynamic";
-
 const NO_STORE = { "Cache-Control": "no-store" };
 
 /**

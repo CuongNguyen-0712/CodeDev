@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { cacheLife } from 'next/cache';
 
 import { FaFacebookF, FaGithub } from "react-icons/fa";
 
@@ -12,7 +13,11 @@ const LINKS = [
     { href: '/help', label: 'Help' },
 ];
 
-export default function Footer() {
+// Server-rendered and cached (Cache Components: the current year cannot be read while
+// prerendering); a daily refresh keeps the year right.
+export default async function Footer() {
+    "use cache";
+    cacheLife("days");
     const currentYear = new Date().getFullYear();
 
     return (

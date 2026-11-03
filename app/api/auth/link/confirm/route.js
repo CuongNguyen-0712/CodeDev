@@ -6,8 +6,6 @@ import { rateLimiters } from "@/lib/rateLimit";
 
 import { accountLinkService } from "@/services/accountLink.service";
 
-export const dynamic = "force-dynamic";
-
 const RESULT = {
     linked: { status: 200, message: "Account linked." },
     password_required: { status: 422, message: "Choose a new password to finish." },

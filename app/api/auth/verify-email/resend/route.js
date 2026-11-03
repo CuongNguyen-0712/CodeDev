@@ -2,8 +2,6 @@ import { apiRoute } from "@/lib/routeHandler";
 import { rateLimiters } from "@/lib/rateLimit";
 import { emailVerificationService } from "@/services/emailVerification.service";
 
-export const dynamic = "force-dynamic";
-
 /** POST /api/auth/verify-email/resend: sends a new verification link to the signed-in user. */
 export const POST = apiRoute(async ({ userId }) => {
     await emailVerificationService.request(userId);

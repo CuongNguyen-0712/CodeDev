@@ -5,8 +5,6 @@ import PublicProfilePage from "@/components/profile/publicProfilePage";
 
 import { profileService } from "@/services/profile.service";
 
-export const dynamic = "force-dynamic";
-
 // Next may hand the segment over still percent-encoded (usernames can contain spaces / accents).
 const decodeKey = (value) => {
     try {

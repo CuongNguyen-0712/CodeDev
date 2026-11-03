@@ -1,5 +1,5 @@
 import AboutPage from "@/components/about/aboutPage";
-import { courseService } from "@/services/course.service";
+import { getCatalogStats } from "@/lib/cachedData";
 
 export async function generateMetadata() {
     return {
@@ -8,11 +8,9 @@ export async function generateMetadata() {
     };
 }
 
-// Live catalog figures (cached 10 minutes); the page is rebuilt as often.
-export const revalidate = 600;
-
 export default async function Page() {
-    const stats = await courseService.getCatalogStats().catch(() => null);
+    // Live catalog figures, cached 10 minutes (lib/cachedData); without them the copy still reads.
+    const stats = await getCatalogStats().catch(() => null);
 
     return (
         <AboutPage stats={stats} />
