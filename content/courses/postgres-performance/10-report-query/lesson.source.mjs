@@ -40,7 +40,7 @@ ORDER BY c.id;`, "progress_report.sql"),
         p("It reads naturally, one question per column, and every number in it is correct. The problem is not what it computes but how many times it computes it. Each subquery that mentions `c.id` or `e.user_id` is **correlated**: it depends on the current outer row, so the database runs it again for every outer row. With 12 courses that was a few thousand executions. With 212 courses and a million enrollments it is millions."),
 
         h2("2. Read the evidence: SubPlan and loops"),
-        p("Start from measurements, as in lesson 1. `pg_stat_statements` confirms that the time is in this one statement and that it is not waiting on locks (lesson 11) or I/O alone:"),
+        p("Start from measurements, as in lesson 1.1. `pg_stat_statements` confirms that the time is in this one statement and that it is not waiting on locks (lesson 4.2) or I/O alone:"),
         code("sql", `
 SELECT calls, round(mean_exec_time) AS mean_ms, rows,
        shared_blks_hit, shared_blks_read
@@ -49,8 +49,8 @@ WHERE query LIKE '%avg_completion_pct%';
 
  calls | mean_ms | rows | shared_blks_hit | shared_blks_read
 -------+---------+------+-----------------+------------------
-     7 | 2401733 |  212 |      9518420113 |          2240917`, "psql"),
-        p("Nine billion buffer hits for 212 output rows: the job is not slow because the data is large, it is slow because it reads the same pages over and over. The plan, logged by `auto_explain` (`auto_explain.log_min_duration = '60s'`, `log_analyze = on`), shows where:"),
+     7 | 2401733 | 1484 |      9518420113 |          2240917`, "psql"),
+        p("The counters are totals over the 7 runs: nine and a half billion buffer hits for 212 report rows per run (rows = 7 x 212). The job is not slow because the data is large, it is slow because it reads the same pages over and over. The plan, logged by `auto_explain` (`auto_explain.log_min_duration = '60s'`, `log_analyze = on`), shows where:"),
         code("text", `
 Sort  (cost=1873416530.12..1873416530.65 rows=212 width=52) (actual time=2401530.112..2401530.131 rows=212 loops=1)
   Sort Key: c.id
@@ -78,7 +78,7 @@ Sort  (cost=1873416530.12..1873416530.65 rows=212 width=52) (actual time=2401530
                                     Index Cond: (course_id = c.id)
         SubPlan 7
           ->  ... the same per-enrollment count again for the average (loops=212 and loops=1048211)`, "auto_explain"),
-        p("Three habits from lesson 2 make this plan readable:"),
+        p("Three habits from lesson 1.2 make this plan readable:"),
         bullets([
             "**`SubPlan n` is a correlated subquery.** PostgreSQL runs it once per row of the node that owns it. A scalar subquery in the SELECT list always stays a SubPlan; PostgreSQL can turn `EXISTS` and `IN` in a WHERE clause into semi-joins, but it does not rewrite these for you.",
             "**`actual time` and `rows` are per loop.** SubPlan 2 looks cheap at 1.104 ms. Multiply by `loops=1048211` and it is about 1,157 seconds, more than 19 minutes, and SubPlan 7 pays the same again.",
@@ -163,7 +163,7 @@ Sort  (actual time=6412.806..6412.861 rows=212 loops=1)
         h2("5. How to verify the rewrite"),
         p("A faster report that returns different numbers is a new bug, so prove both properties."),
         bullets([
-            "**Same rows.** Run both queries on a copy of production (a restored backup or a database branch) and compare them in both directions: `(old EXCEPT new) UNION ALL (new EXCEPT old)` must return no rows. Watch numeric types: `ROUND(..., 1)` on `numeric` and on `double precision` can print differently, so compare the same types.",
+            "**Same rows.** Run both queries on a copy of production (a restored backup or a database branch) and compare them in both directions: `(old EXCEPT new) UNION ALL (new EXCEPT old)` must return no rows. Watch numeric types: `ROUND(x, 1)` exists only for `numeric` in PostgreSQL, and a column that becomes `double precision` in the rewrite can compare unequal, so cast both queries to the same type.",
             "**Edge cases on purpose.** A course with no learners, a course with no lessons, a cancelled learner who finished everything, a learner who opened a lesson but did not finish it, progress left over from a course the user is no longer enrolled in. Each is one `INSERT` in a test database, and each catches a different bug.",
             "**The plan.** `EXPLAIN (ANALYZE, BUFFERS)` shows no `SubPlan`, every node with `loops=1`, and buffer counts close to the size of the tables instead of billions of hits.",
             "**The job over time.** `pg_stat_statements` `mean_exec_time` for the new statement, and the job's duration in its own logs for a week, so you notice when it starts to grow again.",

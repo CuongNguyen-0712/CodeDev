@@ -53,9 +53,9 @@ Execution Time: 987.402 ms`, "psql"),
         p("`EXPLAIN` alone shows the plan the planner would choose, with estimates only. `EXPLAIN ANALYZE` **runs the statement** and adds what really happened. Two consequences:"),
         bullets([
             "On `INSERT`, `UPDATE` or `DELETE`, EXPLAIN ANALYZE really changes data. Wrap it: `BEGIN; EXPLAIN ANALYZE UPDATE ...; ROLLBACK;`.",
-            "It takes as long as the query (plus some timing overhead). For a statement that runs for an hour, start with plain EXPLAIN, or capture the plan with auto_explain (lesson 1).",
+            "It takes as long as the query (plus some timing overhead). For a statement that runs for an hour, start with plain EXPLAIN, or capture the plan with auto_explain (lesson 1.1).",
         ]),
-        p("Add `BUFFERS` for page counts (lesson 1), and use the same parameter values that are slow in production - course 42, not course 7. In PostgreSQL 16 and 17 `BUFFERS` must be asked for; `SETTINGS` adds any planner settings that differ from the defaults, which is how you would have spotted the raised `work_mem` in a captured plan."),
+        p("Add `BUFFERS` for page counts (lesson 1.1), and use the same parameter values that are slow in production - course 42, not course 7. In PostgreSQL 16 and 17 `BUFFERS` must be asked for; PostgreSQL 18 adds it to every `EXPLAIN ANALYZE` (turn it off with `BUFFERS OFF`). `SETTINGS` adds any planner settings that differ from the defaults, which is how you would have spotted the raised `work_mem` in a captured plan."),
 
         h2("3. How a plan is built"),
         p("A plan is a tree of **nodes**. Each node produces rows and passes them to its parent: scans read tables or indexes, joins combine two inputs, Sort, Aggregate and Limit work on what they receive. The indentation and the `->` arrows show the tree. Execution starts at the top - the Limit asks its child for rows - but the work happens at the leaves, so read a plan **inside out**: start at the most indented nodes and walk up."),
@@ -91,13 +91,13 @@ Sort (count DESC)                    987.114 x 1          987.114 ms   985.902  
 Limit                                987.118 x 1          987.118 ms   987.114              0.004 ms`, "self-time.txt"),
         p("93% of the query is the 9,412 primary-key lookups into `users`. Each one is fast (0.098 ms), but the plan does it thousands of times, and `Buffers: ... read=9512` at the top says most of those lookups had to fetch a page from outside shared_buffers. The two sorts together cost about 18 ms. Raising `work_mem` could not help."),
         callout("info", "Rounding and parallel plans",
-            "Per-loop times are rounded averages, so a self time computed this way can come out a few microseconds negative: treat it as 0. In a parallel plan, loops counts the leader plus the workers and times are averages per process, so the simple formula overstates the work below a Gather; read the per-worker lines (VERBOSE) there."),
+            "Per-loop times are rounded averages, so a self time computed this way can come out a few microseconds negative: treat it as 0. Before PostgreSQL 18, actual rows per loop are rounded to a whole number too, so `rows=0 loops=5000` can still mean up to about 2,500 rows in total; PostgreSQL 18 prints two decimals (`rows=0.40`). In a parallel plan, loops counts the leader plus the workers and times are averages per process, so the simple formula overstates the work below a Gather; read the per-worker lines (VERBOSE) there."),
 
         challenge("chal_quiz_pgp_121"),
 
         h2("5. Estimated versus actual rows: why this plan was chosen"),
         p("Now compare the two parentheses of the outer scan: `rows=95` estimated, `rows=9412` actual. The planner was wrong by a factor of 99. With 95 outer rows, 95 index lookups into `users` really are the cheapest plan - about 800 cost units. With 9,412 they are not: a Hash Join that reads the matching users once would win. The plan is not \"bad\"; it is the right plan for the wrong number."),
-        p("This is the most useful habit when reading a plan: **find the lowest node where estimate and actual diverge by 10x or more**. Everything above it was planned on a wrong number, so fixing the estimate often fixes the plan. Lesson 3 explains where `rows=95` comes from and how to correct it. For the incident, a quick check confirmed the cause: `pg_stat_user_tables` showed that lesson_progress had not been analyzed since a bulk import of 3 million rows earlier that morning; autovacuum had not reached it yet."),
+        p("This is the most useful habit when reading a plan: **find the lowest node where estimate and actual diverge by 10x or more**. Everything above it was planned on a wrong number, so fixing the estimate often fixes the plan. Lesson 1.3 explains where `rows=95` comes from and how to correct it. For the incident, a quick check confirmed the cause: `pg_stat_user_tables` showed that lesson_progress had not been analyzed since a bulk import of 3 million rows earlier that morning; autovacuum had not reached it yet."),
         code("text", `
 ANALYZE lesson_progress;
 
@@ -111,12 +111,13 @@ Execution Time: 118.731 ms`, "psql"),
 
         h2("6. Other lines worth reading"),
         bullets([
-            "**`Rows Removed by Filter: 3180`**: the node read rows and threw them away after reading. A large number next to a small output means the index or the condition does not match the query (lesson 4).",
+            "**`Rows Removed by Filter: 3180`**: the node read rows and threw them away after reading. A large number next to a small output means the index or the condition does not match the query (lesson 2.1).",
             "**`Sort Method: external merge  Disk: 51200kB`**: the sort spilled to disk; this is when `work_mem` matters. `quicksort Memory` and `top-N heapsort Memory` did not spill.",
             "**`Heap Fetches: 4872`** on an Index Only Scan: rows whose visibility had to be checked in the table, because the visibility map was not up to date (VACUUM sets it).",
             "**`(never executed)`**: the node was planned but never ran, for example the inner side of a join whose outer side returned nothing. In JSON it shows `\"Actual Loops\": 0`.",
             "**`InitPlan` and `SubPlan`**: subqueries attached to a node. An InitPlan runs once (for example `created_at > (SELECT max(created_at) - interval '7 days' FROM users)`); a SubPlan can run once per row of its parent - a correlated subquery in the SELECT list with `loops=812` ran 812 times. Their time is included in the node they are attached to.",
             "**`Workers Planned: 2  Workers Launched: 2`** under a Gather: a parallel plan, see the callout above.",
+            "**`Index Searches: 9412`** (PostgreSQL 18) under an index scan: how many times the index was descended over all loops - more than loops when an `IN` list or a skip scan searches it several times per execution.",
         ]),
 
         h2("7. The JSON format, for tools"),
@@ -155,7 +156,7 @@ Execution Time: 118.731 ms`, "psql"),
             "**Blaming the top node.** Spot it: compute self times; a parent whose time is almost all in its children is not the problem.",
             "**Reading cost as milliseconds.** Spot it: someone quotes a plain EXPLAIN as \"the query takes 1,229 ms\".",
             "**Tuning memory for a sort that never spilled.** Spot it: `Sort Method` says `Memory`, not `Disk`.",
-            "**Fixing the plan instead of the estimate.** Spot it: a 10x gap between estimated and actual rows below the expensive node; fix the estimate first (lesson 3) before reaching for hints or new indexes.",
+            "**Fixing the plan instead of the estimate.** Spot it: a 10x gap between estimated and actual rows below the expensive node; fix the estimate first (lesson 1.3) before reaching for hints or new indexes.",
         ]),
 
         h2("10. Summary"),

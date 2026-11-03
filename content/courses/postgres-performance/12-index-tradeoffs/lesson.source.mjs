@@ -69,7 +69,7 @@ WHERE relname = 'lesson_progress';
         h3("On every write"),
         bullets([
             "**INSERT** adds one entry to every index of the table: a descent of each B-tree, sometimes a page split, and WAL for each change. Seven indexes means roughly seven times the index work of one.",
-            "**UPDATE** creates a new row version. If no indexed column changes and the new version fits on the same page, PostgreSQL makes a **HOT** (heap-only tuple) update: the indexes are not touched at all, and the old version can be pruned without vacuum. If any indexed column changes, or the page is full, the update is not HOT and every index of the table gets a new entry, including indexes on columns that did not change.",
+            "**UPDATE** creates a new row version. If no indexed column changes and the new version fits on the same page, PostgreSQL makes a **HOT** (heap-only tuple) update: the indexes are not touched at all, and the old version can be pruned without vacuum. (Since PostgreSQL 16 a column indexed only by BRIN, a summarizing index, does not count.) If any indexed column changes, or the page is full, the update is not HOT and every index of the table gets a new entry, including indexes on columns that did not change.",
             "**DELETE** and non-HOT updates leave dead entries in every index, which vacuum must find and remove. Indexes that are not cleaned grow: that is index **bloat**.",
         ]),
         h3("All the time"),
@@ -107,7 +107,7 @@ CREATE INDEX CONCURRENTLY lesson_progress_course_done_cov_idx
             "**`course_done_idx`: replace** with the smaller partial covering index from section 3, which the dashboard query can read without touching the table.",
             "**`user_id_idx` and `course_user_idx`: keep.** Both are used all day by the API; `pkey` (user_id, lesson_id) also serves lookups by user_id, so `user_id_idx` is the next candidate to review once its callers are checked.",
         ]),
-        p("In production, indexes are created and dropped **concurrently**. A plain `CREATE INDEX` takes a SHARE lock that blocks every INSERT, UPDATE and DELETE on the table until it finishes, and a plain `DROP INDEX` takes ACCESS EXCLUSIVE (lesson 11). The concurrent forms do not block writes:"),
+        p("In production, indexes are created and dropped **concurrently**. A plain `CREATE INDEX` takes a SHARE lock that blocks every INSERT, UPDATE and DELETE on the table until it finishes, and a plain `DROP INDEX` takes ACCESS EXCLUSIVE (lesson 4.2). The concurrent forms do not block writes:"),
         code("sql", `
 -- each statement on its own: CONCURRENTLY cannot run inside a transaction block
 SET statement_timeout = 0;          -- this session only: the build may take a while

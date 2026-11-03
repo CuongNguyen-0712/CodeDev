@@ -17,7 +17,7 @@ export default ({ h2, h3, p, bullets, numbered, code, callout, challenge }) => (
     content: [
         h2("1. The incident: fast queries that take 8 seconds"),
         p("The endpoint that records a finished lesson is three statements in one transaction: insert into `lesson_progress`, add XP to the learner, and update the course enrollment. Each one is an index lookup that takes well under a millisecond. Yet between 09:00 and 09:20 it takes seconds."),
-        p("A query can be slow for two reasons: it does a lot of work, or it waits. Lessons 1 to 10 were about work: bad plans, missing indexes, too many rows read. Low CPU, normal I/O and an unchanged plan point to the other kind. With `log_lock_waits = on` PostgreSQL logs every lock wait longer than `deadlock_timeout` (1 second by default), and the log says it plainly:"),
+        p("A query can be slow for two reasons: it does a lot of work, or it waits. Lessons 1.1 to 4.1 were about work: bad plans, missing indexes, too many rows read. Low CPU, normal I/O and an unchanged plan point to the other kind. With `log_lock_waits = on` PostgreSQL logs every lock wait longer than `deadlock_timeout` (1 second by default), and the log says it plainly:"),
         code("text", `
 2026-10-19 09:04:12.381 UTC [7741] LOG:  process 7741 still waiting for ShareLock on transaction 88120417 after 1000.112 ms
 2026-10-19 09:04:12.381 UTC [7741] DETAIL:  Process holding the lock: 7702. Wait queue: 7741, 7745, 7760.
@@ -82,7 +82,7 @@ ORDER BY l.pid, l.granted DESC;
         bullets([
             "`UPDATE` and `DELETE` lock each row they change. An `UPDATE` that does not change a key column takes `FOR NO KEY UPDATE`; one that changes a key column, and `DELETE`, take `FOR UPDATE`.",
             "`SELECT ... FOR UPDATE` takes the strongest row lock without changing anything. It also conflicts with `FOR KEY SHARE`, which a foreign key check takes on the parent row: that is why process 7760, inserting an enrollment for a locked user, waited too.",
-            "`SELECT ... FOR SHARE` and `FOR KEY SHARE` block writers but not each other.",
+            "`SELECT ... FOR SHARE` blocks `UPDATE` and `DELETE` of the row; `FOR KEY SHARE` blocks only `DELETE` and an `UPDATE` that changes a key column. Neither blocks the other.",
             "All of them are held **until the transaction ends**. A lock taken in the first millisecond of a four-minute transaction is held for four minutes.",
         ]),
         h3("Table locks and the lock queue"),

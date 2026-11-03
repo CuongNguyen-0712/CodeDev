@@ -50,10 +50,10 @@
     }
   ],
   "testedVersions": {
-    "PostgreSQL": "16-17 (lesson examples, EXPLAIN output formats)",
+    "PostgreSQL": "16-17 (lesson examples, EXPLAIN output formats); PostgreSQL 18 differences noted in lessons (BUFFERS by default, fractional actual rows, Index Searches, skip scan)",
     "SQLite": "sqlite3 module of the code runner's python3 (challenges)"
   },
-  "lastReviewedAt": "2026-10-26",
+  "lastReviewedAt": "2026-11-03",
   "sourceLinks": [
     "https://www.postgresql.org/docs/current/using-explain.html",
     "https://www.postgresql.org/docs/current/indexes-multicolumn.html",

@@ -5,7 +5,7 @@ export default ({ h2, h3, p, bullets, numbered, code, callout, challenge }) => (
     title: "Keyset pagination with (created_at, id)",
     slug: { _type: "slug", current: "keyset-pagination-created-at-id" },
     description:
-        "The activity feed of CodeDev loses events: a lesson completion writes three events with the same timestamp, and the cursor created_at < last skips the ones that did not fit on the page. Learn how keyset pagination works, why the cursor must contain every ORDER BY column, how the row comparison (created_at, id) < ($1, $2) lets the index seek to the next page in PostgreSQL and SQLite, which index serves it, how to pass the cursor through an API without losing precision, and when OFFSET is still the simpler choice.",
+        "The activity feed of CodeDev loses events: a lesson completion writes three events with the same timestamp, and the cursor created_at < last skips the ones that did not fit on the page. Learn how keyset pagination works, why the cursor must contain every ORDER BY column, how a row comparison such as (submitted_at, id) < ($2, $3) lets the index seek to the next page in PostgreSQL and SQLite, which index serves it, how to pass the cursor through an API without losing precision, and when OFFSET is still the simpler choice.",
     estimatedTime: 25,
 
     scenario: {
@@ -16,7 +16,7 @@ export default ({ h2, h3, p, bullets, numbered, code, callout, challenge }) => (
 
     content: [
         h2("1. The incident: a cursor that skips rows"),
-        p("Two weeks ago the feed moved away from `LIMIT 20 OFFSET $2`, because deep pages were slow and rows shifted while learners scrolled (lesson 9 covers that failure). The new endpoint returns the `created_at` of the last row, and the client sends it back to get the next page:"),
+        p("Two weeks ago the feed moved away from `LIMIT 20 OFFSET $2`, because deep pages were slow and rows shifted while learners scrolled (lesson 3.3 covers that failure). The new endpoint returns the `created_at` of the last row, and the client sends it back to get the next page:"),
         code("sql", `
 -- GET /api/users/42/activity?before=2026-10-24T14:03:17.250Z
 SELECT id, kind, created_at
@@ -45,36 +45,37 @@ ORDER BY id DESC;
         h2("3. Core idea: the cursor is the whole sort key"),
         p("Keyset pagination (also called seek pagination) describes a page by **where it starts in the sort order**, not by how many rows come before it. It works when two things are true:"),
         numbered([
-            "**The sort key is unique.** `created_at DESC` is not; `created_at DESC, id DESC` is, because `id` is the primary key. Every row has exactly one position.",
-            "**The cursor contains the whole sort key, and the next page asks for the rows after it in the same order.** For a descending order, \"after\" means smaller: `(created_at, id) < (last_created_at, last_id)`.",
+            "**The sort key is unique.** A timestamp alone is not; a timestamp followed by the primary key is. Every row has exactly one position.",
+            "**The cursor contains the whole sort key, and the next page asks for the rows after it in the same order.** For a descending order, \"after\" means smaller, with the columns of the key compared together as a tuple.",
         ]),
         p("The row comparison `(a, b) < (x, y)` compares like a tuple: true when `a < x`, or when `a = x` and `b < y`. That is exactly \"comes after this row in `a DESC, b DESC` order\". PostgreSQL has supported it for a long time, and SQLite since 3.15 (2016)."),
+        p("You fix the feed query in the challenge below. Here is the pattern on another list with the same shape: the reviewers' list of the submissions to one challenge, newest first, with `submitted_at` as the timestamp and `id` as the tie-breaker:"),
         code("sql", `
-SELECT id, kind, created_at
-FROM activity_log
-WHERE user_id = $1
-  AND (created_at, id) < ($2, $3)      -- the last row shown: its created_at and its id
-ORDER BY created_at DESC, id DESC
-LIMIT 20;`, "feed_page.sql"),
+SELECT id, user_id, status, submitted_at
+FROM submissions
+WHERE challenge_id = $1
+  AND (submitted_at, id) < ($2, $3)      -- the last row shown: its submitted_at and its id
+ORDER BY submitted_at DESC, id DESC
+LIMIT 25;`, "submissions_page.sql"),
         h3("Why it is fast at any depth"),
-        p("With the index `activity_log (user_id, created_at, id)`, the rows of one user are stored in the B-tree in sort order. The row comparison becomes part of the **Index Cond**, so PostgreSQL descends the tree straight to the cursor and reads backward 20 entries. Page 1 and page 1,250 cost the same:"),
+        p("With the index `submissions (challenge_id, submitted_at, id)`, the submissions of one challenge are stored in the B-tree in sort order. The row comparison becomes part of the **Index Cond**, so PostgreSQL descends the tree straight to the cursor and reads backward 25 entries. The first page and a page 30,000 rows deep cost the same:"),
         code("text", `
-Limit  (cost=0.43..22.01 rows=20 width=52) (actual time=0.025..0.049 rows=20 loops=1)
-  Buffers: shared hit=6
-  ->  Index Scan Backward using activity_log_user_created_id on activity_log
-        (cost=0.43..1210.42 rows=1121 width=52) (actual time=0.024..0.045 rows=20 loops=1)
-        Index Cond: ((user_id = 42) AND (ROW(created_at, id) < ROW('2025-11-03 18:22:41.512+00'::timestamp with time zone, 77012345)))
-        Buffers: shared hit=6
-Execution Time: 0.068 ms`, "EXPLAIN (ANALYZE, BUFFERS)"),
+Limit  (cost=0.43..27.12 rows=25 width=28) (actual time=0.026..0.052 rows=25 loops=1)
+  Buffers: shared hit=7
+  ->  Index Scan Backward using submissions_challenge_submitted_id on submissions
+        (cost=0.43..1308.77 rows=1225 width=28) (actual time=0.025..0.048 rows=25 loops=1)
+        Index Cond: ((challenge_id = 731) AND (ROW(submitted_at, id) < ROW('2026-09-14 09:41:07.318204+00'::timestamp with time zone, 5502817)))
+        Buffers: shared hit=7
+Execution Time: 0.071 ms`, "EXPLAIN (ANALYZE, BUFFERS)"),
         bullets([
             "**Index Scan Backward:** the index is ascending, the query descending; a B-tree reads both ways, so no separate DESC index is needed when every column goes the same direction.",
             "**No Sort node:** the index already delivers the rows in ORDER BY order, and Limit stops the scan after 20 rows. A plan with `Sort` above the scan has to read every matching row first.",
-            "**Mixed directions need a matching index.** `ORDER BY created_at DESC, id ASC` cannot be read from `(created_at, id)` in one direction, and the tuple comparison no longer describes the order. Keep all sort columns in the same direction, or create the index with the same mix.",
+            "**Mixed directions need a matching index.** `ORDER BY submitted_at DESC, id ASC` cannot be read from `(submitted_at, id)` in one direction, and the tuple comparison no longer describes the order. Keep all sort columns in the same direction, or create the index with the same mix.",
         ]),
         h3("When not to use keyset pagination"),
         bullets([
             "**The user needs to jump to page 37.** A cursor only knows the next page (and, with the reverse comparison, the previous one). Numbered pages over a small, filtered result are fine with OFFSET.",
-            "**The result is small and bounded.** 200 rows of admin settings sorted by name do not need a cursor. Deep pages are where OFFSET hurts; lesson 9 measures it.",
+            "**The result is small and bounded.** 200 rows of admin settings sorted by name do not need a cursor. Deep pages are where OFFSET hurts; lesson 3.3 measures it.",
             "**The sort is a free choice of the user over many columns.** Every sort option needs its own unique key, cursor format and index. Offer keyset for the main feed order and keep rare sorts limited.",
         ]),
 
@@ -83,26 +84,26 @@ Execution Time: 0.068 ms`, "EXPLAIN (ANALYZE, BUFFERS)"),
         h2("4. Worked example: the API around the query"),
         p("The client should not build SQL values. The API returns an opaque cursor made from the last row, and accepts it back:"),
         code("typescript", `
-type Cursor = { createdAt: string; id: string };   // createdAt as PostgreSQL text: keeps microseconds
+type Cursor = { submittedAt: string; id: string };   // submittedAt as PostgreSQL text: keeps microseconds
 
 const encode = (c: Cursor) => Buffer.from(JSON.stringify(c)).toString("base64url");
 const decode = (s: string): Cursor => JSON.parse(Buffer.from(s, "base64url").toString());
 
-async function feedPage(userId: number, after: string | null, limit = 20) {
+async function submissionsPage(challengeId: number, after: string | null, limit = 25) {
     const { rows } = after === null
         ? await db.query(
-            \`SELECT id, kind, created_at::text AS created_at FROM activity_log
-              WHERE user_id = $1 ORDER BY created_at DESC, id DESC LIMIT $2\`, [userId, limit])
+            \`SELECT id, user_id, status, submitted_at::text AS submitted_at FROM submissions
+              WHERE challenge_id = $1 ORDER BY submitted_at DESC, id DESC LIMIT $2\`, [challengeId, limit])
         : await db.query(
-            \`SELECT id, kind, created_at::text AS created_at FROM activity_log
-              WHERE user_id = $1 AND (created_at, id) < ($2::timestamptz, $3::bigint)
-              ORDER BY created_at DESC, id DESC LIMIT $4\`,
-            [userId, decode(after).createdAt, decode(after).id, limit]);
+            \`SELECT id, user_id, status, submitted_at::text AS submitted_at FROM submissions
+              WHERE challenge_id = $1 AND (submitted_at, id) < ($2::timestamptz, $3::bigint)
+              ORDER BY submitted_at DESC, id DESC LIMIT $4\`,
+            [challengeId, decode(after).submittedAt, decode(after).id, limit]);
     const last = rows.at(-1);
-    return { items: rows, next: rows.length === limit ? encode({ createdAt: last.created_at, id: last.id }) : null };
-}`, "feed.ts"),
+    return { items: rows, next: rows.length === limit ? encode({ submittedAt: last.submitted_at, id: last.id }) : null };
+}`, "submissions.ts"),
         bullets([
-            "**Keep the full precision of the timestamp.** `timestamptz` stores microseconds; a JavaScript `Date` keeps milliseconds. A cursor `2026-10-24T14:03:17.250Z` made from `...17.250418` is earlier than the real row, so the next page skips the rest of that millisecond. Selecting `created_at::text` (or the epoch in microseconds) avoids the round trip through `Date`.",
+            "**Keep the full precision of the timestamp.** `timestamptz` stores microseconds; a JavaScript `Date` keeps milliseconds. A cursor `2026-10-24T14:03:17.250Z` made from `...17.250418` is earlier than the real row, so the next page skips the rest of that millisecond. Selecting `submitted_at::text` (or the epoch in microseconds) avoids the round trip through `Date`.",
             "**Validate the decoded cursor** like any input: a malformed cursor should be a 400, not a 500, and its values go to the query as parameters only.",
             "**`next: null` when the page is short.** If the last page is exactly full, the client asks once more and gets an empty page; that is cheaper than counting.",
         ]),
@@ -114,7 +115,7 @@ async function feedPage(userId: number, after: string | null, limit = 20) {
             "**Page through everything in a test and compare with one query.** Concatenate all pages and compare with `SELECT id ... ORDER BY created_at DESC, id DESC` without LIMIT: same ids, same order, no duplicates. Use fixtures with tie groups larger than a page and ids that are not in time order.",
             "**Put a page boundary inside a tie group on purpose** (limit 2 and three rows with the same timestamp). This is the case that broke production, and random data rarely produces it.",
             "**EXPLAIN (ANALYZE, BUFFERS) of page 1 and of a deep page:** both should show the row comparison in Index Cond (not in Filter), no Sort node, and about the same rows and buffers.",
-            "**Watch for Filter instead of Index Cond.** `Filter: ((created_at < $2) OR ((created_at = $2) AND (id < $3)))` means the expanded OR form was not used as an index bound: the scan starts at the newest row and discards rows until it reaches the cursor, which gets slower with depth. Prefer the row comparison.",
+            "**Watch for Filter instead of Index Cond.** `Filter: ((submitted_at < $2) OR ((submitted_at = $2) AND (id < $3)))` means the expanded OR form was not used as an index bound: the scan starts at the newest row and discards rows until it reaches the cursor, which gets slower with depth. Prefer the row comparison.",
         ]),
 
         challenge("chal_coding_pgp_322"),
@@ -125,13 +126,13 @@ async function feedPage(userId: number, after: string | null, limit = 20) {
             "**A cursor on id alone because \"ids grow with time\".** Imports, backfills and sequences with cache per session break that assumption. Spot it: `SELECT count(*) FROM activity_log a JOIN activity_log b ON a.id < b.id AND a.created_at > b.created_at` is not 0.",
             "**A function on the column.** `date_trunc('second', created_at) < $2` or SQLite's `datetime(created_at) < ...` cannot use the index range: every page scans from the newest row. Spot it: in the plan, the condition appears as Filter, and a deep page reads far more rows than it returns.",
             "**Losing precision in the cursor.** A `Date` round trip truncates microseconds. Spot it: rows inserted in the same millisecond disappear; compare the cursor string with `created_at::text` of the last row.",
-            "**ORDER BY and cursor disagree.** Cursor on `(created_at, id)` with `ORDER BY created_at DESC` only, or with mixed directions. Spot it: the concatenated pages differ from the full ordered query.",
+            "**ORDER BY and cursor disagree.** A cursor on (timestamp, id) with ORDER BY on the timestamp only, or with mixed directions. Spot it: the concatenated pages differ from the full ordered query.",
         ]),
 
         h2("7. Summary"),
         bullets([
-            "Keyset pagination asks for the rows after the last row shown. It is correct only when the sort key is unique and the cursor carries all of it: ORDER BY created_at DESC, id DESC with WHERE (created_at, id) < (last_created_at, last_id).",
-            "With an index on (user_id, created_at, id), the row comparison is an Index Cond: the scan seeks to the cursor, reads one page and stops, so every page costs the same. Check it in EXPLAIN: no Sort, no Filter on the cursor.",
+            "Keyset pagination asks for the rows after the last row shown. It is correct only when the sort key is unique (a timestamp, then the primary key) and the cursor carries all of it, compared as one row value in the same order and direction as ORDER BY.",
+            "With an index on the filter column followed by the whole sort key, the row comparison is an Index Cond: the scan seeks to the cursor, reads one page and stops, so every page costs the same. Check it in EXPLAIN: no Sort, no Filter on the cursor.",
             "Treat the cursor as an opaque, validated token with full timestamp precision, and keep OFFSET for small results or numbered pages a user really needs.",
         ]),
 
@@ -142,6 +143,6 @@ async function feedPage(userId: number, after: string | null, limit = 20) {
             "SQLite documentation: Row Values - sqlite.org/rowvalue.html",
         ]),
         callout("tip", "Practice on your own (not graded)",
-            "Add a \"newer\" link to the feed: the previous page is WHERE (created_at, id) > ($2, $3) ORDER BY created_at ASC, id ASC LIMIT 20, reversed in the application. Write the test that pages forward to the end and back to the start and checks that both walks return the same rows."),
+            "Add a \"newer\" link to the submissions list of section 3: the previous page is WHERE challenge_id = $1 AND (submitted_at, id) > ($2, $3) ORDER BY submitted_at ASC, id ASC LIMIT 25, reversed in the application. Write the test that pages forward to the end and back to the start and checks that both walks return the same rows."),
     ],
 });

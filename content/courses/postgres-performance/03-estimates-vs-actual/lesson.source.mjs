@@ -37,7 +37,7 @@ GroupAggregate  (cost=9.04..9.07 rows=1 width=24) (actual time=846102.311..84645
                     Heap Fetches: 1906211
 Planning Time: 0.512 ms
 Execution Time: 846612.044 ms`, "psql"),
-        p("Read it as lesson 2 taught: the inner Index Only Scan ran 2,104,000 times at 0.399 ms, which is 839 seconds of the 846. Then go one step further down: the outer Index Scan was estimated at `rows=1` and returned 2,104,000 rows. For one row, a nested loop with one index lookup is the perfect plan, and its estimated total cost of 9.03 beat every alternative. The plan was not the mistake. The number was."),
+        p("Read it as lesson 1.2 taught: the inner Index Only Scan ran 2,104,000 times at 0.399 ms, which is 839 seconds of the 846. Then go one step further down: the outer Index Scan was estimated at `rows=1` and returned 2,104,000 rows. For one row, a nested loop with one index lookup is the perfect plan, and its estimated total cost of 9.03 beat every alternative. The plan was not the mistake. The number was."),
 
         h2("2. Read the evidence: what the planner knew"),
         p("The planner does not look at the table when it plans. It looks at **statistics**: a summary per column that `ANALYZE` (run by you or by autovacuum) computes from a random sample of rows and stores in `pg_statistic`. The readable view is `pg_stats`:"),
@@ -99,7 +99,7 @@ selectivity                   =  0 (no MCV below) + (1 - 0 - 0.31) x 0.85  =  0.
         h2("4. Selectivity decides the access path"),
         p("The row estimate is the input to every choice in the plan: which index, which join, how much memory. The rough rule for one table:"),
         bullets([
-            "**Low selectivity** (a small fraction of the rows): an Index Scan finds them directly. An index is useful when the condition on its **first column** is selective; a condition on its third column alone cannot narrow the search (lesson 6 covers column order).",
+            "**Low selectivity** (a small fraction of the rows): an Index Scan finds them directly. An index is useful when the condition on its **first column** is selective; a condition on its third column alone cannot narrow the search, except through PostgreSQL 18's skip scan when the leading columns have only a few distinct values (lesson 2.3 covers column order).",
             "**Higher selectivity**: a Bitmap Heap Scan collects matching pages first and reads each page once.",
             "**A large fraction of the table**: a Seq Scan reads every page in order, which beats random index lookups. Where the crossover lies depends on `random_page_cost`, on how well the index order matches the table order (`correlation` in pg_stats) and on the cache - often somewhere in the low single-digit percent for an unclustered index.",
         ]),
@@ -113,7 +113,7 @@ selectivity                   =  0 (no MCV below) + (1 - 0 - 0.31) x 0.85  =  0.
             "**Stale statistics** - the data changed after the last ANALYZE. Run `ANALYZE enrollments;` (it reads a sample, so it is quick even on large tables) and make it the last step of every bulk import or backfill. For tables that change in bursts, lower the threshold per table: `ALTER TABLE enrollments SET (autovacuum_analyze_scale_factor = 0.02);`.",
             "**A sample that is too small** - rare but important values never make the MCV list, or the histogram is too coarse. Raise the target for that column only and re-analyze: `ALTER TABLE activity_log ALTER COLUMN user_id SET STATISTICS 1000; ANALYZE activity_log;`. More entries cost planning time for every query on the column, so do not raise it everywhere.",
             "**Correlated columns** - each condition alone is estimated correctly, together they are not. Create extended statistics so the planner knows the columns depend on each other, then analyze: `CREATE STATISTICS lp_course_lesson (dependencies) ON course_id, lesson_id FROM lesson_progress; ANALYZE lesson_progress;`. Types `ndistinct` (for GROUP BY) and `mcv` (for combinations of values) exist too.",
-            "**Conditions the planner cannot estimate** - a function on a column (`lower(email) = $1`) or a comparison between expressions gets a default. An expression index also collects statistics for its expression (lesson 5).",
+            "**Conditions the planner cannot estimate** - a function on a column (`lower(email) = $1`) or a comparison between expressions gets a default. An expression index also collects statistics for its expression (lesson 2.2).",
         ]),
         p("For the incident, `ANALYZE enrollments` took 4 seconds. The new statistics list 'trial' with a frequency of about 0.105, the estimate becomes 2,100,000 rows, and the planner switches to a parallel Seq Scan on enrollments with a Hash Right Join to lesson_progress. The report finishes in 6.2 seconds - not the 300 ms from before the import, because it now aggregates 2.1 million trials instead of none, but no longer a 14-minute nested loop. The import job got an `ANALYZE` as its last step."),
 
@@ -144,7 +144,7 @@ selectivity                   =  0 (no MCV below) + (1 - 0 - 0.31) x 0.85  =  0.
 
         h2("Sources"),
         bullets([
-            "PostgreSQL documentation: Statistics Used by the Planner (section 14.2) and Row Estimation Examples (section 76.1) - postgresql.org/docs/current/planner-stats.html",
+            "PostgreSQL documentation: Statistics Used by the Planner (section 14.2) and Row Estimation Examples (in the chapter How the Planner Uses Statistics) - postgresql.org/docs/current/planner-stats.html and postgresql.org/docs/current/row-estimation-examples.html",
             "PostgreSQL documentation: pg_stats view, CREATE STATISTICS, ANALYZE, and The Autovacuum Daemon (autovacuum_analyze_threshold, autovacuum_analyze_scale_factor)",
             "PostgreSQL documentation: Using EXPLAIN - postgresql.org/docs/current/using-explain.html",
         ]),

@@ -80,45 +80,47 @@ LIMIT 3;
 
         challenge("chal_quiz_pgp_311"),
 
-        h2("4. Worked example: the page in one statement"),
+        h2("4. Worked example: the same loop on the instructor dashboard"),
+        p("You rewrite the \"My learning\" page in the challenge below. Here the same three decisions are applied to a second N+1 found in the same week: the instructor dashboard of a course lists its lessons with the number of different learners who finished each one, and it sent one count query per lesson. The lessons are in `lessons(id, course_id, title, sort_order)`; `lesson_progress` is the table from section 1."),
         code("sql", `
-SELECT c.id, c.title, count(DISTINCT lp.lesson_id) AS completed_lessons
-FROM enrollments AS e
-JOIN courses AS c ON c.id = e.course_id
+SELECT l.id, l.title, count(DISTINCT lp.user_id) AS finished_by
+FROM lessons AS l
 LEFT JOIN lesson_progress AS lp
-       ON lp.user_id = e.user_id
-      AND lp.course_id = e.course_id
+       ON lp.lesson_id = l.id
       AND lp.completed_at IS NOT NULL
-WHERE e.user_id = $1
-  AND e.status <> 'cancelled'
-GROUP BY e.id, c.id
-ORDER BY e.created_at DESC, e.id DESC;`, "my_courses.sql"),
+WHERE l.course_id = $1
+GROUP BY l.id
+ORDER BY l.sort_order, l.id;`, "course_dashboard.sql"),
         bullets([
-            "**GROUP BY e.id, c.id** groups per enrollment. PostgreSQL lets you select `c.title` and order by `e.created_at` without listing them, because both depend on a grouped primary key (functional dependency).",
-            "**ORDER BY ends with a unique column.** `created_at` alone is not unique: two enrollments made by one checkout share a timestamp, and their order would change between runs. `e.id` makes the order stable.",
-            "**The index that serves it:** `lesson_progress (user_id, course_id)` turns the per-enrollment lookup into an index probe. Without it the join becomes a scan of the learner's progress or a hash join, still one round trip, but worth checking in the plan.",
+            "**The driving table is lessons**, because the dashboard has one row per lesson. A lesson nobody has finished keeps its row through the LEFT JOIN, and `count(DISTINCT lp.user_id)` returns 0 for it; a learner who finished a lesson twice counts once.",
+            "**GROUP BY l.id** groups per lesson. PostgreSQL lets you select `l.title` and order by `l.sort_order` without listing them, because both depend on the grouped primary key (functional dependency).",
+            "**ORDER BY ends with a unique column.** `sort_order` is not unique while an instructor is reordering lessons, and rows with the same value would change places between runs. `l.id` makes the order stable.",
+            "**The index that serves it:** `lesson_progress (lesson_id)` turns the per-lesson lookup into an index probe. Without it the join becomes a scan of the progress table or a hash join, still one round trip, but worth checking in the plan.",
         ]),
-        p("The plan for the learner with 60 enrollments:"),
+        p("The plan for course 12, which has 24 lessons:"),
         code("text", `
-Sort  (cost=96.71..96.86 rows=60 width=44) (actual time=0.981..0.986 rows=60 loops=1)
-  Sort Key: e.created_at DESC, e.id DESC
-  ->  GroupAggregate  (cost=91.40..94.94 rows=60 width=44) (actual time=0.402..0.955 rows=60 loops=1)
-        Group Key: e.id, c.id
-        ->  Sort  (cost=91.40..92.57 rows=468 width=40) (actual time=0.391..0.437 rows=457 loops=1)
-              Sort Key: e.id, c.id
-              ->  Nested Loop Left Join  (cost=0.99..70.55 rows=468 width=40) (actual time=0.031..0.298 rows=457 loops=1)
-                    ->  Nested Loop  (cost=0.57..37.10 rows=60 width=36) (actual time=0.022..0.121 rows=60 loops=1)
-                          ->  Index Scan using enrollments_user_id_course_id_key on enrollments e ...
-                          ->  Index Scan using courses_pkey on courses c ... (actual time=0.001..0.001 rows=1 loops=60)
-                    ->  Index Scan using lesson_progress_user_course on lesson_progress lp ...
-                          (actual time=0.001..0.002 rows=8 loops=60)
-Planning Time: 0.388 ms
-Execution Time: 1.032 ms`, "EXPLAIN ANALYZE"),
-        p("The inner index scans still run 60 times (`loops=60`), but inside one statement and at about a microsecond each. The request now pays one round trip of about 3 ms plus 1 ms of execution, instead of 121 round trips. The endpoint went from 412 ms to 9 ms in the next trace."),
+Sort  (cost=1406.21..1406.27 rows=24 width=48) (actual time=6.981..6.984 rows=24 loops=1)
+  Sort Key: l.sort_order, l.id
+  Sort Method: quicksort  Memory: 27kB
+  ->  GroupAggregate  (cost=1299.12..1405.66 rows=24 width=48) (actual time=3.310..6.952 rows=24 loops=1)
+        Group Key: l.id
+        ->  Sort  (cost=1299.12..1316.92 rows=7120 width=44) (actual time=3.291..3.802 rows=7093 loops=1)
+              Sort Key: l.id
+              Sort Method: quicksort  Memory: 742kB
+              ->  Nested Loop Left Join  (cost=0.71..842.55 rows=7120 width=44) (actual time=0.028..2.240 rows=7093 loops=1)
+                    ->  Index Scan using lessons_course_sort on lessons l  (cost=0.28..9.70 rows=24 width=40) (actual time=0.011..0.034 rows=24 loops=1)
+                          Index Cond: (course_id = 12)
+                    ->  Index Scan using lesson_progress_lesson_id on lesson_progress lp  (cost=0.43..31.73 rows=297 width=8) (actual time=0.004..0.071 rows=296 loops=24)
+                          Index Cond: (lesson_id = l.id)
+                          Filter: (completed_at IS NOT NULL)
+                          Rows Removed by Filter: 12
+Planning Time: 0.412 ms
+Execution Time: 7.102 ms`, "EXPLAIN ANALYZE"),
+        p("The inner index scan still runs 24 times (`loops=24`), but inside one statement and in microseconds per loop. The dashboard now pays one round trip plus 7 ms of execution instead of 25 round trips, and the count stays at one query when the course grows to 200 lessons."),
         h3("The same rewrite in the application code"),
         code("typescript", `
-const { rows } = await db.query(MY_COURSES_SQL, [userId]);   // one round trip, whatever N is
-const cards = rows.map((r) => ({ courseId: r.id, title: r.title, completed: Number(r.completed_lessons) }));`, "courses.ts"),
+const { rows } = await db.query(COURSE_DASHBOARD_SQL, [courseId]);   // one round trip, whatever N is
+const lessons = rows.map((r) => ({ lessonId: r.id, title: r.title, finishedBy: Number(r.finished_by) }));`, "dashboard.ts"),
         callout("info", "In this course's challenges",
             "The code runner has SQLite, not PostgreSQL. The challenge below runs your query on SQLite through a connection that counts every db.execute call, like a query log for one request. The SQL above is portable: SQLite accepts the same GROUP BY, LEFT JOIN and COUNT(DISTINCT), and it allows bare columns in a grouped SELECT."),
 

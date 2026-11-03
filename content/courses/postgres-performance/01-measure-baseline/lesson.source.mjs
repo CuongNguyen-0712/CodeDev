@@ -61,7 +61,7 @@ Execution Time: 97.304 ms`, "psql"),
             "**The plan with ANALYZE and BUFFERS**, taken several times, with the cache state written down.",
             "**The environment**: PostgreSQL version, table sizes, the settings that matter (`shared_buffers`, `work_mem`, `random_page_cost`) and when the table was last analyzed.",
         ]),
-        p("Do not tune at all when the numbers say it is not worth it. A query that takes 3 ms and runs twice a day is not your problem even if its plan looks ugly. Start from the statements that use the most database time or that sit on the path of a slow endpoint, and stop when the endpoint meets its target. Every index and every rewrite has a cost (lesson 12), so a change without a measured benefit is a change you should not make."),
+        p("Do not tune at all when the numbers say it is not worth it. A query that takes 3 ms and runs twice a day is not your problem even if its plan looks ugly. Start from the statements that use the most database time or that sit on the path of a slow endpoint, and stop when the endpoint meets its target. Every index and every rewrite has a cost (lesson 4.3), so a change without a measured benefit is a change you should not make."),
 
         h2("4. pg_stat_statements: where the database time goes"),
         p("`pg_stat_statements` is a contrib extension that records, for every normalized statement (constants replaced by `$1`, `$2`), how many times it ran and how long it took. It needs to be loaded at server start:"),
@@ -92,8 +92,8 @@ LIMIT 10;`, "top-statements.sql"),
             "**There are no percentiles.** The view has mean, stddev, min and max. A max of 3.9 s next to a mean of 60 ms tells you there is a tail, not how big it is.",
             "**Counters accumulate.** Take a snapshot before and after a change (or call `pg_stat_statements_reset()` at a known time and note it); comparing two cumulative totals from different days compares different workloads.",
         ]),
-        callout("info", "PostgreSQL 16 and 17",
-            "Column names have been stable since PostgreSQL 13: total_exec_time and mean_exec_time (older versions used total_time and mean_time). PostgreSQL 17 adds stats_since and minmax_stats_since, which tell you since when the counters of a row have been collecting."),
+        callout("info", "PostgreSQL 16 to 18",
+            "The time columns used here have been named total_exec_time and mean_exec_time since PostgreSQL 13 (older versions used total_time and mean_time). PostgreSQL 17 renamed blk_read_time and blk_write_time to shared_blk_read_time and shared_blk_write_time, and added stats_since and minmax_stats_since, which tell you since when the counters of a row have been collecting. PostgreSQL 18 adds columns such as wal_buffers_full and parallel_workers_launched; check the column list of your version before you copy a monitoring query."),
 
         h2("5. The slow query log and auto_explain: plans from production"),
         p("pg_stat_statements tells you **which** statement is slow; it does not keep plans or parameter values. Two server settings fill that gap:"),
@@ -107,10 +107,10 @@ auto_explain.log_min_duration = 500ms
 auto_explain.log_analyze = on                   # actual rows and loops in the logged plan
 auto_explain.log_buffers = on
 auto_explain.log_timing = off                   # per-node timing is the expensive part
-auto_explain.log_format = json                  # easy to feed to tools (lesson 2)
+auto_explain.log_format = json                  # easy to feed to tools (lesson 1.2)
 auto_explain.sample_rate = 0.1                  # explain 10% of the statements`, "postgresql.conf"),
         p("`log_analyze` makes PostgreSQL instrument every statement, not only the slow ones, because it cannot know in advance which ones will be slow. Per-node timing can cost a lot on some hardware, so the usual production setting keeps `log_analyze` with `log_timing = off` (you still get actual rows and loops) and a `sample_rate` below 1. The log then holds the plan that production really used, with production's data and parameters - which is often not the plan you get on your laptop."),
-        p("A typical log line looks like this, and it is the starting point for lesson 2:"),
+        p("A typical log line looks like this, and it is the starting point for lesson 1.2:"),
         code("text", `
 2026-10-23 09:14:02.118 UTC [48211] LOG:  duration: 2104.881 ms  plan:
 	Query Text: SELECT lesson_id, user_id, completed_at FROM lesson_progress WHERE course_id = $1
@@ -142,7 +142,7 @@ print(percentile(durations, 99))         # 2050`, "percentiles.py"),
         challenge("chal_quiz_pgp_111"),
 
         h2("7. Production-like data, or the plan is a different plan"),
-        p("The planner chooses a plan from table sizes and statistics (lesson 3). A staging database with 2,000 progress rows will happily scan the whole table, because that is the cheapest plan for 2,000 rows - and the plan you tune there will never run in production. Before you trust a measurement, check that:"),
+        p("The planner chooses a plan from table sizes and statistics (lesson 1.3). A staging database with 2,000 progress rows will happily scan the whole table, because that is the cheapest plan for 2,000 rows - and the plan you tune there will never run in production. Before you trust a measurement, check that:"),
         bullets([
             "**Row counts and distributions are close to production**: a recent restore or an anonymized copy, not a seed script. The skew matters as much as the size - one course with 41,000 progress rows and many with 300.",
             "**Statistics are fresh** on both sides: run `ANALYZE` after loading data, and compare `pg_stats` for the columns in your WHERE clause.",
@@ -159,7 +159,7 @@ print(percentile(durations, 99))         # 2050`, "percentiles.py"),
             "**Turn on `track_io_timing`** to see how much of the time was spent reading (`I/O Timings: shared read=...` in the plan).",
             "**Confirm in production.** After the deploy, compare the snapshot of pg_stat_statements and the endpoint's p95 over a comparable period (same weekday, similar traffic).",
         ]),
-        p("Applied to PERF-311: the rewritten query touched the same 41,202 pages as the old one. The real fix (an index that matches the query pattern, lesson 4) cut it to 412 pages, and with that, warm or cold, the endpoint's p95 dropped to 180 ms. That claim came with a baseline, a repeated measurement and the production dashboard after the deploy."),
+        p("Applied to PERF-311: the rewritten query touched the same 41,202 pages as the old one. The real fix (an index that matches the query pattern, lesson 2.1) cut it to 412 pages, and with that, warm or cold, the endpoint's p95 dropped to 180 ms. That claim came with a baseline, a repeated measurement and the production dashboard after the deploy."),
 
         h2("9. How to verify a performance fix"),
         code("text", `

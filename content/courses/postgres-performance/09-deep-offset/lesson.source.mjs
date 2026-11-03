@@ -45,20 +45,20 @@ LIMIT 100 OFFSET 39900;
 
 Limit  (cost=3418.27..3426.84 rows=100 width=52) (actual time=4805.931..4813.117 rows=100 loops=1)
   Buffers: shared hit=1204 read=38811
-  ->  Index Scan using activity_log_created_id on activity_log  (cost=0.43..233512.88 rows=2725410 width=52) (actual time=0.031..4805.926 rows=40000 loops=1)
+  ->  Index Scan using activity_log_created_id on activity_log  (cost=0.43..233512.88 rows=2725410 width=52) (actual time=0.031..4812.988 rows=40000 loops=1)
         Buffers: shared hit=1204 read=38811
 Planning Time: 0.102 ms
 Execution Time: 4813.215 ms`, "EXPLAIN (ANALYZE, BUFFERS)"),
         bullets([
             "**The scan produced 40,000 rows** (`actual rows=40000`) for a page of 100. `Limit` applies OFFSET by receiving rows and discarding the first 39,900; there is no way to start at position 39,901 of an order without producing the 39,900 rows before it.",
-            "**The work is in the scan, not the Limit:** the Index Scan's actual time ends at 4805.9 ms, and the Limit node only adds the last 7 ms for the 100 rows it keeps.",
+            "**The work is in the scan, not the Limit:** the Limit returns its first row only at 4805.9 ms (its startup time), after the scan has produced the 39,900 rows it throws away, and the scan's actual time (up to 4813.0 ms) covers almost the whole execution.",
             "**38,811 buffer reads** are the heap pages of those rows. The imported history is not stored in created_at order, so consecutive index entries point to pages all over the 9 GB table, and most of them are not in cache.",
             "**The cost grows linearly with the page number.** Page 1 reads about 100 rows, page 400 reads 40,000, and the whole export reads 1 + 2 + ... + N pages' worth: quadratic in the size of the table. Doubling the table quadrupled the export time.",
         ]),
         p("The planner knew this: the Limit's startup cost (3418.27) is the scan cost of skipping 39,900 rows. It simply has no cheaper plan for \"row number 39,901 in this order\"."),
 
         h2("3. Core idea: remember where you stopped, not how far you went"),
-        p("The export job already has what the database needs: the last row of page 399. If page 400 asks for \"the rows after `(created_at, id)` of that row\", the index can seek straight to it (lesson 8):"),
+        p("The export job already has what the database needs: the last row of page 399. If page 400 asks for \"the rows after `(created_at, id)` of that row\", the index can seek straight to it (lesson 3.2):"),
         code("sql", `
 -- first page
 SELECT id, user_id, kind, created_at FROM activity_log
@@ -114,7 +114,7 @@ async function* exportActivity(db: Db, pageSize = 100) {
         bullets([
             "**Same ORDER BY, same page size:** the pages are exactly the pages the old job produced on unchanged data. That is the contract with the compliance team, and it is what you test.",
             "**The cursor uses every ORDER BY column.** `created_at > $2` alone would skip the rows that share the last timestamp; `id > $3` alone assumes ids follow time, which the imported history breaks.",
-            "**`created_at::text`** keeps microseconds; a JavaScript `Date` would round the cursor down to milliseconds and repeat or skip rows (lesson 8).",
+            "**`created_at::text`** keeps microseconds; a JavaScript `Date` would round the cursor down to milliseconds and repeat or skip rows (lesson 3.2).",
             "**No total count.** `SELECT count(*)` over 2.7 million rows for a \"page 400 of 27,254\" label costs as much as the problem you just removed; report progress by the created_at of the last row instead.",
         ]),
         callout("info", "In this course's challenges",

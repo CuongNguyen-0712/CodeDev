@@ -81,15 +81,25 @@ Execution Time: 0.431 ms`, "My courses, one learner"),
             "**Equality columns** (`user_id = ?`, `course_id = ? AND status = ?`) narrow the search to one contiguous run of entries, as long as they are the leading columns.",
             "**One range column** (`created_at >= ? AND created_at < ?`) right after the equality columns narrows that run further: the scan starts at the first matching entry and stops at the last.",
             "**An ORDER BY column** right after the equality columns is already sorted inside the run, so there is no Sort node, and with a LIMIT the scan stops after the first N entries.",
-            "**Anything after the first range column** can only be checked entry by entry, not used to jump. That is why one index serves one range (or one ORDER BY) well, not two.",
+            "**Anything after the first range column** is checked entry by entry: it saves visits to the table but does not reliably narrow the part of the index that is read (PostgreSQL 18's skip scan can sometimes jump over entries, mostly when the range column has few distinct values). That is why one index serves one range (or one ORDER BY) well, not two.",
         ]),
-        p("So the design rule for a query pattern is: **equality columns first, then the one range or ORDER BY column**. Write the pattern down before you write the index:"),
+        p("So the design rule for a query pattern is: **equality columns first, then the one range or ORDER BY column**. Write the pattern down before you write the index. The three queries of section 1 are yours to index in the challenge below; here is the method on three other queries from the same review, on `submissions(id, user_id, challenge_id, status, score, submitted_at)` and `login_events(id, user_id, ip, created_at)`:"),
+        code("sql", `
+-- grading_queue: the oldest pending submissions of one challenge, for the reviewers
+SELECT id, user_id, submitted_at FROM submissions
+WHERE challenge_id = $1 AND status = 'pending' ORDER BY submitted_at LIMIT 50;
+
+-- login_rate_limit: sign-in attempts from one address in the last 10 minutes
+SELECT count(*) FROM login_events WHERE ip = $1 AND created_at >= now() - interval '10 minutes';
+
+-- status_report: the admin overview, once a day
+SELECT status, count(*) FROM submissions GROUP BY status;`, "three more queries from the review"),
         code("text", `
-query            equality            range / order        index
-my_courses       user_id             ORDER BY created_at  enrollments (user_id, created_at)
-weekly_activity  user_id             created_at range     activity_log (user_id, created_at)
-course_learners  course_id, status   -                    enrollments (course_id, status)`, "pattern -> index"),
-        p("For two equality columns the order does not change how fast that query is: both orders lead to the same run of entries. It decides which **other** queries can use the index. `(course_id, status)` also serves \"all enrollments of a course\" through its leading column; `(status, course_id)` does not. Lesson 2.3 is about exactly this choice."),
+query             equality              range / order          index
+grading_queue     challenge_id, status  ORDER BY submitted_at  submissions (challenge_id, status, submitted_at)
+login_rate_limit  ip                    created_at range       login_events (ip, created_at)
+status_report     -                     -                      none: it reads every row`, "pattern -> index"),
+        p("For two equality columns the order does not change how fast that query is: both orders lead to the same run of entries. It decides which **other** queries can use the index. `(challenge_id, status, submitted_at)` also serves \"all submissions of a challenge\" through its leading column; `(status, challenge_id, submitted_at)` does not (PostgreSQL 18's skip scan can search it once per status value, but a leading column is the reliable way). Lesson 2.3 is about exactly this choice."),
         h3("When an index is not the answer"),
         bullets([
             "**The query returns a large part of the table.** A report over all active enrollments reads half the table; a Seq Scan reads it in order and is cheaper than half a million random index lookups. The planner knows this and will ignore your index.",
@@ -100,45 +110,54 @@ course_learners  course_id, status   -                    enrollments (course_id
 
         challenge("chal_quiz_pgp_211"),
 
-        h2("4. Worked example: three indexes for three patterns"),
+        h2("4. Worked example: the grading queue and the rate limit"),
         p("In PostgreSQL, build new indexes on a live table with `CONCURRENTLY`, which does not block writes while the index is built (it takes longer, cannot run inside a transaction, and leaves an INVALID index behind if it fails, which you drop and retry):"),
         code("sql", `
--- my_courses: equality on user_id, then the ORDER BY column.
--- An ascending index serves ORDER BY created_at DESC: a B-tree is read backward just as well.
-CREATE INDEX CONCURRENTLY enrollments_user_created ON enrollments (user_id, created_at);
+-- grading_queue: two equality columns, then the ORDER BY column. challenge_id first, so the
+-- index also serves "every submission of a challenge". A newest-first page
+-- (ORDER BY submitted_at DESC) would use the same index: a B-tree is read backward just as well.
+CREATE INDEX CONCURRENTLY submissions_challenge_status_submitted
+    ON submissions (challenge_id, status, submitted_at);
 
--- weekly_activity: equality on user_id, then the range on created_at.
-CREATE INDEX CONCURRENTLY activity_log_user_created ON activity_log (user_id, created_at);
+-- login_rate_limit: equality on ip, then the range on created_at.
+CREATE INDEX CONCURRENTLY login_events_ip_created ON login_events (ip, created_at);
 
--- course_learners: two equality columns; course_id first so the index also serves
--- "every enrollment of a course".
-CREATE INDEX CONCURRENTLY enrollments_course_status ON enrollments (course_id, status);`, "migration 20261027_001_pattern_indexes.sql"),
-        p("The certificates tab after the change:"),
+-- status_report: no index. It counts every submission once a day; a Seq Scan is the right plan.`, "migration 20261027_002_queue_indexes.sql"),
+        p("Before the change, the queue used the one-column index on `challenge_id`: it fetched all 38,000 submissions of challenge 731, filtered the pending ones and sorted them to keep 50. After:"),
         code("text", `
-Index Scan using enrollments_course_status on enrollments  (cost=0.56..1987.31 rows=1890 width=12) (actual time=0.041..2.207 rows=1904 loops=1)
-  Index Cond: ((course_id = 12) AND (status = 'completed'::text))
-  Buffers: shared hit=1931
-Execution Time: 2.318 ms`, "certificates tab, course 12, after"),
-        p("Both conditions moved into **Index Cond**, the Filter line and its 39,306 removed rows are gone, and the buffer count fell from about 39,600 to 1,931. \"My courses\" loses its Sort node and becomes `Limit -> Index Scan Backward using enrollments_user_created`, which stops after 20 entries however many enrollments the account has."),
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT id, user_id, submitted_at FROM submissions
+WHERE challenge_id = 731 AND status = 'pending' ORDER BY submitted_at LIMIT 50;
+
+Limit  (cost=0.56..58.94 rows=50 width=20) (actual time=0.034..0.162 rows=50 loops=1)
+  Buffers: shared hit=54
+  ->  Index Scan using submissions_challenge_status_submitted on submissions  (cost=0.56..1471.18 rows=1260 width=20) (actual time=0.033..0.151 rows=50 loops=1)
+        Index Cond: ((challenge_id = 731) AND (status = 'pending'::text))
+        Buffers: shared hit=54
+Planning Time: 0.162 ms
+Execution Time: 0.187 ms`, "grading queue, challenge 731, after"),
+        p("Both conditions are in **Index Cond**, there is no Filter and no Sort node, and the Limit stops the scan after 50 entries: 54 buffers, however many submissions the challenge has. The rate-limit count gets both of its conditions into Index Cond too and reads only the entries of one address in the last ten minutes; on an append-only table like login_events it is usually an Index Only Scan, because count(*) needs no other column."),
         h3("Two refinements, and when to use them"),
         bullets([
-            "**INCLUDE columns for an Index Only Scan.** `CREATE INDEX ... ON enrollments (course_id, status) INCLUDE (user_id, created_at)` stores the selected columns in the index, so PostgreSQL can skip the table when the visibility map allows it. Worth it for a hot query that reads few columns; it makes the index bigger, so not by default.",
-            "**A partial index for a rare value.** If only the completed learners are ever looked up, `CREATE INDEX ... ON enrollments (course_id) WHERE status = 'completed'` indexes about 5% of the table. The query must contain the same condition (`status = 'completed'` as a literal, not a parameter that could be anything) for the planner to use it.",
+            "**INCLUDE columns for an Index Only Scan.** `CREATE INDEX ... ON submissions (challenge_id, status, submitted_at) INCLUDE (id, user_id)` stores the other selected columns in the index, so PostgreSQL can skip the table when the visibility map allows it. Worth it for a hot query that reads few columns; it makes the index bigger, so not by default.",
+            "**A partial index for a rare value.** If the pending submissions are the only ones ever looked up by challenge, `CREATE INDEX ... ON submissions (challenge_id, submitted_at) WHERE status = 'pending'` indexes only the few rows still waiting for a review. The query must contain the same condition (`status = 'pending'` as a literal, not a parameter that could be anything) for the planner to use it.",
         ]),
         p("Do not drop the old one-column indexes in the same migration. First check in `pg_stat_user_indexes` whether anything else still uses them (`idx_scan` over a full business cycle); lesson 4.3 covers that clean-up."),
 
         h2("5. The same check in SQLite: EXPLAIN QUERY PLAN"),
         p("The code runner has SQLite, not PostgreSQL. SQLite uses B-trees with the same composite-key order, so the design rule is identical, and its `EXPLAIN QUERY PLAN` shows the same decisions in a shorter form (there is no EXPLAIN ANALYZE: no actual rows or times):"),
         code("text", `
-sqlite> EXPLAIN QUERY PLAN SELECT id FROM enrollments WHERE user_id = ? ORDER BY created_at DESC LIMIT 20;
+-- one-column indexes on user_id, challenge_id, status and submitted_at:
+sqlite> EXPLAIN QUERY PLAN SELECT id, user_id FROM submissions WHERE challenge_id = ? AND status = ? ORDER BY submitted_at LIMIT 50;
 QUERY PLAN
-|--SEARCH enrollments USING INDEX enrollments_user_id (user_id=?)
+|--SEARCH submissions USING INDEX submissions_status (status=?)
 \`--USE TEMP B-TREE FOR ORDER BY
 
--- with (user_id, created_at):
-\`--SEARCH enrollments USING INDEX enrollments_user_created (user_id=?)`, "sqlite3"),
+-- after CREATE INDEX submissions_challenge_status_submitted ON submissions (challenge_id, status, submitted_at):
+QUERY PLAN
+\`--SEARCH submissions USING INDEX submissions_challenge_status_submitted (challenge_id=? AND status=?)`, "sqlite3"),
         bullets([
-            "**SEARCH ... USING INDEX x (a=? AND b>?)** is an index search, like an Index Scan with those columns in Index Cond. The columns in brackets are the ones the search uses; a WHERE column missing there is checked row by row, like a Filter.",
+            "**SEARCH ... USING INDEX x (a=? AND b>?)** is an index search, like an Index Scan with those columns in Index Cond. The columns in brackets are the ones the search uses; a WHERE column missing there is checked row by row, like a Filter. Above, SQLite (without ANALYZE statistics) picked the `status` index, so `challenge_id` was checked row by row.",
             "**SCAN t** is a full table scan, like a Seq Scan. **SCAN t USING INDEX x** is a full walk of an index: every entry is read, so it is still a scan.",
             "**USE TEMP B-TREE FOR ORDER BY** is a sort after reading, like a Sort node.",
             "**USING COVERING INDEX** means the table is not visited, like an Index Only Scan.",
@@ -159,7 +178,7 @@ QUERY PLAN
         h2("7. Common mistakes"),
         bullets([
             "**One index per column.** Each query can use one of them well, and the rest only through a BitmapAnd that reads every entry of every index involved. Spot it: Filter lines with large Rows Removed by Filter, or BitmapAnd nodes, on tables that already have \"an index on everything\".",
-            "**The ORDER BY column first.** `(created_at, user_id)` gives the order but scatters one user's rows across the whole index. Spot it: an Index Scan with the equality column in Index Cond but a huge buffer count and time; lesson 2.3 takes it apart.",
+            "**The ORDER BY column first.** `(submitted_at, challenge_id)` gives the order but scatters one challenge's rows across the whole index. Spot it: an Index Scan with the equality column in Index Cond but a huge buffer count and time; lesson 2.3 takes it apart.",
             "**Two range columns in one index, expecting both to narrow.** Only the first range is used to jump; the second is checked entry by entry. Spot it: the second column appears in the condition, but the number of index entries read matches the first range alone.",
             "**Wrapping the indexed column in a function or a cast.** `WHERE date(created_at) = ...` or `WHERE lower(email) = ...` cannot use an index on the bare column. Spot it: a Seq Scan with the function in the Filter. Lesson 2.2 is that incident.",
             "**Declaring victory on a cold or tiny dataset.** On a laptop table of 1,000 rows every plan is fast. Spot it: the test data has no heavy case; add the popular course and the company account before you compare.",

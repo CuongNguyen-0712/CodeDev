@@ -85,7 +85,7 @@ SELECT count(*) FROM users WHERE email <> lower(email);
         bullets([
             "**A** changes one thing: the comparison is no longer on the column `email`, it is on the expression `lower(email)`. The only index on emails is on the column.",
             "**B** is the healthy shape: an Index Scan with the comparison in **Index Cond**, 4 buffers (the B-tree levels plus the row), well under a millisecond.",
-            "**C** is a different shape. The comparison is a **Filter** on a Parallel Seq Scan. Remember from lesson 1.2 that `rows` and `Rows Removed by Filter` are per loop: three processes each removed about 400,000 rows, so every sign-in checks the whole table. 2,208 + 13,256 = 15,464 buffers per call. The estimate rows=6000 is 0.5% of the table, the planner's default guess for an equality on an expression it has no statistics for.",
+            "**C** is a different shape. The comparison is a **Filter** on a Parallel Seq Scan. Remember from lesson 1.2 that `rows` and `Rows Removed by Filter` are per loop: three processes each removed about 400,000 rows, so every sign-in checks the whole table (rows=0 is the one row found, averaged over three loops and rounded; PostgreSQL 18 prints actual rows with two decimals, rows=0.33). 2,208 + 13,256 = 15,464 buffers per call. The estimate rows=6000 is 0.5% of the table, the planner's default guess for an equality on an expression it has no statistics for.",
             "**D** confirms it is not a one-off on the replica: the same 15,464 blocks per call in production, a mean of 812 ms, against 4 blocks and 0.04 ms for the old query.",
             "**E** says the table is healthy (0.3% dead rows, vacuumed two days ago) and that 48,310 users have capital letters in their stored email.",
         ]),

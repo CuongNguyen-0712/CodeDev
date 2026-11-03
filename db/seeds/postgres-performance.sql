@@ -528,7 +528,7 @@ Gather  (cost=1000.00..24318.33 rows=6000 width=68) (actual time=611.402..842.95
         Buffers: shared hit=2208 read=13256
 Execution Time: 843.020 ms
 
-Statement: "The new plan checks about 1.2 million rows to return one: Rows Removed by Filter is an average per loop, and the scan ran in 3 processes (loops=3)."', 'single_choice'::question_type, 'True. In EXPLAIN ANALYZE, rows and Rows Removed by Filter are averages per loop. The Parallel Seq Scan ran in the leader and 2 workers (loops=3), so it removed about 3 x 400,000 = 1.2 million rows, the whole table, to find the one row that Gather returns. It also touched 2,208 + 13,256 = 15,464 blocks. The misconception is to read 400000 as the total and to read rows=0 as "found nothing": one row across three loops averages to 0.', 1, 5
+Statement: "The new plan checks about 1.2 million rows to return one: Rows Removed by Filter is an average per loop, and the scan ran in 3 processes (loops=3)."', 'single_choice'::question_type, 'True. In EXPLAIN ANALYZE, rows and Rows Removed by Filter are averages per loop. The Parallel Seq Scan ran in the leader and 2 workers (loops=3), so it removed about 3 x 400,000 = 1.2 million rows, the whole table, to find the one row that Gather returns. It also touched 2,208 + 13,256 = 15,464 blocks. The misconception is to read 400000 as the total and to read rows=0 as "found nothing": one row across three loops averages to 0 when rounded (PostgreSQL 18 prints rows=0.33).', 1, 5
     WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pgp_221') AND order_index = 1)
     RETURNING id
 )
@@ -1067,12 +1067,12 @@ LIMIT 100 OFFSET 39900;            -- page 400
 
 Limit  (cost=3418.27..3426.84 rows=100 width=52) (actual time=4805.931..4813.117 rows=100 loops=1)
   Buffers: shared hit=1204 read=38811
-  ->  Index Scan using activity_log_created_id on activity_log  (cost=0.43..233512.88 rows=2725410 width=52) (actual time=0.031..4805.926 rows=40000 loops=1)
+  ->  Index Scan using activity_log_created_id on activity_log  (cost=0.43..233512.88 rows=2725410 width=52) (actual time=0.031..4812.988 rows=40000 loops=1)
         Buffers: shared hit=1204 read=38811
 Planning Time: 0.102 ms
 Execution Time: 4813.215 ms
 
-Statement: "Only the 100 rows of page 400 were read from the table; most of the 4.8 s is spent sending those rows to the client."', 'single_choice'::question_type, 'False. The Index Scan node reports actual rows=40000: PostgreSQL fetched every row of pages 1 to 400 in order, and the Limit node threw away the first 39,900 (OFFSET is applied after the rows are produced). The 38,811 buffer reads are those rows'' heap pages, read from disk because the table is not in cache and imported rows are scattered. The scan''s own actual time (4805 ms) covers almost the whole execution, and EXPLAIN ANALYZE does not even send rows to a client. The common misconception is that OFFSET jumps to a position; the database has no way to find row 39,901 of an order without producing the 39,900 rows before it, so the cost of a page grows with its number.', 1, 5
+Statement: "Only the 100 rows of page 400 were read from the table; most of the 4.8 s is spent sending those rows to the client."', 'single_choice'::question_type, 'False. The Index Scan node reports actual rows=40000: PostgreSQL fetched every row of pages 1 to 400 in order, and the Limit node threw away the first 39,900 (OFFSET is applied after the rows are produced). The 38,811 buffer reads are those rows'' heap pages, read from disk because the table is not in cache and imported rows are scattered. The scan''s own actual time (4813 ms) covers almost the whole execution, and EXPLAIN ANALYZE does not even send rows to a client. The common misconception is that OFFSET jumps to a position; the database has no way to find row 39,901 of an order without producing the 39,900 rows before it, so the cost of a page grows with its number.', 1, 5
     WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_pgp_331') AND order_index = 1)
     RETURNING id
 )
