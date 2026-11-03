@@ -162,7 +162,7 @@ export function withCacheLog<A extends unknown[], R>(
         bullets([
             "RFC 9111, HTTP Caching: Cache-Control directives and the Age header - rfc-editor.org/rfc/rfc9111",
             "RFC 5861, stale-while-revalidate and stale-if-error - rfc-editor.org/rfc/rfc5861",
-            "Next.js docs: Caching and Revalidating - nextjs.org/docs/app/getting-started/caching-and-revalidating",
+            "Next.js docs: Caching and Revalidating (Previous Model, the default this course uses) - nextjs.org/docs/app/guides/caching-without-cache-components, and Caching with Cache Components - nextjs.org/docs/app/getting-started/caching",
         ]),
         callout("tip", "Practice on your own (not graded)",
             "Write a one-page runbook for your own app: the curl commands for one public and one personal page, the cache headers you expect for each, the name of your CDN's cache status header, and where your data-layer cache logs go. Then test it with two test accounts on staging, and time how long it takes you to tell a stale page from a leak."),

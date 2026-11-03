@@ -179,7 +179,7 @@ test("every input that changes the course list changes its key", () => {
 
         h2("Sources"),
         bullets([
-            "Next.js documentation: Caching and Revalidating - nextjs.org/docs/app/getting-started/caching-and-revalidating (check the version selector: the caching APIs differ between versions)",
+            "Next.js documentation: Caching and Revalidating (Previous Model, the default this course uses) - nextjs.org/docs/app/guides/caching-without-cache-components, and Caching with Cache Components - nextjs.org/docs/app/getting-started/caching (check the version selector: the caching APIs differ between versions)",
             "RFC 9111, HTTP Caching: Cache-Control directives public, private, no-cache, no-store, s-maxage, and the Vary header",
             "MDN: Cache-Control and Vary - developer.mozilla.org/docs/Web/HTTP/Headers/Cache-Control",
         ]),

@@ -77,7 +77,7 @@ cache-control: private, no-cache, no-store, max-age=0, must-revalidate`, "termin
             "**Whether a plain `fetch()` is cached has changed across versions.** In Next.js 13 and 14 it was cached by default; since 15 it is not. Check the docs for your version before you rely on the default, and prefer to state what you want explicitly.",
         ]),
         callout("info", "Next.js 16 and Cache Components",
-            "Next.js 16 adds an opt-in model, Cache Components (`cacheComponents: true` in next.config, with the `\"use cache\"` directive, `cacheLife` and `cacheTag`). In that model a request-time read wrapped in `<Suspense>` no longer forces the whole page to render per request: the static shell is cached and the dynamic part streams in. Route segment options such as `export const revalidate` work differently there. This course uses the default model (which CodeDev runs); check the Next.js docs for your version before mixing the two."),
+            "Next.js 16 adds an opt-in model, Cache Components (`cacheComponents: true` in next.config, with the `\"use cache\"` directive, `cacheLife` and `cacheTag`). In that model a request-time read wrapped in `<Suspense>` no longer forces the whole page to render per request: the static shell is cached and the dynamic part streams in. Route segment options such as `export const revalidate` and `export const dynamic` are not available there: Next.js 16 removes them when Cache Components is enabled. This course uses the default model (which CodeDev runs); check the Next.js docs for your version before mixing the two."),
         h3("When not to choose each one"),
         bullets([
             "**Not static** when the content changes without a deploy (an instructor edits a course) or depends on the visitor.",
@@ -162,7 +162,7 @@ export default async function CoursePage({ params }: { params: Promise<{ slug: s
 }`, "app/courses"),
         p("A course published after the deploy is not in the list from `generateStaticParams`. By default it is rendered on its first request and then cached like the others (lesson 4.1 covers `dynamicParams`). That is also the answer when the data source is not reachable from the build machine, or when there are too many pages to build in a reasonable time."),
         h3("Make the expectation fail loudly"),
-        p("A comment saying \"this page is ISR\" did not survive the theme release. A setting can. In the default model, `export const dynamic = \"error\"` tells Next.js that the route must be rendered statically, and the build fails if anything in the tree uses a request-time API, naming the API. Adding it to the catalog would have stopped PR #977 in CI instead of in production. (Route segment options behave differently with Cache Components; check the docs for your version.)"),
+        p("A comment saying \"this page is ISR\" did not survive the theme release. A setting can. In the default model, `export const dynamic = \"error\"` tells Next.js that the route must be rendered statically, and the build fails if anything in the tree uses a request-time API, naming the API. Adding it to the catalog would have stopped PR #977 in CI instead of in production. (`dynamic` does not exist when Cache Components is enabled; check the docs for your version for the guard that replaces it.)"),
         code("tsx", `
 // app/courses/page.tsx
 export const revalidate = 300;
@@ -198,7 +198,7 @@ export const dynamic = "error";   // fail the build if this route ever needs a r
 
         h2("Sources"),
         bullets([
-            "Next.js docs, Caching and Revalidating - nextjs.org/docs/app/getting-started/caching-and-revalidating",
+            "Next.js docs, Caching and Revalidating (Previous Model, the default this course uses) - nextjs.org/docs/app/guides/caching-without-cache-components, and Caching with Cache Components - nextjs.org/docs/app/getting-started/caching",
             "Next.js docs, Route Segment Config (revalidate, dynamic) and the cookies, headers and connection functions - nextjs.org/docs/app/api-reference",
             "Next.js docs, Incremental Static Regeneration - nextjs.org/docs/app/guides/incremental-static-regeneration",
         ]),

@@ -198,7 +198,7 @@ test("two learners never share a dashboard, and no shared cache may store it", a
 
         h2("Sources"),
         bullets([
-            "Next.js documentation: Caching and Revalidating - nextjs.org/docs/app/getting-started/caching-and-revalidating (check the version selector)",
+            "Next.js documentation: Caching and Revalidating (Previous Model, the default this course uses) - nextjs.org/docs/app/guides/caching-without-cache-components, and Caching with Cache Components - nextjs.org/docs/app/getting-started/caching (check the version selector)",
             "Next.js documentation: Route Handlers - setting headers on a Response",
             "RFC 9111, HTTP Caching: section 3.5 (storing responses to authenticated requests) and the public and private directives",
         ]),

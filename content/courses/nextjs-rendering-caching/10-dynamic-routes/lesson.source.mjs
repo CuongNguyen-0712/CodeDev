@@ -100,7 +100,7 @@ Lesson pages: 12,000 published, median 3 views per page per week`, "analytics"),
             "**`dynamicParams = false`.** A slug that was not returned answers 404. Use it only when the list is closed and known at build, for example the 8 legal pages. For a catalog where instructors publish courses every day, it means a new course is a 404 until the next deploy.",
         ]),
         callout("warning", "Check how your version and config treat these options",
-            "dynamicParams is a route segment config option (export const dynamicParams = true). Next.js 16 also offers Cache Components, an opt-in mode in which several route segment options are replaced by the \"use cache\" directive and generateStaticParams must return at least one value. Read the route segment config and generateStaticParams pages of the Next.js docs for your version before you rely on a default."),
+            "dynamicParams is a route segment config option (export const dynamicParams = true). Next.js 16 also offers Cache Components, an opt-in mode in which the route segment options dynamic, dynamicParams, revalidate and fetchCache are removed in favour of the \"use cache\" directive, and generateStaticParams must return at least one value. Read the route segment config and generateStaticParams pages of the Next.js docs for your version before you rely on a default."),
         h3("When not to use generateStaticParams"),
         bullets([
             "**Pages that depend on the visitor.** A dashboard with personal progress is not a candidate: it renders per request, whatever params it has (lesson 9).",
@@ -115,7 +115,7 @@ Lesson pages: 12,000 published, median 3 views per page per week`, "analytics"),
         challenge("chal_quiz_nrc_411"),
 
         h2("5. The fix"),
-        p("The course page prerenders the 200 most viewed courses and renders the others on first request. The lesson page drops `generateStaticParams` and relies on caching after the first visit. Both share one memoized loader with `generateMetadata`:"),
+        p("The course page prerenders the 200 most viewed courses and renders the others on first request. The lesson page keeps `generateStaticParams` but returns an empty list (`return []`): nothing is prerendered at build, and each lesson is rendered on its first visit and cached from then on. Removing the function altogether would not do the same: in the default model a dynamic route without `generateStaticParams` is rendered on every request. Both share one memoized loader with `generateMetadata`:"),
         code("typescript", `
 // lib/courses.ts
 import { cache } from "react";

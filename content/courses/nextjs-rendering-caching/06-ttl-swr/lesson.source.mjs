@@ -78,7 +78,7 @@ return Response.json(leaderboard, {
   },
 });`, "route.ts"),
         p("For the CDN, `s-maxage=60` is maxAge, `stale-while-revalidate=300` is the window, and `stale-if-error=3600` lets it serve an old copy for an hour when the origin answers with an error. Support for these two extensions differs between CDNs, and so does whether they coalesce the background requests: check your vendor's documentation and test it with `curl` (watch `age` and the hit header around second 60)."),
-        p("Next.js has the same model built in for rendered pages and cached data, under different names per version. In the App Router, a route segment with `export const revalidate = 60` is regenerated in the background: the first request after 60 seconds still gets the cached version and triggers the regeneration. With Cache Components (Next.js 16), `cacheLife` profiles describe the same three ages with `stale`, `revalidate` and `expire`. The names, defaults and exact behaviour change between versions: check the Next.js caching docs for yours before you rely on a detail."),
+        p("Next.js has the same model built in for rendered pages and cached data, under different names per version. In the App Router, a route segment with `export const revalidate = 60` is regenerated in the background: the first request after 60 seconds still gets the cached version and triggers the regeneration. With Cache Components (Next.js 16), `cacheLife` profiles describe the same ages on the server with `revalidate` (after it, the next request gets the cached value and starts a background refresh) and `expire` (after it, with no traffic in between, the next request waits for fresh content); their third value, `stale`, is how long the browser's router may reuse the result without asking the server. The names, defaults and exact behaviour change between versions: check the Next.js caching docs for yours before you rely on a detail."),
 
         challenge("chal_quiz_nrc_231"),
 
@@ -140,7 +140,7 @@ test("forty stale requests start one revalidation", async () => {
         h2("Sources"),
         bullets([
             "RFC 5861, HTTP Cache-Control Extensions for Stale Content: stale-while-revalidate and stale-if-error",
-            "Next.js documentation: Caching and Revalidating - nextjs.org/docs/app/getting-started/caching-and-revalidating (time-based revalidation and cacheLife; check the version selector)",
+            "Next.js documentation: Caching and Revalidating (Previous Model, the default this course uses) - nextjs.org/docs/app/guides/caching-without-cache-components, and Caching with Cache Components - nextjs.org/docs/app/getting-started/caching (time-based revalidation and cacheLife; check the version selector)",
             "MDN: Cache-Control - developer.mozilla.org/docs/Web/HTTP/Headers/Cache-Control",
         ]),
         callout("tip", "Self-practice (not graded): write the freshness table",

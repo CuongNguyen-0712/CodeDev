@@ -154,7 +154,7 @@ export default async function CoursePage({ params }: { params: Promise<{ id: str
 
         h2("Sources"),
         bullets([
-            "Next.js documentation: Caching and Revalidating - nextjs.org/docs/app/getting-started/caching-and-revalidating",
+            "Next.js documentation: Caching and Revalidating (Previous Model, the default this course uses) - nextjs.org/docs/app/guides/caching-without-cache-components, and Caching with Cache Components - nextjs.org/docs/app/getting-started/caching",
             "Next.js documentation: Server and Client Components - nextjs.org/docs/app/getting-started/server-and-client-components",
             "RFC 9111, HTTP Caching: section 5.2.2.7 (private) and 5.2.2.10 (s-maxage) - rfc-editor.org/rfc/rfc9111",
         ]),

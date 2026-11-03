@@ -130,7 +130,7 @@ test("a saved price is visible on the next read of the course page", async () =>
 
         h2("Sources"),
         bullets([
-            "Next.js documentation: Caching and Revalidating - nextjs.org/docs/app/getting-started/caching-and-revalidating",
+            "Next.js documentation: Caching and Revalidating (Previous Model, the default this course uses) - nextjs.org/docs/app/guides/caching-without-cache-components, and Caching with Cache Components - nextjs.org/docs/app/getting-started/caching",
             "Next.js API reference: cacheTag, cacheLife, updateTag and revalidateTag (next/cache)",
         ]),
         callout("tip", "Practice on your own (not graded)",

@@ -53,9 +53,10 @@
     "TypeScript": "5.9.3 (tsc --strict in the code runner)",
     "Next.js": "16 App Router (lesson examples; caching APIs change between versions, check the docs)"
   },
-  "lastReviewedAt": "2026-10-26",
+  "lastReviewedAt": "2026-11-03",
   "sourceLinks": [
-    "https://nextjs.org/docs/app/getting-started/caching-and-revalidating",
+    "https://nextjs.org/docs/app/guides/caching-without-cache-components",
+    "https://nextjs.org/docs/app/getting-started/caching",
     "https://nextjs.org/docs/app/getting-started/server-and-client-components",
     "https://react.dev/reference/react-dom/client/hydrateRoot"
   ],
