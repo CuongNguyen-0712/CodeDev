@@ -16,7 +16,7 @@ import { Button } from "@/components/shadcn/button";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { cn } from "@/lib/utils";
 
-import { LuCopy, LuRefreshCw } from "react-icons/lu";
+import { LuArrowRight, LuCopy, LuRefreshCw } from "react-icons/lu";
 
 const PUBLISH_ORDER = ["published", "draft", "unpublished", "archived"];
 
@@ -30,14 +30,16 @@ function finding(counts, health) {
     return parts.length ? <Finding tone="attention">{`${parts.join(" · ")}.`}</Finding> : <Finding tone="good">Nothing needs attention right now.</Finding>;
 }
 
-function Panel({ title, badge, action, className, children }) {
+function Panel({ title, badge, action, footer, className, children }) {
     return (
-        <section className={cn("rounded-lg border border-border bg-card", className)} aria-label={title}>
+        <section className={cn("flex flex-col rounded-lg border border-border bg-card", className)} aria-label={title}>
             <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5">
                 <div className="flex min-w-0 items-center gap-2"><h2 className="text-sm font-semibold">{title}</h2>{badge}</div>
                 {action}
             </header>
-            <div className="p-4">{children}</div>
+            <div className="flex-1 p-4">{children}</div>
+            {/* Pinned to the bottom, so a short list stretched to its neighbour ends on an action, not a gap. */}
+            {footer && <div className="border-t border-border px-4 py-2.5 text-sm">{footer}</div>}
         </section>
     );
 }
@@ -202,7 +204,15 @@ export default function AdminOverview() {
                         <BarChart data={chartData} label="Submissions per day, last 14 days" width={320} height={150} className="sm:hidden" formatLabel={dayLabel} />
                         <BarChart data={chartData} label="Submissions per day, last 14 days" height={140} className="max-sm:hidden" formatLabel={dayLabel} />
                     </Panel>
-                    <Panel title="Needs attention" badge={<AttentionBadge counts={counts} />}>
+                    <Panel
+                        title="Needs attention"
+                        badge={<AttentionBadge counts={counts} />}
+                        footer={can("ops.read") && (
+                            <Link href="/admin/system" className="inline-flex items-center gap-1 font-medium text-primary-ink hover:underline">
+                                Open System<LuArrowRight aria-hidden="true" className="size-3.5" />
+                            </Link>
+                        )}
+                    >
                         <NeedsAttention counts={counts} can={can} />
                     </Panel>
                 </div>
