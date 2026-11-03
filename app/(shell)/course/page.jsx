@@ -1,6 +1,8 @@
+import { Suspense } from "react";
 import { HydrationBoundary, QueryClient, dehydrate } from "@tanstack/react-query";
 
 import CoursePage from "@/components/course/coursePage";
+import { PageSkeleton } from "@/components/ui/loading";
 
 import { courseService } from "@/services/course.service";
 import { courseQueries } from "@/queries/course.query";
@@ -16,7 +18,7 @@ export async function generateMetadata() {
 
 // The first page of the list the URL asks for is rendered on the server, so it is in the HTML;
 // React Query then takes over (filters, sort, infinite scroll) under the same cache key.
-export default async function Page({ searchParams }) {
+async function CourseList({ searchParams }) {
     const state = parseListQuery("course", await searchParams);
 
     // Signed-in learners do not see the courses they are enrolled in (as the API does).
@@ -38,5 +40,15 @@ export default async function Page({ searchParams }) {
         <HydrationBoundary state={dehydrate(queryClient)}>
             <CoursePage />
         </HydrationBoundary>
+    )
+}
+
+// The list depends on the request (URL and viewer), so it sits behind <Suspense>: with Cache
+// Components the rest of the route is the prerendered shell.
+export default function Page({ searchParams }) {
+    return (
+        <Suspense fallback={<PageSkeleton />}>
+            <CourseList searchParams={searchParams} />
+        </Suspense>
     )
 }
