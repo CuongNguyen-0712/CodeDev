@@ -139,6 +139,56 @@ Test 398 pass, lint 0 lỗi, build OK, `npm run budget` OK (`/course` 1103/1160 
 
 Ghi chú cho Bước B: `generateStaticParams` trả `[]` không dùng được với Cache Components (cần ít nhất 1 param), nên lúc đó phải trả ít nhất một khoá đã publish.
 
+## Bước B: kết quả thử và hướng thiết kế (2026-11-03)
+
+### Đã thử (nhánh `feat/cache-components`, commit WIP `76172a6d`, chưa build được)
+
+- Bật `cacheComponents: true`, bỏ 17 `dynamic = "force-dynamic"` và 4 `revalidate`; đặt `instant = false` cho `/admin` và `/studio`.
+- Thêm `lib/cachedData.js` (`'use cache'` + `cacheLife` + `cacheTag`), `lib/hydrate.js` (helper hydrate theo docs) và footer `'use cache'` (vì `new Date()`).
+- Cách sửa này giải quyết được mọi lỗi phía server. **Điểm chặn:** `Date.now()` trong client component lúc prerender (`hooks/useCourseDetails.js` → `useQuery`). TanStack Query đọc thời gian khi tạo kết quả query (`timeUntilStale`). Docs Next ghi rõ: query cần cho lần render đầu phải nằm sau `<Suspense>`.
+- Hệ quả: 59 file dùng `useQuery` / `useInfiniteQuery`, kể cả navbar, banner xác minh email và trung tâm thông báo trong shell, đều phải nằm sau `<Suspense>`. Phần đó không prerender được mà render lúc request. Với trang chi tiết khoá học, vốn đang là ISR tĩnh hoàn toàn (TTFB 7 ms), điều này là **lùi bước**: chỉ còn khung tĩnh, nội dung render lại mỗi request.
+
+### Vấn đề gốc
+
+Các trang công khai đang đọc dữ liệu **qua React Query ngay khi render** (server cấp dữ liệu ban đầu qua `HydrationBoundary`, rồi client component dùng `useQuery` để vẽ). Mô hình PPR giả định điều ngược lại: phần đọc là Server Component (cache được, prerender được), còn client chỉ lo tương tác. Đổi thư viện fetch phía client (SWR, v.v.) không giải quyết được, vì vấn đề nằm ở việc *đọc trong client lúc render*, không ở thư viện.
+
+### Hướng đề xuất: "server-first reads, client islands"
+
+| Lớp | Công nghệ | Dùng cho |
+|---|---|---|
+| Đọc dữ liệu public | Server Component + `'use cache'` / `cacheLife` / `cacheTag` (bọc service đang có, Redis vẫn ở dưới) | Nội dung trang công khai: landing, catalog, chi tiết khoá học / roadmap, about, blog, help |
+| Đọc dữ liệu theo request | Server Component trong `<Suspense>` **nhỏ** (đọc session); có thể dùng `'use cache: private'` để Partial Prefetching chuẩn bị trước | Trạng thái viewer (đã ghi danh, sở hữu, tiến độ), lời chào, avatar trong navbar |
+| Tương tác | Client component nhỏ ("island") nhận props từ server | Nút mua / ghi danh / yêu thích, bộ lọc, editor, comment, quiz |
+| Ghi | Server Actions (đã có: `actions/*.actions.js`) + `updateTag` (đọc lại ngay sau khi ghi) / `revalidateTag(tag, "max")` + `router.refresh()` cho phần server | Mọi mutation |
+| Trạng thái client và realtime | **Giữ TanStack Query**, chỉ dùng trong island hoặc trang private, luôn dưới `<Suspense>` | Trang private (learning, home, ranking, settings, orders), workspace bài học, comment, cuộn vô hạn; sự kiện Pusher → `invalidateQueries` hoặc `router.refresh()` |
+| URL state | `useListQueryState` (đang có) đẩy URL; server render lại theo `searchParams` | Tìm kiếm / lọc catalog |
+
+Không cần thêm thư viện. Thay đổi chính là **chuyển chỗ đọc** của trang công khai từ client sang server, và **thu nhỏ** phần client.
+
+### Đích theo nhóm trang
+
+- **Shell (layout):** sidebar, logo, link điều hướng và footer là Server Component tĩnh. Phần người dùng trong navbar (avatar, level, chuông thông báo, nút đăng nhập) tách thành island trong `<Suspense>` với skeleton cùng kích thước, nên không gây CLS.
+- **Công khai** (`/`, `/course`, `/course/[id]`, `/roadmap`, `/roadmap/[id]`, `/about`, `/blog`, `/help`): nội dung là Server Component từ `'use cache'`, nằm trong static shell hoặc ISR theo URL. Island: `PurchaseActions`, yêu thích, đánh giá, comment (giữ React Query + Pusher dưới `<Suspense>`). Catalog: trang đầu render trên server theo `searchParams`; trang sau tải bằng island (server action "load more" hoặc API hiện có).
+- **Private** (`/home`, `/learning`, `/ranking`, `/orders`, `/profile`, `/settings`, `/contact`, `/onboarding`, `/learning/[id]`): giữ client + React Query. Page chỉ gồm shell và một `<Suspense>` với skeleton bao phần nội dung. Không mất gì vì các trang này hiện đã là CSR.
+- **Admin, studio, checkout, đơn hàng:** `instant = false`, render lúc request.
+
+### Lộ trình đề xuất (thay R3-R5)
+
+| Phase | Việc | Ước lượng | Kiểm chứng |
+|---|---|---|---|
+| B1 | Navbar: tách phần người dùng thành island trong `<Suspense>`; shell và footer là server. Chưa bật flag | 1 ngày | Không đổi hành vi; CLS = 0 |
+| B2 | `/course/[id]` viết lại thành Server Component (tiêu đề, mô tả, syllabus, thống kê, ảnh) + các island. `useCourseDetails` chỉ còn cho island viewer | 1,5-2 ngày | LCP và TTFB không kém R2 |
+| B3 | `/roadmap/[id]`, landing (kệ khoá học), about theo cùng mẫu | 1,5 ngày | |
+| B4 | Catalog (`/course`, `/roadmap`): danh sách render trên server trong `<Suspense>` theo `searchParams`, `'use cache'` theo query; filter là island | 1,5 ngày | Cuộn vô hạn, lọc, sort như hiện tại |
+| B5 | Private: mỗi page là shell + `<Suspense>`. Bật `cacheComponents` (dùng lại nhánh WIP: `lib/cachedData`, `lib/hydrate`, footer) | 1 ngày | `next build` qua, route table, smoke test |
+| B6 | Bật `partialPrefetching`; `<Link prefetch>` cho các link catalog → chi tiết | 0,5 ngày | Điều hướng tức thì (prod) |
+
+Tổng khoảng 7-8 ngày. B1-B4 đều có lợi **cả khi chưa bật Cache Components** (bớt JS client, nội dung là HTML thuần), nên dừng giữa chừng không bị phí.
+
+Rủi ro:
+- **Hai nguồn sự thật cho một màn hình:** server render và cache React Query. Quy tắc để tránh: phần server render là dữ liệu public; dữ liệu của viewer chỉ có ở island.
+- **Realtime:** sự kiện Pusher đổi dữ liệu server render phải đi qua `revalidateTag` phía server (đã có điểm gọi trong service) hoặc `router.refresh()`.
+
 ## 7. Không làm
 
 - Không cache trang có tác dụng phụ hoặc trạng thái tiền (`/orders/[id]`, `/checkout/*`, `/admin/*`).
