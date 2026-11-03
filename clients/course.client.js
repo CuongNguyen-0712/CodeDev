@@ -24,5 +24,11 @@ export const courseClient = {
     getComments: async (params) => {
         const res = await apiClient.get('/course/comments', { params });
         return res.data;
+    },
+
+    // { average, count, stars, eligible } (average null below 3 ratings).
+    getRating: async (params) => {
+        const res = await apiClient.get('/course/rating', { params });
+        return res.data;
     }
 };

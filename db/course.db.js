@@ -486,6 +486,8 @@ export const courseDb = {
                 m.upvotes as upvotes,
                 m.downvotes as downvotes,
                 ${userId ? `coalesce(v.voting, null) as vote,` : 'null as vote,'}
+                (SELECT r.stars FROM community.course_rating r
+                 WHERE r.user_id = m.user_id AND r.course_id = m.reference_id AND NOT r.is_hidden) as rating,
                 m.created_at as created_at,
                 m.id::text as cursor_id,
                 m.created_at::text as cursor_at

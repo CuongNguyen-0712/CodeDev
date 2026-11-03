@@ -18,6 +18,7 @@ import { Button } from "@/components/shadcn/button";
 import { Skeleton } from "@/components/shadcn/skeleton";
 
 import CommentItem from "./commentItem";
+import { YourRating } from "../ratingStars";
 import { uniqBy } from "lodash";
 
 import { LuLoaderCircle, LuLogIn, LuMessagesSquare, LuSendHorizontal } from "react-icons/lu";
@@ -203,7 +204,8 @@ export default function CommentPage({ courseId }) {
                         placeholder="Ask a question or share what you think about this course"
                     />
 
-                    <div className="flex justify-end">
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                        <div className="mr-auto"><YourRating courseId={courseId} /></div>
                         <Button type="submit" size="sm" disabled={useComment.isPending}>
                             {useComment.isPending ? (
                                 <LuLoaderCircle className="animate-spin" aria-hidden="true" />

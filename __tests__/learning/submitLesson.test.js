@@ -18,6 +18,7 @@ vi.mock("@/actions/course.actions", () => ({
     unfavoriteCourseAction: vi.fn(),
     postCommentAction: vi.fn(),
     voteCommentAction: vi.fn(),
+    rateCourseAction: vi.fn(),
 }));
 
 const { useCourseSubmitLesson } = await import("@/mutations/course.mutation");

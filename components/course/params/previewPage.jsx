@@ -343,7 +343,7 @@ export default function PreviewPage({ params } = {}) {
                                     <Badge variant="success">Free</Badge>
                                 )}
                                 {enrollment && <Badge variant={enrollment.variant}>{enrollment.label}</Badge>}
-                                {/* Ratings run 1-5, so 0 means nobody has rated the course yet. */}
+                                {/* The learners' average, sent only from 3 ratings on (migration 20261103_013). */}
                                 {rating > 0 ? (
                                     <span
                                         className="ml-1 flex items-center gap-1 text-xs font-medium text-foreground tabular"
@@ -353,7 +353,7 @@ export default function PreviewPage({ params } = {}) {
                                         <span className="sr-only">Rating</span>
                                         {rating.toFixed(1)}
                                         {reviews > 0 && (
-                                            <span className="font-normal text-muted-foreground">({reviews.toLocaleString('en-US')} {reviews === 1 ? 'review' : 'reviews'})</span>
+                                            <span className="font-normal text-muted-foreground">({reviews.toLocaleString('en-US')} {reviews === 1 ? 'rating' : 'ratings'})</span>
                                         )}
                                     </span>
                                 ) : (

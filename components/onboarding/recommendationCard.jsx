@@ -120,7 +120,7 @@ export function RecommendationCard({ item, compact = false, onClickGuard, maxRea
                         <span className="flex shrink-0 items-center gap-1 text-xs text-foreground tabular">
                             <LuStar className="size-3.5 fill-current text-muted-foreground" aria-hidden="true" />
                             <span className="sr-only">Rating</span>
-                            {course.rating}
+                            {Number(course.rating).toFixed(1)}
                         </span>
                     ) : null}
                 </div>

@@ -178,7 +178,7 @@ export const CourseItem = ({ item }) => {
                     <PriceTag course={item} />
                     {isOwned && <OwnershipBadge />}
                     {isEnrolled && <Badge variant="primary">Enrolled</Badge>}
-                    {/* Ratings run 1-5, so 0 means nobody has rated the course yet. */}
+                    {/* The learners' average, sent only from 3 ratings on (migration 20261103_013). */}
                     {rating > 0 ? (
                         <span
                             className="ml-auto flex items-center gap-1 text-xs font-medium text-foreground tabular"

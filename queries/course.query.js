@@ -79,5 +79,15 @@ export const courseQueries = {
             // New comments and votes arrive over Pusher; a focus refetch would reload every page.
             refetchOnWindowFocus: false,
         };
+    },
+
+    // The course average and the learner's own rating (plan 12); `status` keeps signed-out reads apart.
+    rating(courseId, status) {
+        return {
+            queryKey: [...courseKeys.rating(courseId), status],
+            queryFn: () => courseClient.getRating({ courseId }),
+            enabled: !!courseId && status !== 'loading',
+            ...QUERY_TIMES.personal,
+        };
     }
 }

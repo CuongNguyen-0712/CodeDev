@@ -8,6 +8,7 @@ import { useApp } from "@/contexts/appContext";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/shadcn/avatar";
 import { Button } from "@/components/shadcn/button";
+import { AuthorStars } from "../ratingStars";
 
 import { LuHeart } from "react-icons/lu";
 
@@ -86,6 +87,7 @@ const CommentItem = ({ data, courseId }) => {
                 ) : (
                     <span className="flex min-w-0 items-center gap-2.5">{identity}</span>
                 )}
+                <AuthorStars stars={data.rating} />
                 <span aria-hidden="true" className="text-muted-foreground">&middot;</span>
                 <time
                     dateTime={data.created_at || undefined}

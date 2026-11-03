@@ -7,6 +7,7 @@ import {
     unfavoriteCourseAction,
     postCommentAction,
     voteCommentAction,
+    rateCourseAction,
 } from "@/actions/course.actions";
 
 import { unwrapActionResult, callWithAuthRetry } from "@/lib/actionResult";
@@ -242,6 +243,24 @@ export const useCourseComment = () => {
                 });
             }
         }
+    });
+};
+
+// One 1-5 star rating per learner and course (plan 12): the rating query takes the returned state,
+// the course details and comments (which show the author's stars) are reloaded.
+export const useCourseRate = () => {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (data) => unwrapActionResult(await callWithAuthRetry(() => rateCourseAction(data))),
+
+        onSuccess: (state, variables) => {
+            const courseId = extractId(variables);
+            if (!courseId) return;
+            queryClient.setQueriesData({ queryKey: courseKeys.rating(courseId) }, state);
+            queryClient.invalidateQueries({ queryKey: courseKeys.details(courseId) });
+            queryClient.invalidateQueries({ queryKey: courseKeys.comments(courseId) });
+        },
     });
 };
 

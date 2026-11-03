@@ -3,6 +3,7 @@ import PortableTextRenderer from "../../ui/portableTextRenderer";
 import { useCourseSubmitLesson } from "@/mutations/course.mutation";
 import { useApp } from "@/contexts/appContext";
 import { announceRewards } from "@/components/ui/level";
+import { askForRating } from "@/components/course/ratePromptDialog";
 import { useQuery } from "@tanstack/react-query";
 import { courseQueries } from "@/queries/course.query";
 import { ErrorReload } from "../../ui/error";
@@ -37,6 +38,8 @@ export function SubmitLessonButton({ lessonId, courseId, onSubmitted, blocked = 
                 title: rewards?.courseCompleted ? "Course completed" : "Lesson completed",
                 id: `lesson-completed:${lessonId}`,
             });
+            // After announceRewards, so a level-up dialog of the same completion opens first.
+            askForRating({ courseId, prompt: rewards?.ratePrompt });
             onSubmitted?.();
         }
         catch (error) {

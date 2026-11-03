@@ -7,4 +7,5 @@ export const courseKeys = {
     withdraw: () => [...courseKeys.all, 'withdraw'],
     learning: (lessonId) => [...courseKeys.all, 'learning', lessonId],
     comments: (courseId) => [...courseKeys.all, 'comments', courseId],
+    rating: (courseId) => [...courseKeys.all, 'rating', courseId],
 }

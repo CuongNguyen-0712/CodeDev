@@ -176,7 +176,9 @@ export function LevelPointsChip({ className }) {
 }
 
 // --------------------------------------------------------------------------- reward feedback
-const LEVEL_UP_EVENT = "codedev:level-up";
+export const LEVEL_UP_EVENT = "codedev:level-up";
+// Sent when the level-up dialog closes, so a dialog queued behind it (the course rating prompt) can open.
+export const LEVEL_UP_CLOSED_EVENT = "codedev:level-up-closed";
 const REWARDS_EVENT = "codedev:rewards";
 
 /**
@@ -258,9 +260,13 @@ export function LevelUpDialog() {
     }, []);
 
     const gained = levelUp ? levelUp.level - levelUp.previousLevel : 0;
+    const close = () => {
+        setLevelUp(null);
+        window.dispatchEvent(new Event(LEVEL_UP_CLOSED_EVENT));
+    };
 
     return (
-        <Dialog open={Boolean(levelUp)} onOpenChange={(open) => !open && setLevelUp(null)}>
+        <Dialog open={Boolean(levelUp)} onOpenChange={(open) => !open && close()}>
             <DialogContent className="sm:max-w-sm text-center">
                 <DialogHeader className="items-center">
                     <span className="mb-2 flex size-14 items-center justify-center rounded-full bg-xp-soft text-xp">
@@ -274,7 +280,7 @@ export function LevelUpDialog() {
                     </DialogDescription>
                 </DialogHeader>
                 <DialogFooter className="sm:justify-center">
-                    <Button onClick={() => setLevelUp(null)}>Continue</Button>
+                    <Button onClick={close}>Continue</Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>

@@ -54,6 +54,15 @@ describe.skipIf(!hasDb)("course rating trigger (PostgreSQL)", () => {
         expect(await course()).toEqual({ avg: "3.50", n: 2 });
     });
 
+    it("shows the public rating only from 3 ratings and always the count (migration 013)", async () => {
+        const shown = async () => (await client.query(`SELECT rating::text AS rating, reviews::int AS reviews FROM catalog.course WHERE id = $1`, [courseId])).rows[0];
+        expect(await shown()).toEqual({ rating: null, reviews: 2 });
+        await rate(users[2], 1);
+        expect(await shown()).toEqual({ rating: "2.67", reviews: 3 });
+        await client.query(`DELETE FROM community.course_rating WHERE user_id = $1 AND course_id = $2`, [users[2], courseId]);
+        expect(await shown()).toEqual({ rating: null, reviews: 2 });
+    });
+
     it("leaves hidden ratings out and counts them again when shown", async () => {
         await rate(users[2], 1);
         expect(await course()).toEqual({ avg: "2.67", n: 3 });

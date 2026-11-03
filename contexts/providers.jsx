@@ -7,6 +7,7 @@ import { AppProvider } from "./appContext"
 import { TooltipProvider } from "@/components/shadcn/tooltip"
 import AppToaster from "@/components/ui/alert"
 import { LevelUpDialog, RankUpWatcher } from "@/components/ui/level"
+import { RatePromptDialog } from "@/components/course/ratePromptDialog"
 
 export function Provider({ children }) {
     return (
@@ -24,6 +25,7 @@ export function Provider({ children }) {
                             {/* The only toast region: survives navigation (see components/ui/alert.jsx). */}
                             <AppToaster />
                             <LevelUpDialog />
+                            <RatePromptDialog />
                             <RankUpWatcher />
                         </AppProvider>
                     </ThemeProvider>
