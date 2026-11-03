@@ -38,14 +38,14 @@ $ npm view csv-writer-fast time --json
 +    "markdown-sanitize-lite": "^1.0.0",
 +    "dom-purify": "^3.1.0",
      "dompurify": "^3.2.7",`, "package.json (pull request #2325)"),
-        p("Course E2 showed how to catch the first one by hand (it returns 404 today). This lesson is about the policy behind both: a **new name** in the dependency tree is a decision someone on the team should make once, on purpose, and a **new version** of an approved name should wait a few days before it runs on our machines."),
+        p("The AI-Assisted Development course showed how to catch the first one by hand (it returns 404 today). This lesson is about the policy behind both: a **new name** in the dependency tree is a decision someone on the team should make once, on purpose, and a **new version** of an approved name should wait a few days before it runs on our machines."),
         callout("info", "About the names in this lesson",
             "The packages, versions, dates and tickets are fixtures made for the course; they show the patterns, not facts about the public registry."),
 
         h2("2. Reproduce it and read the evidence"),
         p("The gate needs three inputs, all of which you can produce in CI without installing anything:"),
         numbered([
-            "**The dependency diff:** which packages the pull request adds or updates, and to which version. Compare the `packages` maps of the lockfile on the base branch and on the pull request (lesson 2), so transitive additions count too.",
+            "**The dependency diff:** which packages the pull request adds or updates, and to which version. Compare the `packages` maps of the lockfile on the base branch and on the pull request (lesson 1.2), so transitive additions count too.",
             "**Registry metadata:** for each name and version, whether it exists and when it was published. `npm view <name> time --json` returns that map; the gate reads it from a snapshot so the decision is reproducible.",
             "**The policy:** the allowlist, the quarantine length in days, and the exceptions, committed in the repository and reviewed like code.",
         ]),

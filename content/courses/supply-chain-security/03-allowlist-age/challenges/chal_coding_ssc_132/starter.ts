@@ -15,6 +15,7 @@ import { readFileSync } from "node:fs";
 // Exceptions: { name, version, ticket, expires }. One matches a change with the same name and exact version;
 // it is valid while expires is a real "YYYY-MM-DD" date and today <= expires.
 //   - a valid exception lifts "not on allowlist" and quarantine, never the registry reasons;
+//     a change still blocked by a registry reason reports all its blocking reasons, as without an exception;
 //     when it turns a block into an allow, the only reason is "exception <ticket> (expires <expires>)"
 //     (the first valid matching exception in the list)
 //   - when the change is still blocked and matching exceptions exist but none is valid, add

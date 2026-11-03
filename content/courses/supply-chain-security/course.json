@@ -52,9 +52,9 @@
   "testedVersions": {
     "TypeScript": "5.9.3 (tsc --strict in the code runner)",
     "npm": "lockfileVersion 3 (lesson examples)",
-    "SBOM": "CycloneDX / SPDX JSON (lesson examples)"
+    "SBOM": "CycloneDX JSON, specVersion 1.6 (lesson examples)"
   },
-  "lastReviewedAt": "2026-10-26",
+  "lastReviewedAt": "2026-11-03",
   "sourceLinks": [
     "https://slsa.dev/",
     "https://cyclonedx.org/specification/overview/",
