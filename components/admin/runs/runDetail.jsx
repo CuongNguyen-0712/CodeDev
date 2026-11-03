@@ -12,6 +12,7 @@ import { QUERY_TIMES, retryTransient } from "@/lib/queryTimes";
 import { useAdmin } from "@/components/admin/adminContext";
 import { ConfirmDialog } from "@/components/admin/confirmDialog";
 import PageHeader from "@/components/admin/shell/pageHeader";
+import Finding from "@/components/admin/ui/finding";
 import StatusDot from "@/components/admin/ui/statusDot";
 import TabBar from "@/components/admin/ui/tabBar";
 import { formatDateTime, formatDuration, formatNumber } from "@/components/admin/ui/format";
@@ -34,6 +35,16 @@ function Fact({ label, children }) {
             <dd className="truncate text-sm">{children}</dd>
         </div>
     );
+}
+
+/** The run's finding: its error first, then how many graded tests passed, then what was run. */
+function runFinding(run, passed) {
+    const what = `${run.challenge_title} · ${run.language} · ${run.run_type === "submit" ? "submission" : "run"}`;
+    const problem = run.error || run.rejected?.message;
+    if (problem) return <Finding tone="critical">{problem}</Finding>;
+    if (!run.tests.length) return what;
+    const all = passed === run.tests.length;
+    return <Finding tone={all ? "good" : "attention"}>{`${passed} of ${run.tests.length} tests passed · ${what}`}</Finding>;
 }
 
 function Tests({ tests }) {
@@ -162,7 +173,7 @@ export default function RunDetail({ runId }) {
         <>
             <PageHeader
                 title={`Run …${run.id.slice(-8)}`}
-                description={run.error || (run.rejected?.message) || `${run.challenge_title} · ${run.language} · ${run.run_type === "submit" ? "submission" : "run"}`}
+                description={runFinding(run, passed)}
                 actions={active && can("coderun.cancel") && <Button variant="outline" onClick={() => setCancelling(true)}>Cancel run</Button>}
             >
                 <StatusDot status={run.status} />

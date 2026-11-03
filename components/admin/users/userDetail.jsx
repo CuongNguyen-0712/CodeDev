@@ -13,6 +13,7 @@ import { QUERY_TIMES, retryTransient } from "@/lib/queryTimes";
 import { useAdmin } from "@/components/admin/adminContext";
 import { ConfirmDialog } from "@/components/admin/confirmDialog";
 import PageHeader from "@/components/admin/shell/pageHeader";
+import Finding from "@/components/admin/ui/finding";
 import StatusDot from "@/components/admin/ui/statusDot";
 import { formatDate, formatDateTime, formatNumber, formatRelative } from "@/components/admin/ui/format";
 import { Button } from "@/components/shadcn/button";
@@ -244,7 +245,7 @@ export default function UserDetail({ userId }) {
         <>
             <PageHeader
                 title={user.username}
-                description={`Joined ${formatDate(user.created_at)} · ${user.last_active_at ? `last active ${formatRelative(user.last_active_at)}` : "never signed in"}${user.state === "suspended" ? ` · suspended until ${formatDateTime(user.status_until)}` : ""}`}
+                description={<Finding tone={{ blocked: "critical", suspended: "attention" }[user.state]}>{`${user.state === "blocked" ? "Blocked · " : ""}Joined ${formatDate(user.created_at)} · ${user.last_active_at ? `last active ${formatRelative(user.last_active_at)}` : "never signed in"}${user.state === "suspended" ? ` · suspended until ${formatDateTime(user.status_until)}` : ""}`}</Finding>}
                 actions={actions}
             >
                 <StatusDot status={user.state} />

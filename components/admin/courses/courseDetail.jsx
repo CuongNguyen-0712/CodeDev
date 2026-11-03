@@ -11,6 +11,7 @@ import { useAdmin } from "@/components/admin/adminContext";
 import { ConfirmDialog } from "@/components/admin/confirmDialog";
 import ChallengeManager from "@/components/admin/challenges/challengeManager";
 import PageHeader from "@/components/admin/shell/pageHeader";
+import Finding from "@/components/admin/ui/finding";
 import StatusDot from "@/components/admin/ui/statusDot";
 import TabBar from "@/components/admin/ui/tabBar";
 import { formatNumber } from "@/components/admin/ui/format";
@@ -86,11 +87,12 @@ export default function CourseDetail({ courseId }) {
 
     const course = query.data;
     const lessons = course.modules.reduce((sum, module) => sum + module.lessons.length, 0);
+    const openChecks = (course.checklist || []).filter((item) => !item.ok).length;
     const request = (input, label) => setPending({ input, label });
 
     return (
         <>
-            <PageHeader title={course.title} description={`${formatNumber(course.modules.length)} modules · ${formatNumber(lessons)} lessons · ${course.access_model} · ${course.level || "no level"}`}>
+            <PageHeader title={course.title} description={<Finding tone={openChecks ? "attention" : "good"}>{`${openChecks ? `${openChecks} publish check${openChecks === 1 ? "" : "s"} open` : "Ready to publish"} · ${formatNumber(course.modules.length)} modules · ${formatNumber(lessons)} lessons · ${course.access_model} · ${course.level || "no level"}`}</Finding>}>
                 <StatusDot status={course.publish_status} />
             </PageHeader>
 
