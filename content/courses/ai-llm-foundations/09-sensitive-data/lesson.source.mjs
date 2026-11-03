@@ -133,7 +133,7 @@ redact("curl -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIi' ...")
 
         h2("Sources"),
         bullets([
-            "Your provider's data usage, retention and privacy documentation for the exact product and plan you use (for example the data controls pages linked from platform.openai.com/docs and docs.anthropic.com).",
+            "Your provider's data usage, retention and privacy documentation for the exact product and plan you use (for example the data controls pages linked from platform.openai.com/docs and platform.claude.com/docs).",
             "Ollama model library, for models that run on your own hardware - ollama.com/library",
             "Personal data protection law applies to prompts like to any other processing (in Vietnam, the EU and elsewhere): check your duties with your privacy or legal team.",
         ]),

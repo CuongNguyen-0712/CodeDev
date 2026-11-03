@@ -154,7 +154,7 @@ export async function tutorTurn(conv: Conversation) {
         h2("Sources"),
         bullets([
             "OpenAI API docs, Text generation and Conversation state (each request carries the conversation you send) - platform.openai.com/docs/guides/text",
-            "Anthropic docs, Context windows and Token counting - docs.anthropic.com",
+            "Anthropic docs, Context windows and Token counting - platform.claude.com/docs",
             "Liu et al., \"Lost in the Middle: How Language Models Use Long Contexts\", 2023 (arXiv:2307.03172)",
         ]),
         callout("tip", "Practice on your own (not graded)",

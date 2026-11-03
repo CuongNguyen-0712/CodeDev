@@ -156,7 +156,7 @@ function checkAnswer(c: EvalCase, answer: string, sentIds: string[]): string | n
         h2("Sources"),
         bullets([
             "OpenAI documentation: text generation and prompting - platform.openai.com/docs/guides/text",
-            "Anthropic documentation: prompt engineering overview, and \"Reduce hallucinations\" (allow the model to say it does not know, ground answers in quotes from documents) - docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/overview",
+            "Anthropic documentation: prompt engineering overview, and \"Reduce hallucinations\" (allow the model to say it does not know, ground answers in quotes from documents) - platform.claude.com/docs/en/build-with-claude/prompt-engineering/overview",
             "Check your provider's model page for the knowledge cutoff of the exact model version you call, and log it with every request.",
         ]),
         callout("tip", "Self-practice (not graded): the incident table and a user-facing notice",

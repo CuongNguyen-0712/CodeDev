@@ -327,7 +327,7 @@ WITH q AS (
 date        model      requests  input_tokens  output_tokens  cost_usd
 2026-09-14  chat-mini     8,000    96,000,000      1,200,000     15.12
 
-Statement: "Output tokens cost four times as much as input tokens, so most of this feature''s bill is output, and shorter answers are the biggest saving available."', 'single_choice'::question_type, 'False. Price each column separately: input is 96,000,000 x $0.15 / 1,000,000 = $14.40 and output is 1,200,000 x $0.60 / 1,000,000 = $0.72, so 95% of the $15.12 is input. Each output token costs four times as much, but every request sends 12,000 input tokens (the whole lesson) and gets about 150 back, eighty times fewer. The biggest savings here are on the input side: send only the relevant part of the lesson (lesson 2), or let the repeated lesson text use the provider''s prompt cache. The misconception is that output always dominates; which side dominates depends on the feature, so compute both columns before you decide what to cut.', 1, 5
+Statement: "Output tokens cost four times as much as input tokens, so most of this feature''s bill is output, and shorter answers are the biggest saving available."', 'single_choice'::question_type, 'False. Price each column separately: input is 96,000,000 x $0.15 / 1,000,000 = $14.40 and output is 1,200,000 x $0.60 / 1,000,000 = $0.72, so 95% of the $15.12 is input. Each output token costs four times as much, but every request sends 12,000 input tokens (the whole lesson) and gets about 150 back, eighty times fewer. The biggest savings here are on the input side: send only the relevant part of the lesson (retrieval, lesson 3.2), or let the repeated lesson text use the provider''s prompt cache. The misconception is that output always dominates; which side dominates depends on the feature, so compute both columns before you decide what to cut.', 1, 5
     WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_aif_211') AND order_index = 1)
     RETURNING id
 )
@@ -813,6 +813,7 @@ function checkAnswer(answer: string, sent: Section[]): Checked {
 
 Sections sent in the prompt: [points-pricing], [certificates]
 Model answer: "Premium courses can be refunded within 14 days. [refund-policy]"
+Widget rule: an answer with kind "reject" is never shown; the widget shows the polite "I''m not sure" message instead.
 
 Statement: "checkAnswer rejects this answer, so the widget shows the polite "I''m not sure" message instead of the 14-day claim."', 'single_choice'::question_type, 'True. The answer is not an "I''m not sure" reply and it does contain a citation, so the check reaches the loop: refund-policy is not one of the sections that were sent (points-pricing, certificates), so it returns { kind: "reject" } with the reason "cites refund-policy, which was not in the prompt". A rejected answer is never shown; the user gets the unsure message with a next step, and the rejection is logged. The misconception is that any citation proves grounding: a model can produce a plausible id just as it produces a plausible fact, so the id must be compared with what was actually sent.', 2, 5
     WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_aif_321') AND order_index = 2)

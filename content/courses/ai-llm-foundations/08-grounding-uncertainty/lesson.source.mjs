@@ -143,7 +143,7 @@ prompt v2 (docs + rule + I'm not sure)  17          5          1          1`, "E
 
         h2("Sources"),
         bullets([
-            "Anthropic documentation: prompt engineering overview and \"Reduce hallucinations\" (let the model say it does not know, answer from quotes of the provided documents, verify with citations) - docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/overview",
+            "Anthropic documentation: prompt engineering overview and \"Reduce hallucinations\" (let the model say it does not know, answer from quotes of the provided documents, verify with citations) - platform.claude.com/docs/en/build-with-claude/prompt-engineering/overview",
             "OpenAI documentation: text generation and prompting - platform.openai.com/docs/guides/text",
         ]),
         callout("tip", "Self-practice (not graded): an eval set for your own bot",

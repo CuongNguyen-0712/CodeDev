@@ -11,7 +11,7 @@ export default ({ h2, h3, p, bullets, numbered, code, callout, challenge }) => (
     scenario: {
         role: "Backend developer and design reviewer, CodeDev learning platform",
         problem:
-            "CodeDev has three AI features: the hint bot, an inline \"explain my error\" box under failing tests, and a weekly summary of learner feedback for instructors. All three were put on chat-large because it ranked second on a public leaderboard. After the hint bot bill (lesson 4) and the slow hints (lesson 5), a pull request proposes moving all three to budget-api, the cheapest API the team found. The design review has to answer a simpler question than \"which model is best\": which model fits each task, and how do we know?",
+            "CodeDev has three AI features: the hint bot, an inline \"explain my error\" box under failing tests, and a weekly summary of learner feedback for instructors. All three were put on chat-large because it ranked second on a public leaderboard. After the hint bot bill (lesson 2.1) and the slow hints (lesson 2.2), a pull request proposes moving all three to budget-api, the cheapest API the team found. The design review has to answer a simpler question than \"which model is best\": which model fits each task, and how do we know?",
     },
 
     content: [
@@ -32,7 +32,7 @@ Review comments
         p("The first decision (chat-large for everything) optimized one number, a leaderboard rank. The second (budget-api for everything) optimized another, the price per token. Each looked reasonable on its own number and failed on numbers it did not look at: latency, quality on CodeDev's own tasks, and where learners' data goes. The fix is not a better favourite model. It is a way of choosing that looks at all the constraints of each task."),
 
         h2("2. Read the evidence: three tasks, three sets of constraints"),
-        p("Before comparing models, write down what each task needs. These numbers come from the product requirements, the usage logs (lesson 4) and the latency budgets (lesson 5):"),
+        p("Before comparing models, write down what each task needs. These numbers come from the product requirements, the usage logs (lesson 2.1) and the latency budgets (lesson 2.2):"),
         code("text", `
 feature           someone waiting?   personal data in prompt?   typical tokens in/out   quality bar   p95 budget   max cost / 1k requests
 hint-bot          yes (panel)        no (code and errors)        600 / 300               0.80          8,000 ms     $3.00
@@ -48,21 +48,21 @@ chat-mini    provider API       approved         0.84      1,900    128k      $0
 budget-api   provider API       none             0.78      1,200     64k      $0.24
 local-8b     CodeDev GPU        local            0.79      3,800      8k      $0.00 (+ hardware)
 local-27b    CodeDev GPU        local            0.86      5,400     32k      $0.00 (+ hardware)`, "explain-error candidates"),
-        p("Cost per 1,000 requests is the formula from lesson 4 with the task's typical tokens: `(1,400 x input price + 250 x output price) / 1,000`. For chat-mini at example prices of $0.15 and $0.60 per 1M tokens that is (210 + 150) / 1,000 = $0.36."),
+        p("Cost per 1,000 requests is the formula from lesson 2.1 with the task's typical tokens: `(1,400 x input price + 250 x output price) / 1,000`. For chat-mini at example prices of $0.15 and $0.60 per 1M tokens that is (210 + 150) / 1,000 = $0.36."),
 
         h2("3. Core idea: criteria, not brands"),
         p("ChatGPT, Gemini, Claude and DeepSeek are names of model families and products; behind each there are several models of different sizes, prices and speeds, and they change every few months. Open-weight models that you can download and run yourself, for example through Ollama, add another column. A choice that names a brand (\"we use the best one\") will be out of date before the next release. A choice that names criteria can be re-checked in an afternoon."),
         h3("The criteria, in the order they eliminate candidates"),
         numbered([
-            "**Data: where may the prompt go?** If prompts contain personal data, secrets or anything your users did not agree to share, only models whose provider you have an approved processing agreement with, or models running on your own machines, are candidates. Read the API terms, not the consumer chat app's: retention and use for training can differ. This is a yes/no rule; no price or quality score changes it (lesson 9 goes deeper).",
-            "**Context: does the request fit?** Input plus the answer must fit in the model's context window (lesson 2). A model with an 8k window cannot review a 30k-token file, whatever it costs.",
+            "**Data: where may the prompt go?** If prompts contain personal data, secrets or anything your users did not agree to share, only models whose provider you have an approved processing agreement with, or models running on your own machines, are candidates. Read the API terms, not the consumer chat app's: retention and use for training can differ. This is a yes/no rule; no price or quality score changes it (lesson 3.3 goes deeper).",
+            "**Context: does the request fit?** Input plus the answer must fit in the model's context window (lesson 1.2). A model with an 8k window cannot review a 30k-token file, whatever it costs.",
             "**Quality on your task.** A score on your own eval set of real inputs, compared with a bar the product agreed on. Not a leaderboard rank, which averages tasks that are not yours.",
-            "**Latency.** p95 from your own runs, compared with the budget of the feature (lesson 5).",
-            "**Cost.** Cost per 1,000 requests at the task's typical token counts (lesson 4), compared with the budget.",
+            "**Latency.** p95 from your own runs, compared with the budget of the feature (lesson 2.2).",
+            "**Cost.** Cost per 1,000 requests at the task's typical token counts (lesson 2.1), compared with the budget.",
         ]),
         p("Among the models that pass every rule, pick the **cheapest**. Extra quality or speed above the bar is only worth paying for if the bar is wrong, and then the honest fix is to change the bar, with evidence, and run the comparison again."),
         h3("Repeatability is a criterion too"),
-        p("If a feature must give the same answer to the same input (grading, tagging, anything that is audited), prefer a model and settings that support it: a low temperature (lesson 3), a pinned model version rather than an alias that the provider moves to a newer model, and for local models a fixed model file. Record the exact version in the decision; a quality score is only valid for the version you measured."),
+        p("If a feature must give the same answer to the same input (grading, tagging, anything that is audited), prefer a model and settings that support it: a low temperature (lesson 1.3), a pinned model version rather than an alias that the provider moves to a newer model, and for local models a fixed model file. Record the exact version in the decision; a quality score is only valid for the version you measured."),
         callout("info", "When not to run a full comparison",
             "A one-off script you will run twice, or an internal prototype with no user data, does not need an eval set: use whatever model you already have access to and move on. The moment a feature reaches learners, handles their data or costs more than a few dollars a day, it needs the comparison below, even if it is only 50 examples."),
 
@@ -102,7 +102,7 @@ function quality(cases: EvalCase[], answers: Recorded[], model: string): number 
         p("An open-weight model runs on your own machine or server, so prompts never leave it. With Ollama, trying one takes two commands, and its OpenAI-compatible endpoint lets the same client code talk to either a hosted API or the local model:"),
         code("bash", `
 ollama pull <model>          # pick a model from ollama.com/library; small ones run on a laptop
-ollama run <model> --verbose # chat with it and see prompt eval and eval rates (lesson 5)`, "terminal"),
+ollama run <model> --verbose # chat with it and see prompt eval and eval rates (lesson 2.2)`, "terminal"),
         code("typescript", `
 import OpenAI from "openai";
 
@@ -135,7 +135,7 @@ feedback-summary  constraints: PERSONAL DATA, quality >= 0.82, p95 <= 15,000 ms,
                   choice: decided by cost of the GPU server we already run for evals
 
 re-check when:    a provider changes a price or retires a version, the eval set changes,
-                  or production p95 / cost per 1k drifts above the budget (lesson 5 dashboard)`, "decision record (excerpt)"),
+                  or production p95 / cost per 1k drifts above the budget (lesson 2.2 dashboard)`, "decision record (excerpt)"),
         p("Notice that the hint bot moved too: budget-api passes its bar (0.81 against 0.80) at a fraction of chat-large's cost, so part of PR #1874 was right, for that one task. Choosing per task is what made it possible to keep the good part."),
 
         h2("7. Your turn: choose the cheapest model that fits"),
@@ -150,8 +150,8 @@ function chooseModel(input: { task: Task; models: Model[] }): string[] {
         h2("8. How to verify a model choice"),
         bullets([
             "**Re-run the eval set** on every candidate when a provider ships a new version, changes prices or you change the prompt. Compare against the recorded decision, not against memory.",
-            "**Pin and log the model version** with every call (lesson 4's usage log). A quality drop that lines up with a version change is then a query, not a mystery.",
-            "**Watch production numbers** against the budgets: cost per 1k and p95 per feature on the dashboard from lesson 5.",
+            "**Pin and log the model version** with every call (lesson 2.1's usage log). A quality drop that lines up with a version change is then a query, not a mystery.",
+            "**Watch production numbers** against the budgets: cost per 1k and p95 per feature on the dashboard from lesson 2.2.",
             "**Check the data path, not just the code.** For a feature with personal data, confirm from network or gateway logs which hosts actually receive prompts, and that each one is on the approved processor list.",
         ]),
 
@@ -174,7 +174,7 @@ function chooseModel(input: { task: Task; models: Model[] }): string[] {
         h2("Sources"),
         bullets([
             "OpenAI API documentation, models and text generation - platform.openai.com/docs/guides/text",
-            "Anthropic documentation, choosing a model and prompt engineering - docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/overview",
+            "Anthropic documentation, choosing a model and prompt engineering - platform.claude.com/docs/en/build-with-claude/prompt-engineering/overview",
             "Ollama model library and OpenAI-compatible API - ollama.com/library",
         ]),
         callout("tip", "Practice on your own (not graded): an API model against a local one",

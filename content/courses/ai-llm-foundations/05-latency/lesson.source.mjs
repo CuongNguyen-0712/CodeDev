@@ -31,7 +31,7 @@ prompt  input_tokens  output_tokens  ttft_ms  total_ms
 v1               590            260      640     3,700
 v2               610          1,350      660    16,540`, "BUG-2317"),
         p("Read the last two lines slowly. The prompt grew by 20 tokens and the time to the first token grew by 20 ms. The **answer** grew from 260 to 1,350 tokens, and the total time grew by 12.8 seconds. The model did not get slower. It was asked to write five times as much, and it writes at a fairly steady speed."),
-        p("The double clicks make it worse: a learner who sees a spinner for 20 seconds assumes it broke and asks again. Each extra click is a second full request, with its own cost (lesson 4) and its own 16 seconds."),
+        p("The double clicks make it worse: a learner who sees a spinner for 20 seconds assumes it broke and asks again. Each extra click is a second full request, with its own cost (lesson 2.1) and its own 16 seconds."),
 
         h2("2. Read the evidence: one call, three timestamps"),
         p("Every LLM call has three moments you can measure: when you sent the request, when the **first token** arrived, and when the **last token** arrived. They split the call into two parts that behave very differently:"),
@@ -70,7 +70,7 @@ for await (const event of stream) {
 }
 
 const totalMs = performance.now() - started;
-log({ feature: "hint-bot", model: HINT_MODEL, ttftMs, totalMs /* + the usage counts from lesson 4 */ });`, "hints/streamHint.ts (example)"),
+log({ feature: "hint-bot", model: HINT_MODEL, ttftMs, totalMs /* + the usage counts from lesson 2.1 */ });`, "hints/streamHint.ts (example)"),
         p("A local model shows the same split. `ollama run <model> --verbose` prints it after every answer: the prompt eval lines are the input side of TTFT, and the eval lines are generation:"),
         code("text", `
 total duration:       6.12s
@@ -83,7 +83,7 @@ eval duration:        5.27s
 eval rate:            45.54 tokens/s`, "ollama --verbose (example output)"),
 
         h2("3. Core idea: you pay for latency by the token"),
-        p("Put the formula from section 2 next to lesson 4 and the main lesson of this module appears: **output tokens drive both cost and latency.** A hint that is five times longer is roughly five times more expensive and five times slower to finish. That is why \"make the answer shorter\" is usually the first and cheapest fix for both, and why it should be decided by what the learner needs to read, not by what the model is willing to write."),
+        p("Put the formula from section 2 next to lesson 2.1 and the main lesson of this module appears: **output tokens drive both cost and latency.** A hint that is five times longer is roughly five times more expensive and five times slower to finish. That is why \"make the answer shorter\" is usually the first and cheapest fix for both, and why it should be decided by what the learner needs to read, not by what the model is willing to write."),
         h3("When latency matters, and when it does not"),
         bullets([
             "**A person is waiting** (a hint panel, a chat, autocomplete): latency is the product. Set a budget per feature, for example \"first text within 1 s, complete hint p95 under 8 s\".",
@@ -108,7 +108,7 @@ eval rate:            45.54 tokens/s`, "ollama --verbose (example output)"),
         bullets([
             "**p50 (the median)** tells you what a typical learner experiences.",
             "**p95** tells you what one learner in twenty experiences. With 20,000 hints a day, that is 1,000 hints a day at or above that wait. Support tickets come from the tail, not from the median.",
-            "**The mean** is useful for cost (the bill is a sum, lesson 4) but misleading for waiting time: one very slow call moves it a lot, and it describes nobody.",
+            "**The mean** is useful for cost (the bill is a sum, lesson 2.1) but misleading for waiting time: one very slow call moves it a lot, and it describes nobody.",
         ]),
 
         h2("5. Streaming: faster to start, not faster to finish"),
@@ -126,14 +126,14 @@ eval rate:            45.54 tokens/s`, "ollama --verbose (example output)"),
         h2("6. Making the complete answer faster"),
         numbered([
             "**Fewer output tokens.** Ask for exactly what the panel shows (\"one hint, at most 3 sentences\") and cap the output length as a safety limit. For BUG-2317, going back to short hints and moving the long explanation behind an \"Explain more\" button fixed the p95 and the cost together.",
-            "**A faster model for the job.** A smaller model may be fast enough and good enough for hints (lesson 6 shows how to decide with an eval set, not a guess).",
+            "**A faster model for the job.** A smaller model may be fast enough and good enough for hints (lesson 2.3 shows how to decide with an eval set, not a guess).",
             "**A shorter input**, if TTFT is the problem: send the failing test and the relevant lines, not the whole file and the whole lesson.",
             "**Fewer sequential calls**, or calls in parallel.",
             "**Reuse answers** where it is correct to: the same challenge with the same error message may get the same first hint from a cache.",
         ]),
 
         h2("7. The cost/latency dashboard: review the script before you trust it"),
-        p("To follow BUG-2317 and the bill from lesson 4 in one place, the team asked an AI coding assistant for a small dashboard script. The request was:"),
+        p("To follow BUG-2317 and the bill from lesson 2.1 in one place, the team asked an AI coding assistant for a small dashboard script. The request was:"),
         code("text", `
 Write a script for our cost/latency dashboard. Input: recorded LLM calls of the hint bot
 (model, input tokens, output tokens, time to first token in ms, total time in ms) and the
@@ -147,7 +147,7 @@ the script.`, "request sent to the AI assistant"),
 
         h2("8. How to verify latency claims"),
         bullets([
-            "**Log three numbers per call**: `ttft_ms`, `total_ms` and `output_tokens`, next to the usage counts from lesson 4. With them you can tell \"the provider is slow today\" (TTFT up, speed down) from \"our answers got longer\" (output tokens up).",
+            "**Log three numbers per call**: `ttft_ms`, `total_ms` and `output_tokens`, next to the usage counts from lesson 2.1. With them you can tell \"the provider is slow today\" (TTFT up, speed down) from \"our answers got longer\" (output tokens up).",
             "**Measure what the learner sees** in the browser: `performance.now()` at the click, at the first rendered text and at the end. Server timings miss your own API, the network and rendering.",
             "**Report p50 and p95 per model and per prompt version**, over enough calls to have a tail (hundreds, not ten), and compare them with the latency budget of the feature.",
             "**Re-measure after every prompt change.** BUG-2317 was caused by a prompt edit, not by code or infrastructure.",
@@ -173,7 +173,7 @@ the script.`, "request sent to the AI assistant"),
         h2("Sources"),
         bullets([
             "OpenAI API documentation, text generation and streaming responses - platform.openai.com/docs/guides/text",
-            "Anthropic documentation, streaming Messages and prompt engineering - docs.anthropic.com",
+            "Anthropic documentation, streaming Messages and prompt engineering - platform.claude.com/docs",
             "Ollama documentation and model library (ollama run --verbose, eval_count, eval_duration) - ollama.com/library",
         ]),
         callout("tip", "Practice on your own (not graded)",

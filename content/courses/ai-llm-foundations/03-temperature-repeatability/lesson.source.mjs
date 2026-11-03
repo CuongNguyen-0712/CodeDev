@@ -46,7 +46,7 @@ candidate     temperature 0.5   temperature 1 (as computed)   temperature 1.5
 " a"               0.5%               5.0%                         9.5%`, "the same probabilities, reshaped"),
         p("At temperature 0 the pick becomes, in principle, \"always take the most likely token\". One different token early in an answer changes everything after it, because every later token is predicted from the text so far. That is why two runs can diverge into completely different explanations, not just different words."),
         bullets([
-            "**Ranges and defaults differ.** Many APIs accept 0 to 2 with a default of 1; Anthropic's Messages API accepts 0 to 1, default 1. Some reasoning models do not let you change temperature at all. Check the API reference of the model you call.",
+            "**Ranges and defaults differ.** Many APIs accept 0 to 2 with a default of 1; Anthropic's Messages API accepts 0 to 1, default 1. Some reasoning and newer models reject a non-default temperature, or temperature and top_p set together. Check the API reference of the model you call.",
             "**top_p is a second knob.** It limits the pick to the smallest set of most likely tokens whose probabilities add up to p (0.9 = the top 90%). Providers recommend changing temperature or top_p, not both.",
             "**Variety is sometimes the point.** \"Suggest a practice project\" or \"give me another example\" should vary; the same answer every time would be the bug there.",
         ]),
@@ -134,7 +134,7 @@ writeFileSync("fixtures/explain-runs.json", JSON.stringify(runs, null, 2));`, "r
         h2("Sources"),
         bullets([
             "OpenAI API docs, Chat Completions reference: temperature, top_p, seed and system_fingerprint - platform.openai.com/docs/guides/text",
-            "Anthropic docs, Messages API reference: temperature (and the note that temperature 0 is not fully deterministic) - docs.anthropic.com",
+            "Anthropic docs, Messages API reference: temperature (and the note that temperature 0 is not fully deterministic) - platform.claude.com/docs",
             "Ollama docs, Modelfile parameters: temperature, top_p, seed - ollama.com",
         ]),
         callout("tip", "Practice on your own (not graded)",

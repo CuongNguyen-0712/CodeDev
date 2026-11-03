@@ -74,7 +74,7 @@ GROUP  BY model;
 --  chat-large |    19842 |    600 |    1350 |    2210`, "usage per feature"),
 
         h2("3. Core idea: a request has more than one price"),
-        p("An LLM provider bills each request by tokens (lesson 1), and it prices the groups of tokens differently. The cost of one request is:"),
+        p("An LLM provider bills each request by tokens (lesson 1.1), and it prices the groups of tokens differently. The cost of one request is:"),
         code("text", `
 cost = ( uncached input tokens x input price
        + cached input tokens   x cached input price
@@ -88,7 +88,7 @@ local-8b       $0             -                  $0          your own machine (O
         callout("warning", "These are example prices, not today's prices",
             "Prices in this course are example prices per 1M tokens, chosen to make the arithmetic readable. Real prices differ between providers and models and change often. Always check the provider's current pricing page before you estimate, and put the date you checked next to the numbers in your estimate. A local model has no per-token price, but it is not free: you pay for the hardware, its electricity and the time to run it."),
         h3("Why output tokens usually cost more"),
-        p("The model reads the whole input in one pass, in parallel. It writes the output one token at a time, and every new token needs another full pass through the model (lesson 1). Output is the slow, expensive part of the work, and price tables reflect that: output prices several times the input price are common. That is why the hint bot's 1,350 output tokens cost about nine times as much as its 600 input tokens."),
+        p("The model reads the whole input in one pass, in parallel. It writes the output one token at a time, and every new token needs another full pass through the model (lesson 1.1). Output is the slow, expensive part of the work, and price tables reflect that: output prices several times the input price are common. That is why the hint bot's 1,350 output tokens cost about nine times as much as its 600 input tokens."),
         h3("What counts as input"),
         p("Input is everything you send, not just what the learner typed: the system prompt or instructions, examples, retrieved documents, the learner's code, and in a chat **every earlier message and answer**. A chat API does not remember the conversation between requests; to continue it, the app sends the history again. Think about what the tenth request of a conversation contains before you estimate a chat feature from its first message."),
         h3("Cached input and hidden output"),
@@ -131,16 +131,16 @@ projection, 30 days    = 0.0058 x 20,000 x 30      = $3,480`, "projection"),
         numbered([
             "**Measure first.** Average and p95 of input and output tokens per feature, from the usage log. Without it every change below is a guess.",
             "**Shorter output.** Ask for what the screen shows (\"one hint, at most 3 sentences, no full solution\") and set a maximum output token limit (`max_output_tokens`, `max_tokens`, `num_predict` in Ollama) as a safety cap. A cap cuts the answer off mid-sentence when it is reached, so it is a limit, not an instruction: the instruction is what makes answers short.",
-            "**Smaller input.** Send the failing test and the relevant part of the code, not the whole project; trim or summarise old chat turns (lesson 2).",
+            "**Smaller input.** Send the failing test and the relevant part of the code, not the whole project; trim or summarise old chat turns (lesson 1.2).",
             "**Reuse the stable prefix.** Put the long, unchanging instructions first so the provider's prompt cache can apply, then confirm the cached count in the usage object.",
-            "**A cheaper model for the easy cases.** Lesson 6 shows how to choose a model by quality, cost, latency and data. Do not switch models to save money before you have a way to check that the answers are still good enough.",
+            "**A cheaper model for the easy cases.** Lesson 2.3 shows how to choose a model by quality, cost, latency and data. Do not switch models to save money before you have a way to check that the answers are still good enough.",
         ]),
 
         h2("6. How to verify an estimate"),
         bullets([
             "**One day of real usage beats any spreadsheet.** Run the feature for a small share of learners, then compare your estimator's total for that day with the provider's usage page. They should agree to within rounding.",
             "**Recompute the bill from the export.** Input tokens x input price plus output tokens x output price must give the cost column. If it does not, you are missing a token group (cached, reasoning) or using the wrong price.",
-            "**Count tokens with the provider's tools, not with words or characters.** Use the provider's token-counting endpoint or tokenizer library on real prompts. Text in Vietnamese, code and JSON often take more tokens per word than English prose (lesson 1).",
+            "**Count tokens with the provider's tools, not with words or characters.** Use the provider's token-counting endpoint or tokenizer library on real prompts. Text in Vietnamese, code and JSON often take more tokens per word than English prose (lesson 1.1).",
             "**Set a budget alert** in the provider's console at, say, 120% of the projection. It is the alarm the hint bot did not have.",
         ]),
 
@@ -150,7 +150,7 @@ projection, 30 days    = 0.0058 x 20,000 x 30      = $3,480`, "projection"),
             "**Counting only what the user typed.** The system prompt, examples, retrieved documents and chat history are input too. Spot it: logged `input_tokens` is several times the length of the user's message.",
             "**Estimating from words or characters.** Token counts differ by language and content. Spot it: your estimate and the usage log disagree on input tokens before price even enters the picture.",
             "**Assuming every provider reports cached tokens the same way.** In some APIs the cached count is inside the input count, in others it is a separate number to add. Spot it: recompute one real response by hand from the provider's documentation.",
-            "**Mixing price units.** Some old price lists and blog posts quote per 1K tokens, current tables usually per 1M. Spot it: a cost per request that is a thousand times too high or too low compared with the usage page. Lesson 5 has a script with exactly this bug.",
+            "**Mixing price units.** Some old price lists and blog posts quote per 1K tokens, current tables usually per 1M. Spot it: a cost per request that is a thousand times too high or too low compared with the usage page. Lesson 2.2 has a script with exactly this bug.",
         ]),
 
         h2("8. Your turn: the estimate the hint bot needed"),
@@ -175,7 +175,7 @@ function estimate(input: Input): string[] {
         h2("Sources"),
         bullets([
             "OpenAI API documentation, text generation and the usage object of a response - platform.openai.com/docs/guides/text",
-            "Anthropic documentation, Messages API usage fields and prompt caching - docs.anthropic.com",
+            "Anthropic documentation, Messages API usage fields and prompt caching - platform.claude.com/docs",
             "Ollama documentation, REST API generate endpoint (prompt_eval_count, eval_count), linked from ollama.com; model list - ollama.com/library",
         ]),
         callout("tip", "Practice on your own (not graded)",
