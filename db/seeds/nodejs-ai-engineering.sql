@@ -132,14 +132,14 @@ const moduleRef = await Test.createTestingModule({ imports: [HintsModule] })
   .overrideProvider(LLM_GATEWAY).useValue(fake)
   .compile();
 
-const result = await moduleRef.get(HintService).requestHint("u_1042", "c_17");
+const result = await moduleRef.get(HintService).requestHint("u_1042", "c_17", "function sum(xs) { return 0; }");
 expect(result).toEqual({ ok: false, error: "hint_unavailable" });
 expect(fake.calls).toHaveLength(1);
 
 $ grep -rn "fetch(" src/hints src/llm
 src/llm/http-llm.gateway.ts:41:    const res = await fetch(this.url, {
 
-Statement: "This test checks how HintService handles a model timeout without making any network call."', 'single_choice'::question_type, 'True. HintService only knows the LLM_GATEWAY token and the LlmGateway interface; overrideProvider replaces HttpLlmGateway with the fake before the module is compiled, so HttpLlmGateway is never created and the only fetch in the code (in http-llm.gateway.ts) never runs. The fake throws the scripted timeout, and the test checks the service''s decision: one call, then a typed "hint_unavailable" result instead of an exception. The real adapter gets its own small test against recorded responses, and an occasional smoke test against the provider outside the normal test run. The misconception is that an LLM feature can only be tested by calling a real model. The model is slow, costs money and answers differently each time; the logic around it can be tested with a fake that follows the same interface.', 2, 5
+Statement: "This test checks how HintService handles a model timeout without sending any request to the model provider."', 'single_choice'::question_type, 'True. HintService only knows the LLM_GATEWAY token and the LlmGateway interface; overrideProvider replaces HttpLlmGateway with the fake before the module is compiled, so HttpLlmGateway is never created and the only fetch in the code (in http-llm.gateway.ts) never runs. The fake throws the scripted timeout, and the test checks the service''s decision: one call, then a typed "hint_unavailable" result instead of an exception. The real adapter gets its own small test against recorded responses, and an occasional smoke test against the provider outside the normal test run. The misconception is that an LLM feature can only be tested by calling a real model. The model is slow, costs money and answers differently each time; the logic around it can be tested with a fake that follows the same interface.', 2, 5
     WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_nae_111') AND order_index = 2)
     RETURNING id
 )
@@ -384,7 +384,7 @@ The repair request that was sent as call 2:
          Errors:
          - level: must be 1, 2 or 3
 
-Statement: "Call 2 cost about 6% of the input tokens of call 1 because the repair request carried only the invalid answer and the validator''s error, not the system prompt, the failing test and the learner''s code again."', 'single_choice'::question_type, 'True. 131 input tokens against 2318 is about 6%. The repair request has two short messages: the repair instruction with the schema, and the invalid answer plus the exact error from validateHint. That is all the model needs to fix a shape problem: the hint text is already there, only the level is wrong. The common mistake is to append the repair to the whole conversation (system prompt, learner code, first answer, repair), which pays for the learner''s code a second time on every repair and gives the model more text to get wrong.', 1, 5
+Statement: "Call 2 cost about 6% of the input tokens of call 1 because the repair request carried only the invalid answer and the validator''s error, not the hint system prompt, the failing test and the learner''s code again."', 'single_choice'::question_type, 'True. 131 input tokens against 2318 is about 6%. The repair request has two short messages: the repair instruction with the schema, and the invalid answer plus the exact error from validateHint. That is all the model needs to fix a shape problem: the hint text is already there, only the level is wrong. The common mistake is to append the repair to the whole conversation (system prompt, learner code, first answer, repair), which pays for the learner''s code a second time on every repair and gives the model more text to get wrong.', 1, 5
     WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_nae_211') AND order_index = 1)
     RETURNING id
 )
@@ -432,7 +432,7 @@ VALUES ('chal_coding_nae_212', (SELECT id FROM catalog.course WHERE public_id = 
 
 1. Send hintMessages(req) with llm.complete(messages).
 2. If complete() throws an LlmError with a transient status (429, 502, 503 or 504) and fewer than opts.maxRetries retries were used in this getHint call, await clock.sleep(opts.baseDelayMs * 2 ** (n - 1)), where n is the number of this retry counted over the whole call (1, 2, 3 ...), then send the same messages again. Any other status (400, 401, 403 ...), or a transient one with no retry left, ends with the fallback and reason "error <status>".
-3. Check a reply with validateHint(reply.text). No errors: return the parsed hint with source "model" (answer to the first request) or "repair" (answer to a repair request). Errors and fewer than opts.maxRepairs repairs sent: send repairMessages(reply.text, errors) - only those two messages, not the original conversation - and check that reply the same way. Errors and no repair left: fallback with reason "invalid output".
+3. Check a reply with validateHint(reply.text). No errors: return the parsed hint with source "model" (answer to the first request) or "repair" (answer to a repair request). Errors and fewer than opts.maxRepairs repairs sent: send repairMessages(reply.text, errors) - only those two messages, not the original conversation - and check that reply the same way. Errors and no repair left: fallback with reason "invalid output". A Reply has no finish reason here, so an answer that was cut off is handled like any other invalid reply (in production, with a finish reason such as finish=length, the lesson says not to repair it).
 4. The fallback is FALLBACK_HINT with source "fallback"; reason is null when the hint came from the model.
 5. Return calls (every call to complete, including those that threw) and inputTokens / outputTokens (sums of reply.usage over the replies that came back).
 

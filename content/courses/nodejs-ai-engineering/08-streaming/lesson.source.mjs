@@ -150,7 +150,7 @@ switch (result.status) {
         h2("6. How to verify"),
         bullets([
             "**Replay recordings with hostile cuts.** Save real streams with `curl -N ... > hint.sse`, then feed them to the parser cut at every byte offset, not just at event boundaries. A parser that passes for every single cut position is correct for any network.",
-            "**Reproduce truncation in DevTools.** In the Network panel, open the hint request and watch the **EventStream** tab fill up; then switch throttling to **Offline** in the middle of an answer. The UI must show \"interrupted\", and the `tutor_hints` table must have no new `done` row.",
+            "**Reproduce truncation in DevTools.** In the Network panel, start a hint and switch throttling to **Offline** in the middle of an answer (the **EventStream** tab lists events for EventSource connections; for a fetch stream, log each parsed event in the console instead). The UI must show \"interrupted\", and the `tutor_hints` table must have no new `done` row.",
             "**Count end states.** A dashboard with `complete`, `error` and `truncated` per hour. Truncations that cluster at one duration (30 s in the incident) point at an idle timeout; truncations after a deploy point at the proxy configuration.",
             "**Check the data.** `SELECT count(*) FROM tutor_hints WHERE status = 'done' AND strpos(text, chr(65533)) > 0` finds hints that were saved with replacement characters. It must stay at zero after the fix.",
         ]),

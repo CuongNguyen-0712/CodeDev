@@ -67,8 +67,8 @@ key in /_next/static/chunks/app/learn/[id]/page-1a2b3c4d.js`, "terminal"),
         bullets([
             "**The key is money.** Anyone who has it can spend your quota on anything. Nothing that runs in a browser can keep a secret, obfuscated or not.",
             "**The prompt is part of your product.** In the browser it can be read and changed. On the server, the learner sends ids (`challengeId`, the code) and the server decides what the model sees.",
-            "**Limits need an identity.** Per-user rate limits and token budgets (lesson 9) only work where you know who is asking: on the server, after authentication.",
-            "**The answer needs checking.** Output validation (lesson 3), retries and fallbacks (module 2) and solution-leak checks (lesson 10) run before the learner sees anything. The browser cannot be trusted to run them.",
+            "**Limits need an identity.** Per-user rate limits and token budgets (lesson 3.3) only work where you know who is asking: on the server, after authentication.",
+            "**The answer needs checking.** Output validation (lesson 1.3), retries and fallbacks (module 2) and solution-leak checks (lesson 4.1) run before the learner sees anything. The browser cannot be trusted to run them.",
         ]),
         h3("One gateway module owns every model call"),
         p("Once calls move to the server, the next question is where on the server. If `HintService`, `ReviewService` and `ExplainErrorService` each import the provider SDK, you get three timeouts, three log formats, three ideas of which model to use, and nobody can answer \"what did we spend on hints yesterday?\" The simplest design that holds up is **one module that is the only code allowed to call a model**:"),
@@ -79,7 +79,7 @@ key in /_next/static/chunks/app/learn/[id]/page-1a2b3c4d.js`, "terminal"),
             "**Cost:** the provider returns token usage with each response; the gateway turns it into an estimated cost with a price table from configuration and logs it per feature.",
             "**The key:** read from server-side configuration, used in exactly one file.",
         ]),
-        p("Everything else in the course plugs into this module: versioned prompts (lesson 2), validation (lesson 3), retries and fallback (lessons 4-5), budgets (lesson 9) and caching (lesson 11)."),
+        p("Everything else in the course plugs into this module: versioned prompts (lesson 1.2), validation (lesson 1.3), retries and fallback (lessons 2.1-2.2), budgets (lesson 3.3) and caching (lesson 4.2)."),
         h3("When not to build more than this"),
         bullets([
             "**Not a separate service.** In a modular monolith (the NestJS course before this one) the gateway is a module with an exported interface. Split it out only when another deployable needs it and you can measure why.",
@@ -97,7 +97,7 @@ export type StopReason = "end" | "max_tokens" | "refused" | "other";
 
 export interface CompletionRequest {
     feature: LlmFeature;
-    promptRef: string;                 // "hint-v3@3" - which template produced the prompt (lesson 2)
+    promptRef: string;                 // "hint-v3@3" - which template produced the prompt (lesson 1.2)
     system: string;
     user: string;
     maxOutputTokens: number;
@@ -178,7 +178,7 @@ export class HintService {
                 feature: "hint", promptRef: "hint-v3@3", userRef, maxOutputTokens: 300,
                 system: HINT_SYSTEM_PROMPT, user: \`Challenge: \${challenge.title}\\n\\nLearner code:\\n\${code}\`,
             });
-            return { ok: true, text: result.text };          // lesson 3 validates this before it is returned
+            return { ok: true, text: result.text };          // lesson 1.3 validates this before it is returned
         } catch (error) {
             if (error instanceof LlmError) return { ok: false, error: "hint_unavailable" };
             throw error;
@@ -205,7 +205,7 @@ export class FakeLlmGateway implements LlmGateway {
                  usage: { inputTokens: 0, outputTokens: 0 }, latencyMs: 0 };
     }
 }`, "src/llm/fake-llm.gateway.ts"),
-        p("Scripted texts can be written by hand or copied from **recorded fixtures**: real responses saved once (with personal data removed) and replayed forever. Lesson 12 builds a full test suite on this; for now the point is that the hint feature can be tested on day one, and that a timeout, a rate limit and a cut-off answer are as easy to script as a good answer."),
+        p("Scripted texts can be written by hand or copied from **recorded fixtures**: real responses saved once (with personal data removed) and replayed forever. Lesson 4.3 builds a full test suite on this; for now the point is that the hint feature can be tested on day one, and that a timeout, a rate limit and a cut-off answer are as easy to script as a good answer."),
 
         challenge("chal_quiz_nae_111"),
 

@@ -80,13 +80,13 @@ Array.isArray(answer.references)   // false`, "node REPL"),
             "**`additionalProperties: false`** rejects keys you did not ask for. The day the model adds `\"solution\": \"...\"` to be helpful, the answer is rejected instead of being forwarded to the page.",
             "**`enum: [1, 2, 3]`** accepts the numbers only. The string `\"2\"` is a different JSON value and fails, which is exactly the incident.",
             "**`maxLength` and `maxItems`** are product limits: the hint card has room for 400 characters and three links.",
-            "**The schema belongs to the prompt version.** Changing the schema changes what the prompt asks for, so it is a new prompt version (lesson 2).",
+            "**The schema belongs to the prompt version.** Changing the schema changes what the prompt asks for, so it is a new prompt version (lesson 1.2).",
         ]),
         h3("Structured output helps, validation decides"),
         p("Many providers can constrain a model to produce JSON that follows a schema you send with the request (often called structured output or JSON mode). Use it when your provider and model support it: invalid answers become much rarer. But keep the server-side validator, because:"),
         bullets([
             "**Answers can be cut off.** An answer that hits the output token limit stops in the middle of a string, whatever the schema says (`stopReason: \"max_tokens\"`).",
-            "**Support differs.** Which schema keywords are enforced (`maxLength`? `maxItems`?) differs between providers and models, and a fallback model (lesson 5) may not support the feature at all. Check the provider's current docs; do not assume.",
+            "**Support differs.** Which schema keywords are enforced (`maxLength`? `maxItems`?) differs between providers and models, and a fallback model (lesson 2.2) may not support the feature at all. Check the provider's current docs; do not assume.",
             "**Refusals and errors have other shapes.** A model that declines to answer may return text or a refusal field instead of your object.",
             "**Your limits are yours.** A string that is valid JSON can still be 4,000 characters long or blank.",
         ]),
@@ -96,7 +96,7 @@ Array.isArray(answer.references)   // false`, "node REPL"),
             "**Strip one fence, only around the whole answer.** A first line of three backticks (optionally followed by `json`) and a last line of three backticks around the entire output is a formatting habit and is safe to remove. Prose before or after the fence means the model ignored the instruction: reject.",
             "**Do not search for JSON inside prose.** Which block is the answer when the hint itself contains a code example in a fence? You cannot know, so do not guess.",
             "**Collect every error, with its path.** `$.level: expected 1, 2 or 3` and `$.references: expected an array` in one log line tell you what changed in the model's behaviour; a single `invalid output` does not.",
-            "**Repair is a separate, counted decision.** Retrying with the error messages, or a deliberate fix-up, is lesson 4. It happens after validation, is limited, and shows up in metrics.",
+            "**Repair is a separate, counted decision.** Retrying with the error messages, or a deliberate fix-up, is lesson 2.1. It happens after validation, is limited, and shows up in metrics.",
         ]),
         h3("When not to"),
         bullets([
@@ -143,9 +143,9 @@ if (!parsed.ok) {
     // paths only: the learner's code and the model's text stay out of the normal log
     this.logger.warn({ event: "llm.output_invalid", promptRef: rendered.ref, stopReason: result.stopReason, errors: parsed.errors });
     this.metrics.increment("hint_output_invalid_total", { promptRef: rendered.ref });
-    return { ok: false, error: "hint_unavailable" };     // lesson 4: retry once with the errors
+    return { ok: false, error: "hint_unavailable" };     // lesson 2.1: retry once with the errors
 }
-if (parsed.value.revealsSolution) return { ok: false, error: "hint_unavailable" };   // policy, lesson 10
+if (parsed.value.revealsSolution) return { ok: false, error: "hint_unavailable" };   // policy, lesson 4.1
 return { ok: true, hint: parsed.value };`, "hint.service.ts"),
         p("Notice the split of responsibilities: the validator only answers \"is this the shape we agreed on?\". `revealsSolution: true` is a valid answer, and what the product does with it is the service's decision."),
 
