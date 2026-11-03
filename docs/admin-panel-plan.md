@@ -965,7 +965,7 @@ Chọn **kết hợp, điểm lưu theo người**: mỗi người học một p
 
 | Bước | Việc |
 |---|---|
-| P9.1 | Migration: bảng, cột, trigger; test trigger (thêm / sửa / xoá / ẩn phiếu, xoá user) |
+| ~~P9.1~~ | Migration: bảng, cột, trigger; test trigger (thêm / sửa / xoá / ẩn phiếu, xoá user) — xong 2026-11-03: `20261103_012_course_rating.sql` (đã chạy local, chưa chạy production; chỉ thêm nên chạy trước hay sau deploy đều được), `__tests__/learning/courseRating.integration.test.js` |
 | P9.2 | API: `GET/PUT /api/course/:id/rating` (điều kiện, rate limit), `ratePrompt` trong kết quả hoàn thành bài; test điều kiện và mốc |
 | P9.3 | Giao diện học viên: hộp mời chấm, "Your rating" trên trang khoá, sao trong form bình luận và cạnh tên người viết, hiển thị `rating_avg` + số phiếu |
 | P9.4 | Admin: biểu đồ trong tab Feedback, ẩn phiếu, cảnh báo Overview, view Grafana |
