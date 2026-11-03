@@ -197,7 +197,7 @@ Rủi ro:
 | B2 | `900d2582` | `/course/[id]` là Server Component (`courseContent.jsx`, không hook). Island trong `courseIslands.jsx`: nút quay lại, badge ghi danh, nút mua / ghi danh / yêu thích, ảnh bìa, logo, comment, thanh mua trên điện thoại. `previewPage` là đường dự phòng phía client (khoá chưa publish, tải lỗi) |
 | B3 | `2edc3541` | Kệ khoá học ở landing và about nhận dữ liệu qua props từ server. `/roadmap/[id]` render bản khách từ dữ liệu server; chỉ đọc React Query khi đã đăng nhập |
 | B4 | `f1d36b78` | Catalog đọc `searchParams` / session trong component con. Sau đó đổi lại ở B5, xem bên dưới |
-| B5 | (commit này) | `cacheComponents: true` (`partialPrefetching` vẫn `false`). Lấy lại từ nhánh WIP: bỏ 16 `force-dynamic`, `lib/cachedData.js` (`'use cache'` cho thống kê, kệ khoá học, khoá học public, kiểm tồn tại, roadmap public; id prerender sẵn), `lib/hydrate.js`, `lib/pageCache.js` dùng `revalidateTag(tag, "max")`, footer `'use cache'`. `apiRoute` gọi `connection()` trước khi đọc cookie (bỏ 37 log `HANGING_PROMISE_REJECTION` lúc build). `<Suspense>` + skeleton cho trang private và trang auth đọc React Query / thời gian lúc render. `instant = false` cho `/home` (redirect onboarding), `/profile/[id]`, `/learning/[id]`, `/orders/[id]`, `/checkout/mock/[orderId]`, `/admin`, `/studio` (thư mục bị gitignore, sửa tay) |
+| B5 | `2beccb76` | `cacheComponents: true` (`partialPrefetching` vẫn `false`). Lấy lại từ nhánh WIP: bỏ 16 `force-dynamic`, `lib/cachedData.js` (`'use cache'` cho thống kê, kệ khoá học, khoá học public, kiểm tồn tại, roadmap public; id prerender sẵn), `lib/hydrate.js`, `lib/pageCache.js` dùng `revalidateTag(tag, "max")`, footer `'use cache'`. `apiRoute` gọi `connection()` trước khi đọc cookie (bỏ 37 log `HANGING_PROMISE_REJECTION` lúc build). `<Suspense>` + skeleton cho trang private và trang auth đọc React Query / thời gian lúc render. `instant = false` cho `/home` (redirect onboarding), `/profile/[id]`, `/learning/[id]`, `/orders/[id]`, `/checkout/mock/[orderId]`, `/admin`, `/studio` (thư mục bị gitignore, sửa tay) |
 
 **Bài học ở B5:** khi nội dung chính của trang phụ thuộc request (danh sách catalog theo URL và viewer), đặt nó sau `<Suspense>` để có shell PPR là **lùi bước**. Nội dung được stream vào segment ẩn và chỉ hiện khi React reveal: `/course` LCP 1.6 s → 5.7 s trên mobile chậm. Vì vậy `/course` và `/roadmap` dùng `instant = false` và render chặn như R1 (LCP đo lại 1.94 s). PPR chỉ có ích khi phần động **nhỏ** so với phần tĩnh.
 
@@ -210,6 +210,12 @@ Kết quả bảng route (build có Cache Components):
 Kiểm chứng: test 398 pass, lint 0 lỗi, `npm run budget` OK (`/` 1102/1160 KB). Bản production local: các trang công khai trả 200; khoá không tồn tại 404. Khi đã đăng nhập: `/home`, `/learning`, `/ranking`, `/orders`, `/profile`, `/settings`, `/contact`, trang khoá học (nút viewer đúng) và workspace bài học (editor) không lỗi. `/course/[id]` là HIT, `x-nextjs-prerender: 1`, `s-maxage=300`; LCP 2.06 s, CLS 0.04 (R2: 1.77 s / 0.02).
 
 **Đổi hành vi cần biết:** `/profile/<không tồn tại>` giờ trả **200** với trang "Page not found" và `noindex` (soft 404), thay vì status 404. Lý do: khung shell tĩnh đã gửi đi trước khi page gọi `notFound()`. Muốn có lại 404 thật thì đưa `/profile/[id]` ra khỏi route group `(shell)` hoặc cho layout biết sớm. Chưa làm.
+
+## Trạng thái B6 (2026-11-03)
+
+- `partialPrefetching: true`. Hiện không có `<Link prefetch={true}>` cũ nào cần chuyển. Link tiêu đề trên thẻ khoá học (catalog) và kệ khoá học (landing) thêm `prefetch`: trang khoá học đã cache toàn bộ, nên link tải trước cả nội dung của URL đó, không chỉ App Shell.
+- Kiểm chứng (bản production local): catalog gửi request RSC tải trước (`/course/<id>?_rsc=…`); bấm sang trang chi tiết hiện tiêu đề sau khoảng 200 ms (mạng Slow 4G, CPU không giới hạn). Khoá ngoài 12 khoá prerender sẵn: lần đầu render theo yêu cầu, lần sau HIT.
+- Build không có cảnh báo mới.
 
 ## 7. Không làm
 

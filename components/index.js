@@ -229,7 +229,7 @@ export function CourseShelf({
             <ul className="grid list-none gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-4">
                 {courses.map((course, index) => (
                     <li key={course.id} className="animate-enter" style={{ "--enter-index": index }}>
-                        <Link href={`/course/${course.id}`} className="group/shelf flex flex-col gap-3 rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50">
+                        <Link href={`/course/${course.id}`} prefetch className="group/shelf flex flex-col gap-3 rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50">
                             <span className="block aspect-video overflow-hidden rounded-md bg-muted">
                                 {course.image && (
                                     // eslint-disable-next-line @next/next/no-img-element

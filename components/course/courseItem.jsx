@@ -142,6 +142,9 @@ export const CourseItem = ({ item, priority = false }) => {
                         <h3 className="text-sm leading-snug font-semibold">
                             <Link
                                 href={`/course/${item.id}`}
+                                // The course page is fully cached (lib/cachedData), so Partial Prefetching
+                                // can fetch this course, not only the shared shell, before the click.
+                                prefetch
                                 className="line-clamp-2 rounded-sm text-foreground hover:text-primary-ink hover:underline hover:underline-offset-4 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
                                 title={item.title}
                             >

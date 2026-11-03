@@ -5,7 +5,9 @@ const nextConfig = {
     // Cache Components (Partial Prerendering): static shell + cached data ('use cache') + runtime
     // data streamed behind <Suspense>. See docs/rendering-strategy-plan.md.
     cacheComponents: true,
-    partialPrefetching: false,
+    // <Link> prefetches each route's App Shell once; `prefetch` on a link also fetches that URL's
+    // cached content (course cards).
+    partialPrefetching: true,
     experimental: {
         // Avatar uploads go through a server action; the service enforces the real 5 MB limit
         // (the default 1 MB would reject larger photos before validation runs).
