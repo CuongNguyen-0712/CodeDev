@@ -825,6 +825,7 @@ Trạng thái tính tới 2026-11-01 (sau khi deploy `7496176c`). "Mở" là ch�
 1. Có cần instructor là người dùng thật (đăng nhập, soạn và gửi duyệt course của mình) không? Nếu có, P4 thêm `catalog.course_instructor` và trạng thái `in_review`.
 2. Course manager có được xem source code người học (`submission.read`) không, hay chỉ admin?
 3. Ai là super admin đầu tiên trên production, và có cần người thứ hai làm dự phòng không?
+4. Điểm đánh giá khoá học: bỏ số "Rated x out of 5" nhập tay, hay cho người đã ghi danh chấm 1–5 sao (11.2 mục 3)?
 
 ## 10. Rà soát AD-01…AD-06 và security audit (2026-11-02)
 
@@ -881,3 +882,40 @@ Mỗi bước một commit, có test. Thứ tự theo rủi ro rồi tới UX.
 | Vận hành | Tạo `grafana_ro` bằng SQL và kiểm không thuộc `neon_superuser` | S5 | Làm cùng bước 8 ở mục 0 |
 
 Không làm: AD-02 (mật khẩu tạm), trang `/admin/login`, hint tài khoản demo, xoá cứng tài khoản, thêm stat card trùng tab.
+
+## 11. Dữ liệu và insight còn thiếu: feedback, bình luận, đánh giá (2026-11-03)
+
+### 11.1 Hiện trạng dữ liệu
+
+| Dữ liệu | Có trong DB | Người học thấy | Admin thấy |
+|---|---|---|---|
+| Bình luận theo khoá học | `community.comment` (`reference_id` = course, nội dung, upvote / downvote, `is_hidden`, `is_deleted`), có index theo course | Danh sách trên trang khoá học, vote | **Không**: không xem, không đếm, không ẩn được; `is_hidden` chưa có chỗ nào bật |
+| Feedback chung của site | `community.feedback` (tiêu đề, nội dung, user hoặc ẩn danh), ghi từ "Send feedback" trên navbar | Chỉ gửi | **Không**: chỉ có lệnh ghi, không ai đọc được |
+| Điểm đánh giá khoá học | `catalog.course.rating` là một số nhập tay (1 khoá có giá trị ở local); `community.comment.rating` luôn là 1 vì form bình luận không gửi điểm | Thẻ khoá học hiện "Rated x out of 5" | Không. **Điểm này không đến từ người học** |
+
+Các insight đang có: Overview (người học hoạt động, bài nộp, code run, đăng ký mới, việc cần xử lý), KPI nội dung theo khoá (tỉ lệ làm / qua từng challenge, số lần thử, câu hỏi khó, tỉ lệ hoàn thành, hint), Runs, System, Audit, Orders.
+
+### 11.2 Còn thiếu (theo thứ tự giá trị)
+
+1. **Bình luận theo khoá** trong admin: xem, đếm, ẩn / hiện bình luận vi phạm. Đây là nội dung do người dùng tạo duy nhất hiện công khai trên site mà chưa ai kiểm duyệt được.
+2. **Hộp thư feedback**: đọc feedback gửi từ navbar, đánh dấu đã xử lý.
+3. **Điểm đánh giá thật** (cần quyết định, mục 9): hoặc bỏ số "Rated x" nhập tay khỏi thẻ khoá học, hoặc cho người đã ghi danh chấm 1–5 sao (một lần mỗi khoá, sửa được) và tính trung bình + số lượt.
+4. **Phễu theo khoá**: ghi danh → bắt đầu → hoàn thành, và bài học nơi người học dừng nhiều nhất (dữ liệu có trong tiến độ học).
+5. **Giữ chân**: người học hoạt động theo tuần (WAU) 8 tuần gần nhất. Nên làm trong Grafana (view `metrics`), không thêm màn admin.
+
+### 11.3 Thiết kế (P8)
+
+**Quyền mới** (super admin tự có qua trigger): `comment.moderate` cho `admin`, `course_manager`; `feedback.read` cho `admin`.
+
+**Course detail, tab "Feedback"** (`/admin/courses/:id?tab=feedback`, cần `comment.moderate`):
+- Dòng tóm tắt kiểu finding: số bình luận, 30 ngày gần nhất, số đang ẩn, (khi có điểm thật) điểm trung bình và số lượt.
+- Bảng bình luận mới nhất trước, phân trang keyset: người viết (username, link tới user nếu có `user.read`), nội dung (cắt dòng, mở sheet xem đủ), upvote / downvote, ngày, trạng thái. Lọc: tất cả / đang hiện / đã ẩn / nhiều downvote.
+- Hành động: Ẩn / Hiện, bắt buộc lý do, ghi audit `comment.hide` / `comment.show`, xoá cache bình luận của khoá. Không xoá cứng (người viết tự xoá được của mình).
+
+**Màn "Feedback"** (`/admin/feedback`, mục mới trên sidebar, cần `feedback.read`):
+- Tab "Inbox": feedback từ navbar, mới nhất trước; người gửi (hoặc "Anonymous"), tiêu đề, nội dung; đánh dấu đã xử lý / mở lại (audit). Cần migration: `community.feedback` thêm `handled_at`, `handled_by`.
+- Tab "Comments": bình luận mới của mọi khoá (cho người có `comment.moderate`), cùng bảng và hành động như tab của khoá.
+
+**Overview**: thêm vào "Needs attention" số feedback chưa xử lý và bình luận 7 ngày qua (mỗi số chỉ hiện với người có quyền tương ứng).
+
+**Thứ tự**: P8.1 quyền + tab Feedback của khoá (không migration ngoài quyền); P8.2 hộp thư feedback (migration `handled_at`); P8.3 điểm đánh giá thật hoặc bỏ số giả (sau khi chốt mục 9); P8.4 phễu theo khoá trong KPI nội dung.
