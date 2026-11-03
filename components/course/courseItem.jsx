@@ -1,4 +1,5 @@
 import { useState, useTransition } from "react";
+import { preload } from "react-dom";
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
@@ -12,7 +13,7 @@ import { commerceQueries } from "@/queries/premium.query";
 import { userQueries } from "@/queries/user.query";
 import { FIT_LABELS, courseFit, levelOverride, recommendedLevel } from "@/lib/levels";
 import { coverSrcSet, fitCover } from "@/lib/coverFit";
-import { LEVEL_ICON, formatDuration } from "./courseMeta";
+import { CARD_COVER_SIZES, LEVEL_ICON, formatDuration } from "./courseMeta";
 
 import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
@@ -31,6 +32,12 @@ import {
 } from "react-icons/lu";
 
 export const CourseItem = ({ item, priority = false }) => {
+    // A first-row cover is the catalog's largest paint: fetched from the <head>, not when the parser
+    // reaches it deep in a 200 KB page.
+    if (priority && item.image) {
+        preload(item.image, { as: "image", fetchPriority: "high", imageSrcSet: coverSrcSet(item.image), imageSizes: CARD_COVER_SIZES });
+    }
+
     const level = levelMapping[item.level] || levelMapping['beginner'];
     const LevelIcon = LEVEL_ICON[item.level] || LuSignalLow;
     const premium = isPremium(item);
@@ -109,7 +116,7 @@ export const CourseItem = ({ item, priority = false }) => {
                         ref={fitCover}
                         src={item.image}
                         srcSet={coverSrcSet(item.image)}
-                        sizes="(min-width: 1280px) 360px, (min-width: 640px) 50vw, 100vw"
+                        sizes={CARD_COVER_SIZES}
                         alt=""
                         loading={priority ? "eager" : "lazy"}
                         fetchPriority={priority ? "high" : "auto"}

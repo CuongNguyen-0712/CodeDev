@@ -186,6 +186,9 @@ function Syllabus({ modules }) {
 
 /** Everything inside <main> for a loaded course. */
 export function CourseContent({ course, courseId }) {
+    // No preload() for the cover: the page is 69 KB, so the parser reaches the <img> with the first
+    // chunks and the request starts at the same time either way (measured: 650-680 ms on a slow
+    // phone, which is the network floor to the image host).
     const modules = Array.isArray(course.modules) ? course.modules : [];
     const prerequisites = Array.isArray(course.prerequisites) ? course.prerequisites : [];
     const level = levelMapping?.[course.level];

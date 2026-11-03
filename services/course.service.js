@@ -1,6 +1,7 @@
 import crypto from "crypto";
 
 import { courseDb } from "@/db/course.db";
+import { existsDb } from "@/db/exists.db";
 import { ApiError } from "@/lib/error/apiError";
 import { redis } from "@/lib/cache";
 import { cacheKeys, TTL, invalidateUserCache, rememberForUser } from "@/lib/cacheKeys";
@@ -85,7 +86,7 @@ export const courseService = {
     },
 
     /** Exists and is not deleted, published or not: tells a real 404 from an unpublished course. */
-    exists: async (courseId) => (await courseDb.courseExists(courseId)).rowCount > 0,
+    exists: async (courseId) => (await existsDb.course(courseId)).rowCount > 0,
 
     /**
      * Catalog list. `filter` comes from lib/listFilters (validated). Results are cached per

@@ -12,6 +12,7 @@ import { useRouterActions } from "@/router/useRouterActions";
 import { useCourseDetails } from "@/hooks/useCourseDetails";
 import { useCourseFavorite, useCourseUnfavorite } from "@/mutations/course.mutation";
 import { coverSrcSet, fitCover } from "@/lib/coverFit";
+import { PAGE_COVER_SIZES } from "../courseMeta";
 import { cn } from "@/lib/utils";
 import { PurchaseActions } from "@/components/commerce/purchaseActions";
 
@@ -121,7 +122,7 @@ export function CourseCover({ src }) {
                 ref={fitCover}
                 src={src}
                 srcSet={coverSrcSet(src)}
-                sizes="(min-width: 1024px) 360px, (min-width: 640px) 50vw, 100vw"
+                sizes={PAGE_COVER_SIZES}
                 // The cover is the page's largest paint.
                 fetchPriority="high"
                 alt=""

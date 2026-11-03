@@ -223,6 +223,40 @@ Kiểm chứng: test 398 pass, lint 0 lỗi, `npm run budget` OK (`/` 1102/1160 
 - Kiểm chứng (bản production local): catalog gửi request RSC tải trước (`/course/<id>?_rsc=…`); bấm sang trang chi tiết hiện tiêu đề sau khoảng 200 ms (mạng Slow 4G, CPU không giới hạn). Khoá ngoài 12 khoá prerender sẵn: lần đầu render theo yêu cầu, lần sau HIT.
 - Build không có cảnh báo mới.
 
+## Đánh giá lại Bước B (2026-11-03, sau B6)
+
+### Số đo lại, 3 lần (mobile, CPU 4×, Slow 4G, build production local)
+
+| Route | R1/R2 (1 lần) | Sau B6 (3 lần) | Ghi chú |
+|---|---|---|---|
+| `/course/[id]` LCP | 1,77 s | 2,02 / 2,19 / 2,06 s | Chậm hơn khoảng 0,3 s, cùng chiều cả 3 lần: render delay 1,36-1,49 s (R2: 1,13 s). HTML 69 KB |
+| `/course` LCP | 1,59 s | 1,94 / 2,46 s | Load delay 0,65-1,32 s: ảnh LCP nằm sâu trong HTML 197 KB nên trình duyệt phát hiện muộn |
+| Catalog → chi tiết (click) | 1 round trip | ~200 ms | Nhờ Partial Prefetching (B6) |
+| CLS `/course/[id]` | 0,02 | 0,04 | Skeleton nút hành động → nút thật |
+
+Kết luận thẳng: **tải lần đầu không nhanh hơn, hơi chậm hơn**; cái được là điều hướng nội bộ, shell tĩnh và cache có tag, cộng việc đi trước mặc định của Next ở bản major sau. Chi phí: phức tạp hơn (`lib/cachedData`, `lib/hydrate`, `lib/pageExistence`, `instant = false` ở 8 route).
+
+### Chi phí ẩn tìm thấy
+
+- **Bundle của proxy 521 KB**: `lib/pageExistence` kéo cả `db/course.db.js`, `db/profile.db.js`, `db/roadmap.js` (toàn bộ bộ query) vào proxy, chạy ở mọi request trang. Pool DB tạo lazy nên chỉ tốn load module, nhưng vẫn thừa. **Đã sửa**: ba query tồn tại chuyển sang `db/exists.db.js`, proxy chỉ import module này. Bundle còn 495 KB: phần lớn là `next-auth/jwt`, driver DB (`lib/db`), `path-to-regexp` và CSP admin, có từ trước.
+- **Prefetch trên thẻ khoá học**: desktop `/course` gửi 17 request RSC (33 KB) trong 7 giây, 7 là trang khoá học trong viewport. Chấp nhận được; đánh đổi nếu muốn giảm: bỏ `prefetch` trên thẻ (chỉ còn App Shell), điều hướng thêm 1 round trip.
+- **Ảnh LCP phát hiện muộn**: thử `preload()` của `react-dom` (link preload trong `<head>`) cho cả hai trang, kiểm bằng Resource Timing:
+  - `/course` (HTML 197 KB): hai ảnh bìa đầu bắt đầu tải ở 0,69 s thay vì 1,3-3,0 s (ảnh thứ ba, không preload, bắt đầu ở 3,06 s). **Giữ** (`CourseItem` với `priority`).
+  - `/course/[id]` (HTML 69 KB): ảnh bắt đầu tải ở 0,66 s cả khi có lẫn không có preload, vì `<img>` đã nằm trong chunk HTML đầu tiên. Đó là sàn mạng tới host ảnh ngoài (DNS + TLS trên Slow 4G). **Bỏ**. Lần đo có preload cho 3,0 s (2 lần), không giải thích được bằng preload; xem ghi chú nhiễu bên dưới.
+- **Nhiễu đo**: các lần đo trong lượt này lệch tới ±0,5 s cho cùng một trang (`/course` 1,94 / 2,46 / 2,93 s). Máy chạy đồng thời dev server và worker của build. Mọi kết luận "chậm hơn 0,3 s" ở trên nằm trong biên nhiễu này; muốn kết luận chắc cần đo trên máy rảnh, 5 lần, lấy median.
+- **Sàn 0,65 s cho ảnh ngoài**: cách duy nhất bỏ được là đưa ảnh về cùng origin (`next/image` hoặc proxy ảnh), đổi lại tốn CPU/quota tối ưu ảnh. Là đánh đổi đáng cân nhắc cho mobile; chưa làm (quyết định 1 ở §6 đã chọn srcset Cloudinary).
+
+### Đánh đổi nhỏ có thể chọn thêm
+
+| Lựa chọn | Được | Mất |
+|---|---|---|
+| Tắt `partialPrefetching` (giữ `cacheComponents`) | Bớt 17 request prefetch mỗi lần vào catalog; `/course/[id]` tự có 404 thật không cần proxy (nhưng `/profile/[id]` vẫn cần) | Click catalog → chi tiết mất khoảng 1 round trip thay vì ~200 ms |
+| Quay về R2 (tắt cả hai cờ) | Tải lần đầu nhanh hơn khoảng 0,3 s, bớt 4 module hỗ trợ, bỏ được `instant = false` | Mất prefetch, shell tĩnh và cache theo tag; sau này Next bật mặc định sẽ phải làm lại |
+| `/course`: bỏ "ẩn khoá đã ghi danh" trên server | Danh sách giống nhau cho mọi người, có thể `'use cache'` theo query | Người đã ghi danh thấy lại các khoá đó trong catalog (có badge). Không giúp LCP tải lần đầu, vì nội dung theo URL vẫn stream sau shell |
+| Skeleton nút hành động cùng kích thước nút thật | CLS 0,04 → gần 0 | Không |
+
+Khuyến nghị: giữ Cache Components, giữ Partial Prefetching; đo lại sau hai sửa trên. Nếu tải lần đầu vẫn chậm hơn R2 trên 0,3 s thì chọn tắt `partialPrefetching`.
+
 ## 7. Không làm
 
 - Không cache trang có tác dụng phụ hoặc trạng thái tiền (`/orders/[id]`, `/checkout/*`, `/admin/*`).

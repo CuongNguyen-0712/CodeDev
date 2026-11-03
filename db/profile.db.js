@@ -5,16 +5,6 @@ import { sql } from "@/lib/db";
  * Public lookups accept a username or public_id only, never the internal id.
  */
 export const profileDb = {
-    /** Same visibility rule as getPublicProfile, without the profile itself (proxy 404 check). */
-    publicProfileExists: async (key) => {
-        return sql(
-            `SELECT 1 FROM identity.users u JOIN profile.info i ON i.user_id = u.id
-             WHERE (u.username = $1 OR u.public_id = $1) AND u.status = 'active' AND i.show_profile
-             LIMIT 1`,
-            [key]
-        );
-    },
-
     /** Visible profile by username (preferred) or public_id; no row when hidden, locked or missing. */
     getPublicProfile: async (key) => {
         return sql(

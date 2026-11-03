@@ -4,9 +4,13 @@ const courseExists = vi.fn();
 const roadmapExists = vi.fn();
 const profileExists = vi.fn();
 
-vi.mock("@/db/course.db", () => ({ courseDb: { courseExists: (id) => courseExists(id) } }));
-vi.mock("@/db/roadmap", () => ({ roadmapDb: { exists: (id) => roadmapExists(id) } }));
-vi.mock("@/db/profile.db", () => ({ profileDb: { publicProfileExists: (key) => profileExists(key) } }));
+vi.mock("@/db/exists.db", () => ({
+    existsDb: {
+        course: (id) => courseExists(id),
+        roadmap: (id) => roadmapExists(id),
+        publicProfile: (key) => profileExists(key),
+    },
+}));
 
 const rows = (n) => ({ rowCount: n });
 

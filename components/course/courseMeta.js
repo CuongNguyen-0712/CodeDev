@@ -11,6 +11,10 @@ export const LEVEL_ICON = {
     master: LuSignal,
 };
 
+// Rendered width of a cover in the catalog grid and on the course page (the `sizes` of its srcset).
+export const CARD_COVER_SIZES = "(min-width: 1280px) 360px, (min-width: 640px) 50vw, 100vw";
+export const PAGE_COVER_SIZES = "(min-width: 1024px) 360px, (min-width: 640px) 50vw, 100vw";
+
 export const formatDuration = (minutes) => {
     const value = Number(minutes || 0);
     if (value < 60) return `${value}m`;
