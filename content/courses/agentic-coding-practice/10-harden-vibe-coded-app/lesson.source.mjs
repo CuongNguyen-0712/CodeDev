@@ -188,7 +188,7 @@ it("does not let a second instructor edit or take over a course", async () => {
         bullets([
             "OWASP API Security Top 10 (2023): API1 Broken Object Level Authorization, API3 Broken Object Property Level Authorization - owasp.org/API-Security",
             "OWASP Authorization Cheat Sheet (deny by default, check permissions on every request and every object) - cheatsheetseries.owasp.org",
-            "Anthropic, Claude Code documentation: memory and CLAUDE.md files, for putting review rules where the agent reads them - docs.anthropic.com/en/docs/claude-code/overview",
+            "Anthropic, Claude Code documentation: memory and CLAUDE.md files, for putting review rules where the agent reads them - code.claude.com/docs/en/overview",
         ]),
         callout("tip", "Self-practice (not graded): run an agent on a real repo with your harness",
             "Pick a small app of your own that has users and objects they own (a todo list, a notes app, an earlier course project). Set up the harness from this course: a spec with the authorization rule written as acceptance criteria, an instruction file with the review rules from section 7, a command policy, and the test and lint commands as the feedback loop. Then ask an agent to add an edit endpoint and, separately, to find every route that takes an object id. Review the diff as its owner: does each route check the object, use an allowlist, and come with a two-user test? Write down what the harness caught and what you still had to catch yourself."),

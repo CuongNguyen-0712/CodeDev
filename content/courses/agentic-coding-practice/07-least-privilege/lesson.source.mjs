@@ -116,7 +116,7 @@ export function runApproved(command: string, env: Record<string, string>) {
     return spawnSync("bash", ["-c", command], { cwd: "/workspace/codedev", env, encoding: "utf8", timeout: 600_000 });
 }`, "agentEnv.ts"),
         p("Two details matter. The environment is an allow list of variables, not `process.env` minus a few names: a new secret added to the developer's shell next month stays out by default. And `HOME` points at an empty folder, so tools that read credentials from the home directory (cloud CLIs, SSH, package registries) find none."),
-        p("Now layer 3, the policy itself. Its configuration is short and lives in the repository, next to the instruction files from lesson 3:"),
+        p("Now layer 3, the policy itself. Its configuration is short and lives in the repository, next to the instruction files from lesson 1.3:"),
         code("json", `
 {
   "allow": ["npm test", "npm run test", "npm run lint", "npm run typecheck", "npm run build",
@@ -156,7 +156,7 @@ export function runApproved(command: string, env: Record<string, string>) {
 
         h2("Sources"),
         bullets([
-            "Anthropic, Claude Code documentation (overview, security and permissions pages) - docs.anthropic.com/en/docs/claude-code/overview",
+            "Anthropic, Claude Code documentation (overview, security and permissions pages) - code.claude.com/docs/en/overview",
             "AGENTS.md, a shared format for repository instructions to coding agents - agents.md",
             "Saltzer and Schroeder, \"The Protection of Information in Computer Systems\" (1975): the principle of least privilege",
         ]),

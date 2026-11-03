@@ -87,7 +87,7 @@ WHERE f.revoked;
             "**A spec that grows into a document nobody reads.** A 20-page spec is skipped by humans and only partly followed by agents. If the spec is longer than the code it describes, cut it.",
         ]),
         callout("info", "Tools for spec-driven development",
-            "Several tools now package this workflow: GitHub Spec Kit generates spec, plan and task files and prompts for them, and some agentic IDEs such as Kiro have spec, design and task steps built in. Their file names, commands and steps change between versions, so check their current docs. The checkpoints matter more than the tool: plain Markdown files in the repository and a disciplined review work with any agent."),
+            "Several tools now package this workflow: GitHub Spec Kit generates spec, plan and task files and prompts for them, and some agentic IDEs such as Kiro have requirements, design and task steps built in. Their file names, commands and steps change between versions, so check their current docs. The checkpoints matter more than the tool: plain Markdown files in the repository and a disciplined review work with any agent."),
 
         h2("4. Worked example: certificates, the second time"),
         p("The team threw PR #517 away (keeping the PDF template), and wrote three short files in `docs/specs/certificates/`. First the spec. The product owner answered the open questions before anyone wrote a plan:"),
@@ -251,7 +251,7 @@ Done when the T1 check passes and  git diff --stat  lists only the T1 files.`, "
         h2("Sources"),
         bullets([
             "GitHub Spec Kit: spec, plan and task workflow for coding agents - github.com/github/spec-kit (check the current docs; commands change)",
-            "Claude Code documentation: common workflows, planning before editing - docs.anthropic.com/en/docs/claude-code/overview",
+            "Claude Code documentation: common workflows, planning before editing - code.claude.com/docs/en/overview",
             "AGENTS.md: where agents look for project instructions such as the location of specs - agents.md",
         ]),
         callout("tip", "Practice on your own (not graded)",

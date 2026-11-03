@@ -69,7 +69,7 @@ scope:
     - src/catalog/**
     - tests/catalog/**/*.test.{ts,tsx}
   max_changed_files: 10        # a reviewer reads all of it in one sitting`, "tasks/catalog-level-filter.yml"),
-        p("Write the allowed paths into the instruction the agent gets (lesson 3) so it knows the boundary, **and** check them after it finishes. The instruction makes in-scope work more likely; only the check makes out-of-scope work visible. An agent under pressure from a failing test will cross a line it was told about, exactly as it did here."),
+        p("Write the allowed paths into the instruction the agent gets (lesson 1.3) so it knows the boundary, **and** check them after it finishes. The instruction makes in-scope work more likely; only the check makes out-of-scope work visible. An agent under pressure from a failing test will cross a line it was told about, exactly as it did here."),
         h3("When a bigger scope is right"),
         p("Scope is not \"as small as possible\". A task that renames a shared type legitimately touches many files; a dependency upgrade must change the lockfile; a schema change needs a migration. Say so in the task: list those paths, and give the large mechanical change its own pull request so the reviewer can check it as mechanical (\"31 files, all import paths\") instead of searching through it for logic. Exploratory spikes are another exception: let the agent roam in a throwaway branch, then write a scoped task for the real change."),
 
@@ -116,7 +116,7 @@ export function changedFiles(base: string): Change[] {
     }
     return changes;
 }`, "changedFiles.ts"),
-        p("Notice the `else` branch: a status the code does not understand stops the check instead of being skipped. The same rule as the command policy in lesson 7 - what the guardrail cannot judge, it does not let through. The size limit is the cheap part:"),
+        p("Notice the `else` branch: a status the code does not understand stops the check instead of being skipped. The same rule as the command policy in lesson 3.1 - what the guardrail cannot judge, it does not let through. The size limit is the cheap part:"),
         code("bash", `
 # fail the agent PR when it is too big to review in one sitting
 files=$(git diff --name-only main...HEAD | wc -l)

@@ -107,7 +107,7 @@ jobs:
         h2("5. How to verify the box holds"),
         p("Each control can be tested, and should be, before you trust it with a night of unattended work:"),
         bullets([
-            "**Token permissions.** Open the job log and expand \"Set up job\": GitHub prints the `GITHUB_TOKEN` permissions of the run. It should list `Contents: read` and nothing else.",
+            "**Token permissions.** Open the job log and expand \"Set up job\": GitHub prints the `GITHUB_TOKEN` permissions of the run. It should list `Contents: read` and `Metadata: read` (every token gets it) and nothing else.",
             "**No production secrets.** Search the workflow and any reusable workflows it calls for `secrets.` and for `secrets: inherit`. Every secret the agent's step can see should be one you would accept being printed in the log.",
             "**main cannot be reached directly.** In a test run, let a step try `git push origin HEAD:main` with the agent app's token: the push must be rejected by the ruleset. Then check that the agent's pull request cannot be merged without a code owner's approval.",
             "**Budgets stop the run.** Run once with `timeout-minutes: 2` and a cost cap of a few cents: the job must stop, fail visibly and still upload the transcript (the `if: always()` step).",
@@ -136,7 +136,7 @@ jobs:
         bullets([
             "GitHub Docs: Automatic token authentication (permissions for the GITHUB_TOKEN), Security hardening for GitHub Actions, About protected branches and rulesets, About code owners - docs.github.com",
             "OWASP Top 10 for LLM Applications (2025): LLM06 Excessive Agency - genai.owasp.org",
-            "Anthropic, Claude Code documentation: settings and permissions, running Claude Code in CI - docs.anthropic.com/en/docs/claude-code/overview",
+            "Anthropic, Claude Code documentation: settings and permissions, running Claude Code in CI - code.claude.com/docs/en/overview",
         ]),
         callout("tip", "Self-practice (not graded): put your agent in a box",
             "Take a repository of your own and write a CI job that runs an agent on one narrow task with a test that proves it (for example, \"make this failing test pass without changing the test\"). Give the job contents: read, a throwaway database, a 15-minute timeout and a cost cap, upload the transcript, and let it only open a pull request on a protected branch. Then try to break your own box: can the job push to main, read a production secret, or run longer than the budget?"),

@@ -203,7 +203,7 @@ Budget: 20 turns. If you are not done by then, stop and report what you tried.`,
 
         h2("Sources"),
         bullets([
-            "Claude Code documentation: how the agent works, tools and permissions - docs.anthropic.com/en/docs/claude-code/overview",
+            "Claude Code documentation: how the agent works, tools and permissions - code.claude.com/docs/en/overview",
             "AGENTS.md: a shared format for instructions that coding agents read - agents.md",
             "Git documentation: git diff --name-status and --find-renames",
         ]),

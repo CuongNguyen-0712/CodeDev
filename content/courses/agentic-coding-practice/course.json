@@ -57,10 +57,10 @@
     "TypeScript": "5.9.3 (tsc --strict in the code runner)",
     "Coding agents": "Claude Code, Codex CLI, Copilot agent mode, Cursor (lesson examples, check current docs)"
   },
-  "lastReviewedAt": "2026-10-26",
+  "lastReviewedAt": "2026-11-03",
   "sourceLinks": [
     "https://agents.md/",
-    "https://docs.anthropic.com/en/docs/claude-code/overview",
+    "https://code.claude.com/docs/en/overview",
     "https://stryker-mutator.io/docs/"
   ],
   "owner": "CodeDev Engineering Team",

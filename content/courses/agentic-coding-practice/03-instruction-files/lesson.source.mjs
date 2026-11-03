@@ -74,7 +74,7 @@ dev build start test lint typecheck verify db:verify db:migrate db:reset service
         p("This changes quickly, so treat the list as a starting point and check the current docs of each tool your team uses:"),
         bullets([
             "**`AGENTS.md`** is an open format read by a growing number of agents. The format allows nested files: an `AGENTS.md` in a subdirectory applies to work in that part of the tree, and the closest one to the files being edited takes precedence over the root.",
-            "**`CLAUDE.md`** is read by Claude Code at the start of a session; files in subdirectories are picked up when it works there, and a CLAUDE.md can import another file by reference (see Claude Code's memory docs for the syntax).",
+            "**`CLAUDE.md`** is read by Claude Code at the start of a session; files in subdirectories are picked up when it works there, and a CLAUDE.md can import another file by reference (see Claude Code's memory docs for the syntax). Recent versions also read `AGENTS.md` when the repository has no `CLAUDE.md`.",
             "**GitHub Copilot** reads `.github/copilot-instructions.md`, supports path-specific instruction files, and its agent features also read `AGENTS.md` - check which of these apply to the Copilot feature you use.",
             "**Cursor** has project rules in its own folder and also supports `AGENTS.md` in recent versions.",
         ]),
@@ -233,7 +233,7 @@ diff only touched the task's files          14/24              20/24`, "results,
         h2("Sources"),
         bullets([
             "AGENTS.md: the open format, nested files and the tools that read it - agents.md",
-            "Claude Code documentation: memory and CLAUDE.md files - docs.anthropic.com/en/docs/claude-code/overview",
+            "Claude Code documentation: memory and CLAUDE.md files - code.claude.com/docs/en/overview",
             "GitHub Copilot documentation: repository and path-specific custom instructions - docs.github.com/en/copilot",
         ]),
         callout("tip", "Practice on your own (not graded)",

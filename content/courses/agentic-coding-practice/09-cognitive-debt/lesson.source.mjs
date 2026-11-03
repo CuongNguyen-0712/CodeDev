@@ -140,7 +140,7 @@ it.each([
         h2("Sources"),
         bullets([
             "Thoughtworks Technology Radar, Vol. 34 - thoughtworks.com/radar (search the edition for cognitive debt and AI-assisted development)",
-            "Anthropic, Claude Code documentation: overview and best practices - docs.anthropic.com/en/docs/claude-code/overview",
+            "Anthropic, Claude Code documentation: overview and best practices - code.claude.com/docs/en/overview",
             "Peter Naur, \"Programming as Theory Building\" (1985): a program's design lives in the heads of the people who built it",
         ]),
         callout("tip", "Practice on your own (not graded)",

@@ -166,8 +166,8 @@ exit "$status"`, "scripts/check-migration.sh"),
 
         h2("Sources"),
         bullets([
-            "Anthropic documentation: Agent Skills overview and best practices (docs.anthropic.com), and the open Agent Skills specification it links to - check the current version for the exact frontmatter rules",
-            "Claude Code documentation: skills in a project (docs.anthropic.com/en/docs/claude-code/overview, then the Skills page)",
+            "Anthropic documentation: Agent Skills overview and best practices (platform.claude.com/docs), and the open Agent Skills specification it links to - check the current version for the exact frontmatter rules",
+            "Claude Code documentation: skills in a project - code.claude.com/docs/en/skills",
             "agents.md - the AGENTS.md format (lesson 1.3)",
             "PostgreSQL documentation: ALTER TABLE (ADD CONSTRAINT ... NOT VALID, VALIDATE CONSTRAINT) and the log_lock_waits setting",
         ]),

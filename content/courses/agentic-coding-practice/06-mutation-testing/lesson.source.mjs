@@ -109,7 +109,7 @@ it.each([
 }`, "stryker.config.json"),
         p("In a pull request, CodeDev restricts mutation to the changed source files, so a run takes a few minutes instead of an hour:"),
         code("bash", `
-changed=$(git diff --name-only origin/main...HEAD --diff-filter=d -- 'src/**/*.ts' | paste -sd, -)
+changed=$(git diff --name-only origin/main...HEAD --diff-filter=d -- ':(glob)src/**/*.ts' | paste -sd, -)
 [ -n "$changed" ] && npx stryker run --mutate "$changed"`, "CI step"),
         h3("The gate the agent reads"),
         p("StrykerJS can fail the run by itself when the score is below `thresholds.break`. CodeDev adds a small gate script on top of the JSON report, because the agent needs more than a red light: the score of each changed file and the exact list of mutants to kill. CI flattens the report into one list of mutants (id, file, line, mutator, status), and the gate turns it into a report and a decision. The decision compares the exact score with the threshold - a run just below the threshold fails even when its rounded score displays as the threshold - and a run with no valid mutants fails, because it measured nothing."),
