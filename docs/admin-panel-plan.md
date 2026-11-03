@@ -825,7 +825,7 @@ Trạng thái tính tới 2026-11-01 (sau khi deploy `7496176c`). "Mở" là ch�
 1. Có cần instructor là người dùng thật (đăng nhập, soạn và gửi duyệt course của mình) không? Nếu có, P4 thêm `catalog.course_instructor` và trạng thái `in_review`.
 2. Course manager có được xem source code người học (`submission.read`) không, hay chỉ admin?
 3. Ai là super admin đầu tiên trên production, và có cần người thứ hai làm dự phòng không?
-4. Điểm đánh giá khoá học: bỏ số "Rated x out of 5" nhập tay, hay cho người đã ghi danh chấm 1–5 sao (11.2 mục 3)?
+4. ~~Điểm đánh giá khoá học~~: chọn điểm do người học chấm, một phiếu mỗi khoá, mời chấm sau khi học xong bài (mục 12).
 
 ## 10. Rà soát AD-01…AD-06 và security audit (2026-11-02)
 
@@ -918,4 +918,55 @@ Các insight đang có: Overview (người học hoạt động, bài nộp, cod
 
 **Overview**: thêm vào "Needs attention" số feedback chưa xử lý và bình luận 7 ngày qua (mỗi số chỉ hiện với người có quyền tương ứng).
 
-**Thứ tự**: P8.1 quyền + tab Feedback của khoá (không migration ngoài quyền); P8.2 hộp thư feedback (migration `handled_at`); P8.3 điểm đánh giá thật hoặc bỏ số giả (sau khi chốt mục 9); P8.4 phễu theo khoá trong KPI nội dung.
+**Thứ tự**: P8.1 quyền + tab Feedback của khoá (không migration ngoài quyền); P8.2 hộp thư feedback (migration `handled_at`); P8.3 điểm đánh giá thật (thiết kế ở mục 12, làm thành P9); P8.4 phễu theo khoá trong KPI nội dung.
+
+## 12. Điểm đánh giá khoá học từ người học (thiết kế, 2026-11-03)
+
+Trả lời câu hỏi mở 4 và P8.3: thay số "Rated x out of 5" nhập tay bằng điểm do người học chấm.
+
+### 12.1 Hai hướng đã xét
+
+| | A. Tính từ sao trong bình luận | B. Mời chấm khi học xong bài | Chọn |
+|---|---|---|---|
+| Ai chấm | Bất kỳ ai đăng nhập (bình luận hiện không đòi ghi danh) | Người đã học thật | B |
+| Một người mấy phiếu | Mỗi bình luận một phiếu, viết nhiều lần là nhiều phiếu | Một phiếu mỗi khoá, sửa được | B |
+| Lượng phiếu | Ít (ít người viết bình luận) | Nhiều hơn (hỏi đúng lúc vừa học xong) | B |
+| Có lời nhận xét | Có sẵn | Không, nếu chỉ chấm sao | A |
+
+Chọn **kết hợp, điểm lưu theo người**: mỗi người học một phiếu cho mỗi khoá trong bảng riêng. Phiếu được tạo hoặc sửa từ hai chỗ: hộp mời chấm sau khi học xong bài, và hàng sao trong form bình luận. Bình luận vẫn là bình luận; danh sách bình luận hiện số sao hiện tại của người viết bên cạnh tên. Không tính trung bình từ `community.comment.rating` (cột này luôn bằng 1, sẽ bỏ).
+
+### 12.2 Dữ liệu (migration, theo kiểu mở rộng rồi thu gọn)
+
+- Bảng `community.course_rating`: `user_id` (FK users, ON DELETE CASCADE), `course_id` (FK course), `stars smallint CHECK 1..5`, `is_hidden boolean DEFAULT false`, `created_at`, `updated_at`; khoá chính `(user_id, course_id)`; index `(course_id) WHERE NOT is_hidden`.
+- `catalog.course` thêm `rating_avg numeric(3,2)` (NULL khi chưa có phiếu) và `rating_count int NOT NULL DEFAULT 0`, cập nhật bằng trigger trên `course_rating` (insert / update / delete, chỉ tính phiếu không ẩn) để danh sách khoá và bộ lọc "rating ≥ x" vẫn đọc một cột, không phải gộp mỗi lần.
+- Số nhập tay hiện có trong `catalog.course.rating` không chuyển sang (không phải điểm của người học). Code đọc `rating_avg` / `rating_count`; sau khi deploy ổn định, migration sau bỏ `catalog.course.rating` và `community.comment.rating`.
+
+### 12.3 Ai được chấm, và khi nào được mời
+
+- **Điều kiện** (kiểm ở server): đã ghi danh (`learning.register`, không xoá) và đã hoàn thành ít nhất 1 bài (`learning.history.status = 'completed'`). Không đủ điều kiện thì form bình luận không hiện hàng sao và API trả 403.
+- **Mời chấm**: `POST` hoàn thành bài trả thêm `ratePrompt: true` khi người học đủ điều kiện, chưa chấm, và lần hoàn thành này là lần đầu (`awardedExp > 0`) của một mốc: **bài thứ 3** hoặc **hoàn thành khoá** (`courseCompleted`). Mỗi mốc chỉ xảy ra một lần nên không cần lưu trạng thái "đã mời". Hộp mời: 5 sao, nút "Not now", không chặn người học đi tiếp; đã chấm thì mốc hoàn thành khoá hỏi "Update your rating?" với số sao cũ.
+- **Chấm lại**: trên trang khoá học, người đủ điều kiện luôn thấy "Your rating" và sửa được.
+- **Giới hạn**: rate limit như bình luận (theo user), mỗi người một phiếu nên spam không đổi được điểm.
+
+### 12.4 Hiển thị
+
+- Thẻ khoá học và trang preview: `4.6 ★ (23)` khi có từ **3 phiếu** trở lên; ít hơn thì "No ratings yet" (chuỗi đã có). Một hai phiếu không đủ tin để hiện.
+- Bộ lọc rating trong danh sách khoá dùng `rating_avg`. Hiện chưa có sắp xếp theo rating; nếu thêm, dùng trung bình Bayes `(C·m + Σ) / (C + n)` với C = 5, m = trung bình toàn site, tính trong cron `ranking-refresh` mỗi giờ, để khoá 1 phiếu 5 sao không đứng đầu.
+- Đổi phiếu thì xoá cache của khoá đó (như khi admin sửa khoá).
+
+### 12.5 Admin
+
+- Tab "Feedback" của khoá (P8.1): điểm trung bình, số phiếu, biểu đồ 5 cột (1–5 sao), trung bình 30 ngày so với toàn bộ.
+- Ẩn một phiếu (spam, tài khoản lạm dụng) với `comment.moderate`, có lý do và audit `rating.hide` / `rating.show`; phiếu ẩn không vào trung bình (trigger tính lại). Admin không sửa số sao của người khác.
+- Overview "Needs attention": khoá có trung bình < 3.0 với ít nhất 5 phiếu.
+- Grafana: view `metrics.ratings_daily` (số phiếu và trung bình mỗi ngày theo khoá, không có user).
+
+### 12.6 Thứ tự (P9)
+
+| Bước | Việc |
+|---|---|
+| P9.1 | Migration: bảng, cột, trigger; test trigger (thêm / sửa / xoá / ẩn phiếu, xoá user) |
+| P9.2 | API: `GET/PUT /api/course/:id/rating` (điều kiện, rate limit), `ratePrompt` trong kết quả hoàn thành bài; test điều kiện và mốc |
+| P9.3 | Giao diện học viên: hộp mời chấm, "Your rating" trên trang khoá, sao trong form bình luận và cạnh tên người viết, hiển thị `rating_avg` + số phiếu |
+| P9.4 | Admin: biểu đồ trong tab Feedback, ẩn phiếu, cảnh báo Overview, view Grafana |
+| P9.5 | Sau khi deploy ổn: migration bỏ `catalog.course.rating`, `community.comment.rating` |
