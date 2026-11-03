@@ -51,13 +51,13 @@
   ],
   "testedVersions": {
     "TypeScript": "5.9.3 (tsc --strict in the code runner)",
-    "OpenAPI": "3.1 (lesson examples)"
+    "OpenAPI": "3.1 (lesson examples; 3.2.0 is the latest minor)"
   },
-  "lastReviewedAt": "2026-10-26",
+  "lastReviewedAt": "2026-11-03",
   "sourceLinks": [
     "https://www.rfc-editor.org/rfc/rfc9110",
     "https://www.rfc-editor.org/rfc/rfc9457",
-    "https://spec.openapis.org/oas/v3.1.0"
+    "https://spec.openapis.org/oas/v3.1.2"
   ],
   "owner": "CodeDev Engineering Team",
   "knownIssues": [],

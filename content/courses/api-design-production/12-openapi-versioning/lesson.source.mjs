@@ -26,7 +26,7 @@ export default ({ h2, h3, p, bullets, numbered, code, callout, challenge }) => (
         p("This lesson turns the pieces into a policy: the document is the contract, it says what is deprecated, it has a version and a changelog, and CI keeps all of it true."),
 
         h2("2. OpenAPI as the contract"),
-        p("An OpenAPI 3.1 document describes every endpoint, parameter, request body and response, with schemas that are JSON Schema 2020-12. It is the one artifact every client can use: the mobile team generates Kotlin models from it, partners read it in Swagger UI, CI diffs it (lesson 4.2). There are two ways to produce it."),
+        p("An OpenAPI 3.1 document describes every endpoint, parameter, request body and response, with schemas that are JSON Schema 2020-12 (OpenAPI 3.2.0, released in September 2025, keeps that schema dialect; this course uses 3.1, which more tools support). It is the one artifact every client can use: the mobile team generates Kotlin models from it, partners read it in Swagger UI, CI diffs it (lesson 4.2). There are two ways to produce it."),
         h3("Generated from code (code-first)"),
         p("With `@nestjs/swagger` the document is built from the controllers and the decorated DTO classes when the app starts. It stays close to the code with little effort, and it is the right default for a team whose API is mostly consumed by its own apps. Its weakness is that it describes the **decorators**, not the behaviour:"),
         code("typescript", `
@@ -43,7 +43,7 @@ export class CourseDto {
 const document = SwaggerModule.createDocument(app, new DocumentBuilder()
   .setTitle("CodeDev API").setVersion("1.4.0").build());
 writeFileSync("openapi.json", JSON.stringify(document, null, 2));`, "src/courses/course.dto.ts and main.ts (NestJS, @nestjs/swagger)"),
-        p("If a mapper returns a string where the decorator says integer, the generated document is confidently wrong. Check also which OpenAPI version your version of `@nestjs/swagger` emits: older versions write 3.0, where nullability is `nullable: true` instead of a `\"null\"` in the type list, and a diff tool must know which one it reads."),
+        p("If a mapper returns a string where the decorator says integer, the generated document is confidently wrong. Check also which OpenAPI version the generated document declares: `@nestjs/swagger` writes `openapi: 3.0.0` unless you call `setOpenAPIVersion()` on the `DocumentBuilder`, and in 3.0 nullability is `nullable: true` instead of a `\"null\"` in the type list, so a diff tool must know which one it reads."),
         h3("Written first (design-first)"),
         p("The team writes `openapi.yaml` by hand (or in an editor), reviews it like code, and the server is checked against it: request validation from the document, response validation in tests, models generated for clients. It costs more discipline, and pays off when the API is a product for clients you do not control: partners can review a change **before** it is implemented, and the document cannot drift silently because the tests compare the server to it."),
         p("Either way, the rule is the same: **a document is only a contract if something fails when the server disagrees with it.** For code-first that means validating real responses against the generated document in tests; for design-first it means validating both requests and responses."),
@@ -62,7 +62,7 @@ writeFileSync("openapi.json", JSON.stringify(document, null, 2));`, "src/courses
         h2("4. Deprecation and sunset policy"),
         p("A deprecation tells clients \"stop using this\"; a sunset tells them \"from this date it may stop working\". Clients need to find both in four places, because different clients look in different places:"),
         numbered([
-            "**The document:** `deprecated: true` on the property, parameter or operation (OpenAPI 3.1 supports it on schemas and on operations), with the replacement and the date in the description. Generated clients mark deprecated members, so developers see a warning in their editor.",
+            "**The document:** `deprecated: true` on the property, parameter or operation (OpenAPI 3.1 supports it on Schema, Parameter and Operation objects), with the replacement and the date in the description. Generated clients mark deprecated members, so developers see a warning in their editor.",
             "**The responses:** `Deprecation` and `Sunset` headers, plus `Link` with `rel=\"deprecation\"` (and optionally `rel=\"sunset\"`) pointing to the notice. `Sunset` is defined in RFC 8594 and carries an HTTP-date. `Deprecation` is defined in RFC 9745 (2025) as `@` plus Unix seconds; implementations built on earlier drafts send `Deprecation: true`, so check what your gateway and your clients' libraries produce and understand.",
             "**The changelog:** one entry per change, with the date, what changed, what to use instead, and the sunset date.",
             "**Direct contact** for clients you know: the mobile team, partners with an API key and a contact address.",
@@ -134,7 +134,7 @@ Added: GET /v1/courses?level=... filter.`, "CHANGELOG-API.md"),
 
         h2("Sources"),
         bullets([
-            "OpenAPI Specification 3.1.0 - spec.openapis.org/oas/v3.1.0",
+            "OpenAPI Specification 3.1 (latest patch 3.1.2) - spec.openapis.org/oas/v3.1.2",
             "RFC 8594: The Sunset HTTP Header Field - rfc-editor.org/rfc/rfc8594",
             "RFC 9745: The Deprecation HTTP Response Header Field - rfc-editor.org/rfc/rfc9745",
             "RFC 9110: HTTP Semantics (Vary, content negotiation) - rfc-editor.org/rfc/rfc9110",
