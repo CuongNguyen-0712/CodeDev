@@ -41,7 +41,7 @@ WHERE published_at IS NULL;
         p("The fix that morning was two steps: park the poison row (set its `status` to `'parked'` so the publisher stops picking it up) so the queue behind it could drain, then remove the embedded submission from the event and publish a reference (`submissionId`) instead. The queue drained in four minutes. The rest of this lesson is about finding out at 09:15 instead of 12:15."),
 
         h2("3. What to measure, and why each number"),
-        p("Monitoring an event pipeline is monitoring delays and discrepancies, not processes. Each hop from lessons 1 to 4 has one number that tells you whether it keeps its promise."),
+        p("Monitoring an event pipeline is monitoring delays and discrepancies, not processes. Each hop from modules 1 to 4 has one number that tells you whether it keeps its promise."),
         h3("Outbox: oldest pending age, not just the count"),
         bullets([
             "**`outbox_oldest_pending_age_seconds`**: `now() - min(created_at)` over unpublished rows, 0 when there are none. This is the delay the slowest waiting event has already suffered. It grows by one second per second whenever the publisher is stuck, whatever the traffic.",

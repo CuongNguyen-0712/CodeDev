@@ -99,7 +99,7 @@ HAVING count(*) > 1;`, "outbox health queries"),
 
         challenge("chal_quiz_dce_211"),
 
-        h2("4. Worked example: the relay in PostgreSQL and TypeScript"),
+        h2("4. Worked example: the relay in PostgreSQL"),
         p("The outbox table gets the columns that the relay needs. The partial index keeps the claim query fast however many sent rows the table holds:"),
         code("sql", `
 -- Lesson 1.3's table already has seq, status ('pending' | 'sent') and sent_at.
@@ -143,37 +143,14 @@ WHERE o.id = c.id
 RETURNING o.id;
 
 COMMIT;`, "claim.sql ($1 = relay name, $2 = batch size)"),
-        p("Then the publish loop, outside any transaction. The mark is conditional on the owner: if it updates zero rows, the lease was lost while publishing, another relay may publish the row again, and that is the at-least-once contract, not an error."),
-        code("typescript", `
-async function publishClaimed(relay: string): Promise<void> {
-  const { rows } = await db.query<OutboxRow>(
-    \`SELECT id, aggregate_id, event_type, payload, attempts FROM outbox
-     WHERE status = 'pending' AND lease_owner = $1 AND lease_until > now()
-     ORDER BY seq\`, [relay]);
-  const blocked = new Set<string>();
-  for (const row of rows) {
-    if (blocked.has(row.aggregate_id)) continue;           // keep order inside the batch
-    try {
-      await broker.publish("enrollment-events", { id: String(row.id), key: row.aggregate_id, payload: row.payload });
-    } catch (err) {
-      blocked.add(row.aggregate_id);
-      await db.query(
-        \`UPDATE outbox SET attempts = attempts + 1,
-           status = CASE WHEN attempts + 1 >= $3 THEN 'failed' ELSE status END,
-           next_attempt_at = now() + make_interval(secs => $2 * 2 ^ attempts),
-           lease_owner = NULL, lease_until = NULL
-         WHERE id = $1 AND lease_owner = $4\`, [row.id, 1, 8, relay]);
-      metrics.outboxPublishErrors.inc();
-      continue;
-    }
-    // a crash here means: published, not marked -> published again after the lease expires
-    await db.query(
-      "UPDATE outbox SET status = 'sent', sent_at = now(), lease_owner = NULL, lease_until = NULL WHERE id = $1 AND lease_owner = $2",
-      [row.id, relay]);
-  }
-  await db.query("UPDATE outbox SET lease_owner = NULL, lease_until = NULL WHERE status = 'pending' AND lease_owner = $1", [relay]);
-}`, "outbox-relay.ts (fixed)"),
-        p("In the backoff update, `attempts` on the right-hand side is the value before the update, so the delay is 1 s, 2 s, 4 s ... for the first, second, third failure. Wrap the loop in a short sleep when a claim returns nothing, and stop it on SIGTERM after the current row, so a deploy does not cut a batch in half more often than necessary."),
+        p("Then the publish loop, outside any transaction. It needs no new idea, only the rules of section 3 applied in order:"),
+        bullets([
+            "**Read only what you still hold.** Select the pending rows whose `lease_owner` is this relay and whose `lease_until` is still in the future, in `seq` order. A relay that was paused past its lease finds nothing and publishes nothing.",
+            "**Publish, then mark, one row at a time.** Use the outbox `id` as the message id and `aggregate_id` as the key. After the broker accepts the message, set `status = 'sent'`, `sent_at = now()` and clear the lease in a short transaction of its own. Make that UPDATE conditional on `lease_owner` still being this relay: if it updates zero rows, the lease was lost while publishing, another relay may publish the row again, and that is the at-least-once contract, not an error. A crash between the publish and the mark means the row is published again after its lease expires.",
+            "**On a broker error, back off and stop the aggregate.** Increase `attempts`, move `next_attempt_at` forward by the base delay doubled per earlier failure (1 s, 2 s, 4 s ...), park the row as `failed` once `attempts` reaches the maximum, and clear its lease. Then skip the rest of that aggregate's rows in this batch, so a later event never overtakes the one that failed. Other aggregates go on.",
+            "**Give back what you did not use.** At the end of the batch, clear the lease on every row this relay still holds that is still pending, so another relay does not have to wait for the expiry.",
+        ]),
+        p("Wrap the loop in a short sleep when a claim returns nothing, and stop it on SIGTERM after the current row, so a deploy does not cut a batch in half more often than necessary."),
         p("Write the same relay against in-memory building blocks: a `FakeDb` whose `tx` commits a copy only when the callback returns, a `FakeBroker` that the tests script to fail or to crash the process right after a publish, and a fake clock. The tests interleave two relays, expire leases, and replay outages, and print every publish and the final state of the outbox."),
         challenge("chal_coding_dce_212"),
 

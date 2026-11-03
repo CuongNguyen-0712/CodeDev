@@ -91,14 +91,14 @@ FROM (
   WHERE e.completed_at >= now() - interval '1 day'
 ) t;
 
--- completed, not certified, older than the bound: the alert (and the input of reconciliation, lesson 11)
+-- completed, not certified, older than the bound: the alert (and the input of reconciliation, lesson 4.2)
 SELECT e.id, e.learner_id, e.course_id, now() - e.completed_at AS waiting
 FROM enrollments e
 LEFT JOIN certificates c ON c.enrollment_id = e.id
 WHERE e.completed_at < now() - interval '10 minutes' AND c.id IS NULL;`, "certificate freshness (run where both tables are visible, e.g. the analytics replica)"),
         p("The second query matters more than the first: an end-to-end check also catches what per-hop metrics miss. Each hop still deserves its own number, because it tells you **where** the time went when the objective is missed:"),
         bullets([
-            "**Outbox**: rows not yet published and the age of the oldest one (lesson 4).",
+            "**Outbox**: rows not yet published and the age of the oldest one (lesson 2.1).",
             "**Broker**: consumer lag per partition, in messages and, more usefully, in time (now minus the timestamp of the next message to consume).",
             "**Consumer**: handler duration and errors, and messages sent to the dead-letter queue - consumed, and still not applied.",
             "**Read model**: the timestamp of the last applied event, shown to users where it helps (\"Leaderboard updated 12 s ago\").",

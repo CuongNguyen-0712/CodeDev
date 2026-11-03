@@ -16,7 +16,7 @@ export default ({ h2, h3, p, bullets, numbered, code, callout, challenge }) => (
 
     content: [
         h2("1. The incident: progress that goes backwards"),
-        p("The progress service writes every change to its outbox (lesson 3) and the outbox publisher sends it to the `progress-events` topic with the learner id as the key. The progress read model behind **My Courses** consumes that topic. This is the change that cut the lag:"),
+        p("The progress service writes every change to its outbox (lesson 1.3) and the outbox publisher sends it to the `progress-events` topic with the learner id as the key. The progress read model behind **My Courses** consumes that topic. This is the change that cut the lag:"),
         code("typescript", `
 // progress-read-model/progress.consumer.ts - the change that shipped
 const limit = pLimit(16);
@@ -64,7 +64,7 @@ WHERE p.learner_id = 'u_17' AND p.course_id = 'redis-patterns';
         bullets([
             "**Kafka**: order is kept inside a partition. The default partitioner picks the partition from a hash of the message key, so all messages with the same key land in the same partition, in the order they were produced (with idempotent producers, retries do not reorder them). Two partitions have no order between them.",
             "**Amazon SQS FIFO**: order is kept per `MessageGroupId`. While a message of a group is in flight, the queue does not hand out later messages of that group, so different groups are processed in parallel and one group stays sequential.",
-            "**RabbitMQ**: a queue is FIFO, but with several consumers, a prefetch count above 1 or a requeue after a failure, messages are processed out of order. Options are a single active consumer per queue, or one queue per shard of keys (for example with the consistent hash exchange plugin).",
+            "**RabbitMQ**: a queue is FIFO, but with several consumers, a consumer that handles its prefetched messages concurrently, or a requeue after a failure (later messages are already delivered), messages are processed out of order. Options are a single active consumer per queue, or one queue per shard of keys (for example with the consistent hash exchange plugin).",
         ]),
         callout("info", "Check the details of your broker",
             "Each broker documents its own ordering guarantee and its exceptions (retries, partition count changes, redelivery after a visibility timeout). Read the current documentation of the one you run; this lesson uses the common idea - order per key - that all three support."),
@@ -75,7 +75,7 @@ WHERE p.learner_id = 'u_17' AND p.course_id = 'redis-patterns';
         h2("4. Do you need ordering at all?"),
         p("Ordering costs throughput: one slow event of a key delays every later event of that key. Before building it, check whether the handler can be made **order-insensitive**:"),
         bullets([
-            "**Commutative updates** do not care about order: adding points (`+50`, `-10`) gives the same total in any order, as long as each event counts once (lesson 5, inbox).",
+            "**Commutative updates** do not care about order: adding points (`+50`, `-10`) gives the same total in any order, as long as each event counts once (lesson 2.2, inbox).",
             "**Absolute state with a version** can ignore stale events. If the producer gives every event of a learner an increasing sequence number, the consumer writes only when the event is newer than what it stored. The incident's handler becomes:",
         ]),
         code("sql", `
@@ -125,14 +125,14 @@ async function processBatch(messages: KafkaMessage[], handle: (m: KafkaMessage) 
             "**Offsets are committed by the low-water mark.** With events finishing out of offset order across keys, you may commit offset N only when every event below N is done; otherwise a crash loses the unfinished ones.",
         ]),
         callout("tip", "Libraries that do this",
-            "Some clients ship this pattern. KafkaJS can consume several partitions concurrently (partitionsConsumedConcurrently) while keeping each partition in order; the Confluent Parallel Consumer (Java) has a key-ordered mode with per-key concurrency inside a partition. Know what your library guarantees before writing your own."),
+            "Some clients ship this pattern. KafkaJS can consume several partitions concurrently (partitionsConsumedConcurrently) while keeping each partition in order; the Confluent Parallel Consumer (Java) has a key-ordered mode with per-key concurrency inside a partition (Confluent no longer maintains it; check the project status before you adopt it). Know what your library guarantees before writing your own."),
 
         h2("6. Gaps: when an event is missing"),
         p("A per-key sequence number also tells the consumer when something is **missing**. If learner u_17 is at seq 41 and seq 43 arrives, seq 42 is late (still in a retry, on another partition after a repartition, or lost by a bug upstream). The consumer has three choices:"),
         bullets([
             "**Hold** 43 and later events of u_17 until 42 arrives. Other learners keep going.",
             "**Give up after a timeout**: report the gap (a log line and a metric with the key and the missing range), then continue from 43. Acceptable when events carry absolute state, because 43 supersedes 42.",
-            "**Park the key** and page someone, when skipping would create a wrong state (a balance, a state machine). Reconciliation (lesson 11) repairs it from the source of truth.",
+            "**Park the key** and page someone, when skipping would create a wrong state (a balance, a state machine). Reconciliation (lesson 4.2) repairs it from the source of truth.",
         ]),
         p("Duplicates fall out of the same bookkeeping: an event whose seq is at or below the key's next expected seq has already been handled (or given up) and is dropped. The timer must run on an injected clock, both so that tests can control it and so that a gap is measured from the moment it appears - not from when the consumer started."),
         p("In the exercise you write the dispatcher of such a pool: per-key queues, one event in flight per key, gap detection with a timeout on a fake clock, and no key blocking another. The runner delivers interleaved, out-of-order and duplicate events with scripted processing times and prints the processing order per key and the completion times."),

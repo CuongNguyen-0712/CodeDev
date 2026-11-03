@@ -58,11 +58,11 @@ LIMIT 3;
         p("There are three ways to make applying an event idempotent. Pick by how your events are ordered and what the projection stores:"),
         bullets([
             "**Recompute from the source.** If the projection is a pure function of a source table (score = sum of the ledger), recompute the affected rows instead of adding deltas. Simplest when the source is queryable and cheap enough.",
-            "**Inbox by event id** (lesson 5). Store every applied event id with the change; skip known ids. Works in any order, at the cost of one row per event.",
+            "**Inbox by event id** (lesson 2.2). Store every applied event id with the change; skip known ids. Works in any order, at the cost of one row per event.",
             "**A high-water mark per partition.** Store the last applied offset of each partition **in the same transaction** as the state change; skip any event at or below it. One row per partition, and it tells you exactly where to resume.",
         ]),
         callout("warning", "A high-water mark needs in-order processing",
-            "\"Skip everything at or below the last offset\" assumes offsets are applied in order within a partition. If a consumer processes a partition concurrently (lesson 7) and offset 105 finishes before 104, the mark jumps to 105 and 104 is skipped forever. With concurrency inside a partition, use an inbox by event id instead."),
+            "\"Skip everything at or below the last offset\" assumes offsets are applied in order within a partition. If a consumer processes a partition concurrently (lesson 3.1) and offset 105 finishes before 104, the mark jumps to 105 and 104 is skipped forever. With concurrency inside a partition, use an inbox by event id instead."),
         p("Whatever you choose, keep **side effects out of the projection**. A handler that also sends the \"You reached the top 10\" email or pays the weekly reward will do it again on every replay. Projections only write their own tables; jobs that act on them read the projection."),
 
         h2("4. Worked example: offsets stored with the state"),
@@ -134,7 +134,7 @@ CREATE OR REPLACE VIEW leaderboard AS
   SELECT learner_id, score FROM leaderboard_scores WHERE projection = 'leaderboard_v2';
 COMMIT;`, "switch.sql"),
         callout("info", "A rebuild needs the whole history",
-            "Reading a topic from offset 0 only rebuilds everything if the topic still has everything. Kafka deletes old segments after the topic's retention period unless retention is unlimited or the topic is compacted. If it does not keep the full history, rebuild from the source of truth (the points ledger) up to a known offset, then continue from the topic. Check your topic's retention settings before you plan on replays."),
+            "Reading a topic from offset 0 only rebuilds everything if the topic still has everything. Kafka deletes old segments after the topic's retention period unless retention is unlimited (retention.ms = -1); a compacted topic keeps only the latest record per key, so it does not keep every event either. If it does not keep the full history, rebuild from the source of truth (the points ledger) up to a known offset, then continue from the topic. Check your topic's retention settings before you plan on replays."),
         p("In the exercise you write the leaderboard store behind all of this: versioned scores, offsets per version and partition kept atomically with the scores, a switch that refuses a version that has not caught up, all on an in-memory database with transactions. The runner mixes live consumption, replays from an offset, a rebuild and crashes right after a commit, and prints the final offsets and scores. A naive projection doubles them."),
 
         challenge("chal_coding_dce_322"),

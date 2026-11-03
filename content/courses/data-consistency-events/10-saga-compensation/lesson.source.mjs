@@ -122,7 +122,6 @@ async run(sagaId: string): Promise<void> {
         await this.sendReceipt(saga);
     }
     if (saga.status === "compensating" || saga.status === "stuck") await this.compensate(saga);
-}
 }`, "purchase-saga.orchestrator.ts"),
         p("`compensate` walks `done` backwards (newest first), skips every compensation already in `undone`, saves after each one, and ends with `aborted`. If a compensation still fails after its retries, it saves `stuck` and stops; the next run starts again from the same record."),
         p("Follow one crash through it. The process dies after `cancelEnrollment` committed but before `undone` was saved. The next run loads `status = compensating`, `done = [pay, enroll]`, `undone = []`, and runs `cancelEnrollment` again. That is only correct if running it twice is the same as running it once."),
