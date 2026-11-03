@@ -7,16 +7,26 @@ import VerifyEmailBanner from '@/components/auth/verifyEmailBanner';
 
 import { SidebarInset, SidebarProvider } from '@/components/shadcn/sidebar';
 
-import { Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useApp } from "@/contexts/appContext";
 
 // The feedback form (and the zod schemas it validates with) loads only once `?modal=feedback` is set,
 // so it stays out of every page's initial bundle.
 const Feedback = dynamic(() => import('@/components/ui/feedback'));
 
+// Opened only after the page has hydrated: on a direct load of `?modal=feedback` the dialog would
+// otherwise set aria-hidden on page markup that is still hydrating (a hydration mismatch).
 function FeedbackGate() {
     const params = useSearchParams();
-    return params.get('modal') === 'feedback' ? <Feedback /> : null;
+    const [ready, setReady] = useState(false);
+    useEffect(() => {
+        // Safari has no requestIdleCallback.
+        const idle = window.requestIdleCallback || ((cb) => setTimeout(cb, 1));
+        const cancel = window.cancelIdleCallback || clearTimeout;
+        const id = idle(() => setReady(true));
+        return () => cancel(id);
+    }, []);
+    return ready && params.get('modal') === 'feedback' ? <Feedback /> : null;
 }
 
 function LayoutContent({ children, footer }) {

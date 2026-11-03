@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { SyntaxHighlighter } from "@/lib/syntaxHighlighter";
+import { highlightToHtml } from "@/lib/syntaxHighlighter";
 import { SiC, SiCplusplus, SiDotnet, SiGo, SiJavascript, SiKotlin, SiOpenjdk, SiPhp, SiPython, SiRust, SiTypescript } from "react-icons/si";
 import { LuAlignLeft, LuFileCode, LuKeyboard } from "react-icons/lu";
 
@@ -555,16 +555,15 @@ export default function CodeEditor({
     };
 
     // Re-highlight only when the text changes, not on every caret move or scroll.
+    // One HTML string per change (lib/syntaxHighlighter): far cheaper per key than React elements.
     const highlighted = useMemo(() => (
-        <SyntaxHighlighter
-            language={language || "javascript"}
-            style={syntaxTheme}
-            PreTag="div"
-            customStyle={{ margin: 0, padding: PADDING, background: "transparent", overflow: "visible" }}
-        >
-            {/* Trailing newline keeps the last empty line measurable, as in the textarea. */}
-            {value + "\n"}
-        </SyntaxHighlighter>
+        <div style={{ ...syntaxTheme['pre[class*="language-"]'], margin: 0, padding: PADDING, background: "transparent", overflow: "visible" }}>
+            <code
+                style={syntaxTheme['code[class*="language-"]']}
+                // Trailing newline keeps the last empty line measurable, as in the textarea.
+                dangerouslySetInnerHTML={{ __html: highlightToHtml(value + "\n", language || "javascript") }}
+            />
+        </div>
     ), [value, language]);
 
     const displayFile = fileName || "solution.js";
