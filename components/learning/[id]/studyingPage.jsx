@@ -25,6 +25,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/too
 
 import LearningLesson from "./lessons";
 import { LevelPointsChip } from "@/components/ui/level";
+import { SignedIn } from "@/components/auth/signedIn";
 
 import {
     LuArrowLeft,
@@ -505,7 +506,7 @@ export default function StudyingPage({ params }) {
                     )}
                 </div>
 
-                <LevelPointsChip />
+                <SignedIn><LevelPointsChip /></SignedIn>
 
                 <Button variant="ghost" size="sm" onClick={() => setDetailsOpen(true)} className="text-muted-foreground hover:text-foreground">
                     <LuInfo />

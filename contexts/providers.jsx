@@ -8,6 +8,7 @@ import { TooltipProvider } from "@/components/shadcn/tooltip"
 import AppToaster from "@/components/ui/alert"
 import { LevelUpDialog, RankUpWatcher } from "@/components/ui/level"
 import { RatePromptDialog } from "@/components/course/ratePromptDialog"
+import { SignedIn } from "@/components/auth/signedIn"
 
 export function Provider({ children }) {
     return (
@@ -26,7 +27,7 @@ export function Provider({ children }) {
                             <AppToaster />
                             <LevelUpDialog />
                             <RatePromptDialog />
-                            <RankUpWatcher />
+                            <SignedIn><RankUpWatcher /></SignedIn>
                         </AppProvider>
                     </ThemeProvider>
                 </QueryProvider>

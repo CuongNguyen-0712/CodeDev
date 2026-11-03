@@ -4,6 +4,7 @@ import Dashboard from '@/components/ui/dashboard';
 import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
 import VerifyEmailBanner from '@/components/auth/verifyEmailBanner';
+import { SignedIn } from '@/components/auth/signedIn';
 
 import { SidebarInset, SidebarProvider } from '@/components/shadcn/sidebar';
 
@@ -51,7 +52,7 @@ function LayoutContent({ children, footer }) {
 
             <SidebarInset className="min-h-0 min-w-0 overflow-hidden">
                 <Navbar />
-                <VerifyEmailBanner />
+                <SignedIn><VerifyEmailBanner /></SignedIn>
 
                 {/* The page scroller: hooks/useInfiniteScroll observes it by id. The page is at least a
                     screen tall, so the footer starts below the fold: otherwise it shows at the bottom
