@@ -46,7 +46,7 @@ curl -s -o /dev/null https://api.codedev.test/v1/progress \\
   -w "dns %{time_namelookup}  tcp %{time_connect}  tls %{time_appconnect}  first byte %{time_starttransfer}  total %{time_total}\\n"
 
 dns 0.604  tcp 0.735  tls 1.021  first byte 1.114  total 1.118`, "terminal"),
-        p("Each number is **cumulative**, in seconds since the start: the TCP connection was ready at 0.735 s, TLS at 1.021 s, and the first byte of the answer arrived at 1.114 s. The server's own work is only the gap between `tls` and `first byte`. If you run the command twice and the `dns` value drops to almost zero, your operating system cached the DNS answer - which is the first clue about why only the first visit is slow."),
+        p("Each number is **cumulative**, in seconds since the start: the TCP connection was ready at 0.735 s, TLS at 1.021 s, and the first byte of the answer arrived at 1.114 s. The server's own work fits inside the gap between `tls` and `first byte`, together with one network round trip. If you run the command twice and the `dns` value drops to almost zero, your operating system cached the DNS answer - which is the first clue about why only the first visit is slow."),
 
         h2("3. Step one: the URL says where to go"),
         p("Before anything is sent, the browser splits the URL into parts. Each part has a different job, and one of them never leaves the browser:"),

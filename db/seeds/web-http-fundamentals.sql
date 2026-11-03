@@ -78,6 +78,7 @@ ON CONFLICT (public_id) DO UPDATE SET
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
     points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_whf_111');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_whf_111');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_whf_111'), 'A learner clicks this link in the course syllabus:
@@ -137,6 +138,7 @@ ON CONFLICT (public_id) DO UPDATE SET
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
     points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_whf_121');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_whf_121');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_whf_121'), 'The mobile app sends the same request twice because the learner double-taps "Leave course":
@@ -248,6 +250,7 @@ ON CONFLICT (public_id) DO UPDATE SET
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
     points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_whf_131');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_whf_131');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_whf_131'), 'DevTools > Network, the failed submission during the deploy:
@@ -362,6 +365,7 @@ ON CONFLICT (public_id) DO UPDATE SET
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
     points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_whf_211');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_whf_211');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_whf_211'), 'The admin app at https://admin.codedev.test calls the API with credentials: "include". Its console says the request was blocked by CORS policy. The backend developer runs:
@@ -468,6 +472,7 @@ ON CONFLICT (public_id) DO UPDATE SET
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
     points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_whf_221');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_whf_221');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_whf_221'), 'After the fix, GET https://api.codedev.test/me/progress answers:
@@ -570,6 +575,7 @@ ON CONFLICT (public_id) DO UPDATE SET
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
     points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_whf_231');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_whf_231');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_whf_231'), 'After the teammate''s change, the login response from https://api.codedev.test contains:
@@ -577,7 +583,7 @@ WITH q AS (
 HTTP/2 200
 set-cookie: session=s%3A9f2c...; Path=/; HttpOnly; SameSite=None
 
-Statement: "The browser stores this cookie and, because of SameSite=None, sends it on every later request to api.codedev.test, including cross-site ones."', 'single_choice'::question_type, 'False. A cookie with SameSite=None must also carry the Secure attribute; current browsers reject a SameSite=None cookie without Secure, so this cookie is never stored (DevTools shows a warning on the Set-Cookie line, and Application > Cookies stays empty). The misconception is that SameSite=None is a harmless "allow everything" switch. Here it was not even needed: app.codedev.test and api.codedev.test are the same site, so SameSite=Lax cookies are sent on requests between them.', 1, 5
+Statement: "The browser stores this cookie and, because of SameSite=None, sends it on every later request to api.codedev.test, including cross-site ones."', 'single_choice'::question_type, 'False. A cookie with SameSite=None must also carry the Secure attribute; Chrome, Edge and Firefox reject a SameSite=None cookie without Secure, so this cookie is never stored (DevTools shows a warning on the Set-Cookie line, and Application > Cookies stays empty). The misconception is that SameSite=None is a harmless "allow everything" switch. Here it was not even needed: app.codedev.test and api.codedev.test are the same site, so SameSite=Lax cookies are sent on requests between them.', 1, 5
     WHERE NOT EXISTS (SELECT 1 FROM challenge.questions WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_whf_231') AND order_index = 1)
     RETURNING id
 )
@@ -645,6 +651,7 @@ ON CONFLICT (public_id) DO UPDATE SET
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
     points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_whf_311');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_whf_311');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_whf_311'), 'The submissions client logged this after one click on Run (the access token had expired at 09:12):
@@ -746,6 +753,7 @@ ON CONFLICT (public_id) DO UPDATE SET
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
     points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_whf_321');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_whf_321');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_whf_321'), 'The "My courses" page loads like this:
@@ -835,6 +843,7 @@ INSERT INTO challenge.challenge_hints (challenge_id, level, body)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_whf_331'), 1, 'Which line of the capture is the server''s real answer, and which line is the browser''s reaction to it?'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_whf_331'), 2, 'Compare the response headers of the preflight (request 1) with those of the GET (request 2), and look at the WWW-Authenticate header and the token''s exp claim.'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_whf_331'), 3, 'A similar case: a page shows "Failed to fetch" and the Network panel shows the request with status 503 and no CORS header. The 503 is the cause (the server is overloaded); the missing header only explains why the script could not read it. Fix the cause, then make error responses carry CORS headers too.');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_whf_331');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_whf_331'), 'Evidence pack, step 1 (read the evidence). Console on https://app.codedev.test/progress:
@@ -979,7 +988,7 @@ VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_whf_
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_whf_332'), '403 and 404 are surfaced as errors, never hidden behind cached data', '{"scenarios":[{"userId":"u_4821","cached":{"completed":12,"total":40,"streak":6},"responses":[{"status":403,"body":{"title":"Forbidden","status":403}}]},{"userId":"u_5000","cached":{"completed":1,"total":8,"streak":0},"responses":[{"status":404,"body":{"title":"Not Found","status":404}}]}]}', '[{"result":{"status":"error","httpStatus":403},"fetchCalls":1,"cacheAfter":{"completed":12,"total":40,"streak":6}},{"result":{"status":"error","httpStatus":404},"fetchCalls":1,"cacheAfter":{"completed":1,"total":8,"streak":0}}]', 5, false, true, 6),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_whf_332'), 'A 401 is not retried, even when a second request would have succeeded', '{"scenarios":[{"userId":"u_31","cached":null,"responses":[{"status":401},{"status":200,"body":{"completed":9,"total":10,"streak":4}}]}]}', '[{"result":{"status":"signed_out"},"fetchCalls":1,"cacheAfter":null}]', 5, false, true, 7);
 INSERT INTO storage.assets (public_id, provider, object_key, resource_type, mine_type, file_size, original_name)
-VALUES ('ast_chal_coding_whf_332_starter', 's3', 'challenges/javascript/chal_coding_whf_332/starter.js', 'raw', 'application/javascript', 2334, 'loadProgress.js')
+VALUES ('ast_chal_coding_whf_332_starter', 's3', 'challenges/javascript/chal_coding_whf_332/starter.js', 'raw', 'application/javascript', 2332, 'loadProgress.js')
 ON CONFLICT (public_id) DO UPDATE SET object_key = EXCLUDED.object_key, file_size = EXCLUDED.file_size, mine_type = EXCLUDED.mine_type, original_name = EXCLUDED.original_name, updated_at = now();
 INSERT INTO challenge.coding_files (challenge_id, language, file_path, file_role, asset_id)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_coding_whf_332'), 'javascript', 'loadProgress.js', 'starter', (SELECT id FROM storage.assets WHERE public_id = 'ast_chal_coding_whf_332_starter'))
@@ -1009,6 +1018,7 @@ INSERT INTO challenge.challenge_hints (challenge_id, level, body)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_whf_341'), 1, 'For each retried request, ask: if the server already did the first one and only the response was lost, what does the second one change on the server?'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_whf_341'), 2, 'Look up what RFC 9110 section 9.2.2 says about PUT, DELETE and POST, and what RFC 9457 section 3.1 says about the difference between title and detail.'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_whf_341'), 3, 'A similar case: DELETE /enrollments/enr_901 is sent twice. The first removes the enrollment, the second gets 404. The responses differ, but the server''s state after two requests is the same as after one - that is what idempotent means.');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_whf_341');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_whf_341'), 'The mobile app enrolled learner u_4821 in a course on a slow network:

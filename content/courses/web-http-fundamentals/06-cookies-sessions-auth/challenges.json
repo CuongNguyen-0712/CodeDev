@@ -14,7 +14,7 @@
           "type": "single_choice",
           "points": 5,
           "question": "After the teammate's change, the login response from https://api.codedev.test contains:\n\nHTTP/2 200\nset-cookie: session=s%3A9f2c...; Path=/; HttpOnly; SameSite=None\n\nStatement: \"The browser stores this cookie and, because of SameSite=None, sends it on every later request to api.codedev.test, including cross-site ones.\"",
-          "explanation": "False. A cookie with SameSite=None must also carry the Secure attribute; current browsers reject a SameSite=None cookie without Secure, so this cookie is never stored (DevTools shows a warning on the Set-Cookie line, and Application > Cookies stays empty). The misconception is that SameSite=None is a harmless \"allow everything\" switch. Here it was not even needed: app.codedev.test and api.codedev.test are the same site, so SameSite=Lax cookies are sent on requests between them.",
+          "explanation": "False. A cookie with SameSite=None must also carry the Secure attribute; Chrome, Edge and Firefox reject a SameSite=None cookie without Secure, so this cookie is never stored (DevTools shows a warning on the Set-Cookie line, and Application > Cookies stays empty). The misconception is that SameSite=None is a harmless \"allow everything\" switch. Here it was not even needed: app.codedev.test and api.codedev.test are the same site, so SameSite=Lax cookies are sent on requests between them.",
           "options": [
             { "text": "True", "correct": false },
             { "text": "False", "correct": true }

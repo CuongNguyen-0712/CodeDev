@@ -54,7 +54,7 @@ Cookie: session=s%3A9f2c...`, "Set-Cookie, then Cookie"),
         bullets([
             "`HttpOnly` - JavaScript cannot read the cookie through `document.cookie`. If an attacker manages to run script on your page (XSS), they cannot copy the session identifier out. It does not stop the XSS itself, and it does not stop requests made from the page.",
             "`Secure` - the cookie is only sent over HTTPS, never over plain HTTP.",
-            "`SameSite` - decides whether the cookie is sent on requests that come from **another site**. `Strict`: never cross-site. `Lax`: cross-site only on top-level navigations with safe methods, such as clicking a link. `None`: on all requests, and **only valid together with `Secure`** - browsers reject a `SameSite=None` cookie without `Secure`.",
+            "`SameSite` - decides whether the cookie is sent on requests that come from **another site**. `Strict`: never cross-site. `Lax`: cross-site only on top-level navigations with safe methods, such as clicking a link. `None`: on all requests, and **only valid together with `Secure`** - Chrome, Edge and Firefox reject a `SameSite=None` cookie without `Secure`.",
             "`Domain` - without it, the cookie is **host-only**: sent only to the exact host that set it. `Domain=codedev.test` widens it to every subdomain, including ones you do not control well. Leave it out unless you need it.",
             "`Path` - limits the cookie to URLs under a path. It is for organising cookies, not for security.",
             "`Max-Age` / `Expires` - how long the browser keeps the cookie.",

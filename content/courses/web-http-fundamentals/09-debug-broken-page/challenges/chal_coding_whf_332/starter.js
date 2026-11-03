@@ -9,7 +9,7 @@
  * progress per user under the key "progress:<userId>". get() returns undefined when empty.
  *
  * The fixed function makes EXACTLY ONE request per call (the "Try again" button and the retry
- * helper from lesson 3.1 decide about retries) and returns one of these outcomes:
+ * helper from lesson 7 decide about retries) and returns one of these outcomes:
  *   - 2xx                      -> { status: "fresh", data }        and cache.set(key, data)
  *   - 401                      -> { status: "signed_out" }         no cached data, no retry
  *   - fetch rejects, or 5xx    -> { status: "stale", data }        when the cache has an entry
