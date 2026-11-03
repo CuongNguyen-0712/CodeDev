@@ -78,6 +78,7 @@ ON CONFLICT (public_id) DO UPDATE SET
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
     points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_sdm_111');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_sdm_111');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_sdm_111'), 'Schema v1 stores the learners of each course in one text column:
@@ -139,6 +140,7 @@ ON CONFLICT (public_id) DO UPDATE SET
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
     points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_sdm_121');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_sdm_121');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_sdm_121'), 'Schema:
@@ -200,6 +202,7 @@ ON CONFLICT (public_id) DO UPDATE SET
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
     points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_sdm_131');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_sdm_131');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_sdm_131'), 'enrollments(user_id, course_id, course_title, enrolled_at, status), primary key (user_id, course_id). course_title is copied from courses.title when a learner enrolls.
@@ -268,6 +271,7 @@ ON CONFLICT (public_id) DO UPDATE SET
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
     points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_sdm_211');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_sdm_211');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_sdm_211'), 'The old admin tool searched learners by email like this (Python, sqlite3):
@@ -368,6 +372,7 @@ ON CONFLICT (public_id) DO UPDATE SET
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
     points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_sdm_221');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_sdm_221');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_sdm_221'), 'Course 1 "SQL & Data Modeling" has 4 enrollments (all active) and 6 lessons.
@@ -463,6 +468,7 @@ ON CONFLICT (public_id) DO UPDATE SET
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
     points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_sdm_231');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_sdm_231');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_sdm_231'), 'courses has two rows: (10, ''SQL Basics'') and (40, ''Kubernetes Basics''). lessons has three rows, all with course_id = 10. Course 40 has no lessons yet.
@@ -554,6 +560,7 @@ ON CONFLICT (public_id) DO UPDATE SET
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
     points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_sdm_311');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_sdm_311');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_sdm_311'), 'The schema was applied once from schema.sql:
@@ -656,6 +663,7 @@ INSERT INTO challenge.challenge_hints (challenge_id, level, body)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_sdm_321'), 1, 'When the driver runs in autocommit mode, where does each statement''s transaction start and end?'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_sdm_321'), 2, 'Look at where BEGIN and COMMIT are (or are not) in each snippet, and at the point where the first write happens relative to the slow call.'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_sdm_321'), 3, 'A similar case on other tables: a script runs UPDATE lessons SET position = position + 1, then INSERT INTO lessons ... fails on a NOT NULL column. Without BEGIN, the renumbering is already saved and stays saved. With BEGIN ... and a ROLLBACK in the error handler, the positions are back to what they were.');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_sdm_321');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_sdm_321'), 'The enrollment handler, before the fix (Python, sqlite3):
@@ -750,6 +758,7 @@ INSERT INTO challenge.challenge_hints (challenge_id, level, body)
 VALUES ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_sdm_331'), 1, 'Line up the log by time, not by request: what had happened in the database when each check ran?'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_sdm_331'), 2, 'Compare the time of the second check with the time of the first insert, then ask which proposed change makes checking and writing one step inside the database.'),
        ((SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_sdm_331'), 3, 'A similar case on other tables: two workers both run SELECT count(*) FROM users WHERE email = ''an@example.com'', both get 0, and both insert the same email. The fix there is UNIQUE on users.email, and the test that proves it runs both checks before both inserts.');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_sdm_331');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_sdm_331'), 'Evidence pack, step 1 (read the evidence). API log (two workers, each with its own database connection):
@@ -934,6 +943,7 @@ ON CONFLICT (public_id) DO UPDATE SET
     title = EXCLUDED.title, description = EXCLUDED.description, difficulty = EXCLUDED.difficulty, type = EXCLUDED.type,
     points = EXCLUDED.points, is_published = true, is_deleted = false, updated_at = now();
 DELETE FROM challenge.challenge_hints WHERE challenge_id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_sdm_341');
+UPDATE challenge.challenges SET quiz_display_count = NULL WHERE id = (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_sdm_341');
 WITH q AS (
     INSERT INTO challenge.questions (challenge_id, question, type, explanation, order_index, points)
     SELECT (SELECT id FROM challenge.challenges WHERE public_id = 'chal_quiz_sdm_341'), 'On a copy of production (SQLite, 3.2 million enrollments, busy_timeout = 5000 ms), the backfill

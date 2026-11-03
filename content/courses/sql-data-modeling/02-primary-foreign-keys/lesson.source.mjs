@@ -76,7 +76,7 @@ INSERT INTO b (title) VALUES ('x');
 
 SELECT rowid, id FROM a;   -- 1 | 1      id is the rowid
 SELECT rowid, id FROM b;   -- 1 | NULL   id is a separate column, and it is NULL`, "rowid_alias.sql"),
-        p("`INT PRIMARY KEY` is **not** an alias, and because of a long-standing SQLite quirk a non-integer primary key column may even hold NULL unless you also write `NOT NULL`. Write `INTEGER PRIMARY KEY` and check it with the query above."),
+        p("`INT PRIMARY KEY` is **not** an alias, and because of a long-standing SQLite quirk any primary key column that is not the rowid alias may even hold NULL unless you also write `NOT NULL`. Write `INTEGER PRIMARY KEY` and check it with the query above."),
         bullets([
             "Without `AUTOINCREMENT`, a new row gets one more than the largest rowid in the table, so after deleting the newest row its id can be handed out again. Add `AUTOINCREMENT` only if ids must never be reused (for example because they appear in old exported files); the SQLite docs advise against it otherwise because it costs extra work on every insert.",
             "In PostgreSQL the equivalent is `id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY` (or the older `serial` types).",
