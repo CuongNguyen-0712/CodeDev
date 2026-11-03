@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
@@ -12,6 +13,7 @@ import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbP
 import { LogoMark } from "@/components/ui/logo";
 import { AdminProvider } from "@/components/admin/adminContext";
 import StepUpDialog from "@/components/admin/mfa/stepUpDialog";
+import CommandPalette from "@/components/admin/shell/commandPalette";
 import { useTheme } from "@/contexts/themeContext";
 import { ADMIN_FOOTER_NAV, ADMIN_NAV, SETTINGS_SECTIONS, activeNavKey } from "@/lib/adminPermissions";
 import { cn } from "@/lib/utils";
@@ -21,7 +23,7 @@ import { useApp } from "@/contexts/appContext";
 
 import {
     LuActivity, LuArrowLeft, LuBookOpen, LuTags, LuClipboardList, LuKeyRound, LuLayoutDashboard, LuLoaderCircle,
-    LuLogOut, LuMoon, LuPlay, LuReceipt, LuServer, LuSettings, LuSun, LuTarget, LuUsers,
+    LuLogOut, LuMoon, LuPlay, LuReceipt, LuSearch, LuServer, LuSettings, LuSun, LuTarget, LuUsers,
 } from "react-icons/lu";
 
 const ICONS = {
@@ -144,6 +146,7 @@ export default function AdminShell({ permissions, environment, user, children })
     const granted = new Set(permissions);
     const visible = (items) => items.filter((item) => granted.has(item.permission));
     const activeKey = activeNavKey(pathname);
+    const [paletteOpen, setPaletteOpen] = useState(false);
 
     return (
         <AdminProvider permissions={permissions} environment={environment}>
@@ -198,7 +201,18 @@ export default function AdminShell({ permissions, environment, user, children })
                     <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-4">
                         <SidebarTrigger aria-label="Toggle navigation" className="-ml-1" />
                         <Crumbs pathname={pathname} />
-                        <span className={cn("ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold", env.chip)}>
+                        <button
+                            type="button"
+                            onClick={() => setPaletteOpen(true)}
+                            aria-label="Go to a screen or find a user"
+                            aria-keyshortcuts="Control+K Meta+K"
+                            className="ml-auto flex h-8 shrink-0 items-center gap-2 rounded-md border border-input px-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none max-sm:w-8 max-sm:justify-center max-sm:px-0"
+                        >
+                            <LuSearch aria-hidden="true" className="size-4" />
+                            <span className="max-sm:hidden">Search</span>
+                            <kbd className="rounded border border-border bg-muted px-1 font-sans text-[11px] text-muted-foreground max-sm:hidden">Ctrl K</kbd>
+                        </button>
+                        <span className={cn("inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold", env.chip)}>
                             <span aria-hidden="true" className={cn("size-1.5 rounded-full", env.dot)} />
                             {env.label}
                         </span>
@@ -209,6 +223,7 @@ export default function AdminShell({ permissions, environment, user, children })
                 </SidebarInset>
             </SidebarProvider>
             <StepUpDialog />
+            <CommandPalette permissions={permissions} open={paletteOpen} onOpenChange={setPaletteOpen} />
         </AdminProvider>
     );
 }
