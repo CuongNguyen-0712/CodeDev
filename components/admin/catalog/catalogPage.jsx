@@ -12,6 +12,7 @@ import { ConfirmDialog } from "@/components/admin/confirmDialog";
 import PageHeader from "@/components/admin/shell/pageHeader";
 import Finding, { plural } from "@/components/admin/ui/finding";
 import TabBar from "@/components/admin/ui/tabBar";
+import ListSearch, { matches } from "@/components/admin/ui/listSearch";
 import { useUrlFilters } from "@/components/admin/ui/useUrlFilters";
 import { formatNumber } from "@/components/admin/ui/format";
 import { Badge } from "@/components/shadcn/badge";
@@ -37,7 +38,7 @@ export default function CatalogPage() {
     const { can } = useAdmin();
     const { showAlert } = useApp();
     const queryClient = useQueryClient();
-    const [{ kind }, update] = useUrlFilters({ kind: KINDS.map((item) => item.key) }, { kind: "category" });
+    const [{ kind, q }, update] = useUrlFilters({ kind: KINDS.map((item) => item.key), q: 100 }, { kind: "category" });
     const [dialog, setDialog] = useState(null);
     const [form, setForm] = useState({ name: "", code: "" });
     const meta = KINDS.find((item) => item.key === kind);
@@ -60,6 +61,7 @@ export default function CatalogPage() {
     });
     const coded = query.data?.coded;
     const unused = query.data ? query.data.items.filter((item) => item.courses === 0).length : null;
+    const items = query.data ? query.data.items.filter((item) => matches(q, item.name, item.code)) : [];
 
     return (
         <>
@@ -70,7 +72,10 @@ export default function CatalogPage() {
                     : <Finding tone="good">{`Every one of the ${plural(query.data.items.length, meta.singular, meta.label.toLowerCase())} is used by a course.`}</Finding>}
                 actions={editable && <Button onClick={() => open({ action: "create" })}>Add {meta.singular}</Button>}
             />
-            <TabBar tabs={KINDS} value={kind} onChange={(key) => update({ kind: key })} label="Catalog lists" />
+            <TabBar tabs={KINDS} value={kind} onChange={(key) => update({ kind: key, q: "" })} label="Catalog lists" />
+            {query.data?.items.length > 0 && (
+                <ListSearch value={q} onChange={(value) => update({ q: value })} label={`Search ${meta.label.toLowerCase()}`} shown={items.length} total={query.data.items.length} noun={meta.label.toLowerCase()} />
+            )}
 
             <section tabIndex={0} className="overflow-x-auto rounded-lg border border-border bg-card focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none" aria-label={meta.label} aria-busy={query.isPending}>
                 {query.isPending ? (
@@ -79,6 +84,8 @@ export default function CatalogPage() {
                     <p className="p-4 text-sm">Couldn&apos;t load the list. <button type="button" className="font-medium text-primary-ink hover:underline" onClick={() => query.refetch()}>Retry</button></p>
                 ) : query.data.items.length === 0 ? (
                     <p className="p-4 text-sm text-muted-foreground">Nothing in this list yet.</p>
+                ) : items.length === 0 ? (
+                    <p className="p-4 text-sm text-muted-foreground">No {meta.singular} matches “{q.trim()}”.</p>
                 ) : (
                     <table className="w-full text-sm">
                         <thead>
@@ -91,7 +98,7 @@ export default function CatalogPage() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
-                            {query.data.items.map((item) => (
+                            {items.map((item) => (
                                 <tr key={item.id}>
                                     <td className="max-w-0 truncate px-3 py-2 sm:px-4">{item.name}</td>
                                     {coded && <td className="px-4 py-2 font-mono text-xs @max-2xl:hidden">{item.code}</td>}

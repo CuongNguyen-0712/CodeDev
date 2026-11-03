@@ -23,6 +23,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/shadcn/table";
 import RowAction from "@/components/admin/ui/rowAction";
 import { TableSkeleton } from "@/components/admin/ui/adminSkeleton";
+import ListSearch, { matches } from "@/components/admin/ui/listSearch";
+import { useUrlFilters } from "@/components/admin/ui/useUrlFilters";
 
 import { LuPencil } from "react-icons/lu";
 
@@ -57,8 +59,10 @@ export default function CourseAdmin() {
     const { can } = useAdmin();
     const { data, isPending, isError, refetch } = useQuery(adminQueries.courses());
     const [editingId, setEditingId] = useState(null);
+    const [{ q }, update] = useUrlFilters({ q: 100 });
 
     const courses = data?.courses || [];
+    const shown = courses.filter((course) => matches(q, course.title, course.id, course.publishStatus, course.accessModel));
     const editing = courses.find((course) => course.id === editingId) || null;
 
     if (isPending) {
@@ -68,6 +72,9 @@ export default function CourseAdmin() {
 
     return (
         <>
+            {courses.length > 0 && (
+                <ListSearch value={q} onChange={(value) => update({ q: value })} label="Search courses by title, slug or status" shown={shown.length} total={courses.length} noun="courses" />
+            )}
             <Table>
                 <TableHeader>
                     <TableRow>
@@ -80,10 +87,10 @@ export default function CourseAdmin() {
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {courses.length === 0 && (
-                        <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">No courses yet.</TableCell></TableRow>
+                    {shown.length === 0 && (
+                        <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">{courses.length ? `No course matches “${q.trim()}”.` : "No courses yet."}</TableCell></TableRow>
                     )}
-                    {courses.map((course) => (
+                    {shown.map((course) => (
                         <TableRow key={course.id}>
                             <TableCell className="max-w-40 @2xl:max-w-72">
                                 <Link href={`/admin/courses/${encodeURIComponent(course.id)}`} className="block truncate font-medium hover:underline">{course.title}</Link>

@@ -17,6 +17,7 @@ import { Button } from "@/components/shadcn/button";
 import { Field, FieldLabel } from "@/components/shadcn/field";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/shadcn/select";
 import RowAction from "@/components/admin/ui/rowAction";
+import ListSearch, { matches } from "@/components/admin/ui/listSearch";
 import { TableSkeleton } from "@/components/admin/ui/adminSkeleton";
 
 import { LuPencil } from "react-icons/lu";
@@ -34,6 +35,7 @@ export default function ChallengeManager({ courseId }) {
     const { showAlert } = useApp();
     const [editing, setEditing] = useState(null);
     const [draft, setDraft] = useState(null);
+    const [search, setSearch] = useState("");
     const update = useAdminUpdateChallenge();
     const query = useQuery({
         queryKey: adminKeys.challenges(courseId),
@@ -52,12 +54,14 @@ export default function ChallengeManager({ courseId }) {
     if (query.isPending) return <TableSkeleton rows={6} columns={5} label="Loading challenges" />;
     if (query.isError) return <p className="text-sm">Couldn&apos;t load the challenges. <button type="button" className="font-medium text-primary-ink hover:underline" onClick={() => query.refetch()}>Retry</button></p>;
 
-    const rows = query.data;
+    const all = query.data;
+    const rows = all.filter((challenge) => matches(search, challenge.title, challenge.type, challenge.difficulty, challenge.lesson_title, challenge.status));
     return (
         <>
+            {all.length > 0 && <ListSearch value={search} onChange={setSearch} label="Search challenges by title, lesson or type" shown={rows.length} total={all.length} noun="challenges" />}
             <div tabIndex={rows.length ? 0 : undefined} className="overflow-x-auto rounded-lg border border-border bg-card focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
                 {rows.length === 0 ? (
-                    <p className="p-4 text-sm text-muted-foreground">This course has no challenges.</p>
+                    <p className="p-4 text-sm text-muted-foreground">{all.length ? `No challenge matches “${search.trim()}”.` : "This course has no challenges."}</p>
                 ) : (
                     <table className="w-full text-sm">
                         <thead>
