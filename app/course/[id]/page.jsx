@@ -18,8 +18,13 @@ import { HydrationBoundary } from "@tanstack/react-query";
 // one copy serves every visitor. The viewer's enrolment, progress and ownership load in the browser
 // (hooks/useCourseDetails). Writes mark it stale at once (lib/pageCache).
 
-// The newest courses are built ahead; any other is generated on its first visit, then cached.
-// `params` is awaited outside <Suspense>, so that first visit creates the URL's own ISR entry.
+// `params` stays outside <Suspense>: the docs suggest awaiting it inside one for an instant first
+// visit to an unlisted id, but a <Suspense> around the main content shows it late (measured on
+// /course, docs/rendering-strategy-plan.md). `instant = false` only turns that check off.
+export const instant = false;
+
+// The newest courses are built ahead; any other is generated on its first visit, then cached (its
+// own ISR entry, because `params` is awaited outside <Suspense>). Course cards prefetch them.
 export async function generateStaticParams() {
     return (await getPrerenderedCourseIds()).map((id) => ({ id }));
 }

@@ -10,6 +10,10 @@ import { getPublicRoadmap } from "@/lib/cachedData";
 // minutes like the Redis copy); a signed-in learner's course progress loads in the browser
 // (roadmapQueries.details(id, "viewer")).
 
+// `params` stays outside <Suspense> (see app/course/[id]/page.jsx); `instant = false` only turns
+// the instant-navigation check off.
+export const instant = false;
+
 // Every roadmap is built ahead (a short list); `params` is awaited outside <Suspense>, so a roadmap
 // added later gets its own ISR entry on its first visit.
 export async function generateStaticParams() {
