@@ -111,7 +111,7 @@ export default function CourseDetail({ courseId }) {
                                             <span className="flex shrink-0 items-center">
                                                 <MoveButtons label={module.title} disabledUp={moduleIndex === 0} disabledDown={moduleIndex === course.modules.length - 1}
                                                     onMove={(move) => request({ kind: "module", itemId: module.id, move }, `Move module “${module.title}” ${move}`)} />
-                                                <RowAction icon={module.hidden ? LuEye : LuEyeOff} label={module.hidden ? "Show" : "Hide"} onClick={() => request({ kind: "module", itemId: module.id, hidden: !module.hidden }, `${module.hidden ? "Show" : "Hide"} module “${module.title}”`)} />
+                                                <RowAction icon={module.hidden ? LuEye : LuEyeOff} label={module.hidden ? "Show" : "Hide"} target={module.title} onClick={() => request({ kind: "module", itemId: module.id, hidden: !module.hidden }, `${module.hidden ? "Show" : "Hide"} module “${module.title}”`)} />
                                             </span>
                                         )}
                                     </header>
@@ -136,7 +136,7 @@ export default function CourseDetail({ courseId }) {
                                                         <>
                                                             <MoveButtons label={lesson.title} disabledUp={lessonIndex === 0} disabledDown={lessonIndex === module.lessons.length - 1}
                                                                 onMove={(move) => request({ kind: "lesson", itemId: lesson.id, move }, `Move lesson “${lesson.title}” ${move}`)} />
-                                                            <RowAction icon={lesson.hidden ? LuEye : LuEyeOff} label={lesson.hidden ? "Show" : "Hide"} onClick={() => request({ kind: "lesson", itemId: lesson.id, hidden: !lesson.hidden }, `${lesson.hidden ? "Show" : "Hide"} lesson “${lesson.title}”`)} />
+                                                            <RowAction icon={lesson.hidden ? LuEye : LuEyeOff} label={lesson.hidden ? "Show" : "Hide"} target={lesson.title} onClick={() => request({ kind: "lesson", itemId: lesson.id, hidden: !lesson.hidden }, `${lesson.hidden ? "Show" : "Hide"} lesson “${lesson.title}”`)} />
                                                         </>
                                                     )}
                                                 </span>

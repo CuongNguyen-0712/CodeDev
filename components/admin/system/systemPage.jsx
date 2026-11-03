@@ -144,8 +144,8 @@ export default function SystemPage() {
                                             <td className="px-5 py-2.5 text-right whitespace-nowrap text-muted-foreground">{formatRelative(letter.created_at)}</td>
                                             {can("ops.resolve") && (
                                                 <td className="px-5 py-2.5 text-right whitespace-nowrap">
-                                                    {!String(letter.kind).includes("code-run") && <RowAction icon={LuRotateCw} label="Retry" tone="primary" onClick={() => setActing({ kind: "retry", letter })} />}
-                                                    <RowAction icon={LuCheck} label="Resolve" onClick={() => setActing({ kind: "resolve", letter })} />
+                                                    {!String(letter.kind).includes("code-run") && <RowAction icon={LuRotateCw} label="Retry" target={letter.kind} tone="primary" onClick={() => setActing({ kind: "retry", letter })} />}
+                                                    <RowAction icon={LuCheck} label="Resolve" target={letter.kind} onClick={() => setActing({ kind: "resolve", letter })} />
                                                 </td>
                                             )}
                                         </tr>

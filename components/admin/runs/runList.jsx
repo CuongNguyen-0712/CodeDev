@@ -84,7 +84,7 @@ function RunRow({ run, canCancel, onCancel }) {
             </span>
             <span className="flex items-center justify-end gap-3">
                 <span className="text-sm text-muted-foreground">{formatRelative(run.queued_at)}</span>
-                {active && canCancel && <RowAction icon={LuX} label="Cancel" tone="danger" onClick={() => onCancel(run)} />}
+                {active && canCancel && <RowAction icon={LuX} label="Cancel" target={`run ${run.id}`} tone="danger" onClick={() => onCancel(run)} />}
             </span>
         </li>
     );

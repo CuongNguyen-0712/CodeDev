@@ -99,9 +99,9 @@ export default function CatalogPage() {
                                     <td className="px-4 py-2 text-right tabular-nums">{item.courses === 0 ? <Badge variant="warning">Unused</Badge> : formatNumber(item.courses)}</td>
                                     {editable && (
                                         <td className="px-4 py-2 text-right whitespace-nowrap">
-                                            <RowAction icon={LuPencil} label="Rename" onClick={() => open({ action: "rename", item })} />
-                                            {coded && <RowAction icon={item.is_active ? LuEyeOff : LuEye} label={item.is_active ? "Deactivate" : "Activate"} tone={item.is_active ? "warning" : "primary"} onClick={() => open({ action: item.is_active ? "deactivate" : "activate", item })} />}
-                                            {item.courses === 0 && <RowAction icon={LuTrash2} label="Delete" tone="danger" onClick={() => open({ action: "delete", item })} />}
+                                            <RowAction icon={LuPencil} label="Rename" target={item.name} onClick={() => open({ action: "rename", item })} />
+                                            {coded && <RowAction icon={item.is_active ? LuEyeOff : LuEye} label={item.is_active ? "Deactivate" : "Activate"} target={item.name} tone={item.is_active ? "warning" : "primary"} onClick={() => open({ action: item.is_active ? "deactivate" : "activate", item })} />}
+                                            {item.courses === 0 && <RowAction icon={LuTrash2} label="Delete" target={item.name} tone="danger" onClick={() => open({ action: "delete", item })} />}
                                         </td>
                                     )}
                                 </tr>

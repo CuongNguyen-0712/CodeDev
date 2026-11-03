@@ -94,7 +94,7 @@ export default function CourseAdmin() {
                             <TableCell className="@max-2xl:hidden"><PriceSummary offers={course.offers} /></TableCell>
                             <TableCell className="text-right font-mono tabular-nums @max-2xl:hidden">{course.students}</TableCell>
                             <TableCell className="text-right">
-                                <RowAction icon={LuPencil} label="Manage" tone="primary" onClick={() => setEditingId(course.id)} />
+                                <RowAction icon={LuPencil} label="Manage" target={course.title} tone="primary" onClick={() => setEditingId(course.id)} />
                             </TableCell>
                         </TableRow>
                     ))}

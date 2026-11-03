@@ -208,7 +208,7 @@ function Entitlements({ user }) {
                                 <TableCell className="@max-2xl:hidden">{formatDate(e.expires_at)}</TableCell>
                                 <TableCell className="text-right">
                                     {e.status === "active" && (
-                                        <RowAction icon={LuBan} label="Revoke" tone="danger" disabled={revoke.isPending} onClick={() => setRevoking(e)} />
+                                        <RowAction icon={LuBan} label="Revoke" target={e.title} tone="danger" disabled={revoke.isPending} onClick={() => setRevoking(e)} />
                                     )}
                                 </TableCell>
                             </TableRow>

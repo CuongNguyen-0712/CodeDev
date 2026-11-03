@@ -81,7 +81,7 @@ export default function OrdersAdmin() {
                         </TableCell>
                         <TableCell className="text-right">
                             {can("order.refund") && order.payment_method === "points" && order.status === "completed" && (
-                                <RowAction icon={LuUndo2} label="Refund" tone="danger" disabled={refund.isPending} onClick={() => setRefunding(order)} />
+                                <RowAction icon={LuUndo2} label="Refund" target={`${order.username}, ${order.course_title}`} tone="danger" disabled={refund.isPending} onClick={() => setRefunding(order)} />
                             )}
                         </TableCell>
                     </TableRow>

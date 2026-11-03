@@ -80,7 +80,7 @@ export default function ChallengeManager({ courseId }) {
                                     <td className="px-4 py-2.5 @max-2xl:hidden">{challenge.is_published ? <Badge variant="success">Published</Badge> : <Badge variant="muted">Hidden</Badge>}</td>
                                     <td className="px-4 py-2.5 text-right tabular-nums">{formatNumber(challenge.points)}</td>
                                     {can("challenge.update") && (
-                                        <td className="px-4 py-2.5 text-right"><RowAction icon={LuPencil} label="Edit" tone="primary" onClick={() => open(challenge)} /></td>
+                                        <td className="px-4 py-2.5 text-right"><RowAction icon={LuPencil} label="Edit" target={challenge.title} tone="primary" onClick={() => open(challenge)} /></td>
                                     )}
                                 </tr>
                             ))}
